@@ -1,0 +1,3 @@
+
+- setelah AI agent perlu ada edit fields untuk chat dan output terformat
+- harus dicoba 1/1 service nya agar mulus seperti apa?

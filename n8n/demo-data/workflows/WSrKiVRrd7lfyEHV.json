@@ -1,0 +1,44 @@
+{
+  "createdAt": "2025-05-05T22:50:05.386Z",
+  "updatedAt": "2025-05-05T23:49:21.185Z",
+  "id": "WSrKiVRrd7lfyEHV",
+  "name": "TelegramFlow",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1040,
+        -380
+      ],
+      "id": "04fa12fa-1911-4a24-9d4c-50cad96a3f92",
+      "name": "Telegram Trigger",
+      "webhookId": "a7f80beb-2beb-4ff5-ab6f-e7ee2bd48826",
+      "credentials": {
+        "telegramApi": {
+          "id": "J1qR7sYXrM8HBI73",
+          "name": "NyiiteungBot"
+        }
+      }
+    }
+  ],
+  "connections": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "9dddde6a-8fae-425a-95e3-5dea9d22df77",
+  "triggerCount": 1,
+  "tags": []
+}

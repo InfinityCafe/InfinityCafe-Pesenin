@@ -1,0 +1,253 @@
+{
+  "createdAt": "2025-05-05T16:16:15.937Z",
+  "updatedAt": "2025-05-06T02:18:28.185Z",
+  "id": "tGbHPiUBjEcKCjuJ",
+  "name": "AI Nyiiteung",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "model": "qwen3:14b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -340,
+        -160
+      ],
+      "id": "0f2f8a32-01e4-47bf-b870-63cf7d675c4b",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "xHuYe0MDGOs9IpBW",
+          "name": "Local Ollama service"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.elevenlabs.io/v1/text-to-speech/YdG2qjzCgPOV9F40veJ5",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n\"text\": {{ JSON.stringify($json.text).replace(/<think>[\\s\\S]*?<\\/think>\\n*/g,'e... ').replace(/\\\\n/g, '').replace(/\\\\\"/g, ''); }}\n }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        120,
+        -400
+      ],
+      "id": "56ba5e7a-457c-4250-8806-b72e2bfa1246",
+      "name": "HTTP Request",
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "PqvljSClPM1PzACT",
+          "name": "Custom Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -560,
+        -400
+      ],
+      "id": "85b6a98e-90de-472a-9e11-5021b5a3ca48",
+      "name": "Telegram Trigger",
+      "webhookId": "a7f80beb-2beb-4ff5-ab6f-e7ee2bd48826",
+      "credentials": {
+        "telegramApi": {
+          "id": "J1qR7sYXrM8HBI73",
+          "name": "NyiiteungBot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "sendAudio",
+        "chatId": "={{ $('Telegram Trigger').item.json.message.from.id }}",
+        "binaryData": true,
+        "additionalFields": {
+          "caption": "={{ JSON.stringify($json.text).replace(/<think>[\\s\\S]*?<\\/think>\\n*/g,'mmm.. ').replace(/\\n/g, '').replace(/\\\\n/g, '') }}",
+          "fileName": "response.opus"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        340,
+        -400
+      ],
+      "id": "5c86980f-4fa1-462f-955d-fd9d374907e2",
+      "name": "Telegram",
+      "webhookId": "f42b924c-43ae-4b32-98ce-26347ef94b0a",
+      "executeOnce": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "J1qR7sYXrM8HBI73",
+          "name": "NyiiteungBot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.from.id }}",
+        "text": "Mohon Tunggu...",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -280,
+        -560
+      ],
+      "id": "7e551301-fbd7-4a80-8f4b-87b3eeeab0c9",
+      "name": "Telegram1",
+      "webhookId": "e70a8055-5971-4018-bb8e-7743f3e48e41",
+      "credentials": {
+        "telegramApi": {
+          "id": "J1qR7sYXrM8HBI73",
+          "name": "NyiiteungBot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.from.id }}",
+        "text": "Sedang Diproses",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        20,
+        -560
+      ],
+      "id": "2b303cfc-f1a8-4064-a12e-ce29830c00b0",
+      "name": "Telegram2",
+      "webhookId": "b7bb2511-03a0-41e2-ac51-b6f5a3716702",
+      "credentials": {
+        "telegramApi": {
+          "id": "J1qR7sYXrM8HBI73",
+          "name": "NyiiteungBot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message.text }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Kamu adalah Kabayan, Seorang tokoh sunda, suka bercanda, sarkasme, humoris, selalu mengkritik\n\nuntuk perintah spesifik : jika user bertanya tentang sesuatu yang informasi spesifik, jawab dengan sarkasme, suka bercanda, sarkasme, humoris, selalu mengkritik/menyindir\n\nContoh\n\nuntuk update cuaca hari ini : \"ah panas, seperti di orang yang suka rebutan kursi panas\"\nuntuk sebuah list meeting : \"Mutang meeting .. kapan kerjanya .. kerja kerja kerja ga mikir\"\n\nuntuk pertanyaan general atau casual kontek: jika user bertanya atau ngobrol sesuatu yang umum  atau casual jawab dengan humanis dan humoris\n\ncontoh :\njika user bicara : \"siap bantu saya?\" jawab : \"Your wish is My Command, i will give u everyting\"\njika user berbicara : \"Terimakasih\" jawab : \"No Neeed ,.. U are My Master and my Precius\"\n\nterus harus jawab dengan cepat sekali jangan lama mikirnya\n\noutput : {{ $json.output }}\n"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        -280,
+        -400
+      ],
+      "id": "833e934c-2faf-44a7-a476-bb53ae61e388",
+      "name": "Nyiiteung Pesona"
+    }
+  ],
+  "connections": {
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Nyiiteung Pesona",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Nyiiteung Pesona",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram1": {
+      "main": [
+        []
+      ]
+    },
+    "Nyiiteung Pesona": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "59f57f1a-a418-4fdf-8b06-0bd42ee13c5b",
+  "triggerCount": 1,
+  "tags": []
+}

@@ -1,0 +1,329 @@
+{
+  "name": "Tele Ai Agent Cafe",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Telegram Trigger').item.json.message.text }}",
+        "options": {
+          "systemMessage": "Exec tools only./nothink",
+          "maxIterations": "={{ 4 }}",
+          "returnIntermediateSteps": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        640,
+        0
+      ],
+      "id": "8d1256bf-f012-4a08-a4ea-6e9c2b76ccaa",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sseEndpoint": "http://menu_service:8001/mcp"
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1,
+      "position": [
+        1140,
+        240
+      ],
+      "id": "2170d90d-bebc-4d06-a862-717e886f7b62",
+      "name": "MCP Client"
+    },
+    {
+      "parameters": {
+        "sseEndpoint": "http://order_service:8002/mcp"
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1,
+      "position": [
+        1020,
+        320
+      ],
+      "id": "08d4d80f-b274-42f7-af7a-38c5f48dcf68",
+      "name": "MCP Client1"
+    },
+    {
+      "parameters": {
+        "sseEndpoint": "http://kitchen_service:8003/mcp"
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1,
+      "position": [
+        840,
+        300
+      ],
+      "id": "909aea87-3c6b-42f3-a24c-59996d5d825f",
+      "name": "Kitchen Service"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c6e0a812-c7ad-4a82-90da-6d8168589c17",
+              "name": "start",
+              "value": "={{$now}}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "bd4fd2c9-318c-47d0-9e85-46ef6e3215e5",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5343ce7b-d579-494e-af90-dd0d4720df50",
+              "name": "=output",
+              "value": "={{\n  ($json.output.replace(/<think>[\\s\\S]*?<\\/think>/g, '')\n     .replace(/([\\*\\_\\[\\]\\(\\)\\~\\`\\>\\#\\+\\=\\|\\{\\}\\.\\!\\\\])/g, '\\\\$1') // escape karakter spesial\n  )\n  + \"\\n\\nresponded in \" +\n  ((DateTime.fromISO($now) - DateTime.fromISO($('Edit Fields').item.json.start)) / 1000).toFixed(2)\n  + \" detik\"\n}}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        960,
+        0
+      ],
+      "id": "9d22af76-c259-4538-bfca-adc21f4eabc9",
+      "name": "Format OutPut"
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        0
+      ],
+      "id": "616ceb42-599e-4bfa-aa37-66a22fb06d6c",
+      "name": "Telegram Trigger",
+      "webhookId": "0187bde0-c3b5-4ea2-8783-6a8a820345e5",
+      "credentials": {
+        "telegramApi": {
+          "id": "WNUGx5n2RcKa5fQs",
+          "name": "YourPartnerInStudy2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.from.id }}",
+        "text": "={{ $json.content }} {{'\\nDirespon selama : '}} {{ $json.responded_in }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1360,
+        0
+      ],
+      "id": "fc523f1c-fe82-42af-8035-0e816793b286",
+      "name": "Telegram",
+      "webhookId": "7988e33b-fd30-43e8-b50b-ac06213307e5",
+      "credentials": {
+        "telegramApi": {
+          "id": "WNUGx5n2RcKa5fQs",
+          "name": "YourPartnerInStudy2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "infinityCafe:latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        580,
+        200
+      ],
+      "id": "f7d128a1-2a15-4dd2-a4d0-ddeb6b1b1a81",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "xHuYe0MDGOs9IpBW",
+          "name": "Local Ollama service"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Telegram Trigger').item.json.message.from.id }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        700,
+        220
+      ],
+      "id": "56d159d2-93ff-4cf0-bba7-f6f5867931ed",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawOutput = $input.first().json.output;\n\n// Bersihkan escape dan newline\nconst cleaned = rawOutput\n  .replace(/<\\/?think>/g, '') // hapus <think> tag\n  .replace(/\\\\n/g, '\\n')       // ubah \\n jadi newline\n  .replace(/\\\\!/g, '!')        // ubah \\! jadi !\n  .replace(/\\\\_/g, '_')        // ubah \\_ jadi _\n  .replace(/\\\\\\./g, '.')       // ubah \\. jadi .\n  .replace(/\\\\\\(/g, '(')       // ubah \\( jadi (\n  .replace(/\\\\\\)/g, ')')       // ubah \\) jadi )\n  .replace(/\\\\\\[/g, '[')       // ubah \\[ jadi [\n  .replace(/\\\\\\]/g, ']')       // ubah \\] jadi ]\n  .replace(/\\\\\\d/g, s => s[1]) // ubah \\1, \\2, dst jadi angka\n  .replace(/\\\\\\\"/g, '\"')       // ubah \\\" jadi \"\n  .replace(/\\\\\\\\/g, '')        // hapus double backslash\n  .trim();\n\n// Ambil bagian waktu \"responded in\"\nconst timeMatch = cleaned.match(/responded in ([\\d.]+ detik)/);\nconst respondedIn = timeMatch ? timeMatch[1] : null;\n\n// Ambil bagian content\nconst contentMatch = cleaned.match(/\"content\":\\s*\"([\\s\\S]*?)\"/);\nlet content = contentMatch ? contentMatch[1] : null;\n\n// Jika content masih mengandung \\n atau karakter aneh, bersihkan lagi\nif (content) {\n  content = content\n    .replace(/\\\\n/g, '\\n')\n    .replace(/\\\\!/g, '!')\n    .replace(/\\\\_/g, '_')\n    .replace(/\\\\\\./g, '.')\n    .replace(/\\\\\\(/g, '(')\n    .replace(/\\\\\\)/g, ')')\n    .replace(/\\\\\\d/g, s => s[1])\n    .replace(/\\\\\\\"/g, '\"')\n    .replace(/\\\\\\\\/g, '')\n    .replace(/\\\\$/gm, ''); \n}\n\n// Return hasil\nreturn [\n  {\n    json: {\n      content,\n      responded_in: respondedIn\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        0
+      ],
+      "id": "bc9fd908-9f7c-45fe-9d7f-99959cdfb52d",
+      "name": "Code"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "MCP Client": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MCP Client1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kitchen Service": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Format OutPut",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format OutPut": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a6df9ab4-b2a9-4a52-86d9-151cd4b62abf",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "558d88703fb65b2d0e44613bc35916258b0f0bf983c5d4730c00c424b77ca36a"
+  },
+  "id": "AnXWxbV1ADPWsODj",
+  "tags": []
+}

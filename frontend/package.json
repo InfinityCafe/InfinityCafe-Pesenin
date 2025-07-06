@@ -1,0 +1,16 @@
+{
+  "name": "infinity-frontend",
+  "version": "1.0.0",
+  "description": "Frontend dashboard dan laporan untuk Infinity Cafe",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ejs": "^3.1.10",
+    "express": "^4.18.4",
+    "node-fetch": "^3.3.2",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^4.6.3"
+  }
+}

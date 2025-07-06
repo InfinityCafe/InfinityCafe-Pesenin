@@ -1,0 +1,144 @@
+{
+  "createdAt": "2025-05-05T09:26:43.126Z",
+  "updatedAt": "2025-05-05T16:11:21.905Z",
+  "id": "xuVgubmj5luRe7wo",
+  "name": "Kabayan",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -820,
+        -560
+      ],
+      "id": "5ffb033e-019b-490e-a8c6-3e8ea0d1fa94",
+      "name": "Telegram Trigger",
+      "webhookId": "c77c359a-bf4f-4d51-b341-b8856274ede4",
+      "credentials": {
+        "telegramApi": {
+          "id": "10uteafWYeNnAd8y",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        -540,
+        -720
+      ],
+      "id": "8faa6bb3-2161-47a1-b800-9c81cb7476ea",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "qwen3:14b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -680,
+        -320
+      ],
+      "id": "d9eb8d71-d063-40c6-9eaa-797ccbba3ff2",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "xHuYe0MDGOs9IpBW",
+          "name": "Local Ollama service"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.elevenlabs.io/v1/text-to-speech/29vD33N1CtxCmqQRPOHJ",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n    \"text\" : \"Hai\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -80,
+        -560
+      ],
+      "id": "0b67a04a-4f21-46cb-b851-9c908519612e",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "PqvljSClPM1PzACT",
+          "name": "Custom Auth account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "98bb1fb0-af49-4f5c-ac9a-6ac10f1a3cef",
+  "triggerCount": 0,
+  "tags": []
+}

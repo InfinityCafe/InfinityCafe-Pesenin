@@ -1,0 +1,37 @@
+{{
+  function hitungWkatu() {
+    const start= Date.parse("$start");
+    const end= Date.parse($now");
+    return end - start;
+  }
+  hitungWkatu();
+}}
+
+qwen14b:
+sebutkan nama-nama dari C-Level yang ada di perusahaan PT SynapTech Nusantara?
+
+Berdasarkan dokumen yang tersedia, nama-nama C-Level di PT SynapTech Nusantara adalah:
+
+    CEO (Chief Executive Officer)
+        Rizky Ardyansyah
+        (Sumber: "👤 Rizky Ardyansyah – CEO (Chief Executive Officer)")
+
+    CTO (Chief Technology Officer)
+        Dian Alfarizi
+        (Sumber: "🧠 Dian Alfarizi – CTO (Chief Technology Officer)")
+
+    CFO (Chief Financial Officer)
+        Meta
+        (Sumber: "Berpengalaman lebih dari 15 tahun di bidang keuangan startup dan korporasi, Meta memimpin pengelolaan keuangan perusahaan...")
+
+    COO (Chief Operating Officer)
+        Citra
+        (Sumber: "Citra bertugas memastikan setiap langkah bisnis selaras dengan visi jangka panjang...")
+
+Catatan:
+
+    Hanya 4 nama C-Level yang disebutkan dalam dokumen.
+    Tidak ada informasi tentang posisi C-Level lainnya (seperti CMO, CDO, dll.) dalam data yang tersedia.
+
+responded in 87.341 detik
+
