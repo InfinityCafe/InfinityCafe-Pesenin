@@ -115,8 +115,13 @@ def generate_order_id():
 def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     """Membuat pesanan baru dan mengirimkannya ke kitchen_service."""
 
-    last_queue_number = db.query(func.max(Order.queue_number)).scalar() or 0
-    new_queue_number = last_queue_number + 1
+    today = datetime.now(jakarta_tz).date()
+
+    last_order_today = db.query(Order).filter(func.date(Order.created_at) == today).order_by(Order.queue_number.desc()).first()
+    if last_order_today:
+        new_queue_number = last_order_today.queue_number + 1
+    else:
+        new_queue_number = 1
 
     order_id = generate_order_id()
     new_order = Order(
