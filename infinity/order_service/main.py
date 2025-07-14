@@ -3,7 +3,7 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, String, Integer, ForeignKey, Text, DateTime
+from sqlalchemy import create_engine, Column, String, Integer, ForeignKey, Text, DateTime, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from typing import List, Optional
@@ -61,6 +61,7 @@ mcp.mount(mount_path="/mcp",transport="sse")
 class Order(Base):
     __tablename__ = "orders"
     order_id = Column(String, primary_key=True)
+    queue_number = Column(Integer, unique=True, nullable=False)
     customer_name = Column(String)
     table_no = Column(String)
     room_name = Column(String)
@@ -113,9 +114,14 @@ def generate_order_id():
 @app.post("/create_order", summary="Buat pesanan baru", tags=["Order"], operation_id="add order")
 def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     """Membuat pesanan baru dan mengirimkannya ke kitchen_service."""
+
+    last_queue_number = db.query(func.max(Order.queue_number)).scalar() or 0
+    new_queue_number = last_queue_number + 1
+
     order_id = generate_order_id()
     new_order = Order(
         order_id=order_id,
+        queue_number=new_queue_number,
         customer_name=req.customer_name,
         table_no=req.table_no,
         room_name=req.room_name
@@ -130,6 +136,7 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
             "http://kitchen_service:8003/receive_order",
             json={
             "order_id": order_id,
+            "queue_number": new_queue_number,
             "orders": [item.model_dump() for item in req.orders],
             "customer_name": req.customer_name,
             "table_no": req.table_no,
@@ -141,7 +148,7 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     except Exception as e:
         logging.warning(f"⚠️ Order dibuat tapi gagal diteruskan ke kitchen: {e}")
 
-    return {"message": "Order created and forwarded to kitchen", "order_id": order_id}
+    return {"message": "Order created and forwarded to kitchen", "order_id": order_id, "queue_number": new_queue_number}
 
 @app.post("/cancel_order", summary="Batalkan pesanan", tags=["Order"], operation_id="cancel order")
 def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
@@ -167,7 +174,7 @@ def get_order_status(order_id: str, db: Session = Depends(get_db)):
     order = db.query(Order).filter(Order.order_id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    return {"order_id": order.order_id, "status": order.status}
+    return {"order_id": order.order_id, "status": order.status, "queue_number": order.queue_number}
 
 @app.get("/order", summary="Semua pesanan", tags=["Order"], operation_id="list order")
 def get_all_orders(db: Session = Depends(get_db)):
