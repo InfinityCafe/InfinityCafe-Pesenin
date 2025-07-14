@@ -21,8 +21,9 @@ INSERT INTO menu_suggestions (usulan_id, menu_name, customer_name, "timestamp") 
 ('USL-002', 'Croissant Coklat', 'Citra', NOW() - INTERVAL '1 day');
 
 -- === Pesanan 1: Selesai (Done) ===
-INSERT INTO orders (order_id, customer_name, table_no, room_name, status, created_at) VALUES
-('ORD-001', 'Fahri', 'T5', 'VIP 1', 'done', NOW() - INTERVAL '3 hour');
+-- DIPERBAIKI: Menambahkan kolom `queue_number` dengan nilai 1
+INSERT INTO orders (order_id, queue_number, customer_name, table_no, room_name, status, created_at) VALUES
+('ORD-001', 1, 'Fahri', 'T5', 'VIP 1', 'done', NOW() - INTERVAL '3 hour');
 
 INSERT INTO order_items (order_id, menu_name, quantity, preference) VALUES
 ('ORD-001', 'Cafe Latte', 1, 'Less sugar'),
@@ -32,8 +33,9 @@ INSERT INTO kitchen_orders (order_id, status, detail, customer_name, table_no, r
 ('ORD-001', 'done', E'1x Cafe Latte (Less sugar)\n1x Nasi Goreng Infinity (Pedas)', 'Fahri', 'T5', 'VIP 1', NOW() - INTERVAL '3 hour', NOW() - INTERVAL '2 hour 50 minutes', NOW() - INTERVAL '2 hour 45 minutes', NOW() - INTERVAL '2 hour 40 minutes');
 
 -- === Pesanan 2: Sedang Dibuat (Making) ===
-INSERT INTO orders (order_id, customer_name, table_no, room_name, status, created_at) VALUES
-('ORD-002', 'Rina', 'T2', 'Outdoor', 'making', NOW() - INTERVAL '25 minutes');
+-- DIPERBAIKI: Menambahkan kolom `queue_number` dengan nilai 2
+INSERT INTO orders (order_id, queue_number, customer_name, table_no, room_name, status, created_at) VALUES
+('ORD-002', 2, 'Rina', 'T2', 'Outdoor', 'making', NOW() - INTERVAL '25 minutes');
 
 INSERT INTO order_items (order_id, menu_name, quantity, preference) VALUES
 ('ORD-002', 'Americano', 2, '');
@@ -42,8 +44,9 @@ INSERT INTO kitchen_orders (order_id, status, detail, customer_name, table_no, r
 ('ORD-002', 'making', E'2x Americano ()', 'Rina', 'T2', 'Outdoor', NOW() - INTERVAL '25 minutes', NOW() - INTERVAL '20 minutes');
 
 -- === Pesanan 3: Baru Diterima (Receive) ===
-INSERT INTO orders (order_id, customer_name, table_no, room_name, status, created_at) VALUES
-('ORD-003', 'Joko', 'T8', 'Regular', 'receive', NOW() - INTERVAL '5 minutes');
+-- DIPERBAIKI: Menambahkan kolom `queue_number` dengan nilai 3
+INSERT INTO orders (order_id, queue_number, customer_name, table_no, room_name, status, created_at) VALUES
+('ORD-003', 3, 'Joko', 'T8', 'Regular', 'receive', NOW() - INTERVAL '5 minutes');
 
 INSERT INTO order_items (order_id, menu_name, quantity, preference) VALUES
 ('ORD-003', 'Mie Goreng Spesial', 1, 'Tidak pakai sayur'),
@@ -53,8 +56,9 @@ INSERT INTO kitchen_orders (order_id, status, detail, customer_name, table_no, r
 ('ORD-003', 'receive', E'1x Mie Goreng Spesial (Tidak pakai sayur)\n1x Kentang Goreng (Extra saus)', 'Joko', 'T8', 'Regular', NOW() - INTERVAL '5 minutes');
 
 -- === Pesanan 4: Dibatalkan (Cancelled) ===
-INSERT INTO orders (order_id, customer_name, table_no, room_name, status, created_at, cancel_reason) VALUES
-('ORD-004', 'Sari', 'T1', 'Outdoor', 'cancelled', NOW() - INTERVAL '1 day', 'Stok bahan baku habis');
+-- DIPERBAIKI: Menambahkan kolom `queue_number` dengan nilai 4
+INSERT INTO orders (order_id, queue_number, customer_name, table_no, room_name, status, created_at, cancel_reason) VALUES
+('ORD-004', 4, 'Sari', 'T1', 'Outdoor', 'cancelled', NOW() - INTERVAL '1 day', 'Stok bahan baku habis');
 
 INSERT INTO order_items (order_id, menu_name, quantity, preference) VALUES
 ('ORD-004', 'Teh Manis', 2, 'Hangat');
