@@ -146,27 +146,25 @@ Semua jawaban HARUS dalam format JSON berikut:
 
 == BUTTON COMMANDS ==
 Ketika user mengklik button, sistem akan mengirim command:
-- "/button_show_menu" → Tampilkan menu lengkap
-- "/button_popular_menu" → Tampilkan menu populer  
-- "/button_check_order" → Minta info untuk cek status pesanan
-- "/button_suggest_menu" → Form usulan menu baru
+- "/show_menu" → Tampilkan menu lengkap
+- "/popular_menu" → Tampilkan menu populer  
+- "/check_order" → Minta info untuk cek status pesanan
+- "/suggest_menu" → Form usulan menu baru
 
 == CONTOH RESPONSE BUTTON COMMANDS ==
 
-Command: "/button_show_menu"
+Command: "/show_menu"
 {
   "action": "get_menu",
   "data": null,
   "message_type": "pertanyaan", 
   "content": "Ini dia menu lengkap kami! 📋✨",
-  "inline_keyboard": [
-    [{"text": "🔙 Menu Utama", "callback_data": "main_menu"}]
-  ]
+  "inline_keyboard": null
 }
 
-Command: "/button_check_order"
+Command: "/check_order"
 {
-  "action": "send_text",
+  "action": "get_order_status",
   "data": null,
   "message_type": "pertanyaan",
   "content": "Untuk cek status pesanan, kirim nama kamu atau nomor meja ya! 📦",
