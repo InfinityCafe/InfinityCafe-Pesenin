@@ -18,6 +18,7 @@ import socket
 import logging
 import asyncio
 import json
+import requests
 from fastapi_mcp import FastApiMCP
 
 load_dotenv()
@@ -129,6 +130,17 @@ async def update_status(order_id: str, status: str, reason: str = "", db: Sessio
     order.status = status
 
     db.commit()
+
+    try:
+        requests.post(
+            f"http://order_service:8002/internal/update_status/{order_id}",
+            json={"status": status},
+            timeout=3
+        )
+        logging.info(f"Berhasil mengirim update status '{status}' untuk order {order_id} ke order_service.")
+    except Exception as e:
+        logging.error(f"Gagal mengirim update status ke order_service untuk order {order_id}: {e}")
+        
     await broadcast_orders(db)
     return {"message": f"Order {order_id} updated to status '{status}'", "timestamp": timestamp.isoformat()}
 

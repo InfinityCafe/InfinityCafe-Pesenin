@@ -99,6 +99,9 @@ class CancelOrderRequest(BaseModel):
     order_id: str
     reason: str
 
+class StatusUpdateRequest(BaseModel):
+    status: str
+
 def get_db():
     db = SessionLocal()
     try:
@@ -161,17 +164,39 @@ def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
     order = db.query(Order).filter(Order.order_id == req.order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    if order.status != "receive":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Tidak bisa membatalkan pesanan. Status saat ini: '{order.status}'."
+        )
     if order.status == "order done":
         raise HTTPException(status_code=400, detail="Order already completed")
+    
     order.status = "cancelled"
     try:
         requests.post(
-            f"http://kitchen_service:8003/kitchen/update_status/{order.order_id}?status=cancel", timeout=5)
+            f"http://kitchen_service:8003/kitchen/update_status/{order.order_id}?status=cancel&reason={req.reason}", 
+            timeout=5
+        )
     except Exception as e:
         logging.warning(f"⚠️ Gagal broadcast cancel ke dapur: {e}")
+        
     order.cancel_reason = req.reason
     db.commit()
     return {"message": "Order cancelled"}
+
+@app.post("/internal/update_status/{order_id}", tags=["Internal"])
+def update_order_status_from_kitchen(order_id: str, req: StatusUpdateRequest, db: Session = Depends(get_db)):
+    """Endpoint internal untuk menerima update status dari kitchen_service."""
+    order = db.query(Order).filter(Order.order_id == order_id).first()
+    if not order:
+        logging.error(f"Gagal menemukan order {order_id} untuk diupdate dari kitchen.")
+        return {"status": "not_found"}
+    
+    order.status = req.status
+    db.commit()
+    logging.info(f"Status untuk order {order_id} diupdate menjadi '{req.status}' dari kitchen.")
+    return {"status": "updated"}
 
 @app.get("/order_status/{order_id}", summary="Status pesanan", tags=["Order"], operation_id="order status")
 def get_order_status(order_id: str, db: Session = Depends(get_db)):
