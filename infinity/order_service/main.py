@@ -117,6 +117,23 @@ def generate_order_id():
 @app.post("/create_order", summary="Buat pesanan baru", tags=["Order"], operation_id="add order")
 def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     """Membuat pesanan baru dan mengirimkannya ke kitchen_service."""
+    try:
+        status_response = requests.get("http://kitchen_service:8003/kitchen/status/now", timeout=5)
+        status_response.raise_for_status()
+        kitchen_status = status_response.json()
+
+        if not kitchen_status.get("is_open", False):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "message": "Dapur sedang OFF. Tidak dapat menerima pesanan.",
+                }
+            )
+
+    except Exception as e:
+        logging.warning(f"⚠️ Gagal mengakses kitchen_service untuk cek status: {e}")
+        raise HTTPException(status_code=500, detail="Gagal menghubungi kitchen_service untuk cek status")
+
 
     today = datetime.now(jakarta_tz).date()
 
