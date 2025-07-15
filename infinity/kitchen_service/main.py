@@ -69,6 +69,7 @@ class KitchenOrder(Base):
     time_deliver = Column(DateTime(timezone=True), nullable=True)
     time_done = Column(DateTime(timezone=True), nullable=True)
     cancel_reason = Column(Text, nullable=True)
+    pending_reason = Column(Text, nullable=True)
 
 Base.metadata.create_all(bind=engine)
 
@@ -219,7 +220,7 @@ async def update_status(order_id: str, status: str, reason: str = "", db: Sessio
     order = db.query(KitchenOrder).filter(KitchenOrder.order_id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    if status in ["cancel", "habis"] and not reason:
+    if status in ["cancel", "habis", "pending"] and not reason:
         raise HTTPException(status_code=400, detail="Alasan wajib untuk status cancel atau habis")
 
     if status == "making" and not order.time_making:
@@ -229,6 +230,8 @@ async def update_status(order_id: str, status: str, reason: str = "", db: Sessio
     elif status == "done" and not order.time_done:
         order.time_done = timestamp
 
+    if status == "pending":
+        order.pending_reason = reason
     if status in ["cancel", "habis"]:
         order.cancel_reason = reason
 
@@ -279,7 +282,7 @@ async def stream_orders(request: Request, db: Session = Depends(get_db)):
 async def broadcast_orders(db: Session):
     today = datetime.now(jakarta_tz).date()
     orders_today = db.query(KitchenOrder).filter(
-    KitchenOrder.status.in_(['receive', 'making', 'deliver'])
+    KitchenOrder.status.in_(['receive', 'making', 'deliver', 'pending'])
 ).all()
     result = []
     for o in orders_today:
@@ -293,6 +296,7 @@ async def broadcast_orders(db: Session):
             "customer_name": o.customer_name,
             "table_no": o.table_no,
             "room_name": o.room_name,
+            "pending_reason": o.pending_reason or "",
             "cancel_reason": o.cancel_reason or ""
         })
     data = f"data: {json.dumps({'orders': result})}\n\n"
@@ -309,3 +313,21 @@ logging.basicConfig(level=logging.INFO)
 logging.info(f"✅ kitchen_service sudah running di http://{local_ip}:8003 add cors")
 
 mcp.setup_server()
+mcp.setup_server()
+
+@app.get("/kitchen/orders", summary="Lihat semua pesanan", tags=["Kitchen"], operation_id="kitchen order list")
+def get_kitchen_orders(db: Session = Depends(get_db)):
+    now = datetime.now(jakarta_tz)
+    start_of_day = datetime(now.year, now.month, now.day, tzinfo=jakarta_tz)
+    end_of_day = start_of_day + timedelta(days=1)
+
+    return db.query(KitchenOrder).filter(
+        or_(
+            KitchenOrder.status.in_(['receive', 'making', 'deliver', 'pending']),
+            and_(
+                KitchenOrder.status.in_(['done', 'cancel', 'habis']),
+                KitchenOrder.time_receive >= start_of_day,
+                KitchenOrder.time_receive < end_of_day
+            )
+        )
+    ).all()
