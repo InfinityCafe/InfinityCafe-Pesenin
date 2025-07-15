@@ -1,4 +1,4 @@
-!.env
+# !.env
 frontend/node_modules/.package-lock.json
 frontend/node_modules/.bin/ejs
 frontend/node_modules/.bin/jake
@@ -1661,3 +1661,4 @@ frontend/node_modules/z-schema/src/Utils.js
 frontend/node_modules/z-schema/src/ZSchema.js
 frontend/node_modules/z-schema/src/schemas/hyper-schema.json
 frontend/node_modules/z-schema/src/schemas/schema.json
+.env

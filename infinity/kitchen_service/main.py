@@ -1,6 +1,6 @@
-from sqlalchemy import or_, and_, func
+from sqlalchemy import or_, and_, func, Boolean
 
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends, Request, Body
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -9,7 +9,7 @@ from sqlalchemy import create_engine, Column, String, Text, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from dotenv import load_dotenv
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date, timedelta
 from pytz import timezone as pytz_timezone
 jakarta_tz = pytz_timezone('Asia/Jakarta')
 
@@ -50,6 +50,12 @@ mcp.mount(mount_path="/mcp", transport="sse")
 
 subscribers = set()
 
+class KitchenStatus(Base):
+    __tablename__ = "kitchen_status"
+    id = Column(String, primary_key=True, default="kitchen")
+    is_open = Column(Boolean, default=True)
+
+    
 class KitchenOrder(Base):
     __tablename__ = "kitchen_orders"
     order_id = Column(String, primary_key=True, index=True)
@@ -63,6 +69,7 @@ class KitchenOrder(Base):
     time_deliver = Column(DateTime(timezone=True), nullable=True)
     time_done = Column(DateTime(timezone=True), nullable=True)
     cancel_reason = Column(Text, nullable=True)
+    pending_reason = Column(Text, nullable=True)
 
 Base.metadata.create_all(bind=engine)
 
@@ -85,8 +92,42 @@ def get_db():
     finally:
         db.close()
 
+def get_kitchen_status(db: Session):  # 
+    status = db.query(KitchenStatus).filter(KitchenStatus.id == "kitchen").first()
+    if not status:
+        status = KitchenStatus(id="kitchen", is_open=True)
+        db.add(status)
+        db.commit()
+    return status
+
+@app.post("/kitchen/status", summary="Atur status dapur ON/OFF", tags=["Kitchen"])
+def set_kitchen_status(
+    is_open: bool = Body(...),
+    db: Session = Depends(get_db)
+):
+    status = get_kitchen_status(db)
+    status.is_open = is_open
+    db.commit()
+    return {
+        "message": f"Kitchen status set to {'ON' if is_open else 'OFF'}"
+    }
+
+@app.get("/kitchen/status/now", summary="Cek status dapur saat ini", tags=["Kitchen"])
+def get_kitchen_status_endpoint(db: Session = Depends(get_db)):
+    status = get_kitchen_status(db)
+    return {
+        "is_open": status.is_open
+    }
+
+
 @app.post("/receive_order", summary="Terima pesanan", tags=["Kitchen"], operation_id="receive order")
 async def receive_order(order: KitchenOrderRequest, db: Session = Depends(get_db)):
+    status = get_kitchen_status(db)
+    if not status.is_open:  
+        return {  
+            "message": "Kitchen is currently OFF",
+        }
+        
     if db.query(KitchenOrder).filter(KitchenOrder.order_id == order.order_id).first():
         raise HTTPException(status_code=400, detail="Order already exists")
     detail_str = "\n".join([f"{item.quantity}x {item.menu_name} ({item.preference})" for item in order.orders])
@@ -114,7 +155,7 @@ async def update_status(order_id: str, status: str, reason: str = "", db: Sessio
     order = db.query(KitchenOrder).filter(KitchenOrder.order_id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    if status in ["cancel", "habis"] and not reason:
+    if status in ["cancel", "habis", "pending"] and not reason:
         raise HTTPException(status_code=400, detail="Alasan wajib untuk status cancel atau habis")
 
     if status == "making" and not order.time_making:
@@ -124,6 +165,8 @@ async def update_status(order_id: str, status: str, reason: str = "", db: Sessio
     elif status == "done" and not order.time_done:
         order.time_done = timestamp
 
+    if status == "pending":
+        order.pending_reason = reason
     if status in ["cancel", "habis"]:
         order.cancel_reason = reason
 
@@ -174,7 +217,7 @@ async def stream_orders(request: Request, db: Session = Depends(get_db)):
 async def broadcast_orders(db: Session):
     today = datetime.now(jakarta_tz).date()
     orders_today = db.query(KitchenOrder).filter(
-    KitchenOrder.status.in_(['receive', 'making', 'deliver'])
+    KitchenOrder.status.in_(['receive', 'making', 'deliver', 'pending'])
 ).all()
     result = []
     for o in orders_today:
@@ -188,6 +231,7 @@ async def broadcast_orders(db: Session):
             "customer_name": o.customer_name,
             "table_no": o.table_no,
             "room_name": o.room_name,
+            "pending_reason": o.pending_reason or "",
             "cancel_reason": o.cancel_reason or ""
         })
     data = f"data: {json.dumps({'orders': result})}\n\n"
@@ -213,7 +257,7 @@ def get_kitchen_orders(db: Session = Depends(get_db)):
 
     return db.query(KitchenOrder).filter(
         or_(
-            KitchenOrder.status.in_(['receive', 'making', 'deliver']),
+            KitchenOrder.status.in_(['receive', 'making', 'deliver', 'pending']),
             and_(
                 KitchenOrder.status.in_(['done', 'cancel', 'habis']),
                 KitchenOrder.time_receive >= start_of_day,
