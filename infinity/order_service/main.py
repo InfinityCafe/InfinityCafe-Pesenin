@@ -3,7 +3,7 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, String, Integer, ForeignKey, Text, DateTime, func
+from sqlalchemy import create_engine, Column, String, Integer, ForeignKey, Text, DateTime, func, Index, and_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from typing import List, Optional
@@ -12,8 +12,9 @@ from dotenv import load_dotenv
 import socket
 import logging
 import requests
-from datetime import datetime
+from datetime import datetime, date
 from pytz import timezone as pytz_timezone
+
 jakarta_tz = pytz_timezone('Asia/Jakarta')
 
 import uuid
@@ -34,7 +35,6 @@ app = FastAPI(
     description="Manajemen pemesanan untuk Infinity Cafe",
     version="1.0.0"
 )
-
 
 # Tambah CORS middleware di sini
 app.add_middleware(
@@ -61,7 +61,7 @@ mcp.mount(mount_path="/mcp",transport="sse")
 class Order(Base):
     __tablename__ = "orders"
     order_id = Column(String, primary_key=True)
-    queue_number = Column(Integer, unique=True, nullable=False)
+    queue_number = Column(Integer, nullable=False)
     customer_name = Column(String)
     table_no = Column(String)
     room_name = Column(String)
@@ -69,6 +69,15 @@ class Order(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
     cancel_reason = Column(Text, nullable=True)
     items = relationship("OrderItem", back_populates="order", cascade="all, delete")
+
+    __table_args__ = (
+        Index(
+            'ix_order_queue_per_day',  
+            queue_number, 
+            func.date(func.timezone('Asia/Jakarta', created_at)), 
+            unique=True
+        ),
+    )
 
 class OrderItem(Base):
     __tablename__ = "order_items"
@@ -114,18 +123,28 @@ def generate_order_id():
     unique_code = uuid.uuid4().hex[:6].upper()
     return f"ORD{timestamp}{unique_code}"
 
+def get_next_queue_number(db: Session) -> int:
+    today_jakarta = datetime.now(jakarta_tz).date()
+    
+    last_order_today = db.query(Order).filter(
+        func.date(func.timezone('Asia/Jakarta', Order.created_at)) == today_jakarta
+    ).order_by(Order.queue_number.desc()).first()
+    
+    if last_order_today:
+        return last_order_today.queue_number + 1
+    else:
+        return 1
+
 @app.post("/create_order", summary="Buat pesanan baru", tags=["Order"], operation_id="add order")
 def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     """Membuat pesanan baru dan mengirimkannya ke kitchen_service."""
-
-    today = datetime.now(jakarta_tz).date()
-
-    last_order_today = db.query(Order).filter(func.date(Order.created_at) == today).order_by(Order.queue_number.desc()).first()
-    if last_order_today:
-        new_queue_number = last_order_today.queue_number + 1
-    else:
-        new_queue_number = 1
-
+    
+    try:
+        new_queue_number = get_next_queue_number(db)
+    except Exception as e:
+        logging.warning(f"Fallback to alternative queue number method: {e}")
+        new_queue_number = get_next_queue_number_alternative(db)
+    
     order_id = generate_order_id()
     new_order = Order(
         order_id=order_id,
@@ -134,29 +153,47 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         table_no=req.table_no,
         room_name=req.room_name
     )
-    db.add(new_order)
-    for item in req.orders:
-        db.add(OrderItem(order_id=order_id, **item.model_dump()))
-    db.commit()
+    
+    try:
+        db.add(new_order)
+        for item in req.orders:
+            db.add(OrderItem(order_id=order_id, **item.model_dump()))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        if "ix_order_queue_per_day" in str(e) or "unique constraint" in str(e).lower():
+            logging.warning(f"Queue number conflict, retrying with next number")
+            new_queue_number = get_next_queue_number(db)
+            new_order.queue_number = new_queue_number
+            db.add(new_order)
+            for item in req.orders:
+                db.add(OrderItem(order_id=order_id, **item.model_dump()))
+            db.commit()
+        else:
+            raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
     try:
         response = requests.post(
             "http://kitchen_service:8003/receive_order",
             json={
-            "order_id": order_id,
-            "queue_number": new_queue_number,
-            "orders": [item.model_dump() for item in req.orders],
-            "customer_name": req.customer_name,
-            "table_no": req.table_no,
-            "room_name": req.room_name
-        },
+                "order_id": order_id,
+                "queue_number": new_queue_number,
+                "orders": [item.model_dump() for item in req.orders],
+                "customer_name": req.customer_name,
+                "table_no": req.table_no,
+                "room_name": req.room_name
+            },
             timeout=5
         )
         response.raise_for_status()
     except Exception as e:
         logging.warning(f"⚠️ Order dibuat tapi gagal diteruskan ke kitchen: {e}")
 
-    return {"message": "Order created and forwarded to kitchen", "order_id": order_id, "queue_number": new_queue_number}
+    return {
+        "message": "Order created and forwarded to kitchen", 
+        "order_id": order_id, 
+        "queue_number": new_queue_number
+    }
 
 @app.post("/cancel_order", summary="Batalkan pesanan", tags=["Order"], operation_id="cancel order")
 def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
@@ -204,13 +241,39 @@ def get_order_status(order_id: str, db: Session = Depends(get_db)):
     order = db.query(Order).filter(Order.order_id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    return {"order_id": order.order_id, "status": order.status, "queue_number": order.queue_number}
+    return {
+        "order_id": order.order_id, 
+        "status": order.status, 
+        "queue_number": order.queue_number,
+        "created_at": order.created_at
+    }
 
 @app.get("/order", summary="Semua pesanan", tags=["Order"], operation_id="list order")
 def get_all_orders(db: Session = Depends(get_db)):
     """Mengembalikan semua data pesanan."""
     orders = db.query(Order).all()
     return orders
+
+@app.get("/today_orders", summary="Pesanan hari ini", tags=["Order"])
+def get_today_orders(db: Session = Depends(get_db)):
+    """Mengembalikan pesanan hari ini saja."""
+    today_jakarta = datetime.now(jakarta_tz).date()
+    
+    start_of_day = datetime.combine(today_jakarta, datetime.min.time()).replace(tzinfo=jakarta_tz)
+    end_of_day = datetime.combine(today_jakarta, datetime.max.time()).replace(tzinfo=jakarta_tz)
+    
+    today_orders = db.query(Order).filter(
+        and_(
+            Order.created_at >= start_of_day,
+            Order.created_at <= end_of_day
+        )
+    ).order_by(Order.queue_number.asc()).all()
+    
+    return {
+        "date": today_jakarta.isoformat(),
+        "orders": today_orders,
+        "total_orders": len(today_orders)
+    }
 
 @app.get("/health", summary="Health check", tags=["Utility"])
 def health_check():
