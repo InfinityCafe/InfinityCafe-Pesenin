@@ -43,7 +43,14 @@
       <div id="tab-active" class="tab-banner tab-banner-active" onclick="switchTab('active')">🟢 Aktif</div>
       <div id="tab-inactive" class="tab-banner tab-banner-inactive" onclick="switchTab('inactive')">✅ Selesai</div>
     </div>
+    <div class="flex justify-center items-center gap-4 mt-4">
+      <span id="kitchen-status-label" class="font-bold"></span>
+      <button id="toggle-kitchen-btn" class="btn-action"></button>
+    </div>
   </header>
+  <div id="kitchen-off-banner" class="hidden bg-red-600 text-white text-center font-bold py-2 mb-4 border-4 border-black">
+    🚫 Dapur sedang OFF. Tidak dapat menerima/memproses pesanan.
+  </div>
 
   <!-- === BANNER OFFLINE === -->
   <div id="offline-banner" class="hidden bg-red-600 text-white text-center font-bold py-2 mb-4 border-4 border-black">
@@ -180,10 +187,10 @@
             👤 ${o.customer_name ?? '-'}
             ${["receive", "making", "deliver"].includes(o.status) ? `<button class="btn-close" onclick="event.stopPropagation(); openConfirmModal('${o.order_id}')">&times;</button>` : ""}
           </div>
-          <div class="text-sm">#${o.order_id}</div>
+          <div class="text-sm">#${o.order_id} <span class="ml-2 font-bold text-blue-700">Antrian: ${typeof o.queue_number === 'number' ? o.queue_number : '-'}</span></div>
           <div class="text-xs text-gray-500">🕒 ${time}</div>
-          <div class="text-xs">🏠 ${o.room_name ?? '-'}</div>
-          <div class="text-xs">🪑 Meja ${o.table_no ?? '-'}</div>
+          <div class="text-xs">🏠 ${o.room_name ?? '-'} </div>
+          <div class="text-xs">🪑 Meja ${o.table_no ?? '-'} </div>
           <div class="font-bold text-lg mt-1">${o.detail}</div>
           <div class="text-xs mt-1">Status: ${o.status}</div>
           ${timeDone ? `<div class="text-xs mt-1 text-gray-600">📅 Selesai: ${timeDone}</div>` : ""}
@@ -210,6 +217,54 @@
         .then(data => renderOrders(data))
         .catch(() => document.getElementById("offline-banner").classList.remove("hidden"));
     }
+
+    async function fetchKitchenStatus() {
+      try {
+        const res = await fetch("http://localhost:8003/kitchen/status/now");
+        const data = await res.json();
+        updateKitchenStatusUI(data.is_open);
+      } catch {
+        updateKitchenStatusUI(false);
+      }
+    }
+
+    async function setKitchenStatus(isOpen) {
+      try {
+        await fetch("http://localhost:8003/kitchen/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(isOpen)
+        });
+        fetchKitchenStatus();
+      } catch {
+        alert("Gagal mengubah status dapur");
+      }
+    }
+
+    function updateKitchenStatusUI(isOpen) {
+      const label = document.getElementById("kitchen-status-label");
+      const btn = document.getElementById("toggle-kitchen-btn");
+      const offBanner = document.getElementById("kitchen-off-banner");
+      label.textContent = isOpen ? "Dapur: ON" : "Dapur: OFF";
+      btn.textContent = isOpen ? "Matikan Dapur" : "Nyalakan Dapur";
+      btn.onclick = () => setKitchenStatus(!isOpen);
+      btn.disabled = false; // pastikan tombol ON/OFF selalu aktif
+      if (!isOpen) {
+        offBanner.classList.remove("hidden");
+        // Disable semua tombol order/action KECUALI tombol ON/OFF
+        document.querySelectorAll(".btn-action").forEach(b => {
+          if (b.id !== "toggle-kitchen-btn") b.disabled = true;
+        });
+      } else {
+        offBanner.classList.add("hidden");
+        document.querySelectorAll(".btn-action").forEach(b => {
+          if (b.id !== "toggle-kitchen-btn") b.disabled = false;
+        });
+      }
+    }
+
+    // Panggil saat halaman load
+    fetchKitchenStatus();
 
     const es = new EventSource("http://localhost:8003/stream/orders");
     let updateTimeout = null;

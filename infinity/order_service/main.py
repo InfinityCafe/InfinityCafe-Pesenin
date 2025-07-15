@@ -90,6 +90,7 @@ class OrderItemSchema(BaseModel):
         from_attributes = True
 
 class CreateOrderRequest(BaseModel):
+    order_id: Optional[str] = None
     customer_name: str
     table_no: str
     room_name: str
@@ -143,7 +144,12 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     else:
         new_queue_number = 1
 
-    order_id = generate_order_id()
+    # GUNAKAN order_id dari request jika ada dan belum ada di DB
+    if req.order_id and not db.query(Order).filter(Order.order_id == req.order_id).first():
+        order_id = req.order_id
+    else:
+        order_id = generate_order_id()
+
     new_order = Order(
         order_id=order_id,
         queue_number=new_queue_number,
@@ -227,7 +233,19 @@ def get_order_status(order_id: str, db: Session = Depends(get_db)):
 def get_all_orders(db: Session = Depends(get_db)):
     """Mengembalikan semua data pesanan."""
     orders = db.query(Order).all()
-    return orders
+    return [
+        {
+            "order_id": o.order_id,
+            "queue_number": o.queue_number,
+            "customer_name": o.customer_name,
+            "table_no": o.table_no,
+            "room_name": o.room_name,
+            "status": o.status,
+            "created_at": o.created_at.isoformat() if o.created_at else None,
+            "cancel_reason": o.cancel_reason
+        }
+        for o in orders
+    ]
 
 @app.get("/health", summary="Health check", tags=["Utility"])
 def health_check():

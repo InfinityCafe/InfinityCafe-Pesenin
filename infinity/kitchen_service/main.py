@@ -144,9 +144,74 @@ async def receive_order(order: KitchenOrderRequest, db: Session = Depends(get_db
     await broadcast_orders(db)
     return {"message": "Order received by kitchen", "time_receive": now.isoformat()}
 
+def get_queue_number_map():
+    try:
+        res = requests.get("http://order_service:8002/order", timeout=3)
+        if res.status_code == 200:
+            orders = res.json()
+            return {o["order_id"]: o["queue_number"] for o in orders if "order_id" in o and "queue_number" in o}
+    except Exception:
+        pass
+    return {}
+
+def ensure_order_exists_in_order_service(order):
+    try:
+        res = requests.get(f"http://order_service:8002/order_status/{order.order_id}", timeout=2)
+        if res.status_code == 200:
+            return  # Sudah ada
+    except Exception:
+        pass
+    # Tambahkan order ke order_service DENGAN order_id
+    try:
+        payload = {
+            "order_id": order.order_id,
+            "customer_name": order.customer_name or "AutoSync",
+            "table_no": order.table_no or "-",
+            "room_name": order.room_name or "-",
+            "orders": [{"menu_name": "AutoSync", "quantity": 1, "preference": ""}]
+        }
+        requests.post("http://order_service:8002/create_order", json=payload, timeout=3)
+    except Exception as e:
+        print(f"Failed to sync order {order.order_id} to order_service: {e}")
+
 @app.get("/kitchen/orders", summary="Lihat semua pesanan", tags=["Kitchen"], operation_id="kitchen order list")
 def get_kitchen_orders(db: Session = Depends(get_db)):
-    return db.query(KitchenOrder).all()
+    now = datetime.now(jakarta_tz)
+    start_of_day = datetime(now.year, now.month, now.day, tzinfo=jakarta_tz)
+    end_of_day = start_of_day + timedelta(days=1)
+
+    orders = db.query(KitchenOrder).filter(
+        or_(
+            KitchenOrder.status.in_(['receive', 'making', 'deliver']),
+            and_(
+                KitchenOrder.status.in_(['done', 'cancel', 'habis']),
+                KitchenOrder.time_receive >= start_of_day,
+                KitchenOrder.time_receive < end_of_day
+            )
+        )
+    ).all()
+
+    # Pastikan semua order ada di order_service
+    for o in orders:
+        ensure_order_exists_in_order_service(o)
+
+    queue_map = get_queue_number_map()
+    result = []
+    for o in orders:
+        queue_number = queue_map.get(o.order_id)
+        result.append({
+            "order_id": o.order_id,
+            "queue_number": queue_number,
+            "status": o.status,
+            "detail": o.detail,
+            "customer_name": o.customer_name,
+            "table_no": o.table_no,
+            "room_name": o.room_name,
+            "time_receive": o.time_receive.isoformat() if o.time_receive else None,
+            "time_done": o.time_done.isoformat() if o.time_done else None,
+            "cancel_reason": o.cancel_reason or ""
+        })
+    return result
 
 @app.post("/kitchen/update_status/{order_id}")
 async def update_status(order_id: str, status: str, reason: str = "", db: Session = Depends(get_db)):
@@ -244,20 +309,3 @@ logging.basicConfig(level=logging.INFO)
 logging.info(f"✅ kitchen_service sudah running di http://{local_ip}:8003 add cors")
 
 mcp.setup_server()
-
-@app.get("/kitchen/orders", summary="Lihat semua pesanan", tags=["Kitchen"], operation_id="kitchen order list")
-def get_kitchen_orders(db: Session = Depends(get_db)):
-    now = datetime.now(jakarta_tz)
-    start_of_day = datetime(now.year, now.month, now.day, tzinfo=jakarta_tz)
-    end_of_day = start_of_day + timedelta(days=1)
-
-    return db.query(KitchenOrder).filter(
-        or_(
-            KitchenOrder.status.in_(['receive', 'making', 'deliver']),
-            and_(
-                KitchenOrder.status.in_(['done', 'cancel', 'habis']),
-                KitchenOrder.time_receive >= start_of_day,
-                KitchenOrder.time_receive < end_of_day
-            )
-        )
-    ).all()
