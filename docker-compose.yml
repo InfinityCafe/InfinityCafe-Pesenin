@@ -203,7 +203,6 @@ services:
      - 5555:5432
     restart: always
     environment:
-      - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_HOST_AUTH_METHOD=trust
@@ -234,36 +233,47 @@ services:
     volumes:
       - ./initdb:/initdb
     entrypoint: /bin/sh
-    command: -c "
-      until pg_isready -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres; do
-        echo waiting for PGVECTOR...;
-        sleep 2;
-      done &&
+    command:
+      - -c
+      - |
+          until pg_isready -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres; do
+            echo waiting for PGVECTOR...;
+            sleep 2;
+          done &&
+          echo 'Checking and creating database default/shared...' &&
 
-      echo 'Checking and creating database n8n...';
-      psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -tc \"SELECT 1 FROM pg_database WHERE datname = 'n8n'\" |
-      grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -c 'CREATE DATABASE n8n' &&
+          psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB_SHARED}'" |
+          grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -c 'CREATE DATABASE ${POSTGRES_DB_SHARED}' &&
 
-      echo 'Checking and creating database ${POSTGRES_DB}...';
-      psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -tc \"SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB}'\" |
-      grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -c 'CREATE DATABASE ${POSTGRES_DB}' &&
+          echo 'Database, Kitchen, Order, and Inventory menus are built automatically'
+          echo 'All databases created successfully!' &&
+          echo 'Initializing vector extension and seeding data...' &&
+          
+          # Initialize each database with vector extension
+          psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_shared} -c 'CREATE EXTENSION IF NOT EXISTS vector;' &&
+          psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_MENU} -c 'CREATE EXTENSION IF NOT EXISTS vector;' &&
+          psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_ORDER} -c 'CREATE EXTENSION IF NOT EXISTS vector;' &&
+          psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_KITCHEN} -c 'CREATE EXTENSION IF NOT EXISTS vector;' &&
+          psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_INVENTORY} -c 'CREATE EXTENSION IF NOT EXISTS vector;' &&
+          
+          # Run seeder for each database (modify seeder.sql accordingly)
+          echo 'Seeding databases with initial data...' &&
+          psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_shared} -f /initdb/seeder_db_shared.sql &&
+          psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_MENU} -f /initdb/seeder_db_menu.sql &&
+          psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_ORDER} -f /initdb/seeder_db_order.sql &&
+          psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_KITCHEN} -f /initdb/seeder_db_kitchen.sql &&
+          psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_INVENTORY} -f /initdb/seeder_db_inventory.sql &&
 
-      echo 'Initializing vector extension and embeddings table...';
-      psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB} -tc \"SELECT 1 FROM pg_extension WHERE extname = 'vector'\" |
-      grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c \"
-        CREATE EXTENSION IF NOT EXISTS vector;
-        CREATE TABLE IF NOT EXISTS embeddings (
-          id SERIAL PRIMARY KEY,
-          embedding vector,
-          text text,
-          created_at timestamptz DEFAULT now()
-        );
-      \" &&  
-      echo 'Initializing DB, vector, embembeddings done!!';"
+          echo 'Database initialization completed successfully!'
     environment:
-      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_DB_MENU=${POSTGRES_DB_MENU}
+      - POSTGRES_DB_ORDER=${POSTGRES_DB_ORDER}
+      - POSTGRES_DB_KITCHEN=${POSTGRES_DB_KITCHEN}
+      - POSTGRES_DB_INVENTORY=${POSTGRES_DB_INVENTORY}
+      - POSTGRES_DB_SHARED=${POSTGRES_DB_SHARED}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST=${POSTGRES_HOST}
       - POSTGRES_HOST_AUTH_METHOD=trust
 
   menu_service:
@@ -355,11 +365,35 @@ services:
       - "8004:8004"
     extra_hosts:
       - "ollama:host-gateway"
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://kitchen_service:8003/health"]
-    #   interval: 5s
-    #   timeout: 5s
-    #   retries: 3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://kitchen_service:8003/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
+  inventory_service:
+    networks: ['demo']
+    hostname: inventory_service
+    build:
+      context: ./infinity/
+      dockerfile: inventory_service/Dockerfile
+    container_name: inventory_service
+    depends_on:
+      pgvector17:
+        condition: service_healthy
+      n8n-import:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    ports:
+      - "8005:8005"
+    extra_hosts:
+      - "ollama:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://inventory_service:8005/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
 
   # kitchen_dashboard_pwa:
   #   build:

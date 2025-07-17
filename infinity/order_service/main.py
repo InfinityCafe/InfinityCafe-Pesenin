@@ -3,7 +3,7 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, String, Integer, ForeignKey, Text, DateTime, func, Index, and_
+from sqlalchemy import Boolean,create_engine, Column, String, Integer, ForeignKey, Text, DateTime, func, Index, and_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from typing import List, Optional
@@ -14,6 +14,9 @@ import logging
 import requests
 from datetime import datetime, date
 from pytz import timezone as pytz_timezone
+import json
+import asyncio
+import httpx
 
 jakarta_tz = pytz_timezone('Asia/Jakarta')
 
@@ -24,7 +27,7 @@ from fastapi import APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL_ORDER")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -49,6 +52,19 @@ mcp = FastApiMCP(app,name="Server MCP Infinity",
         include_operations=["add order","list order","cancel order","order status"]
         )
 mcp.mount(mount_path="/mcp",transport="sse")
+
+# Menambahkan tabel outbox untuk menyimpan pesan yang akan dikirim ke kitchen_service
+class Outbox(Base):
+    __tablename__ = "outbox"
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(String, nullable=False)
+    queue_number = Column(Integer, nullable=False)
+    customer_name = Column(String, nullable=False)
+    table_no = Column(String, nullable=False)
+    room_name = Column(String, nullable=False)
+    orders = Column(Text, nullable=False)  # JSON string of order items
+    status = Column(String, default="pending")  # pending, sent, failed
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
 
 class Order(Base):
     __tablename__ = "orders"
