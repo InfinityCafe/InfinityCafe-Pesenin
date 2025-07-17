@@ -245,7 +245,22 @@ services:
           psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB_SHARED}'" |
           grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -c 'CREATE DATABASE ${POSTGRES_DB_SHARED}' &&
 
-          echo 'Database, Kitchen, Order, and Inventory menus are built automatically'
+          echo 'Create Database Menu...' &&
+          psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB_MENU}'" |
+          grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -c 'CREATE DATABASE ${POSTGRES_DB_MENU}' &&
+
+          echo 'Create Database Order...' &&
+          psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB_ORDER}'
+          grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -c 'CREATE DATABASE ${POSTGRES_DB_ORDER}' &&
+
+          echo 'Create Database Kitchen...' &&
+          psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB_KITCHEN}'" |
+          grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -c 'CREATE DATABASE ${POSTGRES_DB_KITCHEN}' &&
+
+          echo 'Create Database Inventory...' &&
+          psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB_INVENTORY}'" |
+          grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -c 'CREATE DATABASE ${POSTGRES_DB_INVENTORY}' &&
+
           echo 'All databases created successfully!' &&
           echo 'Initializing vector extension and seeding data...' &&
           
