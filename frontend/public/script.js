@@ -1,25 +1,60 @@
+// Status flow and configuration
 const statusFlow = { receive: "making", making: "deliver", deliver: "done" };
 const statusColors = {
   receive: "bg-yellow-100", making: "bg-blue-100",
   deliver: "bg-green-100", done: "bg-gray-200",
   cancel: "bg-red-100", habis: "bg-orange-100"
 };
+
+// Global variables
 let selectedOrderId = null;
 let selectedOrder = null;
+let currentTab = 'active';
 
-function switchTab(view) {
-  document.getElementById("active-orders").classList.toggle("hidden", view !== "active");
-  document.getElementById("inactive-orders").classList.toggle("hidden", view !== "inactive");
-  document.getElementById("pending-orders").classList.toggle("hidden", view !== "pending");
-  document.getElementById("tab-active").classList.toggle("tab-banner-active", view === "active");
-  document.getElementById("tab-inactive").classList.toggle("tab-banner-active", view === "inactive");
-  document.getElementById("tab-pending").classList.toggle("tab-banner-active", view === "pending");
-  document.getElementById("tab-active").classList.toggle("tab-banner-inactive", view !== "active");
-  document.getElementById("tab-inactive").classList.toggle("tab-banner-inactive", view !== "inactive");
-  document.getElementById("tab-pending").classList.toggle("tab-banner-inactive", view !== "pending");
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', function() {
+  initializeKitchenToggle();
+  fetchKitchenStatus();
+  switchTab('active');
+  initializeEventSource();
+});
+
+// Kitchen toggle functionality
+function initializeKitchenToggle() {
+  const toggle = document.getElementById('kitchen-toggle');
+  const statusText = document.getElementById('kitchen-status-text');
+  
+  toggle.addEventListener('change', function() {
+    const isOpen = this.checked;
+    setKitchenStatus(isOpen);
+    statusText.textContent = isOpen ? 'BUKA' : 'TUTUP';
+  });
+}
+
+// Tab switching functionality
+function switchTab(tab) {
+  currentTab = tab;
+  const activeBtn = document.getElementById('tab-active');
+  const doneBtn = document.getElementById('tab-done');
+  const orderColumns = document.querySelector('.order-columns');
+  const doneOrders = document.getElementById('done-orders');
+  
+  if (tab === 'active') {
+    activeBtn.classList.add('tab-active');
+    doneBtn.classList.remove('tab-active');
+    orderColumns.classList.remove('hidden');
+    doneOrders.classList.add('hidden');
+  } else {
+    activeBtn.classList.remove('tab-active');
+    doneBtn.classList.add('tab-active');
+    orderColumns.classList.add('hidden');
+    doneOrders.classList.remove('hidden');
+  }
+  
   fetchOrders();
 }
 
+// Modal functions
 function openConfirmModal(orderId) {
   selectedOrderId = orderId;
   document.getElementById("confirm-modal").classList.remove("hidden");
@@ -58,6 +93,7 @@ async function confirmCancel(status) {
   closeConfirmModal();
 }
 
+// API functions
 async function syncUpdate(orderId, status, reason = "") {
   try {
     await fetch(`http://localhost:8003/kitchen/update_status/${orderId}?status=${status}&reason=${encodeURIComponent(reason)}`, { method: "POST" });
@@ -74,94 +110,177 @@ function logHistory(orderId, status, reason = "") {
   console.log(`[LOG] Order ${orderId} → Status: ${status} ${reason ? "| Alasan: " + reason : ""}`);
 }
 
-function renderOrders(orders) {
-  const active = document.getElementById("active-orders");
-  const inactive = document.getElementById("inactive-orders");
-  const pending = document.getElementById("pending-orders");
-  active.innerHTML = "";
-  inactive.innerHTML = "";
-  pending.innerHTML = "";
+function createOrderCard(order) {
+  const card = document.createElement("div");
+  card.className = "order-card";
+  card.onclick = () => openDetailModal(order);
   
+  const time = new Date(order.time_receive).toLocaleString("id-ID");
+  const timeDone = order.time_done ? new Date(order.time_done).toLocaleString("id-ID") : null;
+  
+  // Parse items from detail
+  const items = order.detail.split('\n').filter(item => item.trim());
+  const itemsHtml = items.map(item => {
+    const parts = item.split(' - ');
+    const name = parts[0] || item;
+    const quantity = parts[1] || '1x';
+    return `
+      <div class="order-item">
+        <span class="item-name">${name}</span>
+        <span class="item-quantity">${quantity}</span>
+      </div>
+    `;
+  }).join('');
+  
+  // Status badge
+  let statusBadge = '';
+  let actionButton = '';
+  
+  if (order.status === 'receive') {
+    statusBadge = '<span class="status-badge status-receive">RECEIVE</span>';
+    actionButton = `<button class="action-btn action-btn-orange" onclick="event.stopPropagation(); syncUpdate('${order.order_id}', 'making')">MAKING →</button>`;
+  } else if (order.status === 'making') {
+    statusBadge = '<span class="status-badge status-making">MAKING</span>';
+    actionButton = `<button class="action-btn action-btn-blue" onclick="event.stopPropagation(); syncUpdate('${order.order_id}', 'deliver')">DELIVER →</button>`;
+  } else if (order.status === 'deliver') {
+    statusBadge = '<span class="status-badge status-deliver">DELIVER</span>';
+    actionButton = `<button class="action-btn action-btn-green" onclick="event.stopPropagation(); syncUpdate('${order.order_id}', 'done')">DONE →</button>`;
+  }
+  
+  card.innerHTML = `
+    <div class="order-header">
+      <span class="order-number">#${order.order_id.toString().padStart(2, '0')}</span>
+      <span class="customer-name">${order.customer_name ?? 'John Doe'}</span>
+      ${["receive", "making", "deliver"].includes(order.status) ? `<button class="order-close" onclick="event.stopPropagation(); openConfirmModal('${order.order_id}')">&times;</button>` : ""}
+    </div>
+    <div class="order-location">
+      <span class="location-icon">📍</span>
+      <span class="location-text">Lantai ${order.table_no ?? '2'}</span>
+      ${statusBadge}
+    </div>
+    <div class="order-timestamp">${time}</div>
+    <div class="order-items">${itemsHtml}</div>
+    <div class="order-footer">
+      <span class="order-drink">Antrian ${order.queue_number ?? '1'}</span>
+    </div>
+    ${actionButton}
+  `;
+  
+  return card;
+}
+
+function renderOrders(orders) {
+  const newOrderColumn = document.getElementById("new-order-column");
+  const makingColumn = document.getElementById("making-column");
+  const deliverColumn = document.getElementById("deliver-column");
+  const doneOrderGrid = document.getElementById("done-order-grid");
+  
+  // Clear all columns
+  newOrderColumn.innerHTML = '';
+  makingColumn.innerHTML = '';
+  deliverColumn.innerHTML = '';
+  doneOrderGrid.innerHTML = '';
+  
+  // Sort orders by time received (newest first)
   orders.sort((a, b) => new Date(b.time_receive) - new Date(a.time_receive));
   
-  orders.forEach(o => {
-    if (!o.order_id || !o.detail) return;
+  orders.forEach(order => {
+    if (!order.order_id || !order.detail) return;
     
-    const card = document.createElement("div");
-    card.className = `card ${statusColors[o.status] || "bg-white"}`;
-    card.onclick = () => openDetailModal(o);
+    const orderCard = createOrderCard(order);
     
-    const time = new Date(o.time_receive).toLocaleString("id-ID");
-    const timeDone = o.time_done ? new Date(o.time_done).toLocaleString("id-ID") : null;
+    // Place order in appropriate column based on status
+    if (order.status === 'receive') {
+      newOrderColumn.appendChild(orderCard);
+    } else if (order.status === 'making') {
+      makingColumn.appendChild(orderCard);
+    } else if (order.status === 'deliver') {
+      deliverColumn.appendChild(orderCard);
+    } else if (['done', 'cancel', 'habis'].includes(order.status)) {
+      doneOrderGrid.appendChild(orderCard);
+    }
+  });
+  
+  // Update sidebar summary
+  updateSummary(orders);
+}
+
+function updateSummary(orders) {
+  const activeOrders = orders.filter(order => ['receive', 'making', 'deliver'].includes(order.status));
+  const summary = {};
+  
+  activeOrders.forEach(order => {
+    const items = order.detail.split('\n').filter(item => item.trim());
+    items.forEach(item => {
+      const parts = item.split(' - ');
+      const name = parts[0] || item;
+      const variant = parts[1] || '';
+      
+      if (!summary[name]) {
+        summary[name] = {
+          count: 0,
+          orders: [],
+          variants: []
+        };
+      }
+      
+      summary[name].count++;
+      summary[name].orders.push(`#${order.order_id.toString().padStart(2, '0')}`);
+      if (variant) {
+        summary[name].variants.push(variant);
+      }
+    });
+  });
+  
+  const sidebarContent = document.querySelector('.sidebar-content');
+  const existingTitle = sidebarContent.querySelector('.sidebar-title');
+  
+  // Clear existing summary items
+  while (sidebarContent.children.length > 1) {
+    sidebarContent.removeChild(sidebarContent.lastChild);
+  }
+  
+  // Add new summary items
+  Object.entries(summary).forEach(([itemName, data]) => {
+    const summaryItem = document.createElement('div');
+    summaryItem.className = 'summary-item';
     
-    card.innerHTML = `
-      <div class="flex justify-between items-center border-b-2 border-black mb-2 px-2 py-1 bg-yellow-300">
-        👤 ${o.customer_name ?? '-'}
-        ${["receive", "making", "deliver"].includes(o.status) ? `<button class="btn-close" onclick="event.stopPropagation(); openConfirmModal('${o.order_id}')">&times;</button>` : ""}
+    summaryItem.innerHTML = `
+      <div class="summary-header">
+        <span class="summary-name">${itemName}</span>
+        <span class="summary-count">${data.count}</span>
       </div>
-      <div class="text-sm">#${o.order_id} <span class="ml-2 font-bold text-blue-700">Antrian: ${typeof o.queue_number === 'number' ? o.queue_number : '-'}</span></div>
-      <div class="text-xs text-gray-500">🕒 ${time}</div>
-      <div class="text-xs">🏠 ${o.room_name ?? '-'} </div>
-      <div class="text-xs">🪑 Meja ${o.table_no ?? '-'} </div>
-      <div class="font-bold text-lg mt-1">${o.detail}</div>
-      <div class="text-xs mt-1">Status: ${o.status}</div>
-      ${timeDone ? `<div class="text-xs mt-1 text-gray-600">📅 Selesai: ${timeDone}</div>` : ""}
-      ${o.status === 'pending' && o.pending_reason ? `<div class='text-xs mt-1 text-yellow-700'>⏳ Alasan: ${o.pending_reason}</div>` : ""}
+      <div class="summary-details">
+        ${data.orders.map(order => `<span class="summary-detail">${order}</span>`).join('')}
+      </div>
+      <div class="summary-variants">
+        <div class="variant-item">
+          ${data.variants.map(variant => `<span>${variant}</span>`).join('')}
+        </div>
+      </div>
     `;
     
-    // Tombol update status (kecuali pending/done/cancel/habis)
-    if (statusFlow[o.status]) {
-      const btn = document.createElement("button");
-      btn.textContent = `➡️ ${statusFlow[o.status]}`;
-      btn.className = "btn-action";
-      btn.onclick = async (e) => {
-        e.stopPropagation();
-        await syncUpdate(o.order_id, statusFlow[o.status]);
-      };
-      card.appendChild(btn);
-    }
-    
-    // Tombol khusus update ke pending (hanya jika status 'receive')
-    if (o.status === "receive") {
-      const btnPending = document.createElement("button");
-      btnPending.textContent = "⏳ Jadikan Pending";
-      btnPending.className = "btn-action mt-2 bg-yellow-100 text-yellow-900 border-yellow-600";
-      btnPending.onclick = async (e) => {
-        e.stopPropagation();
-        const reason = prompt("Masukkan alasan pending:", "");
-        if (!reason) return;
-        await syncUpdate(o.order_id, "pending", reason);
-      };
-      card.appendChild(btnPending);
-    }
-    
-    // Tombol khusus update dari pending ke making
-    if (o.status === "pending") {
-      const btnMaking = document.createElement("button");
-      btnMaking.textContent = "🔄 Jadikan Making";
-      btnMaking.className = "btn-action mt-2 bg-blue-100 text-blue-900 border-blue-600";
-      btnMaking.onclick = async (e) => {
-        e.stopPropagation();
-        await syncUpdate(o.order_id, "making");
-      };
-      card.appendChild(btnMaking);
-    }
-    
-    if (["receive", "making", "deliver"].includes(o.status)) {
-      active.appendChild(card);
-    } else if (o.status === "pending") {
-      pending.appendChild(card);
-    } else {
-      inactive.appendChild(card);
-    }
+    sidebarContent.appendChild(summaryItem);
   });
 }
 
 function fetchOrders() {
+  // Show loading state
+  document.getElementById('offline-banner').classList.add('hidden');
+  
   fetch("http://localhost:8003/kitchen/orders")
-    .then(res => res.json())
-    .then(data => renderOrders(data))
-    .catch(() => document.getElementById("offline-banner").classList.remove("hidden"));
+    .then(res => {
+      if (!res.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return res.json();
+    })
+    .then(data => {
+      renderOrders(data);
+    })
+    .catch(() => {
+      document.getElementById("offline-banner").classList.remove("hidden");
+    });
 }
 
 async function fetchKitchenStatus() {
@@ -188,62 +307,116 @@ async function setKitchenStatus(isOpen) {
 }
 
 function updateKitchenStatusUI(isOpen) {
-  const label = document.getElementById("kitchen-status-label");
-  const btn = document.getElementById("toggle-kitchen-btn");
-  const offBanner = document.getElementById("kitchen-off-banner");
+  const toggle = document.getElementById('kitchen-toggle');
+  const statusText = document.getElementById('kitchen-status-text');
+  const offBanner = document.getElementById('kitchen-off-banner');
   
-  label.textContent = isOpen ? "Dapur: ON" : "Dapur: OFF";
-  btn.textContent = isOpen ? "Matikan Dapur" : "Nyalakan Dapur";
-  btn.onclick = () => setKitchenStatus(!isOpen);
-  btn.disabled = false; // pastikan tombol ON/OFF selalu aktif
+  toggle.checked = isOpen;
+  statusText.textContent = isOpen ? 'BUKA' : 'TUTUP';
   
   if (!isOpen) {
-    offBanner.classList.remove("hidden");
-    // Disable semua tombol order/action KECUALI tombol ON/OFF
-    document.querySelectorAll(".btn-action").forEach(b => {
-      if (b.id !== "toggle-kitchen-btn") b.disabled = true;
+    offBanner.classList.remove('hidden');
+    // Disable all action buttons when kitchen is closed
+    document.querySelectorAll('.action-btn').forEach(btn => {
+      btn.disabled = true;
     });
   } else {
-    offBanner.classList.add("hidden");
-    document.querySelectorAll(".btn-action").forEach(b => {
-      if (b.id !== "toggle-kitchen-btn") b.disabled = false;
+    offBanner.classList.add('hidden');
+    // Enable all action buttons when kitchen is open
+    document.querySelectorAll('.action-btn').forEach(btn => {
+      btn.disabled = false;
     });
   }
 }
 
-// Panggil saat halaman load
-fetchKitchenStatus();
+function initializeEventSource() {
+  const eventSource = new EventSource("http://localhost:8003/stream/orders");
+  let updateTimeout = null;
+  
+  eventSource.onmessage = () => {
+    if (updateTimeout) clearTimeout(updateTimeout);
+    updateTimeout = setTimeout(async () => {
+      try {
+        const res = await fetch("http://localhost:8003/kitchen/orders");
+        const data = await res.json();
+        
+        // Check for new orders
+        const activeIds = data.filter(o => ["receive", "making", "deliver"].includes(o.status)).map(o => o.order_id);
+        const lastIds = JSON.parse(localStorage.getItem("lastActiveOrderIds") || "[]");
+        const newOrder = activeIds.some(id => !lastIds.includes(id));
+        
+        if (newOrder) {
+          document.getElementById("sound-new-order").play().catch(() => {});
+          // Switch to active tab if new order comes in while viewing done orders
+          if (currentTab === 'done') {
+            switchTab('active');
+          }
+        }
+        
+        localStorage.setItem("lastActiveOrderIds", JSON.stringify(activeIds));
+        renderOrders(data);
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+      }
+    }, 1000);
+  };
+  
+  eventSource.onerror = (error) => {
+    console.error('EventSource error:', error);
+    document.getElementById("offline-banner").classList.remove("hidden");
+  };
+  
+  eventSource.onopen = () => {
+    console.log('EventSource connected');
+    document.getElementById("offline-banner").classList.add("hidden");
+  };
+}
 
-const es = new EventSource("http://localhost:8003/stream/orders");
-let updateTimeout = null;
-
-es.onmessage = () => {
-  if (updateTimeout) clearTimeout(updateTimeout);
-  updateTimeout = setTimeout(async () => {
-    const res = await fetch("http://localhost:8003/kitchen/orders");
-    const data = await res.json();
-    const activeIds = data.filter(o => ["receive", "making", "deliver"].includes(o.status)).map(o => o.order_id);
-    const lastIds = JSON.parse(localStorage.getItem("lastActiveOrderIds") || "[]");
-    const newOrder = activeIds.some(id => !lastIds.includes(id));
-    const isInactiveTab = !document.getElementById("inactive-orders").classList.contains("hidden");
+// Search functionality
+function initializeSearch() {
+  const searchInput = document.querySelector('.search-input');
+  searchInput.addEventListener('input', function(e) {
+    const searchTerm = e.target.value.toLowerCase();
+    const orderCards = document.querySelectorAll('.order-card');
     
-    if (newOrder) {
-      document.getElementById("sound-new-order").play().catch(() => {});
-      if (isInactiveTab) switchTab("active");
-    }
-    
-    localStorage.setItem("lastActiveOrderIds", JSON.stringify(activeIds));
-    renderOrders(data);
-  }, 1000);
-};
+    orderCards.forEach(card => {
+      const orderNumber = card.querySelector('.order-number').textContent.toLowerCase();
+      const customerName = card.querySelector('.customer-name').textContent.toLowerCase();
+      const orderItems = card.querySelector('.order-items').textContent.toLowerCase();
+      
+      if (orderNumber.includes(searchTerm) || 
+          customerName.includes(searchTerm) || 
+          orderItems.includes(searchTerm)) {
+        card.style.display = 'block';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  });
+}
 
-// Global functions untuk event handlers
+// Add new order functionality
+function addNewOrder() {
+  alert('Fungsi tambah pesanan baru akan diimplementasikan');
+}
+
+// Initialize all functionality when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  initializeKitchenToggle();
+  initializeSearch();
+  fetchKitchenStatus();
+  switchTab('active');
+  initializeEventSource();
+  
+  // Add click event to "ADD PESANAN BARU" button
+  document.querySelector('.add-order-btn').addEventListener('click', addNewOrder);
+});
+
+// Global functions for event handlers
+window.switchTab = switchTab;
 window.openConfirmModal = openConfirmModal;
 window.closeConfirmModal = closeConfirmModal;
 window.confirmCancel = confirmCancel;
-window.switchTab = switchTab;
 window.openDetailModal = openDetailModal;
 window.closeDetailModal = closeDetailModal;
-
-// Initialize dengan tab active
-switchTab("active");
+window.syncUpdate = syncUpdate;

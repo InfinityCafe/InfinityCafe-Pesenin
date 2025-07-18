@@ -4,64 +4,133 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard Dapur - Infinity Cafe</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-white p-6 font-mono">
-  <!--
-    This file is no longer used for dashboard rendering.
-    The dashboard is now rendered server-side using EJS (see views/index.ejs).
-  -->
-  <!-- === HEADER & TAB SELEKTOR === -->
-  <header class="mb-6">
-    <h1 class="text-3xl font-extrabold uppercase text-center bg-yellow-300 border-b-4 border-black shadow mb-4">📋 Dashboard Dapur</h1>
-    <div class="grid grid-cols-3 gap-4">
-      <div id="tab-active" class="tab-banner tab-banner-active" onclick="switchTab('active')">🟢 Aktif</div>
-      <div id="tab-inactive" class="tab-banner tab-banner-inactive" onclick="switchTab('inactive')">✅ Selesai</div>
-      <div id="tab-pending" class="tab-banner tab-banner-inactive" onclick="switchTab('pending')">⏳ Pending</div>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <h1 class="header-title">Dashboard Dapur</h1>
+      <p class="header-subtitle">Stephany | Barista</p>
     </div>
-    <div class="flex justify-center items-center gap-4 mt-4">
-      <span id="kitchen-status-label" class="font-bold"></span>
-      <button id="toggle-kitchen-btn" class="btn-action"></button>
+    <div class="header-center">
+      <div class="search-container">
+        <input type="text" placeholder="Search" class="search-input">
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="kitchen-status-container">
+        <label class="switch">
+          <input type="checkbox" id="kitchen-toggle" checked>
+          <span class="slider"></span>
+        </label>
+        <span id="kitchen-status-text" class="kitchen-status-text">BUKA</span>
+      </div>
     </div>
   </header>
-  <div id="kitchen-off-banner" class="hidden bg-red-600 text-white text-center font-bold py-2 mb-4 border-4 border-black">
-    🚫 Dapur sedang OFF. Tidak dapat menerima/memproses pesanan.
-  </div>
-  <!-- === BANNER OFFLINE === -->
-  <div id="offline-banner" class="hidden bg-red-600 text-white text-center font-bold py-2 mb-4 border-4 border-black">
-    🔌 Gagal ambil data. Cek koneksi.
-  </div>
-  <!-- === AREA KONTEN ORDER === -->
-  <main>
-    <div id="active-orders" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"></div>
-    <div id="inactive-orders" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 hidden mt-6"></div>
-    <div id="pending-orders" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 hidden mt-6"></div>
-  </main>
-  <!-- === NOTIFIKASI AUDIO === -->
-  <audio id="sound-new-order" src="https://www.myinstants.com/media/sounds/mario-coin.mp3" preload="auto"></audio>
-  <audio id="sound-status-update" src="https://www.myinstants.com/media/sounds/smw_1-up.mp3" preload="auto"></audio>
-  <!-- === MODAL KONFIRMASI CANCEL / HABIS === -->
-  <div id="confirm-modal" class="fixed inset-0 bg-black bg-opacity-70 z-50 hidden items-center justify-center">
-    <div class="bg-white border-4 border-black p-6 rounded-lg shadow max-w-md w-full relative">
-      <button onclick="closeConfirmModal()" class="btn-close">&times;</button>
-      <h3 class="text-xl font-bold mb-3">Konfirmasi Pembatalan</h3>
-      <p class="mb-4">Pilih alasan pembatalan atau kehabisan bahan.</p>
-      <div class="flex justify-end gap-2">
-        <button onclick="confirmCancel('cancel')" class="bg-red-600 text-white font-bold px-4 py-2 rounded shadow">Batal</button>
-        <button onclick="confirmCancel('habis')" class="bg-gray-800 text-white font-bold px-4 py-2 rounded shadow">Habis</button>
+
+  <!-- Main Content -->
+  <div class="main-container">
+    <div class="content-area">
+      <!-- Greeting Message -->
+      <div class="greeting-message">
+        <h2>Hi, John Doe, here's today's orders!</h2>
+        <p class="greeting-date">Monday, 14th July 2025</p>
+      </div>
+
+      <!-- Tab Navigation -->
+      <div class="tab-navigation">
+        <button id="tab-active" class="tab-btn tab-active" onclick="switchTab('active')">ACTIVE</button>
+        <button id="tab-done" class="tab-btn" onclick="switchTab('done')">DONE</button>
+        <button class="add-order-btn">ADD PESANAN BARU</button>
+      </div>
+
+      <!-- Order Columns -->
+      <div class="order-columns">
+        <div class="column">
+          <h3 class="column-title">New Order</h3>
+          <div id="new-order-column" class="order-list"></div>
+        </div>
+        <div class="column">
+          <h3 class="column-title">Making</h3>
+          <div id="making-column" class="order-list"></div>
+        </div>
+        <div class="column">
+          <h3 class="column-title">Deliver</h3>
+          <div id="deliver-column" class="order-list"></div>
+        </div>
+      </div>
+
+      <!-- Done Orders (Hidden by default) -->
+      <div id="done-orders" class="done-orders hidden">
+        <div class="order-grid" id="done-order-grid"></div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-content">
+        <h3 class="sidebar-title">SUMMARY PESANAN</h3>
+        <div class="summary-item">
+          <div class="summary-header">
+            <span class="summary-name">Kopi Latte</span>
+            <span class="summary-count">4</span>
+          </div>
+          <div class="summary-details">
+            <span class="summary-detail">#01</span>
+            <span class="summary-detail">#02</span>
+            <span class="summary-detail">#03</span>
+            <span class="summary-detail">#04</span>
+          </div>
+          <div class="summary-variants">
+            <div class="variant-item">
+              <span>Salted Caramel</span>
+              <span>Caramel</span>
+              <span>Salted Caramel</span>
+              <span>Caramel</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
-  <!-- === MODAL DETAIL ORDER === -->
-  <div id="detail-modal" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden items-center justify-center">
-    <div class="bg-white border-4 border-black p-6 rounded-lg max-w-md w-full font-mono relative">
-      <button onclick="closeDetailModal()" class="btn-close">&times;</button>
-      <h3 class="text-lg font-bold mb-2">📦 Detail Pesanan</h3>
-      <div id="detail-content" class="text-sm space-y-1"></div>
+
+  <!-- Kitchen Off Banner -->
+  <div id="kitchen-off-banner" class="kitchen-off-banner hidden">
+    🚫 Dapur sedang OFF. Tidak dapat menerima/memproses pesanan.
+  </div>
+
+  <!-- Offline Banner -->
+  <div id="offline-banner" class="offline-banner hidden">
+    🔌 Gagal ambil data. Cek koneksi.
+  </div>
+
+  <!-- Confirm Modal -->
+  <div id="confirm-modal" class="modal hidden">
+    <div class="modal-content">
+      <button onclick="closeConfirmModal()" class="modal-close">&times;</button>
+      <h3 class="modal-title">Konfirmasi Pembatalan</h3>
+      <p class="modal-text">Pilih alasan pembatalan atau kehabisan bahan.</p>
+      <div class="modal-actions">
+        <button onclick="confirmCancel('cancel')" class="modal-btn modal-btn-cancel">Batal</button>
+        <button onclick="confirmCancel('habis')" class="modal-btn modal-btn-habis">Habis</button>
+      </div>
     </div>
   </div>
-  
+
+  <!-- Detail Modal -->
+  <div id="detail-modal" class="modal hidden">
+    <div class="modal-content">
+      <button onclick="closeDetailModal()" class="modal-close">&times;</button>
+      <h3 class="modal-title">📦 Detail Pesanan</h3>
+      <div id="detail-content" class="modal-detail"></div>
+    </div>
+  </div>
+
+  <!-- Audio -->
+  <audio id="sound-new-order" src="https://www.myinstants.com/media/sounds/mario-coin.mp3" preload="auto"></audio>
+  <audio id="sound-status-update" src="https://www.myinstants.com/media/sounds/smw_1-up.mp3" preload="auto"></audio>
+
   <script src="script.js"></script>
 </body>
 </html>
