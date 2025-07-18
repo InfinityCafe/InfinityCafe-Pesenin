@@ -70,7 +70,6 @@ class KitchenOrder(Base):
     time_deliver = Column(DateTime(timezone=True), nullable=True)
     time_done = Column(DateTime(timezone=True), nullable=True)
     cancel_reason = Column(Text, nullable=True)
-    pending_reason = Column(Text, nullable=True)
 
 Base.metadata.create_all(bind=engine)
 
@@ -171,8 +170,8 @@ async def update_status(order_id: str, status: str, reason: str = "", db: Sessio
         raise HTTPException(status_code=404, detail="Order not found")
     
     # Validasi status dan reason
-    if status in ["cancel", "habis", "pending"] and not reason:
-        raise HTTPException(status_code=400, detail="Alasan wajib untuk status cancel, habis, atau pending")
+    if status in ["cancel", "habis"] and not reason:
+        raise HTTPException(status_code=400, detail="Alasan wajib untuk status cancel, atau habis")
 
     # Update timestamp sesuai status
     if status == "making" and not order.time_making:
@@ -182,10 +181,7 @@ async def update_status(order_id: str, status: str, reason: str = "", db: Sessio
     elif status == "done" and not order.time_done:
         order.time_done = timestamp
 
-    # Update reason fields
-    if status == "pending":
-        order.pending_reason = reason
-    elif status in ["cancel", "habis"]:
+    if status in ["cancel", "habis"]:
         order.cancel_reason = reason
 
     # Update status
@@ -244,7 +240,7 @@ async def stream_orders(request: Request, db: Session = Depends(get_db)):
 async def broadcast_orders(db: Session):
     today = datetime.now(jakarta_tz).date()
     orders_today = db.query(KitchenOrder).filter(
-        KitchenOrder.status.in_(['receive', 'making', 'deliver', 'pending'])
+        KitchenOrder.status.in_(['receive', 'making', 'deliver'])
     ).order_by(KitchenOrder.time_receive.asc()).all()
     
     result = []
@@ -260,7 +256,6 @@ async def broadcast_orders(db: Session):
             "customer_name": o.customer_name,
             "table_no": o.table_no,
             "room_name": o.room_name,
-            "pending_reason": o.pending_reason or "",
             "cancel_reason": o.cancel_reason or ""
         })
     
@@ -292,7 +287,7 @@ def get_kitchen_orders(db: Session = Depends(get_db)):
     orders = db.query(KitchenOrder).filter(
         or_(
             # Order yang masih aktif (belum selesai)
-            KitchenOrder.status.in_(['receive', 'making', 'deliver', 'pending']),
+            KitchenOrder.status.in_(['receive', 'making', 'deliver']),
             # Order yang selesai hari ini
             and_(
                 KitchenOrder.status.in_(['done', 'cancel', 'habis']),

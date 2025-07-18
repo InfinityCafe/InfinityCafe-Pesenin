@@ -7,6 +7,11 @@ volumes:
 
 networks:
   demo:
+    driver: bridge
+  my_shared_network:
+    driver: bridge
+    name: infinitycafe_shared_network  # Nama yang lebih deskriptif
+    # Hapus external: true
 
 x-n8n: &service-n8n
   image: n8nio/n8n:1.93.0
@@ -105,6 +110,7 @@ services:
   ollama-gpu:
     profiles: ["gpu-nvidia"]
     <<: *service-ollama
+    networks: ['demo', 'my_shared_network']
     environment:
       - OLLAMA_CONTEXT_LENGTH=5000
       - CUDA_VISIBLE_DEVICES=0
@@ -245,6 +251,11 @@ services:
           psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB_SHARED}'" |
           grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -c 'CREATE DATABASE ${POSTGRES_DB_SHARED}' &&
 
+          echo 'Create Database n8n' &&
+          psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'n8n'" |
+          grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -c 'CREATE DATABASE n8n' &&
+
+
           echo 'Create Database Menu...' &&
           psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB_MENU}'" |
           grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -c 'CREATE DATABASE ${POSTGRES_DB_MENU}' &&
@@ -292,7 +303,7 @@ services:
       - POSTGRES_HOST_AUTH_METHOD=trust
 
   menu_service:
-    networks: ['demo']
+    networks: ['demo', 'my_shared_network']
     hostname: menu_service
     build:
       context: ./infinity/
@@ -317,7 +328,7 @@ services:
 
 
   order_service:
-    networks: ['demo']
+    networks: ['demo', 'my_shared_network']
     hostname: order_service
     build:
       context: ./infinity/
@@ -342,7 +353,7 @@ services:
 
 
   kitchen_service:
-    networks: ['demo']
+    networks: ['demo', 'my_shared_network']
     hostname: kitchen_service
     build:
       context: ./infinity/
@@ -363,7 +374,7 @@ services:
       test: ["CMD", "curl", "-f", "http://kitchen_service:8003/health"]
 
   report_service:
-    networks: ['demo']
+    networks: ['demo', 'my_shared_network']
     hostname: report_service
     build:
       context: ./infinity/
@@ -387,7 +398,7 @@ services:
       retries: 3
 
   inventory_service:
-    networks: ['demo']
+    networks: ['demo', 'my_shared_network']
     hostname: inventory_service
     build:
       context: ./infinity/
