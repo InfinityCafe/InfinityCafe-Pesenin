@@ -246,15 +246,10 @@ services:
             echo waiting for PGVECTOR...;
             sleep 2;
           done &&
-          echo 'Checking and creating database default/shared...' &&
-
-          psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB_SHARED}'" |
-          grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -c 'CREATE DATABASE ${POSTGRES_DB_SHARED}' &&
 
           echo 'Create Database n8n' &&
           psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'n8n'" |
           grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -c 'CREATE DATABASE n8n' &&
-
 
           echo 'Create Database Menu...' &&
           psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB_MENU}'" |
@@ -276,7 +271,7 @@ services:
           echo 'Initializing vector extension and seeding data...' &&
           
           # Initialize each database with vector extension
-          psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_shared} -c 'CREATE EXTENSION IF NOT EXISTS vector;' &&
+          psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_DEFAULT} -c 'CREATE EXTENSION IF NOT EXISTS vector;' &&
           psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_MENU} -c 'CREATE EXTENSION IF NOT EXISTS vector;' &&
           psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_ORDER} -c 'CREATE EXTENSION IF NOT EXISTS vector;' &&
           psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_KITCHEN} -c 'CREATE EXTENSION IF NOT EXISTS vector;' &&
@@ -284,7 +279,7 @@ services:
           
           # Run seeder for each database (modify seeder.sql accordingly)
           echo 'Seeding databases with initial data...' &&
-          psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_shared} -f /initdb/seeder_db_shared.sql &&
+          psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_DEFAULT} -f /initdb/seeder_db_default.sql &&
           psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_MENU} -f /initdb/seeder_db_menu.sql &&
           psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_ORDER} -f /initdb/seeder_db_order.sql &&
           psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_KITCHEN} -f /initdb/seeder_db_kitchen.sql &&
@@ -296,7 +291,7 @@ services:
       - POSTGRES_DB_ORDER=${POSTGRES_DB_ORDER}
       - POSTGRES_DB_KITCHEN=${POSTGRES_DB_KITCHEN}
       - POSTGRES_DB_INVENTORY=${POSTGRES_DB_INVENTORY}
-      - POSTGRES_DB_SHARED=${POSTGRES_DB_SHARED}
+      - POSTGRES_DB_DEFAULT=${POSTGRES_DB_DEFAULT}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_HOST=${POSTGRES_HOST}
