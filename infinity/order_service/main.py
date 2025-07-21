@@ -1,9 +1,9 @@
-# order_service.py (Versi Gabungan Final)
+# order_service.py
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, String, Integer, ForeignKey, Text, DateTime, func, Index, and_
+from sqlalchemy import Boolean,create_engine, Column, String, Integer, ForeignKey, Text, DateTime, func, Index, and_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from typing import List, Optional
@@ -14,9 +14,7 @@ import logging
 import requests
 from datetime import datetime, date
 from pytz import timezone as pytz_timezone
-
-jakarta_tz = pytz_timezone('Asia/Jakarta')
-
+import json
 import uuid
 from fastapi_mcp import FastApiMCP
 import uvicorn
@@ -24,7 +22,7 @@ from fastapi import APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL_ORDER")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -49,6 +47,21 @@ mcp = FastApiMCP(app,name="Server MCP Infinity",
         include_operations=["add order","list order","cancel order","order status"]
         )
 mcp.mount(mount_path="/mcp",transport="sse")
+jakarta_tz = pytz_timezone('Asia/Jakarta')
+
+# Menambahkan tabel outbox untuk menyimpan pesan yang akan dikirim ke kitchen_service
+class OrderOutbox(Base):
+    __tablename__ = "order_outbox"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    order_id = Column(String, nullable=False)
+    event_type = Column(String, nullable=False)  # order_created, order_cancelled, order_updated
+    payload = Column(Text, nullable=False)  # JSON
+    processed = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
+    processed_at = Column(DateTime(timezone=True), nullable=True)
+    retry_count = Column(Integer, default=0)
+    max_retries = Column(Integer, default=3)
+    error_message = Column(Text, nullable=True)
 
 class Order(Base):
     __tablename__ = "orders"
@@ -127,10 +140,94 @@ def get_next_queue_number(db: Session) -> int:
     else:
         return 1
 
+# Fungsi helper untuk outbox
+def create_outbox_event(db: Session, order_id: str, event_type: str, payload: dict):
+    outbox_event = OrderOutbox(
+        order_id=order_id,
+        event_type=event_type,
+        payload=json.dumps(payload)
+    )
+    db.add(outbox_event)
+    return outbox_event
+
+def process_outbox_events(db: Session):
+    """Memproses outbox events yang belum terkirim"""
+    
+    # Ambil events yang belum diproses dan masih bisa di-retry
+    unprocessed_events = db.query(OrderOutbox).filter(
+        OrderOutbox.processed == False,
+        OrderOutbox.retry_count < OrderOutbox.max_retries
+    ).all()
+    
+    for event in unprocessed_events:
+        try:
+            payload = json.loads(event.payload)
+            
+            if event.event_type == "order_created":
+                response = requests.post(
+                    "http://kitchen_service:8003/receive_order",
+                    json=payload,
+                    timeout=5
+                )
+                response.raise_for_status()
+                
+            elif event.event_type == "order_cancelled":
+                response = requests.post(
+                    f"http://kitchen_service:8003/kitchen/update_status/{event.order_id}",
+                    params={"status": "cancel", "reason": payload.get("reason", "")},
+                    timeout=5
+                )
+                response.raise_for_status()
+            
+            # Tandai sebagai berhasil diproses
+            event.processed = True
+            event.processed_at = datetime.now(jakarta_tz)
+            event.error_message = None
+            
+            logging.info(f"✅ Outbox event {event.id} berhasil diproses")
+            
+        except Exception as e:
+            # Increment retry count dan simpan error
+            event.retry_count += 1
+            event.error_message = str(e)
+            
+            if event.retry_count >= event.max_retries:
+                logging.error(f"❌ Outbox event {event.id} gagal setelah {event.max_retries} percobaan: {e}")
+            else:
+                logging.warning(f"⚠️ Outbox event {event.id} gagal, akan dicoba lagi ({event.retry_count}/{event.max_retries}): {e}")
+    
+    db.commit()
+
+# Endpoint untuk memproses outbox secara manual (untuk debugging)
+@app.post("/admin/process_outbox", tags=["Admin"])
+def manual_process_outbox(db: Session = Depends(get_db)):
+    """Memproses outbox events secara manual"""
+    process_outbox_events(db)
+    return {"message": "Outbox events processed"}
+
+# Endpoint untuk melihat status outbox
+@app.get("/admin/outbox_status", tags=["Admin"])
+def get_outbox_status(db: Session = Depends(get_db)):
+    """Melihat status outbox events"""
+    total_events = db.query(OrderOutbox).count()
+    processed_events = db.query(OrderOutbox).filter(OrderOutbox.processed == True).count()
+    failed_events = db.query(OrderOutbox).filter(
+        OrderOutbox.processed == False,
+        OrderOutbox.retry_count >= OrderOutbox.max_retries
+    ).count()
+    
+    return {
+        "total_events": total_events,
+        "processed_events": processed_events,
+        "failed_events": failed_events,
+        "pending_events": total_events - processed_events - failed_events
+    }
+
 @app.post("/create_order", summary="Buat pesanan baru", tags=["Order"], operation_id="add order")
 def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     """Membuat pesanan baru dan mengirimkannya ke kitchen_service."""
 
+    # Cek status kitchen (optional - bisa dihilangkan jika pakai outbox)
     try:
         status_response = requests.get("http://kitchen_service:8003/kitchen/status/now", timeout=5)
         status_response.raise_for_status()
@@ -168,43 +265,55 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     )
 
     try:
+        # 1. Simpan order ke database
         db.add(new_order)
         for item in req.orders:
             db.add(OrderItem(order_id=order_id, **item.model_dump()))
+        
+        # 2. Buat outbox event dalam transaksi yang sama
+        outbox_payload = {
+            "order_id": order_id,
+            "queue_number": new_queue_number,
+            "orders": [item.model_dump() for item in req.orders],
+            "customer_name": req.customer_name,
+            "table_no": req.table_no,
+            "room_name": req.room_name
+        }
+        
+        create_outbox_event(db, order_id, "order_created", outbox_payload)
+        
+        # 3. Commit transaksi (atomik)
         db.commit()
+        
     except Exception as e:
         db.rollback()
         if "ix_order_queue_per_day" in str(e) or "unique constraint" in str(e).lower():
             logging.warning(f"Queue number conflict, retrying with next available number")
             new_queue_number_retry = get_next_queue_number(db)
             new_order.queue_number = new_queue_number_retry
+            
+            # Retry dengan queue number baru
             db.add(new_order)
             for item in req.orders:
                 db.add(OrderItem(order_id=order_id, **item.model_dump()))
+            
+            # Update payload dengan queue number baru
+            outbox_payload["queue_number"] = new_queue_number_retry
+            create_outbox_event(db, order_id, "order_created", outbox_payload)
+            
             db.commit()
             new_queue_number = new_queue_number_retry
         else:
             raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
+    # 4. Proses outbox event secara asinkron (atau via background job)
     try:
-        response = requests.post(
-            "http://kitchen_service:8003/receive_order",
-            json={
-                "order_id": order_id,
-                "queue_number": new_queue_number,
-                "orders": [item.model_dump() for item in req.orders],
-                "customer_name": req.customer_name,
-                "table_no": req.table_no,
-                "room_name": req.room_name
-            },
-            timeout=5
-        )
-        response.raise_for_status()
+        process_outbox_events(db)
     except Exception as e:
-        logging.warning(f"⚠️ Order dibuat tapi gagal diteruskan ke kitchen: {e}")
+        logging.warning(f"⚠️ Gagal memproses outbox events: {e}")
 
     return {
-        "message": "Order created and forwarded to kitchen",
+        "message": f"Pesanan kamu telah berhasil diproses dengan id order : {order_id}, mohon ditunggu ya !",
         "order_id": order_id,
         "queue_number": new_queue_number
     }
@@ -214,27 +323,37 @@ def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
     """Membatalkan pesanan yang belum selesai dan mencatat alasannya."""
     order = db.query(Order).filter(Order.order_id == req.order_id).first()
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Maaf, pesanan dengan ID: {req.order_id} tidak ditemukan. Mohon periksa kembali ID pesanan Anda."
+        )
     if order.status != "receive":
         raise HTTPException(
             status_code=400,
-            detail=f"Tidak bisa membatalkan pesanan. Status saat ini: '{order.status}'."
+            detail=f"Maaf, pesanan dengan ID: {req.order_id} sudah dalam proses pembuatan oleh dapur dan tidak dapat dibatalkan."
         )
-    if order.status == "order done":
-        raise HTTPException(status_code=400, detail="Order already completed")
 
+    # Update status dan simpan ke outbox dalam satu transaksi
     order.status = "cancelled"
-    try:
-        requests.post(
-            f"http://kitchen_service:8003/kitchen/update_status/{order.order_id}?status=cancel&reason={req.reason}",
-            timeout=5
-        )
-    except Exception as e:
-        logging.warning(f"⚠️ Gagal broadcast cancel ke dapur: {e}")
-
     order.cancel_reason = req.reason
+    
+    # Buat outbox event untuk cancel
+    cancel_payload = {
+        "order_id": req.order_id,
+        "reason": req.reason,
+        "cancelled_at": datetime.now(jakarta_tz).isoformat()
+    }
+    
+    create_outbox_event(db, req.order_id, "order_cancelled", cancel_payload)
     db.commit()
-    return {"message": "Order cancelled"}
+    
+    # Proses outbox event
+    try:
+        process_outbox_events(db)
+    except Exception as e:
+        logging.warning(f"⚠️ Gagal memproses cancel outbox event: {e}")
+    
+    return {"message": f"Pesanan kamu dengan ID: {req.order_id} telah berhasil dibatalkan."}
 
 @app.post("/internal/update_status/{order_id}", tags=["Internal"])
 def update_order_status_from_kitchen(order_id: str, req: StatusUpdateRequest, db: Session = Depends(get_db)):
@@ -265,20 +384,8 @@ def get_order_status(order_id: str, db: Session = Depends(get_db)):
 @app.get("/order", summary="Semua pesanan", tags=["Order"], operation_id="list order")
 def get_all_orders(db: Session = Depends(get_db)):
     """Mengembalikan semua data pesanan."""
-    orders = db.query(Order).all()
-    return [
-        {
-            "order_id": o.order_id,
-            "queue_number": o.queue_number,
-            "customer_name": o.customer_name,
-            "table_no": o.table_no,
-            "room_name": o.room_name,
-            "status": o.status,
-            "created_at": o.created_at.isoformat() if o.created_at else None,
-            "cancel_reason": o.cancel_reason
-        }
-        for o in orders
-    ]
+    orders = db.query(Order).order_by(Order.created_at.asc()).all()
+    return orders
 
 @app.get("/today_orders", summary="Pesanan hari ini", tags=["Order"])
 def get_today_orders(db: Session = Depends(get_db)):
