@@ -35,10 +35,3 @@ mcp = FastApiMCP(app, name="Server MCP Infinity", description="Server MCP Infini
 mcp.mount(mount_path="/mcp", transport="sse")
 
 # subscribers = set()
-
-class Ingredient(Base):
-    __tablename__ = "ingredients"
-    ingredient_id = Column(String, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    quantity = Column(Integer, nullable=False)
-    
