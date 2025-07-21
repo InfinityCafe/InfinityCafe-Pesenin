@@ -1648,3 +1648,69 @@ input:checked + .slider:before {
             flex-wrap: wrap;
         }
     }}
+
+/* === Done & Cancel Grid Side by Side === */
+.done-cancel-grid {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+  align-items: flex-start;
+}
+.done-cancel-column {
+  flex: 1 1 0;
+  min-width: 320px;
+  max-width: 600px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px 0 rgba(0,0,0,0.06);
+  padding: 1rem;
+}
+.done-cancel-column .column-title {
+  margin-bottom: 1rem;
+}
+@media (max-width: 900px) {
+  .done-cancel-grid {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+}
+
+.done-orders .order-columns {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.done-orders .column {
+  min-height: 500px;
+  max-height: 75vh;
+  overflow-y: auto;
+  border: 2px solid #DCD0A8;
+  border-radius: 12px;
+  background-color: white;
+  position: relative;
+  width: 100%;
+  padding-right: 3px;
+  display: flex;
+  flex-direction: column;
+}
+
+.done-orders .column-content {
+  flex: 1;
+  overflow-y: auto;
+  padding-top: 20px;
+}
+
+.done-orders .order-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0 10px 10px;
+}
+
+@media (max-width: 900px) {
+  .done-orders .order-columns {
+    grid-template-columns: 1fr;
+  }
+}

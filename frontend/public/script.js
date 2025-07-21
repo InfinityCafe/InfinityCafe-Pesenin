@@ -183,13 +183,15 @@ function renderOrders(orders) {
   const newOrderColumn = document.getElementById("new-order-column");
   const makingColumn = document.getElementById("making-column");
   const deliverColumn = document.getElementById("deliver-column");
-  const doneOrderGrid = document.getElementById("done-order-grid");
+  const doneOrderColumn = document.getElementById("done-order-column");
+  const cancelOrderColumn = document.getElementById("cancel-order-column");
   
   // Clear all columns
   newOrderColumn.innerHTML = '';
   makingColumn.innerHTML = '';
   deliverColumn.innerHTML = '';
-  doneOrderGrid.innerHTML = '';
+  doneOrderColumn.innerHTML = '';
+  cancelOrderColumn.innerHTML = '';
   
   // Sort orders by time received (newest first)
   orders.sort((a, b) => new Date(b.time_receive) - new Date(a.time_receive));
@@ -206,8 +208,10 @@ function renderOrders(orders) {
       makingColumn.appendChild(orderCard);
     } else if (order.status === 'deliver') {
       deliverColumn.appendChild(orderCard);
-    } else if (['done', 'cancel', 'habis'].includes(order.status)) {
-      doneOrderGrid.appendChild(orderCard);
+    } else if (order.status === 'done') {
+      doneOrderColumn.appendChild(orderCard);
+    } else if (order.status === 'cancel' || order.status === 'habis') {
+      cancelOrderColumn.appendChild(orderCard);
     }
   });
   

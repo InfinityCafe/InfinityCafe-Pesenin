@@ -71,7 +71,20 @@
 
       <!-- Done Orders (Hidden by default) -->
       <div id="done-orders" class="done-orders hidden">
-        <div class="order-grid" id="done-order-grid"></div>
+        <div class="order-columns">
+          <div class="column">
+            <h3 class="column-title">Done</h3>
+            <div class="column-content">
+              <div id="done-order-column" class="order-list"></div>
+            </div>
+          </div>
+          <div class="column">
+            <h3 class="column-title">Cancel</h3>
+            <div class="column-content">
+              <div id="cancel-order-column" class="order-list"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
