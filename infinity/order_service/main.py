@@ -1,4 +1,4 @@
-# order_service.py (Versi Gabungan Final)
+# order_service.py
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import JSONResponse
@@ -307,7 +307,7 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         logging.warning(f"⚠️ Gagal memproses outbox events: {e}")
 
     return {
-        "message": "Order created and queued for processing",
+        "message": f"Pesanan kamu telah berhasil diproses dengan id order : {order_id}, mohon ditunggu ya !",
         "order_id": order_id,
         "queue_number": new_queue_number
     }
@@ -317,14 +317,15 @@ def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
     """Membatalkan pesanan yang belum selesai dan mencatat alasannya."""
     order = db.query(Order).filter(Order.order_id == req.order_id).first()
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Maaf, pesanan dengan ID: {req.order_id} tidak ditemukan. Mohon periksa kembali ID pesanan Anda."
+        )
     if order.status != "receive":
         raise HTTPException(
             status_code=400,
-            detail=f"Tidak bisa membatalkan pesanan. Status saat ini: '{order.status}'."
+            detail=f"Maaf, pesanan dengan ID: {req.order_id} sudah dalam proses pembuatan oleh dapur dan tidak dapat dibatalkan."
         )
-    if order.status == "order done":
-        raise HTTPException(status_code=400, detail="Order already completed")
 
     # Update status dan simpan ke outbox dalam satu transaksi
     order.status = "cancelled"
@@ -346,7 +347,7 @@ def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
     except Exception as e:
         logging.warning(f"⚠️ Gagal memproses cancel outbox event: {e}")
     
-    return {"message": "Order cancelled"}
+    return {"message": f"Pesanan kamu dengan ID: {req.order_id} telah berhasil dibatalkan."}
 
 @app.post("/internal/update_status/{order_id}", tags=["Internal"])
 def update_order_status_from_kitchen(order_id: str, req: StatusUpdateRequest, db: Session = Depends(get_db)):
@@ -377,7 +378,7 @@ def get_order_status(order_id: str, db: Session = Depends(get_db)):
 @app.get("/order", summary="Semua pesanan", tags=["Order"], operation_id="list order")
 def get_all_orders(db: Session = Depends(get_db)):
     """Mengembalikan semua data pesanan."""
-    orders = db.query(Order).all()
+    orders = db.query(Order).order_by(Order.created_at.asc()).all()
     return orders
 
 @app.get("/today_orders", summary="Pesanan hari ini", tags=["Order"])
