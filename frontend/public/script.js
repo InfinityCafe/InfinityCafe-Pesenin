@@ -134,10 +134,13 @@ function createOrderCard(order) {
   card.className = "order-card";
   card.setAttribute('data-order-id', order.order_id);
   card.onclick = () => openDetailModal(order);
-  
+
+  // Ambil nomor antrian dari mapping global
+  const queueNumber = (window._orderIdToQueue && window._orderIdToQueue[order.order_id]) ? window._orderIdToQueue[order.order_id] : (order.queue_number || order.order_id);
+
   const time = new Date(order.time_receive).toLocaleString("id-ID");
   const timeDone = order.time_done ? new Date(order.time_done).toLocaleString("id-ID") : null;
-  
+
   // Parse items from detail
   const items = order.detail.split('\n').filter(item => item.trim());
   const itemsHtml = items.map(item => {
@@ -151,11 +154,11 @@ function createOrderCard(order) {
       </div>
     `;
   }).join('');
-  
+
   // Status badge
   let statusBadge = '';
   let actionButton = '';
-  
+
   if (order.status === 'receive') {
     statusBadge = '<span class="status-badge status-receive"><i class="fa-solid fa-receipt"></i> RECEIVE</span>';
     actionButton = `<button class="action-btn action-btn-orange" onclick="event.stopPropagation(); syncUpdate('${order.order_id}', 'making')">MAKING <i class="fa-solid fa-arrow-right"></i></button>`;
@@ -174,10 +177,10 @@ function createOrderCard(order) {
     statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCEL</span>';
     actionButton = `<button class="action-btn action-btn-red-disabled")">CANCEL</button>`;
   }
-  
+
   card.innerHTML = `
     <div class="order-header">
-      <span class="order-number">#${order.queue_number ?? '1'}</span>
+      <span class="order-number">${queueNumber ? `#${queueNumber}` : ''}</span>
       <span class="customer-name">${order.customer_name ?? 'John Doe'}</span>
       ${["receive", "making", "deliver"].includes(order.status) ? `<button class="order-close" onclick="event.stopPropagation(); openConfirmModal('${order.order_id}')">&times;</button>` : ""}
     </div>
@@ -195,7 +198,7 @@ function createOrderCard(order) {
     ${actionButton}
     </div>
   `;
-  
+
   return card;
 }
 
@@ -213,8 +216,8 @@ function renderOrders(orders) {
   doneOrderColumn.innerHTML = '';
   cancelOrderColumn.innerHTML = '';
   
-  // Sort orders by time received (newest first)
-  orders.sort((a, b) => new Date(b.time_receive) - new Date(a.time_receive));
+  // Sort orders by time received (FIFO)
+  orders.sort((a, b) => new Date(a.time_receive) - new Date(b.time_receive));
   
   orders.forEach(order => {
     if (!order.order_id || !order.detail) return;
@@ -269,28 +272,41 @@ function updateSummary(orders) {
         summary[name] = {
           count: 0,
           orders: [],
-          variants: []
+          variants: [],
+          firstQueueNumber: Infinity // Untuk mengurutkan menu berdasarkan antrian terkecil
         };
       }
       summary[name].count++;
+      const queueNumber = orderIdToQueue[order.order_id] || Infinity;
+      summary[name].firstQueueNumber = Math.min(summary[name].firstQueueNumber, queueNumber);
       summary[name].orders.push({
         id: order.order_id,
         label: `#${order.order_id.toString().padStart(2, '0')}`,
         variant,
         customer: order.customer_name ?? '',
-        queue: orderIdToQueue[order.order_id] || '-'
+        queue: queueNumber,
+        time_receive: order.time_receive
       });
       if (variant) {
         summary[name].variants.push(variant);
       }
     });
   });
+
   const sidebarContent = document.querySelector('.sidebar-content');
   const existingTitle = sidebarContent.querySelector('.sidebar-title');
   while (sidebarContent.children.length > 1) {
     sidebarContent.removeChild(sidebarContent.lastChild);
   }
-  Object.entries(summary).forEach(([itemName, data]) => {
+
+  // Urutkan menu berdasarkan nomor antrian terkecil
+  const sortedSummary = Object.entries(summary)
+    .sort((a, b) => a[1].firstQueueNumber - b[1].firstQueueNumber);
+
+  sortedSummary.forEach(([itemName, data]) => {
+    // Urutkan orders dalam setiap menu berdasarkan nomor antrian
+    data.orders.sort((a, b) => (a.queue || Infinity) - (b.queue || Infinity));
+    
     const summaryItem = document.createElement('div');
     summaryItem.className = 'summary-item';
     summaryItem.innerHTML = `
@@ -314,6 +330,7 @@ function updateSummary(orders) {
     `;
     sidebarContent.appendChild(summaryItem);
   });
+
   // Add click event for order id highlight
   sidebarContent.querySelectorAll('.summary-detail--order').forEach(el => {
     el.addEventListener('click', function(e) {
@@ -321,6 +338,9 @@ function updateSummary(orders) {
       highlightOrderCard(orderId);
     });
   });
+
+  // Simpan mapping orderIdToQueue ke window agar bisa dipakai di createOrderCard
+  window._orderIdToQueue = orderIdToQueue;
 }
 
 function fetchOrders() {
