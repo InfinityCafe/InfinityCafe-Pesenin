@@ -240,16 +240,31 @@ function renderOrders(orders) {
 }
 
 function updateSummary(orders) {
+  // Ambil tanggal hari ini (YYYY-MM-DD)
+  const todayStr = new Date().toISOString().slice(0, 10);
+  // Filter orders yang time_receive-nya hari ini
+  const todayOrders = orders.filter(order => {
+    if (!order.time_receive) return false;
+    const orderDate = new Date(order.time_receive).toISOString().slice(0, 10);
+    return orderDate === todayStr;
+  });
+  // Urutkan orders hari ini berdasarkan waktu (FIFO)
+  const sortedOrders = [...todayOrders]
+    .sort((a, b) => new Date(a.time_receive) - new Date(b.time_receive));
+  // Map order_id ke nomor antrian hari ini
+  const orderIdToQueue = {};
+  sortedOrders.forEach((order, idx) => {
+    orderIdToQueue[order.order_id] = idx + 1;
+  });
+
   const activeOrders = orders.filter(order => ['receive', 'making', 'deliver'].includes(order.status));
   const summary = {};
-  
   activeOrders.forEach(order => {
     const items = order.detail.split('\n').filter(item => item.trim());
     items.forEach(item => {
       const parts = item.split(' - ');
       const name = parts[0] || item;
       const variant = parts[1] || '';
-      
       if (!summary[name]) {
         summary[name] = {
           count: 0,
@@ -257,43 +272,46 @@ function updateSummary(orders) {
           variants: []
         };
       }
-      
       summary[name].count++;
-      summary[name].orders.push({ id: order.order_id, label: `#${order.order_id.toString().padStart(2, '0')}` });
+      summary[name].orders.push({
+        id: order.order_id,
+        label: `#${order.order_id.toString().padStart(2, '0')}`,
+        variant,
+        customer: order.customer_name ?? '',
+        queue: orderIdToQueue[order.order_id] || '-'
+      });
       if (variant) {
         summary[name].variants.push(variant);
       }
     });
   });
-  
   const sidebarContent = document.querySelector('.sidebar-content');
   const existingTitle = sidebarContent.querySelector('.sidebar-title');
-  
-  // Clear existing summary items
   while (sidebarContent.children.length > 1) {
     sidebarContent.removeChild(sidebarContent.lastChild);
   }
-  
-  // Add new summary items
   Object.entries(summary).forEach(([itemName, data]) => {
     const summaryItem = document.createElement('div');
     summaryItem.className = 'summary-item';
-    
     summaryItem.innerHTML = `
       <div class="summary-header">
         <span class="summary-name">${itemName}</span>
-        <span class="summary-count">${data.count}</span>
+        <span class="summary-count">${data.count} <span style='font-weight:400'>×</span></span>
       </div>
-      <div class="summary-details">
-        ${data.orders.map(order => `<span class="summary-detail summary-detail--order" data-order-id="${order.id}">${order.label}</span>`).join('')}
-      </div>
-      <div class="summary-variants">
-        <div class="variant-item">
-          ${data.variants.map(variant => `<span>${variant}</span>`).join('')}
-        </div>
-      </div>
+      <table class="summary-table">
+        <thead>
+          <tr><th>Varian</th><th>Antrian</th></tr>
+        </thead>
+        <tbody>
+          ${data.orders.map(order => `
+            <tr>
+              <td>${order.variant || '-'}</td>
+              <td><span class="summary-detail--order" data-order-id="${order.id}" title="${order.label}">${order.queue}</span></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
     `;
-    
     sidebarContent.appendChild(summaryItem);
   });
   // Add click event for order id highlight
