@@ -137,33 +137,43 @@ function createOrderCard(order) {
   let actionButton = '';
   
   if (order.status === 'receive') {
-    statusBadge = '<span class="status-badge status-receive">RECEIVE</span>';
-    actionButton = `<button class="action-btn action-btn-orange" onclick="event.stopPropagation(); syncUpdate('${order.order_id}', 'making')">MAKING →</button>`;
+    statusBadge = '<span class="status-badge status-receive"><i class="fa-solid fa-receipt"></i> RECEIVE</span>';
+    actionButton = `<button class="action-btn action-btn-orange" onclick="event.stopPropagation(); syncUpdate('${order.order_id}', 'making')">MAKING <i class="fa-solid fa-arrow-right"></i></button>`;
   } else if (order.status === 'making') {
-    statusBadge = '<span class="status-badge status-making">MAKING</span>';
-    actionButton = `<button class="action-btn action-btn-blue" onclick="event.stopPropagation(); syncUpdate('${order.order_id}', 'deliver')">DELIVER →</button>`;
+    statusBadge = '<span class="status-badge status-making"><i class="fa-solid fa-clock"></i> MAKING</span>';
+    actionButton = `<button class="action-btn action-btn-blue" onclick="event.stopPropagation(); syncUpdate('${order.order_id}', 'deliver')">DELIVER <i class="fa-solid fa-arrow-right"></i></button>`;
   } else if (order.status === 'deliver') {
-    statusBadge = '<span class="status-badge status-deliver">DELIVER</span>';
-    actionButton = `<button class="action-btn action-btn-green" onclick="event.stopPropagation(); syncUpdate('${order.order_id}', 'done')">DONE →</button>`;
+    statusBadge = '<span class="status-badge status-deliver"><i class="fa-solid fa-truck"></i> DELIVER</span>';
+    actionButton = `<button class="action-btn action-btn-green" onclick="event.stopPropagation(); syncUpdate('${order.order_id}', 'done')">DONE <i class="fa-solid fa-arrow-right"></i></button>`;
+  }
+  else if (order.status === 'done') {
+    statusBadge = '<span class="status-badge status-done"><i class="fa-solid fa-check"></i> DONE</span>';
+    actionButton = `<button class="action-btn action-btn-green-disabled")">DONE</button>`;
+  }
+    else if (order.status === 'cancel') {
+    statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCEL</span>';
+    actionButton = `<button class="action-btn action-btn-red-disabled")">CANCEL</button>`;
   }
   
   card.innerHTML = `
     <div class="order-header">
-      <span class="order-number">#${order.order_id.toString().padStart(2, '0')}</span>
+      <span class="order-number">#${order.queue_number ?? '1'}</span>
       <span class="customer-name">${order.customer_name ?? 'John Doe'}</span>
       ${["receive", "making", "deliver"].includes(order.status) ? `<button class="order-close" onclick="event.stopPropagation(); openConfirmModal('${order.order_id}')">&times;</button>` : ""}
     </div>
-    <div class="order-location">
-      <span class="location-icon">📍</span>
-      <span class="location-text">Lantai ${order.table_no ?? '2'}</span>
-      ${statusBadge}
-    </div>
-    <div class="order-timestamp">${time}</div>
-    <div class="order-items">${itemsHtml}</div>
-    <div class="order-footer">
-      <span class="order-drink">Antrian ${order.queue_number ?? '1'}</span>
-    </div>
+    <div class="order-contents">
+        <div class="order-location">
+            <span class="location-icon"><i class="fa-solid fa-location-dot"></i></span>
+            <span class="location-text">Lantai ${order.table_no ?? '2'}</span>
+            ${statusBadge}
+        </div>
+        <div class="order-timestamp">${time}</div>
+        <div class="order-items">${itemsHtml}</div>
+        <div class="order-footer">
+            <span class="details-button">DETAILS <i class="fa-solid fa-chevron-right"></i></span>
+        </div>
     ${actionButton}
+    </div>
   `;
   
   return card;
