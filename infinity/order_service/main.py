@@ -103,6 +103,7 @@ class OrderItemSchema(BaseModel):
         from_attributes = True
 
 class CreateOrderRequest(BaseModel):
+    order_id: Optional[str] = None
     customer_name: str
     table_no: str
     room_name: str
@@ -249,7 +250,12 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         logging.warning(f"Error getting queue number, retrying once: {e}")
         new_queue_number = get_next_queue_number(db)
 
-    order_id = generate_order_id()
+    # GUNAKAN order_id dari request jika ada dan belum ada di DB
+    if req.order_id and not db.query(Order).filter(Order.order_id == req.order_id).first():
+        order_id = req.order_id
+    else:
+        order_id = generate_order_id()
+
     new_order = Order(
         order_id=order_id,
         queue_number=new_queue_number,

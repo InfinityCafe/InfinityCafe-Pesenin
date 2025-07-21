@@ -276,6 +276,7 @@ logging.basicConfig(level=logging.INFO)
 logging.info(f"✅ kitchen_service sudah running di http://{local_ip}:8003 add cors")
 
 mcp.setup_server()
+mcp.setup_server()
 
 @app.get("/kitchen/orders", summary="Lihat semua pesanan", tags=["Kitchen"], operation_id="kitchen order list")
 def get_kitchen_orders(db: Session = Depends(get_db)):

@@ -4,238 +4,154 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard Dapur - Infinity Cafe</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    /* === Komponen UI === */
-    .card {
-      @apply p-4 border-4 border-black bg-white font-mono font-bold uppercase relative shadow-[6px_6px_0_#000];
-    }
-    .btn-close {
-      @apply absolute top-2 right-2 text-red-600 font-bold text-lg bg-white border-2 border-black rounded-full w-6 h-6 flex items-center justify-center;
-    }
-    .tab-banner {
-      @apply px-6 py-3 border-4 border-black font-extrabold uppercase text-center cursor-pointer shadow-[4px_4px_0_#000];
-    }
-    .tab-banner-active {
-      background-color: #fff;
-      color: #000;
-    }
-    .tab-banner-inactive {
-      background-color: #1f2937;
-      color: #fff;
-    }
-    .btn-action {
-      @apply mt-2 w-full bg-white border-4 border-black text-black font-extrabold uppercase px-4 py-2 shadow-[4px_4px_0_#000] hover:bg-black hover:text-yellow-300;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+
 </head>
-<body class="bg-white p-6 font-mono">
-
-  <!--
-    This file is no longer used for dashboard rendering.
-    The dashboard is now rendered server-side using EJS (see views/index.ejs).
-  -->
-
-  <!-- === HEADER & TAB SELEKTOR === -->
-  <header class="mb-6">
-    <h1 class="text-3xl font-extrabold uppercase text-center bg-yellow-300 border-b-4 border-black shadow mb-4">📋 Dashboard Dapur</h1>
-    <div class="grid grid-cols-2 gap-4">
-      <div id="tab-active" class="tab-banner tab-banner-active" onclick="switchTab('active')">🟢 Aktif</div>
-      <div id="tab-inactive" class="tab-banner tab-banner-inactive" onclick="switchTab('inactive')">✅ Selesai</div>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <h1 class="header-title">Dashboard Dapur</h1>
+      <p class="header-subtitle">Stephany | Barista</p>
+    </div>
+    <div class="header-center">
+      <div class="search-container">
+        <input type="text" placeholder="Search" class="search-input">
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="kitchen-status-container">
+        <label class="switch">
+          <input type="checkbox" id="kitchen-toggle" checked>
+          <span class="slider"></span>
+        </label>
+        <span id="kitchen-status-text" class="kitchen-status-text">BUKA</span>
+      </div>
     </div>
   </header>
 
-  <!-- === BANNER OFFLINE === -->
-  <div id="offline-banner" class="hidden bg-red-600 text-white text-center font-bold py-2 mb-4 border-4 border-black">
-    🔌 Gagal ambil data. Cek koneksi.
-  </div>
+  <!-- Main Content -->
+  <div class="main-container">
+    <div class="content-area">
+      <!-- Greeting Message -->
+      <div class="greeting-message">
+        <h2>Hi, John Doe, here's today's orders!</h2>
+        <p class="greeting-date">Monday, 14th July 2025</p>
+      </div>
 
-  <!-- === AREA KONTEN ORDER === -->
-  <main>
-    <div id="active-orders" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"></div>
-    <div id="inactive-orders" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 hidden mt-6"></div>
-  </main>
+      <!-- Tab Navigation -->
+      <div class="tab-navigation">
+        <button id="tab-active" class="tab-btn tab-active" onclick="switchTab('active')">ACTIVE</button>
+        <button id="tab-done" class="tab-btn" onclick="switchTab('done')">DONE</button>
+        <button class="add-order-btn">ADD PESANAN BARU</button>
+      </div>
 
-  <!-- === NOTIFIKASI AUDIO === -->
-  <audio id="sound-new-order" src="https://www.myinstants.com/media/sounds/mario-coin.mp3" preload="auto"></audio>
-  <audio id="sound-status-update" src="https://www.myinstants.com/media/sounds/smw_1-up.mp3" preload="auto"></audio>
+      <!-- Order Columns -->
+      <div class="order-columns">
+        <div class="column">
+          <h3 class="column-title">New Order</h3>
+          <div class="column-content">
+            <div id="new-order-column" class="order-list"></div>
+          </div>
+        </div>
+        <div class="column">
+          <h3 class="column-title">Making</h3>
+          <div class="column-content">
+            <div id="making-column" class="order-list"></div>
+          </div>
+        </div>
+        <div class="column">
+          <h3 class="column-title">Deliver</h3>
+          <div class="column-content">
+            <div id="deliver-column" class="order-list"></div>
+          </div>
+        </div>
+      </div>
 
-  <!-- === MODAL KONFIRMASI CANCEL / HABIS === -->
-  <div id="confirm-modal" class="fixed inset-0 bg-black bg-opacity-70 z-50 hidden items-center justify-center">
-    <div class="bg-white border-4 border-black p-6 rounded-lg shadow max-w-md w-full relative">
-      <button onclick="closeConfirmModal()" class="btn-close">&times;</button>
-      <h3 class="text-xl font-bold mb-3">Konfirmasi Pembatalan</h3>
-      <p class="mb-4">Pilih alasan pembatalan atau kehabisan bahan.</p>
-      <div class="flex justify-end gap-2">
-        <button onclick="confirmCancel('cancel')" class="bg-red-600 text-white font-bold px-4 py-2 rounded shadow">Batal</button>
-        <button onclick="confirmCancel('habis')" class="bg-gray-800 text-white font-bold px-4 py-2 rounded shadow">Habis</button>
+      <!-- Done Orders (Hidden by default) -->
+      <div id="done-orders" class="done-orders hidden">
+        <div class="order-columns">
+          <div class="column">
+            <h3 class="column-title">Done</h3>
+            <div class="column-content">
+              <div id="done-order-column" class="order-list"></div>
+            </div>
+          </div>
+          <div class="column">
+            <h3 class="column-title">Cancel</h3>
+            <div class="column-content">
+              <div id="cancel-order-column" class="order-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-content">
+        <h3 class="sidebar-title">SUMMARY PESANAN</h3>
+        <div class="summary-item">
+          <div class="summary-header">
+            <span class="summary-name">Kopi Latte</span>
+            <span class="summary-count">4</span>
+          </div>
+          <div class="summary-details">
+            <span class="summary-detail">#01</span>
+            <span class="summary-detail">#02</span>
+            <span class="summary-detail">#03</span>
+            <span class="summary-detail">#04</span>
+          </div>
+          <div class="summary-variants">
+            <div class="variant-item">
+              <span>Salted Caramel</span>
+              <span>Caramel</span>
+              <span>Salted Caramel</span>
+              <span>Caramel</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- === MODAL DETAIL ORDER === -->
-  <div id="detail-modal" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden items-center justify-center">
-    <div class="bg-white border-4 border-black p-6 rounded-lg max-w-md w-full font-mono relative">
-      <button onclick="closeDetailModal()" class="btn-close">&times;</button>
-      <h3 class="text-lg font-bold mb-2">📦 Detail Pesanan</h3>
-      <div id="detail-content" class="text-sm space-y-1"></div>
+  <!-- Kitchen Off Banner -->
+  <div id="kitchen-off-banner" class="kitchen-off-banner hidden">
+    🚫 Dapur sedang OFF. Tidak dapat menerima/memproses pesanan.
+  </div>
+
+  <!-- Offline Banner -->
+  <div id="offline-banner" class="offline-banner hidden">
+    🔌 Gagal ambil data. Cek koneksi.
+  </div>
+
+  <!-- Confirm Modal -->
+  <div id="confirm-modal" class="modal hidden">
+    <div class="modal-content">
+      <button onclick="closeConfirmModal()" class="modal-close">&times;</button>
+      <h3 class="modal-title">Konfirmasi Pembatalan</h3>
+      <p class="modal-text">Pilih alasan pembatalan atau kehabisan bahan.</p>
+      <div class="modal-actions">
+        <button onclick="confirmCancel('cancel')" class="modal-btn modal-btn-cancel">Batal</button>
+        <button onclick="confirmCancel('habis')" class="modal-btn modal-btn-habis">Habis</button>
+      </div>
     </div>
   </div>
 
-  <!-- === SCRIPT LOGIKA === -->
-  <script>
-    const statusFlow = { receive: "making", making: "deliver", deliver: "done" };
-    const statusColors = {
-      receive: "bg-yellow-100", making: "bg-blue-100",
-      deliver: "bg-green-100", done: "bg-gray-200",
-      cancel: "bg-red-100", habis: "bg-orange-100"
-    };
+  <!-- Detail Modal -->
+  <div id="detail-modal" class="modal hidden">
+    <div class="modal-content">
+      <button onclick="closeDetailModal()" class="modal-close">&times;</button>
+      <h3 class="modal-title">📦 Detail Pesanan</h3>
+      <div id="detail-content" class="modal-detail"></div>
+    </div>
+  </div>
 
-    let selectedOrderId = null;
-    let selectedOrder = null;
+  <!-- Audio -->
+  <audio id="sound-new-order" src="https://www.myinstants.com/media/sounds/mario-coin.mp3" preload="auto"></audio>
+  <audio id="sound-status-update" src="https://www.myinstants.com/media/sounds/smw_1-up.mp3" preload="auto"></audio>
 
-    function switchTab(view) {
-      document.getElementById("active-orders").classList.toggle("hidden", view !== "active");
-      document.getElementById("inactive-orders").classList.toggle("hidden", view !== "inactive");
-      document.getElementById("tab-active").classList.toggle("tab-banner-active", view === "active");
-      document.getElementById("tab-inactive").classList.toggle("tab-banner-active", view === "inactive");
-      document.getElementById("tab-active").classList.toggle("tab-banner-inactive", view !== "active");
-      document.getElementById("tab-inactive").classList.toggle("tab-banner-inactive", view !== "inactive");
-      fetchOrders();
-    }
-
-    function openConfirmModal(orderId) {
-      selectedOrderId = orderId;
-      document.getElementById("confirm-modal").classList.remove("hidden");
-    }
-
-    function closeConfirmModal() {
-      selectedOrderId = null;
-      document.getElementById("confirm-modal").classList.add("hidden");
-    }
-
-    function openDetailModal(order) {
-      selectedOrder = order;
-      const box = document.getElementById("detail-content");
-      box.innerHTML = `
-        <p><strong>Order ID:</strong> ${order.order_id}</p>
-        <p><strong>Nama:</strong> ${order.customer_name}</p>
-        <p><strong>Meja:</strong> ${order.table_no}</p>
-        <p><strong>Ruangan:</strong> ${order.room_name}</p>
-        <p><strong>Status:</strong> ${order.status}</p>
-        <p><strong>Waktu:</strong> ${new Date(order.time_receive).toLocaleString("id-ID")}</p>
-        ${order.time_done ? `<p><strong>Selesai:</strong> ${new Date(order.time_done).toLocaleString("id-ID")}</p>` : ""}
-        <p><strong>Detail:</strong><br>${order.detail}</p>
-      `;
-      document.getElementById("detail-modal").classList.remove("hidden");
-    }
-
-    function closeDetailModal() {
-      selectedOrder = null;
-      document.getElementById("detail-modal").classList.add("hidden");
-    }
-
-    async function confirmCancel(status) {
-      const reason = status === "cancel" ? prompt("Masukkan alasan pembatalan:", "Tidak jadi") : "Bahan habis";
-      if (!reason) return closeConfirmModal();
-      await syncUpdate(selectedOrderId, status, reason);
-      closeConfirmModal();
-    }
-
-    async function syncUpdate(orderId, status, reason = "") {
-      try {
-        await fetch(`http://localhost:8003/kitchen/update_status/${orderId}?status=${status}&reason=${encodeURIComponent(reason)}`, { method: "POST" });
-        await fetch(`http://localhost:8002/order/update_status/${orderId}?status=${status}`, { method: "POST" });
-        document.getElementById("sound-status-update").play().catch(() => {});
-        fetchOrders();
-        logHistory(orderId, status, reason);
-      } catch (err) {
-        alert("Gagal update status ke kitchen/order service");
-      }
-    }
-
-    function logHistory(orderId, status, reason = "") {
-      console.log(`[LOG] Order ${orderId} → Status: ${status} ${reason ? "| Alasan: " + reason : ""}`);
-    }
-
-    function renderOrders(orders) {
-      const active = document.getElementById("active-orders");
-      const inactive = document.getElementById("inactive-orders");
-      active.innerHTML = "";
-      inactive.innerHTML = "";
-
-      orders.sort((a, b) => new Date(b.time_receive) - new Date(a.time_receive));
-
-      orders.forEach(o => {
-        if (!o.order_id || !o.detail) return;
-        const card = document.createElement("div");
-        card.className = `card ${statusColors[o.status] || "bg-white"}`;
-        card.onclick = () => openDetailModal(o);
-
-        const time = new Date(o.time_receive).toLocaleString("id-ID");
-        const timeDone = o.time_done ? new Date(o.time_done).toLocaleString("id-ID") : null;
-
-        card.innerHTML = `
-          <div class="flex justify-between items-center border-b-2 border-black mb-2 px-2 py-1 bg-yellow-300">
-            👤 ${o.customer_name ?? '-'}
-            ${["receive", "making", "deliver"].includes(o.status) ? `<button class="btn-close" onclick="event.stopPropagation(); openConfirmModal('${o.order_id}')">&times;</button>` : ""}
-          </div>
-          <div class="text-sm">#${o.order_id}</div>
-          <div class="text-xs text-gray-500">🕒 ${time}</div>
-          <div class="text-xs">🏠 ${o.room_name ?? '-'}</div>
-          <div class="text-xs">🪑 Meja ${o.table_no ?? '-'}</div>
-          <div class="font-bold text-lg mt-1">${o.detail}</div>
-          <div class="text-xs mt-1">Status: ${o.status}</div>
-          ${timeDone ? `<div class="text-xs mt-1 text-gray-600">📅 Selesai: ${timeDone}</div>` : ""}
-        `;
-
-        if (statusFlow[o.status]) {
-          const btn = document.createElement("button");
-          btn.textContent = `➡️ ${statusFlow[o.status]}`;
-          btn.className = "btn-action";
-          btn.onclick = async (e) => {
-            e.stopPropagation();
-            await syncUpdate(o.order_id, statusFlow[o.status]);
-          };
-          card.appendChild(btn);
-        }
-
-        (["receive", "making", "deliver"].includes(o.status) ? active : inactive).appendChild(card);
-      });
-    }
-
-    function fetchOrders() {
-      fetch("http://localhost:8003/kitchen/orders")
-        .then(res => res.json())
-        .then(data => renderOrders(data))
-        .catch(() => document.getElementById("offline-banner").classList.remove("hidden"));
-    }
-
-    const es = new EventSource("http://localhost:8003/stream/orders");
-    let updateTimeout = null;
-    es.onmessage = () => {
-      if (updateTimeout) clearTimeout(updateTimeout);
-      updateTimeout = setTimeout(async () => {
-        const res = await fetch("http://localhost:8003/kitchen/orders");
-        const data = await res.json();
-        const activeIds = data.filter(o => ["receive", "making", "deliver"].includes(o.status)).map(o => o.order_id);
-        const lastIds = JSON.parse(localStorage.getItem("lastActiveOrderIds") || "[]");
-        const newOrder = activeIds.some(id => !lastIds.includes(id));
-        const isInactiveTab = !document.getElementById("inactive-orders").classList.contains("hidden");
-        if (newOrder) {
-          document.getElementById("sound-new-order").play().catch(() => {});
-          if (isInactiveTab) switchTab("active");
-        }
-        localStorage.setItem("lastActiveOrderIds", JSON.stringify(activeIds));
-        renderOrders(data);
-      }, 1000);
-    };
-
-    window.openConfirmModal = openConfirmModal;
-    window.closeConfirmModal = closeConfirmModal;
-    window.confirmCancel = confirmCancel;
-    window.switchTab = switchTab;
-    switchTab("active");
-  </script>
+  <script src="script.js"></script>
 </body>
 </html>
