@@ -23,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL_ORDER")
+MENU_SERVICE_URL = os.getenv("MENU_SERVICE_URL", "http://menu_service:8001")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -138,6 +139,32 @@ def get_next_queue_number(db: Session) -> int:
         return last_order_today.queue_number + 1
     else:
         return 1
+    
+def validate_order_items(order_items: List[OrderItemSchema]):
+    """Menghubungi menu_service untuk memvalidasi keberadaan dan ketersediaan item."""
+    try:
+        response = requests.get(f"{MENU_SERVICE_URL}/menu", timeout=5)
+        response.raise_for_status()
+        
+        available_menus = response.json()
+        
+        valid_menu_names = {menu['base_name'] for menu in available_menus}
+
+        invalid_items = []
+        for item in order_items:
+            if item.menu_name not in valid_menu_names:
+                invalid_items.append(item.menu_name)
+
+        if invalid_items:
+            error_detail = f"Menu berikut tidak ditemukan atau tidak tersedia: {', '.join(invalid_items)}"
+            raise HTTPException(status_code=400, detail=error_detail)
+
+    except requests.RequestException as e:
+        logging.error(f"Gagal menghubungi menu_service: {e}")
+        raise HTTPException(status_code=503, detail="Tidak dapat memvalidasi menu saat ini, layanan menu mungkin sedang tidak aktif.")
+    except Exception as e:
+        logging.error(f"Error saat validasi menu: {e}")
+        raise HTTPException(status_code=500, detail="Terjadi kesalahan internal saat memvalidasi menu.")
 
 # Fungsi helper untuk outbox
 def create_outbox_event(db: Session, order_id: str, event_type: str, payload: dict):
@@ -225,6 +252,8 @@ def get_outbox_status(db: Session = Depends(get_db)):
 @app.post("/create_order", summary="Buat pesanan baru", tags=["Order"], operation_id="add order")
 def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     """Membuat pesanan baru dan mengirimkannya ke kitchen_service."""
+
+    validate_order_items(req.orders)
 
     # Cek status kitchen (optional - bisa dihilangkan jika pakai outbox)
     try:
