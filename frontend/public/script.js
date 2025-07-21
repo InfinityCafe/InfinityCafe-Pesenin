@@ -38,20 +38,39 @@ function switchTab(tab) {
   const doneBtn = document.getElementById('tab-done');
   const orderColumns = document.querySelector('.order-columns');
   const doneOrders = document.getElementById('done-orders');
+  const sidebar = document.querySelector('.sidebar');
+  document.body.classList.remove('tab-active', 'tab-done');
+  document.body.classList.add(tab === 'active' ? 'tab-active' : 'tab-done');
   
   if (tab === 'active') {
     activeBtn.classList.add('tab-active');
     doneBtn.classList.remove('tab-active');
     orderColumns.classList.remove('hidden');
     doneOrders.classList.add('hidden');
+    if (sidebar) sidebar.classList.remove('hidden');
   } else {
     activeBtn.classList.remove('tab-active');
     doneBtn.classList.add('tab-active');
     orderColumns.classList.add('hidden');
     doneOrders.classList.remove('hidden');
+    if (sidebar) sidebar.classList.add('hidden');
   }
   
   fetchOrders();
+}
+
+// Highlight order card in active tab when order id in summary is clicked
+function highlightOrderCard(orderId) {
+  // Remove highlight from all order cards
+  document.querySelectorAll('.order-card--highlight').forEach(card => {
+    card.classList.remove('order-card--highlight');
+  });
+  // Find and highlight the card with matching order id
+  const card = document.querySelector(`.order-card[data-order-id="${orderId}"]`);
+  if (card) {
+    card.classList.add('order-card--highlight');
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 
 // Modal functions
@@ -113,6 +132,7 @@ function logHistory(orderId, status, reason = "") {
 function createOrderCard(order) {
   const card = document.createElement("div");
   card.className = "order-card";
+  card.setAttribute('data-order-id', order.order_id);
   card.onclick = () => openDetailModal(order);
   
   const time = new Date(order.time_receive).toLocaleString("id-ID");
@@ -239,7 +259,7 @@ function updateSummary(orders) {
       }
       
       summary[name].count++;
-      summary[name].orders.push(`#${order.order_id.toString().padStart(2, '0')}`);
+      summary[name].orders.push({ id: order.order_id, label: `#${order.order_id.toString().padStart(2, '0')}` });
       if (variant) {
         summary[name].variants.push(variant);
       }
@@ -265,7 +285,7 @@ function updateSummary(orders) {
         <span class="summary-count">${data.count}</span>
       </div>
       <div class="summary-details">
-        ${data.orders.map(order => `<span class="summary-detail">${order}</span>`).join('')}
+        ${data.orders.map(order => `<span class="summary-detail summary-detail--order" data-order-id="${order.id}">${order.label}</span>`).join('')}
       </div>
       <div class="summary-variants">
         <div class="variant-item">
@@ -275,6 +295,13 @@ function updateSummary(orders) {
     `;
     
     sidebarContent.appendChild(summaryItem);
+  });
+  // Add click event for order id highlight
+  sidebarContent.querySelectorAll('.summary-detail--order').forEach(el => {
+    el.addEventListener('click', function(e) {
+      const orderId = this.getAttribute('data-order-id');
+      highlightOrderCard(orderId);
+    });
   });
 }
 
