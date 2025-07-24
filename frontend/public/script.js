@@ -38,20 +38,39 @@ function switchTab(tab) {
   const doneBtn = document.getElementById('tab-done');
   const orderColumns = document.querySelector('.order-columns');
   const doneOrders = document.getElementById('done-orders');
+  const sidebar = document.querySelector('.sidebar');
+  document.body.classList.remove('tab-active', 'tab-done');
+  document.body.classList.add(tab === 'active' ? 'tab-active' : 'tab-done');
   
   if (tab === 'active') {
     activeBtn.classList.add('tab-active');
     doneBtn.classList.remove('tab-active');
     orderColumns.classList.remove('hidden');
     doneOrders.classList.add('hidden');
+    if (sidebar) sidebar.classList.remove('hidden');
   } else {
     activeBtn.classList.remove('tab-active');
     doneBtn.classList.add('tab-active');
     orderColumns.classList.add('hidden');
     doneOrders.classList.remove('hidden');
+    if (sidebar) sidebar.classList.add('hidden');
   }
   
   fetchOrders();
+}
+
+// Highlight order card in active tab when order id in summary is clicked
+function highlightOrderCard(orderId) {
+  // Remove highlight from all order cards
+  document.querySelectorAll('.order-card--highlight').forEach(card => {
+    card.classList.remove('order-card--highlight');
+  });
+  // Find and highlight the card with matching order id
+  const card = document.querySelector(`.order-card[data-order-id="${orderId}"]`);
+  if (card) {
+    card.classList.add('order-card--highlight');
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 
 // Modal functions
@@ -113,6 +132,7 @@ function logHistory(orderId, status, reason = "") {
 function createOrderCard(order) {
   const card = document.createElement("div");
   card.className = "order-card";
+  card.setAttribute('data-order-id', order.order_id);
   card.onclick = () => openDetailModal(order);
   
   const time = new Date(order.time_receive).toLocaleString("id-ID");
@@ -137,33 +157,43 @@ function createOrderCard(order) {
   let actionButton = '';
   
   if (order.status === 'receive') {
-    statusBadge = '<span class="status-badge status-receive">RECEIVE</span>';
-    actionButton = `<button class="action-btn action-btn-orange" onclick="event.stopPropagation(); syncUpdate('${order.order_id}', 'making')">MAKING →</button>`;
+    statusBadge = '<span class="status-badge status-receive"><i class="fa-solid fa-receipt"></i> RECEIVE</span>';
+    actionButton = `<button class="action-btn action-btn-orange" onclick="event.stopPropagation(); syncUpdate('${order.order_id}', 'making')">MAKING <i class="fa-solid fa-arrow-right"></i></button>`;
   } else if (order.status === 'making') {
-    statusBadge = '<span class="status-badge status-making">MAKING</span>';
-    actionButton = `<button class="action-btn action-btn-blue" onclick="event.stopPropagation(); syncUpdate('${order.order_id}', 'deliver')">DELIVER →</button>`;
+    statusBadge = '<span class="status-badge status-making"><i class="fa-solid fa-clock"></i> MAKING</span>';
+    actionButton = `<button class="action-btn action-btn-blue" onclick="event.stopPropagation(); syncUpdate('${order.order_id}', 'deliver')">DELIVER <i class="fa-solid fa-arrow-right"></i></button>`;
   } else if (order.status === 'deliver') {
-    statusBadge = '<span class="status-badge status-deliver">DELIVER</span>';
-    actionButton = `<button class="action-btn action-btn-green" onclick="event.stopPropagation(); syncUpdate('${order.order_id}', 'done')">DONE →</button>`;
+    statusBadge = '<span class="status-badge status-deliver"><i class="fa-solid fa-truck"></i> DELIVER</span>';
+    actionButton = `<button class="action-btn action-btn-green" onclick="event.stopPropagation(); syncUpdate('${order.order_id}', 'done')">DONE <i class="fa-solid fa-arrow-right"></i></button>`;
+  }
+  else if (order.status === 'done') {
+    statusBadge = '<span class="status-badge status-done"><i class="fa-solid fa-check"></i> DONE</span>';
+    actionButton = `<button class="action-btn action-btn-green-disabled")">DONE</button>`;
+  }
+    else if (order.status === 'cancel') {
+    statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCEL</span>';
+    actionButton = `<button class="action-btn action-btn-red-disabled")">CANCEL</button>`;
   }
   
   card.innerHTML = `
     <div class="order-header">
-      <span class="order-number">#${order.order_id.toString().padStart(2, '0')}</span>
+      <span class="order-number">#${order.queue_number ?? '1'}</span>
       <span class="customer-name">${order.customer_name ?? 'John Doe'}</span>
       ${["receive", "making", "deliver"].includes(order.status) ? `<button class="order-close" onclick="event.stopPropagation(); openConfirmModal('${order.order_id}')">&times;</button>` : ""}
     </div>
-    <div class="order-location">
-      <span class="location-icon">📍</span>
-      <span class="location-text">Lantai ${order.table_no ?? '2'}</span>
-      ${statusBadge}
-    </div>
-    <div class="order-timestamp">${time}</div>
-    <div class="order-items">${itemsHtml}</div>
-    <div class="order-footer">
-      <span class="order-drink">Antrian ${order.queue_number ?? '1'}</span>
-    </div>
+    <div class="order-contents">
+        <div class="order-location">
+            <span class="location-icon"><i class="fa-solid fa-location-dot"></i></span>
+            <span class="location-text">Lantai ${order.table_no ?? '2'}</span>
+            ${statusBadge}
+        </div>
+        <div class="order-timestamp">${time}</div>
+        <div class="order-items">${itemsHtml}</div>
+        <div class="order-footer">
+            <span class="details-button">DETAILS <i class="fa-solid fa-chevron-right"></i></span>
+        </div>
     ${actionButton}
+    </div>
   `;
   
   return card;
@@ -173,13 +203,15 @@ function renderOrders(orders) {
   const newOrderColumn = document.getElementById("new-order-column");
   const makingColumn = document.getElementById("making-column");
   const deliverColumn = document.getElementById("deliver-column");
-  const doneOrderGrid = document.getElementById("done-order-grid");
+  const doneOrderColumn = document.getElementById("done-order-column");
+  const cancelOrderColumn = document.getElementById("cancel-order-column");
   
   // Clear all columns
   newOrderColumn.innerHTML = '';
   makingColumn.innerHTML = '';
   deliverColumn.innerHTML = '';
-  doneOrderGrid.innerHTML = '';
+  doneOrderColumn.innerHTML = '';
+  cancelOrderColumn.innerHTML = '';
   
   // Sort orders by time received (newest first)
   orders.sort((a, b) => new Date(b.time_receive) - new Date(a.time_receive));
@@ -196,8 +228,10 @@ function renderOrders(orders) {
       makingColumn.appendChild(orderCard);
     } else if (order.status === 'deliver') {
       deliverColumn.appendChild(orderCard);
-    } else if (['done', 'cancel', 'habis'].includes(order.status)) {
-      doneOrderGrid.appendChild(orderCard);
+    } else if (order.status === 'done') {
+      doneOrderColumn.appendChild(orderCard);
+    } else if (order.status === 'cancel' || order.status === 'habis') {
+      cancelOrderColumn.appendChild(orderCard);
     }
   });
   
@@ -206,16 +240,31 @@ function renderOrders(orders) {
 }
 
 function updateSummary(orders) {
+  // Ambil tanggal hari ini (YYYY-MM-DD)
+  const todayStr = new Date().toISOString().slice(0, 10);
+  // Filter orders yang time_receive-nya hari ini
+  const todayOrders = orders.filter(order => {
+    if (!order.time_receive) return false;
+    const orderDate = new Date(order.time_receive).toISOString().slice(0, 10);
+    return orderDate === todayStr;
+  });
+  // Urutkan orders hari ini berdasarkan waktu (FIFO)
+  const sortedOrders = [...todayOrders]
+    .sort((a, b) => new Date(a.time_receive) - new Date(b.time_receive));
+  // Map order_id ke nomor antrian hari ini
+  const orderIdToQueue = {};
+  sortedOrders.forEach((order, idx) => {
+    orderIdToQueue[order.order_id] = idx + 1;
+  });
+
   const activeOrders = orders.filter(order => ['receive', 'making', 'deliver'].includes(order.status));
   const summary = {};
-  
   activeOrders.forEach(order => {
     const items = order.detail.split('\n').filter(item => item.trim());
     items.forEach(item => {
       const parts = item.split(' - ');
       const name = parts[0] || item;
       const variant = parts[1] || '';
-      
       if (!summary[name]) {
         summary[name] = {
           count: 0,
@@ -223,44 +272,54 @@ function updateSummary(orders) {
           variants: []
         };
       }
-      
       summary[name].count++;
-      summary[name].orders.push(`#${order.order_id.toString().padStart(2, '0')}`);
+      summary[name].orders.push({
+        id: order.order_id,
+        label: `#${order.order_id.toString().padStart(2, '0')}`,
+        variant,
+        customer: order.customer_name ?? '',
+        queue: orderIdToQueue[order.order_id] || '-'
+      });
       if (variant) {
         summary[name].variants.push(variant);
       }
     });
   });
-  
   const sidebarContent = document.querySelector('.sidebar-content');
   const existingTitle = sidebarContent.querySelector('.sidebar-title');
-  
-  // Clear existing summary items
   while (sidebarContent.children.length > 1) {
     sidebarContent.removeChild(sidebarContent.lastChild);
   }
-  
-  // Add new summary items
   Object.entries(summary).forEach(([itemName, data]) => {
     const summaryItem = document.createElement('div');
     summaryItem.className = 'summary-item';
-    
     summaryItem.innerHTML = `
       <div class="summary-header">
         <span class="summary-name">${itemName}</span>
-        <span class="summary-count">${data.count}</span>
+        <span class="summary-count">${data.count} <span style='font-weight:400'>×</span></span>
       </div>
-      <div class="summary-details">
-        ${data.orders.map(order => `<span class="summary-detail">${order}</span>`).join('')}
-      </div>
-      <div class="summary-variants">
-        <div class="variant-item">
-          ${data.variants.map(variant => `<span>${variant}</span>`).join('')}
-        </div>
-      </div>
+      <table class="summary-table">
+        <thead>
+          <tr><th>Varian</th><th>Antrian</th></tr>
+        </thead>
+        <tbody>
+          ${data.orders.map(order => `
+            <tr>
+              <td>${order.variant || '-'}</td>
+              <td><span class="summary-detail--order" data-order-id="${order.id}" title="${order.label}">${order.queue}</span></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
     `;
-    
     sidebarContent.appendChild(summaryItem);
+  });
+  // Add click event for order id highlight
+  sidebarContent.querySelectorAll('.summary-detail--order').forEach(el => {
+    el.addEventListener('click', function(e) {
+      const orderId = this.getAttribute('data-order-id');
+      highlightOrderCard(orderId);
+    });
   });
 }
 
