@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import Boolean,create_engine, Column, String, Integer, ForeignKey, Text, DateTime, func, Index, and_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
@@ -97,18 +97,20 @@ class OrderItem(Base):
 Base.metadata.create_all(bind=engine)
 
 class OrderItemSchema(BaseModel):
-    menu_name: str
-    quantity: int
+    menu_name: str = Field(..., min_length=1, description="Nama menu tidak boleh kosong.")
+    quantity: int = Field(..., gt=0, description="Jumlah pesanan harus lebih dari 0.")
     preference: Optional[str] = ""
+
     class Config:
         from_attributes = True
 
 class CreateOrderRequest(BaseModel):
+    customer_name: str = Field(..., min_length=1, description="Nama pelanggan tidak boleh kosong.")
+    table_no: str = Field(..., min_length=1, description="Nomor meja tidak boleh kosong.")
+    room_name: str = Field(..., min_length=1, description="Nama ruangan tidak boleh kosong.")
+    orders: List[OrderItemSchema] = Field(..., min_length=1, description="Daftar pesanan tidak boleh kosong.")
+
     order_id: Optional[str] = None
-    customer_name: str
-    table_no: str
-    room_name: str
-    orders: List[OrderItemSchema]
 
 class CancelOrderRequest(BaseModel):
     order_id: str
@@ -143,30 +145,30 @@ def get_next_queue_number(db: Session) -> int:
     
 def validate_order_items(order_items: List[OrderItemSchema]):
     """Menghubungi menu_service untuk memvalidasi keberadaan dan ketersediaan item."""
+    available_menus = []
     try:
         response = requests.get(f"{MENU_SERVICE_URL}/menu", timeout=5)
         response.raise_for_status()
-        
         available_menus = response.json()
-        
-        valid_menu_names = {menu['base_name'] for menu in available_menus}
-
-        invalid_items = []
-        for item in order_items:
-            if item.menu_name not in valid_menu_names:
-                invalid_items.append(item.menu_name)
-
-        if invalid_items:
-            error_detail = f"Menu berikut tidak ditemukan atau tidak tersedia: {', '.join(invalid_items)}"
-            raise HTTPException(status_code=400, detail=error_detail)
 
     except requests.RequestException as e:
         logging.error(f"Gagal menghubungi menu_service: {e}")
         raise HTTPException(status_code=503, detail="Tidak dapat memvalidasi menu saat ini, layanan menu mungkin sedang tidak aktif.")
-    except Exception as e:
-        logging.error(f"Error saat validasi menu: {e}")
-        raise HTTPException(status_code=500, detail="Terjadi kesalahan internal saat memvalidasi menu.")
 
+    valid_menu_names = {
+        menu.get('base_name', menu.get('menu_name')) for menu in available_menus
+    }
+    valid_menu_names.discard(None)
+
+    invalid_items = []
+    for item in order_items:
+        if item.menu_name not in valid_menu_names:
+            invalid_items.append(item.menu_name)
+
+    if invalid_items:
+        error_detail = f"Menu berikut tidak ditemukan atau tidak tersedia: {', '.join(invalid_items)}"
+        raise HTTPException(status_code=400, detail=error_detail)
+    
 # Fungsi helper untuk outbox
 def create_outbox_event(db: Session, order_id: str, event_type: str, payload: dict):
     outbox_event = OrderOutbox(
@@ -255,35 +257,62 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     """Membuat pesanan baru dan mengirimkannya ke kitchen_service."""
 
     validate_order_items(req.orders)
+    flavor_required_menus = ["Caffe Latte", "Cappuccino", "Milkshake", "Squash"]
+    temp_order_id = req.order_id if req.order_id else generate_order_id()
+
+    for item in req.orders:
+        if item.menu_name in flavor_required_menus and not item.preference:
+            try:
+                flavor_url = f"{MENU_SERVICE_URL}/menu/by_name/{item.menu_name}/flavors"
+                flavor_response = requests.get(flavor_url, timeout=3)
+                flavor_response.raise_for_status()
+                available_flavors = flavor_response.json()
+
+                if available_flavors:
+                    flavor_names = [f"{i+1}. {flavor['flavor_name']}" for i, flavor in enumerate(available_flavors)]
+                    flavor_list_str = "\n".join(flavor_names)
+                    
+                    message = (
+                        f"Anda memesan {item.menu_name}, pilihan rasa wajib diisi. Varian yang tersedia:\n\n"
+                        f"{flavor_list_str}\n\n"
+                        "Silakan pilih satu rasa dan masukkan ke field 'preference', lalu kirim ulang pesanan Anda."
+                    )
+                    
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "detail": "Pilihan rasa diperlukan untuk menu ini.",
+                            "guidance": message,
+                            "menu_item": item.menu_name,
+                            "available_flavors": [f['flavor_name'] for f in available_flavors],
+                            "order_id_suggestion": temp_order_id 
+                        }
+                    )
+            except requests.RequestException as e:
+                logging.error(f"Gagal menghubungi menu_service untuk validasi flavor: {e}")
+                raise HTTPException(status_code=503, detail="Tidak dapat memvalidasi pilihan rasa saat ini.")
 
     # Cek status kitchen (optional - bisa dihilangkan jika pakai outbox)
     try:
         status_response = requests.get("http://kitchen_service:8003/kitchen/status/now", timeout=5)
         status_response.raise_for_status()
         kitchen_status = status_response.json()
-
         if not kitchen_status.get("is_open", False):
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "message": "Dapur sedang OFF. Tidak dapat menerima pesanan.",
-                }
-            )
+            return JSONResponse(status_code=400, content={"message": "Dapur sedang OFF. Tidak dapat menerima pesanan."})
     except Exception as e:
         logging.warning(f"⚠️ Gagal mengakses kitchen_service untuk cek status: {e}")
         raise HTTPException(status_code=503, detail="Gagal menghubungi layanan dapur. Coba lagi nanti.")
+    
+    order_id = temp_order_id
+    if db.query(Order).filter(Order.order_id == order_id).first():
+        return {"message": f"Pesanan dengan ID {order_id} sudah dalam proses.", "order_id": order_id}
 
     try:
         new_queue_number = get_next_queue_number(db)
     except Exception as e:
         logging.warning(f"Error getting queue number, retrying once: {e}")
+        db.rollback()
         new_queue_number = get_next_queue_number(db)
-
-    # GUNAKAN order_id dari request jika ada dan belum ada di DB
-    if req.order_id and not db.query(Order).filter(Order.order_id == req.order_id).first():
-        order_id = req.order_id
-    else:
-        order_id = generate_order_id()
 
     new_order = Order(
         order_id=order_id,
