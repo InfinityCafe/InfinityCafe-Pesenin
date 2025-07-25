@@ -111,6 +111,7 @@ class OrderItem(Base):
     menu_name = Column(String)
     quantity = Column(Integer)
     preference = Column(Text)
+    notes = Column(Text, nullable=True)
     order = relationship("Order", back_populates="items")
 
 Base.metadata.create_all(bind=engine)
@@ -119,6 +120,7 @@ class OrderItemSchema(BaseModel):
     menu_name: str = Field(..., min_length=1, description="Nama menu tidak boleh kosong.")
     quantity: int = Field(..., gt=0, description="Jumlah pesanan harus lebih dari 0.")
     preference: Optional[str] = ""
+    notes: Optional[str] = None
 
     class Config:
         from_attributes = True
