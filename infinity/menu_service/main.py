@@ -192,6 +192,16 @@ def get_menu_item(menu_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Menu item tidak ditemukan")
     return item
 
+@app.get("/menu/by_name/{base_name}/flavors", summary="Dapatkan rasa untuk menu tertentu by Name", tags=["Menu"], response_model=List[FlavorOut])
+def get_flavors_for_menu_by_name(base_name: str, db: Session = Depends(get_db)):
+    """Mengembalikan daftar rasa yang tersedia untuk menu tertentu berdasarkan namanya."""
+    menu_item = db.query(MenuItem).options(joinedload(MenuItem.flavors)).filter(MenuItem.base_name == base_name).first()
+    
+    if not menu_item:
+        raise HTTPException(status_code=404, detail=f"Menu dengan nama '{base_name}' tidak ditemukan.")
+    
+    return menu_item.flavors
+
 @app.put("/menu/{menu_id}", summary="Update Menu", tags=["Menu"], response_model=MenuItemOut, operation_id="update menu")
 def update_menu_item(menu_id: str, item: MenuItemCreate, db: Session = Depends(get_db)):
     """Memperbarui informasi dari menu berdasarkan ID, termasuk varian rasanya."""
