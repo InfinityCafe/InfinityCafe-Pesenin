@@ -87,6 +87,16 @@ function closeConfirmModal() {
 function openDetailModal(order) {
   selectedOrder = order;
   const box = document.getElementById("detail-content");
+  // Tampilkan detail item per baris, termasuk notes jika ada
+  const items = order.detail.split('\n').filter(item => item.trim());
+  const itemsHtml = items.map(item => {
+    const parts = item.split(' - ');
+    const name = parts[0] || item;
+    const quantity = parts[2] || parts[1] || '1x';
+    const variant = parts.length > 2 ? parts[1] : '';
+    const notes = parts.length > 3 ? parts.slice(3).join(' - ') : (parts.length === 3 ? parts[2] : '');
+    return `<div style='margin-bottom:4px;'><b>${name}</b>${variant ? ' <span style=\"color:#888;font-size:13px;\">(' + variant + ')</span>' : ''} - ${quantity}${notes && notes !== quantity ? `<div style='font-size:12px;color:#888;margin-top:2px;'>Notes: ${notes}</div>` : ''}</div>`;
+  }).join('');
   box.innerHTML = `
     <p><strong>Order ID:</strong> ${order.order_id}</p>
     <p><strong>Nama:</strong> ${order.customer_name}</p>
@@ -94,8 +104,7 @@ function openDetailModal(order) {
     <p><strong>Ruangan:</strong> ${order.room_name}</p>
     <p><strong>Status:</strong> ${order.status}</p>
     <p><strong>Waktu:</strong> ${new Date(order.time_receive).toLocaleString("id-ID")}</p>
-    ${order.time_done ? `<p><strong>Selesai:</strong> ${new Date(order.time_done).toLocaleString("id-ID")}</p>` : ""}
-    <p><strong>Detail:</strong><br>${order.detail}</p>
+    <div style='margin-top:10px;'><strong>Detail:</strong><br>${itemsHtml}</div>
   `;
   document.getElementById("detail-modal").classList.remove("hidden");
 }
@@ -142,15 +151,21 @@ function createOrderCard(order) {
   const timeDone = order.time_done ? new Date(order.time_done).toLocaleString("id-ID") : null;
 
   // Parse items from detail
+  // Format: NamaMenu - Varian - Qty - Notes (jika ada)
+  // Kita split per baris, lalu split per ' - '
   const items = order.detail.split('\n').filter(item => item.trim());
   const itemsHtml = items.map(item => {
+    // Cek apakah ada notes di item (format: NamaMenu - Varian - Qty - Notes)
     const parts = item.split(' - ');
     const name = parts[0] || item;
-    const quantity = parts[1] || '1x';
+    const quantity = parts[2] || parts[1] || '1x';
+    const variant = parts.length > 2 ? parts[1] : '';
+    const notes = parts.length > 3 ? parts.slice(3).join(' - ') : (parts.length === 3 ? parts[2] : '');
     return `
       <div class="order-item">
-        <span class="item-name">${name}</span>
+        <span class="item-name">${name}${variant ? ' <span style=\"color:#888;font-size:13px;\">(' + variant + ')</span>' : ''}</span>
         <span class="item-quantity">${quantity}</span>
+        ${notes && notes !== quantity ? `<div class='item-notes' style='font-size:12px;color:#888;margin-top:2px;'>${notes}</div>` : ''}
       </div>
     `;
   }).join('');
@@ -479,6 +494,197 @@ function addNewOrder() {
   alert('Fungsi tambah pesanan baru akan diimplementasikan');
 }
 
+// Tambah Modal Add Order
+function openAddOrderModal() {
+  document.getElementById('add-order-modal').classList.remove('hidden');
+  renderOrderItemsList();
+  fetchMenuOptions();
+}
+function closeAddOrderModal() {
+  document.getElementById('add-order-modal').classList.add('hidden');
+  document.getElementById('add-order-form').reset();
+  orderItems = [{ menu_name: '', quantity: 1, preference: '', notes: '' }];
+  renderOrderItemsList();
+}
+// State untuk order items
+let menuOptions = [];
+let orderItems = [{ menu_name: '', quantity: 1, preference: '', notes: '' }];
+async function fetchMenuOptions() {
+  try {
+    const res = await fetch('http://localhost:8001/menu');
+    menuOptions = await res.json();
+    renderOrderItemsList();
+  } catch (e) {
+    menuOptions = [];
+    renderOrderItemsList();
+  }
+}
+function renderOrderItemsList() {
+  const list = document.getElementById('order-items-list');
+  list.innerHTML = '';
+  orderItems.forEach((item, idx) => {
+    const block = document.createElement('div');
+    block.className = 'order-item-block';
+    // Remove button
+    if (orderItems.length > 1) {
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'remove-item-btn';
+      removeBtn.innerHTML = '&times;';
+      removeBtn.onclick = function() {
+        orderItems.splice(idx, 1);
+        if (orderItems.length === 0) orderItems.push({ menu_name: '', quantity: 1, preference: '', notes: '' });
+        renderOrderItemsList();
+      };
+      block.appendChild(removeBtn);
+    }
+    // Item Order
+    const menuLabel = document.createElement('label');
+    menuLabel.textContent = 'Item Order';
+    menuLabel.setAttribute('for', `menu_name_${idx}`);
+    block.appendChild(menuLabel);
+    const menuSelect = document.createElement('select');
+    menuSelect.required = true;
+    menuSelect.name = `menu_name_${idx}`;
+    menuSelect.id = `menu_name_${idx}`;
+    menuSelect.style = 'margin-bottom:0;';
+    menuSelect.onchange = async function() {
+      orderItems[idx].menu_name = this.value;
+      orderItems[idx].preference = '';
+      await renderOrderItemsList();
+    };
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = 'Select One';
+    menuSelect.appendChild(defaultOpt);
+    menuOptions.forEach(menu => {
+      const opt = document.createElement('option');
+      opt.value = menu.base_name;
+      opt.textContent = menu.base_name;
+      if (item.menu_name === menu.base_name) opt.selected = true;
+      menuSelect.appendChild(opt);
+    });
+    block.appendChild(menuSelect);
+    // Flavour
+    const selectedMenu = menuOptions.find(m => m.base_name === item.menu_name);
+    if (selectedMenu && selectedMenu.flavors && selectedMenu.flavors.length > 0) {
+      const flavorLabel = document.createElement('label');
+      flavorLabel.textContent = 'Flavour';
+      flavorLabel.setAttribute('for', `preference_${idx}`);
+      block.appendChild(flavorLabel);
+      const flavorSelect = document.createElement('select');
+      flavorSelect.name = `preference_${idx}`;
+      flavorSelect.id = `preference_${idx}`;
+      flavorSelect.required = false;
+      const defaultFlavor = document.createElement('option');
+      defaultFlavor.value = '';
+      defaultFlavor.textContent = 'Select One';
+      flavorSelect.appendChild(defaultFlavor);
+      selectedMenu.flavors.forEach(f => {
+        const opt = document.createElement('option');
+        // Fallback ke flavor_name jika tidak ada f.name
+        opt.value = f.name || f.flavor_name || '';
+        opt.textContent = f.name || f.flavor_name || '';
+        if ((item.preference || '') === (f.name || f.flavor_name || '')) opt.selected = true;
+        flavorSelect.appendChild(opt);
+      });
+      flavorSelect.onchange = function() { orderItems[idx].preference = this.value; };
+      block.appendChild(flavorSelect);
+    }
+    // Notes
+    const notesLabel = document.createElement('label');
+    notesLabel.textContent = 'Notes';
+    notesLabel.setAttribute('for', `notes_${idx}`);
+    block.appendChild(notesLabel);
+    const notesInput = document.createElement('textarea');
+    notesInput.id = `notes_${idx}`;
+    notesInput.placeholder = 'e.g. Less ice';
+    notesInput.value = item.notes || '';
+    notesInput.oninput = function() { orderItems[idx].notes = this.value; };
+    block.appendChild(notesInput);
+    // Quantity
+    const qtyLabel = document.createElement('label');
+    qtyLabel.textContent = 'Quantity';
+    qtyLabel.setAttribute('for', `quantity_${idx}`);
+    block.appendChild(qtyLabel);
+    const qtyRow = document.createElement('div');
+    qtyRow.className = 'quantity-row';
+    const minusBtn = document.createElement('button');
+    minusBtn.type = 'button';
+    minusBtn.className = 'quantity-btn';
+    minusBtn.textContent = '−';
+    minusBtn.onclick = function() {
+      if (orderItems[idx].quantity > 1) {
+        orderItems[idx].quantity--;
+        renderOrderItemsList();
+      }
+    };
+    const qtyVal = document.createElement('span');
+    qtyVal.className = 'quantity-value';
+    qtyVal.textContent = item.quantity;
+    const plusBtn = document.createElement('button');
+    plusBtn.type = 'button';
+    plusBtn.className = 'quantity-btn';
+    plusBtn.textContent = '+';
+    plusBtn.onclick = function() {
+      orderItems[idx].quantity++;
+      renderOrderItemsList();
+    };
+    qtyRow.appendChild(minusBtn);
+    qtyRow.appendChild(qtyVal);
+    qtyRow.appendChild(plusBtn);
+    block.appendChild(qtyRow);
+    list.appendChild(block);
+  });
+}
+document.getElementById('add-order-item-btn').onclick = function() {
+  orderItems.push({ menu_name: '', quantity: 1, preference: '', notes: '' });
+  renderOrderItemsList();
+};
+// Handle open modal
+const addOrderBtn = document.querySelector('.add-order-btn');
+if (addOrderBtn) addOrderBtn.onclick = openAddOrderModal;
+// Handle submit
+const addOrderForm = document.getElementById('add-order-form');
+addOrderForm.onsubmit = async function(e) {
+  e.preventDefault();
+  const customer_name = document.getElementById('customer_name').value.trim();
+  // Only Room field exists, so use it for both room_name and table_no
+  const room_name = document.getElementById('room_name').value.trim();
+  const table_no = room_name; // Use room_name as table_no for now
+  const orders = orderItems.filter(i => i.menu_name && i.quantity > 0).map(i => ({
+    menu_name: i.menu_name,
+    quantity: i.quantity,
+    preference: i.preference,
+    notes: i.notes
+  }));
+  if (!customer_name || !room_name || orders.length === 0) {
+    alert('Mohon lengkapi semua data dan minimal 1 item pesanan.');
+    return;
+  }
+  const submitBtn = addOrderForm.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Saving...';
+  try {
+    const res = await fetch('http://localhost:8002/create_order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customer_name, table_no, room_name, orders })
+    });
+    const data = await res.json();
+    if (data.status === 'success') {
+      closeAddOrderModal();
+      fetchOrders();
+    } else {
+      alert(data.message || 'Gagal membuat pesanan.');
+    }
+  } catch (err) {
+    alert('Gagal terhubung ke server order.');
+  }
+  submitBtn.disabled = false;
+  submitBtn.textContent = 'Save Order';
+};
+
 // Initialize all functionality when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
   initializeKitchenToggle();
@@ -487,8 +693,13 @@ document.addEventListener('DOMContentLoaded', function() {
   switchTab('active');
   initializeEventSource();
   
-  // Add click event to "ADD PESANAN BARU" button
-  document.querySelector('.add-order-btn').addEventListener('click', addNewOrder);
+  // Set greeting date to today in Indonesian format
+  const greetingDate = document.querySelector('.greeting-date');
+  if (greetingDate) {
+    const today = new Date();
+    const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+    greetingDate.textContent = today.toLocaleDateString('id-ID', options);
+  }
 });
 
 // Global functions for event handlers
@@ -499,3 +710,5 @@ window.confirmCancel = confirmCancel;
 window.openDetailModal = openDetailModal;
 window.closeDetailModal = closeDetailModal;
 window.syncUpdate = syncUpdate;
+window.openAddOrderModal = openAddOrderModal;
+window.closeAddOrderModal = closeAddOrderModal;

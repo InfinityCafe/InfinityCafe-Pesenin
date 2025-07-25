@@ -1709,3 +1709,163 @@ input:checked + .slider:before {
             flex-wrap: wrap;
         }
     }
+
+/* Modal Add Order Figma Style */
+#add-order-modal .modal-content {
+  max-width: 400px;
+  border-radius: 22px;
+  background: #f5efe6;
+  padding: 32px 28px 24px 28px;
+  font-family: 'Inter', sans-serif;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+#add-order-modal .modal-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: #312929;
+  text-align: center;
+  margin-bottom: 32px;
+}
+#add-order-modal .form-group {
+  margin-bottom: 22px;
+}
+#add-order-modal label {
+  display: block;
+  margin-bottom: 7px;
+  font-weight: 700;
+  color: #312929;
+  font-size: 15px;
+}
+#add-order-modal input[type="text"],
+#add-order-modal input[type="number"],
+#add-order-modal select,
+#add-order-modal textarea {
+  width: 100%;
+  height: 44px;
+  padding: 12px 18px;
+  background: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  color: #312929;
+  font-family: 'Inter', sans-serif;
+  margin-bottom: 0;
+  box-shadow: 0 1px 2px #0000000a;
+}
+#add-order-modal input[type="text"]::placeholder,
+#add-order-modal textarea::placeholder {
+  color: #bdbdbd;
+  font-style: italic;
+}
+#add-order-modal textarea {
+  height: 60px;
+  resize: vertical;
+}
+#add-order-modal .modal-btn {
+  border-radius: 10px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+#add-order-modal .modal-btn-habis {
+  background: linear-gradient(90deg, #207156 0%, #60b7a6 100%);
+  color: #fff;
+  box-shadow: 0 2px 8px #0001;
+}
+#add-order-modal .modal-btn-cancel {
+  background: #fff;
+  color: #503a3a;
+  border: 1.5px solid #8c7171;
+}
+#add-order-modal .modal-btn-outline {
+  background: #fff;
+  color: #312929;
+  border: 1.5px solid #bdbdbd;
+  font-weight: 600;
+}
+#add-order-modal .modal-close {
+  color: #B3261E;
+  font-size: 1.7rem;
+  background: none;
+  border: none;
+  position: absolute;
+  top: 1.1rem;
+  right: 1.1rem;
+  cursor: pointer;
+  border-radius: 50%;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#add-order-modal .order-item-block {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+}
+#add-order-modal .order-item-block .remove-item-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: none;
+  border: none;
+  color: #B3261E;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+#add-order-modal .order-item-block label {
+  margin-bottom: 3px;
+}
+#add-order-modal .quantity-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 2px;
+}
+#add-order-modal .quantity-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1.5px solid #bdbdbd;
+  background: #fff;
+  color: #312929;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+#add-order-modal .quantity-btn:active {
+  background: #f3f3f3;
+}
+#add-order-modal .quantity-value {
+  font-size: 1.1rem;
+  min-width: 24px;
+  text-align: center;
+  color: #312929;
+}
+#add-order-modal .modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 24px;
+}
+@media (max-width: 600px) {
+  #add-order-modal .modal-content {
+    max-width: 98vw;
+    padding: 18px 4vw;
+  }
+}

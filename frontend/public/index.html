@@ -148,6 +148,34 @@
     </div>
   </div>
 
+  <!-- Modal Tambah Pesanan Baru -->
+  <div id="add-order-modal" class="modal hidden">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeAddOrderModal()">&times;</button>
+      <h3 class="modal-title">Create New Order</h3>
+      <form id="add-order-form">
+        <div class="form-group">
+          <label for="customer_name">Customer Name</label>
+          <input type="text" id="customer_name" name="customer_name" placeholder="Type Here ..." required />
+        </div>
+        <div class="form-group">
+          <label for="room_name">Room</label>
+          <input type="text" id="room_name" name="room_name" placeholder="Type Here ..." required />
+        </div>
+        <div id="order-items-list"></div>
+        <button type="button" id="add-order-item-btn" class="modal-btn modal-btn-outline" style="width:100%;margin:16px 0 0 0;display:flex;align-items:center;justify-content:center;gap:8px;">
+          Add New Item <span style="font-size:20px;line-height:1;">+</span>
+        </button>
+        <div class="modal-actions">
+          <button type="button" class="modal-btn modal-btn-cancel" onclick="closeAddOrderModal()">Cancel</button>
+          <button type="submit" class="modal-btn modal-btn-habis" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;">
+            <span class="fa fa-save"></span> Save Order
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Audio -->
   <audio id="sound-new-order" src="https://www.myinstants.com/media/sounds/mario-coin.mp3" preload="auto"></audio>
   <audio id="sound-status-update" src="https://www.myinstants.com/media/sounds/smw_1-up.mp3" preload="auto"></audio>
