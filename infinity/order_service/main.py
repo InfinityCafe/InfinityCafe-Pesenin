@@ -1,8 +1,9 @@
 # order_service.py
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from fastapi.exceptions import RequestValidationError
+from pydantic import BaseModel, Field
 from sqlalchemy import Boolean,create_engine, Column, String, Integer, ForeignKey, Text, DateTime, func, Index, and_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
@@ -34,6 +35,24 @@ app = FastAPI(
     description="Manajemen pemesanan untuk Infinity Cafe",
     version="1.0.0"
 )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Custom handler untuk menangani validasi error, merubah error status menjadi 200 untuk memastikan flow n8n tetap berjalan."""
+    first_error = exc.errors()[0]
+    field_location = " -> ".join(map(str, first_error['loc']))
+    error_message = first_error['msg']
+    
+    full_message = f"Data tidak valid pada field '{field_location}': {error_message}"
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "status": "error",
+            "message": full_message,
+            "data": {"details": exc.errors()}
+        },
+    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -92,23 +111,27 @@ class OrderItem(Base):
     menu_name = Column(String)
     quantity = Column(Integer)
     preference = Column(Text)
+    notes = Column(Text, nullable=True)
     order = relationship("Order", back_populates="items")
 
 Base.metadata.create_all(bind=engine)
 
 class OrderItemSchema(BaseModel):
-    menu_name: str
-    quantity: int
+    menu_name: str = Field(..., min_length=1, description="Nama menu tidak boleh kosong.")
+    quantity: int = Field(..., gt=0, description="Jumlah pesanan harus lebih dari 0.")
     preference: Optional[str] = ""
+    notes: Optional[str] = None
+
     class Config:
         from_attributes = True
 
 class CreateOrderRequest(BaseModel):
+    customer_name: str = Field(..., min_length=1, description="Nama pelanggan tidak boleh kosong.")
+    table_no: str = Field(..., min_length=1, description="Nomor meja tidak boleh kosong.")
+    room_name: str = Field(..., min_length=1, description="Nama ruangan tidak boleh kosong.")
+    orders: List[OrderItemSchema] = Field(..., min_length=1, description="Daftar pesanan tidak boleh kosong.")
+
     order_id: Optional[str] = None
-    customer_name: str
-    table_no: str
-    room_name: str
-    orders: List[OrderItemSchema]
 
 class CancelOrderRequest(BaseModel):
     order_id: str
@@ -141,32 +164,30 @@ def get_next_queue_number(db: Session) -> int:
     else:
         return 1
     
-def validate_order_items(order_items: List[OrderItemSchema]):
-    """Menghubungi menu_service untuk memvalidasi keberadaan dan ketersediaan item."""
+def validate_order_items(order_items: List[OrderItemSchema]) -> Optional[str]:
+    """Menghubungi menu_service untuk memvalidasi item."""
     try:
         response = requests.get(f"{MENU_SERVICE_URL}/menu", timeout=5)
         response.raise_for_status()
-        
         available_menus = response.json()
-        
-        valid_menu_names = {menu['base_name'] for menu in available_menus}
-
-        invalid_items = []
-        for item in order_items:
-            if item.menu_name not in valid_menu_names:
-                invalid_items.append(item.menu_name)
-
-        if invalid_items:
-            error_detail = f"Menu berikut tidak ditemukan atau tidak tersedia: {', '.join(invalid_items)}"
-            raise HTTPException(status_code=400, detail=error_detail)
-
     except requests.RequestException as e:
         logging.error(f"Gagal menghubungi menu_service: {e}")
-        raise HTTPException(status_code=503, detail="Tidak dapat memvalidasi menu saat ini, layanan menu mungkin sedang tidak aktif.")
-    except Exception as e:
-        logging.error(f"Error saat validasi menu: {e}")
-        raise HTTPException(status_code=500, detail="Terjadi kesalahan internal saat memvalidasi menu.")
+        return "Tidak dapat memvalidasi menu saat ini, layanan menu sedang OFF."
 
+    valid_menu_names = {
+        menu.get('base_name', menu.get('menu_name')) for menu in available_menus
+    }
+    valid_menu_names.discard(None)
+
+    invalid_items = [
+        item.menu_name for item in order_items if item.menu_name not in valid_menu_names
+    ]
+
+    if invalid_items:
+        return f"Menu berikut tidak ditemukan atau tidak tersedia: {', '.join(invalid_items)}"
+    
+    return None
+    
 # Fungsi helper untuk outbox
 def create_outbox_event(db: Session, order_id: str, event_type: str, payload: dict):
     outbox_event = OrderOutbox(
@@ -206,7 +227,6 @@ def process_outbox_events(db: Session):
                 )
                 response.raise_for_status()
             
-            # Tandai sebagai berhasil diproses
             event.processed = True
             event.processed_at = datetime.now(jakarta_tz)
             event.error_message = None
@@ -214,7 +234,6 @@ def process_outbox_events(db: Session):
             logging.info(f"✅ Outbox event {event.id} berhasil diproses")
             
         except Exception as e:
-            # Increment retry count dan simpan error
             event.retry_count += 1
             event.error_message = str(e)
             
@@ -254,135 +273,120 @@ def get_outbox_status(db: Session = Depends(get_db)):
 def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     """Membuat pesanan baru dan mengirimkannya ke kitchen_service."""
 
-    validate_order_items(req.orders)
+    validation_error = validate_order_items(req.orders)
+    if validation_error:
+        return JSONResponse(status_code=200, content={"status": "error", "message": validation_error, "data": None})
 
-    # Cek status kitchen (optional - bisa dihilangkan jika pakai outbox)
+    flavor_required_menus = ["Caffe Latte", "Cappuccino", "Milkshake", "Squash"]
+    temp_order_id = req.order_id if req.order_id else generate_order_id()
+
+    for item in req.orders:
+        if item.menu_name in flavor_required_menus and not item.preference:
+            try:
+                flavor_url = f"{MENU_SERVICE_URL}/menu/by_name/{item.menu_name}/flavors"
+                flavor_response = requests.get(flavor_url, timeout=3)
+                if flavor_response.status_code != 200:
+                     return JSONResponse(status_code=200, content={"status": "error", "message": f"Gagal mendapatkan data rasa untuk {item.menu_name}", "data": None})
+                
+                available_flavors = flavor_response.json()
+                if available_flavors:
+                    flavor_names = [f"{i+1}. {flavor['flavor_name']}" for i, flavor in enumerate(available_flavors)]
+                    flavor_list_str = "\n".join(flavor_names)
+                    message = (
+                        f"Anda memesan {item.menu_name}, pilihan rasa wajib diisi. Varian yang tersedia:\n\n"
+                        f"{flavor_list_str}\n\n"
+                        "Silakan pilih satu rasa dan masukkan ke field 'preference', lalu kirim ulang pesanan Anda."
+                    )
+                    
+                    return JSONResponse(
+                        status_code=200,
+                        content={
+                            "status": "error",
+                            "message": "Pilihan rasa diperlukan untuk menu ini.",
+                            "data": {
+                                "guidance": message,
+                                "menu_item": item.menu_name,
+                                "available_flavors": [f['flavor_name'] for f in available_flavors],
+                                "order_id_suggestion": temp_order_id 
+                            }
+                        }
+                    )
+            except requests.RequestException as e:
+                logging.error(f"Gagal menghubungi menu_service untuk validasi flavor: {e}")
+                return JSONResponse(status_code=200, content={"status": "error", "message": "Tidak dapat memvalidasi pilihan rasa saat ini.", "data": None})
+
     try:
         status_response = requests.get("http://kitchen_service:8003/kitchen/status/now", timeout=5)
         status_response.raise_for_status()
         kitchen_status = status_response.json()
-
         if not kitchen_status.get("is_open", False):
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "message": "Dapur sedang OFF. Tidak dapat menerima pesanan.",
-                }
-            )
+            return JSONResponse(status_code=200, content={"status": "error", "message": "Dapur sedang OFF. Tidak dapat menerima pesanan.", "data": None})
     except Exception as e:
         logging.warning(f"⚠️ Gagal mengakses kitchen_service untuk cek status: {e}")
-        raise HTTPException(status_code=503, detail="Gagal menghubungi layanan dapur. Coba lagi nanti.")
+        return JSONResponse(status_code=200, content={"status": "error", "message": "Gagal menghubungi layanan dapur. Coba lagi nanti.", "data": None})
+    
+    order_id = temp_order_id
+    if db.query(Order).filter(Order.order_id == order_id).first():
+        return JSONResponse(status_code=200, content={"status": "error", "message": f"Pesanan dengan ID {order_id} sudah dalam proses.", "data": None})
 
     try:
         new_queue_number = get_next_queue_number(db)
-    except Exception as e:
-        logging.warning(f"Error getting queue number, retrying once: {e}")
-        new_queue_number = get_next_queue_number(db)
-
-    # GUNAKAN order_id dari request jika ada dan belum ada di DB
-    if req.order_id and not db.query(Order).filter(Order.order_id == req.order_id).first():
-        order_id = req.order_id
-    else:
-        order_id = generate_order_id()
-
-    new_order = Order(
-        order_id=order_id,
-        queue_number=new_queue_number,
-        customer_name=req.customer_name,
-        table_no=req.table_no,
-        room_name=req.room_name
-    )
-
-    try:
-        # 1. Simpan order ke database
+        new_order = Order(
+            order_id=order_id,
+            queue_number=new_queue_number,
+            customer_name=req.customer_name,
+            table_no=req.table_no,
+            room_name=req.room_name
+        )
         db.add(new_order)
         for item in req.orders:
             db.add(OrderItem(order_id=order_id, **item.model_dump()))
         
-        # 2. Buat outbox event dalam transaksi yang sama
-        outbox_payload = {
-            "order_id": order_id,
-            "queue_number": new_queue_number,
-            "orders": [item.model_dump() for item in req.orders],
-            "customer_name": req.customer_name,
-            "table_no": req.table_no,
-            "room_name": req.room_name
-        }
-        
+        outbox_payload = { "order_id": order_id, "queue_number": new_queue_number, "orders": [item.model_dump() for item in req.orders], "customer_name": req.customer_name, "table_no": req.table_no, "room_name": req.room_name }
         create_outbox_event(db, order_id, "order_created", outbox_payload)
-        
-        # 3. Commit transaksi (atomik)
         db.commit()
-        
     except Exception as e:
         db.rollback()
-        if "ix_order_queue_per_day" in str(e) or "unique constraint" in str(e).lower():
-            logging.warning(f"Queue number conflict, retrying with next available number")
-            new_queue_number_retry = get_next_queue_number(db)
-            new_order.queue_number = new_queue_number_retry
-            
-            # Retry dengan queue number baru
-            db.add(new_order)
-            for item in req.orders:
-                db.add(OrderItem(order_id=order_id, **item.model_dump()))
-            
-            # Update payload dengan queue number baru
-            outbox_payload["queue_number"] = new_queue_number_retry
-            create_outbox_event(db, order_id, "order_created", outbox_payload)
-            
-            db.commit()
-            new_queue_number = new_queue_number_retry
-        else:
-            raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        logging.error(f"Database error saat create order: {e}")
+        return JSONResponse(status_code=200, content={"status": "error", "message": f"Terjadi kesalahan pada database: {e}", "data": None})
 
-    # 4. Proses outbox event secara asinkron (atau via background job)
     try:
         process_outbox_events(db)
     except Exception as e:
         logging.warning(f"⚠️ Gagal memproses outbox events: {e}")
 
-    return {
+    return JSONResponse(status_code=200, content={
+        "status": "success",
         "message": f"Pesanan kamu telah berhasil diproses dengan id order : {order_id}, mohon ditunggu ya !",
-        "order_id": order_id,
-        "queue_number": new_queue_number
-    }
+        "data": {
+            "order_id": order_id,
+            "queue_number": new_queue_number
+        }
+    })
 
 @app.post("/cancel_order", summary="Batalkan pesanan", tags=["Order"], operation_id="cancel order")
 def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
     """Membatalkan pesanan yang belum selesai dan mencatat alasannya."""
     order = db.query(Order).filter(Order.order_id == req.order_id).first()
     if not order:
-        raise HTTPException(
-            status_code=404, 
-            detail=f"Maaf, pesanan dengan ID: {req.order_id} tidak ditemukan. Mohon periksa kembali ID pesanan Anda."
-        )
+        return JSONResponse(status_code=200, content={"status": "error", "message": f"Maaf, pesanan dengan ID: {req.order_id} tidak ditemukan.", "data": None})
+    
     if order.status != "receive":
-        raise HTTPException(
-            status_code=400,
-            detail=f"Maaf, pesanan dengan ID: {req.order_id} sudah dalam proses pembuatan oleh dapur dan tidak dapat dibatalkan."
-        )
+        return JSONResponse(status_code=200, content={"status": "error", "message": f"Maaf, pesanan dengan ID: {req.order_id} sudah dalam proses pembuatan dan tidak dapat dibatalkan.", "data": None})
 
-    # Update status dan simpan ke outbox dalam satu transaksi
     order.status = "cancelled"
     order.cancel_reason = req.reason
     
-    # Buat outbox event untuk cancel
-    cancel_payload = {
-        "order_id": req.order_id,
-        "reason": req.reason,
-        "cancelled_at": datetime.now(jakarta_tz).isoformat()
-    }
-    
+    cancel_payload = { "order_id": req.order_id, "reason": req.reason, "cancelled_at": datetime.now(jakarta_tz).isoformat() }
     create_outbox_event(db, req.order_id, "order_cancelled", cancel_payload)
     db.commit()
     
-    # Proses outbox event
     try:
         process_outbox_events(db)
     except Exception as e:
         logging.warning(f"⚠️ Gagal memproses cancel outbox event: {e}")
     
-    return {"message": f"Pesanan kamu dengan ID: {req.order_id} telah berhasil dibatalkan."}
+    return JSONResponse(status_code=200, content={"status": "success", "message": f"Pesanan kamu dengan ID: {req.order_id} telah berhasil dibatalkan.", "data": {"order_id": req.order_id}})
 
 @app.post("/internal/update_status/{order_id}", tags=["Internal"])
 def update_order_status_from_kitchen(order_id: str, req: StatusUpdateRequest, db: Session = Depends(get_db)):
@@ -402,13 +406,18 @@ def get_order_status(order_id: str, db: Session = Depends(get_db)):
     """Mengambil status terkini dari pesanan tertentu."""
     order = db.query(Order).filter(Order.order_id == order_id).first()
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    return {
-        "order_id": order.order_id,
-        "status": order.status,
-        "queue_number": order.queue_number,
-        "created_at": order.created_at
-    }
+        return JSONResponse(status_code=200, content={"status": "error", "message": "Order not found", "data": None})
+    
+    return JSONResponse(status_code=200, content={
+        "status": "success",
+        "message": "Status pesanan berhasil diambil.",
+        "data": {
+            "order_id": order.order_id,
+            "status": order.status,
+            "queue_number": order.queue_number,
+            "created_at": order.created_at.isoformat()
+        }
+    })
 
 @app.get("/order", summary="Semua pesanan", tags=["Order"], operation_id="list order")
 def get_all_orders(db: Session = Depends(get_db)):
