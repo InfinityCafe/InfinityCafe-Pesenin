@@ -93,6 +93,7 @@ class Order(Base):
     status = Column(String, default="receive")
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
     cancel_reason = Column(Text, nullable=True)
+    is_custom = Column(Boolean, default=False)
     items = relationship("OrderItem", back_populates="order", cascade="all, delete")
 
     __table_args__ = (
@@ -336,7 +337,8 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
             queue_number=new_queue_number,
             customer_name=req.customer_name,
             table_no=req.table_no,
-            room_name=req.room_name
+            room_name=req.room_name,
+            is_custom=False
         )
         db.add(new_order)
         for item in req.orders:
@@ -358,6 +360,98 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     return JSONResponse(status_code=200, content={
         "status": "success",
         "message": f"Pesanan kamu telah berhasil diproses dengan id order : {order_id}, mohon ditunggu ya !",
+        "data": {
+            "order_id": order_id,
+            "queue_number": new_queue_number
+        }
+    })
+
+@app.post("/custom_order", summary="Buat pesanan custom (tanpa validasi menu)", tags=["Order"], operation_id="add custom order")
+def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
+    """Membuat pesanan custom baru tanpa validasi ke menu_service."""
+
+    flavor_required_menus = ["Caffe Latte", "Cappuccino", "Milkshake", "Squash"]
+    temp_order_id = req.order_id if req.order_id else generate_order_id()
+
+    for item in req.orders:
+        if item.menu_name in flavor_required_menus and not item.preference:
+            try:
+                flavor_url = f"{MENU_SERVICE_URL}/menu/by_name/{item.menu_name}/flavors"
+                flavor_response = requests.get(flavor_url, timeout=3)
+                if flavor_response.status_code != 200:
+                        return JSONResponse(status_code=200, content={"status": "error", "message": f"Gagal mendapatkan data rasa untuk {item.menu_name}", "data": None})
+                
+                available_flavors = flavor_response.json()
+                if available_flavors:
+                    flavor_names = [f"{i+1}. {flavor['flavor_name']}" for i, flavor in enumerate(available_flavors)]
+                    flavor_list_str = "\n".join(flavor_names)
+                    message = (
+                        f"Anda memesan {item.menu_name}, pilihan rasa wajib diisi. Varian yang tersedia:\n\n"
+                        f"{flavor_list_str}\n\n"
+                        "Silakan pilih satu rasa dan masukkan ke field 'preference', lalu kirim ulang pesanan Anda."
+                    )
+                    
+                    return JSONResponse(
+                        status_code=200,
+                        content={
+                            "status": "error",
+                            "message": "Pilihan rasa diperlukan untuk menu ini.",
+                            "data": {
+                                "guidance": message,
+                                "menu_item": item.menu_name,
+                                "available_flavors": [f['flavor_name'] for f in available_flavors],
+                                "order_id_suggestion": temp_order_id 
+                            }
+                        }
+                    )
+            except requests.RequestException as e:
+                logging.error(f"Gagal menghubungi menu_service untuk validasi flavor: {e}")
+                return JSONResponse(status_code=200, content={"status": "error", "message": "Tidak dapat memvalidasi pilihan rasa saat ini.", "data": None})
+
+    try:
+        status_response = requests.get("http://kitchen_service:8003/kitchen/status/now", timeout=5)
+        status_response.raise_for_status()
+        kitchen_status = status_response.json()
+        if not kitchen_status.get("is_open", False):
+            return JSONResponse(status_code=200, content={"status": "error", "message": "Dapur sedang OFF. Tidak dapat menerima pesanan.", "data": None})
+    except Exception as e:
+        logging.warning(f"⚠️ Gagal mengakses kitchen_service untuk cek status: {e}")
+        return JSONResponse(status_code=200, content={"status": "error", "message": "Gagal menghubungi layanan dapur. Coba lagi nanti.", "data": None})
+    
+    order_id = temp_order_id
+    if db.query(Order).filter(Order.order_id == order_id).first():
+        return JSONResponse(status_code=200, content={"status": "error", "message": f"Pesanan dengan ID {order_id} sudah dalam proses.", "data": None})
+
+    try:
+        new_queue_number = get_next_queue_number(db)
+        new_order = Order(
+            order_id=order_id,
+            queue_number=new_queue_number,
+            customer_name=req.customer_name,
+            table_no=req.table_no,
+            room_name=req.room_name,
+            is_custom=True
+        )
+        db.add(new_order)
+        for item in req.orders:
+            db.add(OrderItem(order_id=order_id, **item.model_dump()))
+        
+        outbox_payload = { "order_id": order_id, "queue_number": new_queue_number, "orders": [item.model_dump() for item in req.orders], "customer_name": req.customer_name, "table_no": req.table_no, "room_name": req.room_name }
+        create_outbox_event(db, order_id, "order_created", outbox_payload)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logging.error(f"Database error saat create order: {e}")
+        return JSONResponse(status_code=200, content={"status": "error", "message": f"Terjadi kesalahan pada database: {e}", "data": None})
+
+    try:
+        process_outbox_events(db)
+    except Exception as e:
+        logging.warning(f"⚠️ Gagal memproses outbox events: {e}")
+
+    return JSONResponse(status_code=200, content={
+        "status": "success",
+        "message": f"Pesanan custom kamu telah berhasil diproses dengan id order : {order_id}, mohon ditunggu ya !",
         "data": {
             "order_id": order_id,
             "queue_number": new_queue_number
