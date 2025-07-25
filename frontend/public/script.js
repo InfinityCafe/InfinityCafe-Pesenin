@@ -11,14 +11,6 @@ let selectedOrderId = null;
 let selectedOrder = null;
 let currentTab = 'active';
 
-// Initialize when page loads
-document.addEventListener('DOMContentLoaded', function() {
-  initializeKitchenToggle();
-  fetchKitchenStatus();
-  switchTab('active');
-  initializeEventSource();
-});
-
 // Kitchen toggle functionality
 function initializeKitchenToggle() {
   const toggle = document.getElementById('kitchen-toggle');
@@ -186,11 +178,11 @@ function createOrderCard(order) {
   }
   else if (order.status === 'done') {
     statusBadge = '<span class="status-badge status-done"><i class="fa-solid fa-check"></i> DONE</span>';
-    actionButton = `<button class="action-btn action-btn-green-disabled")">DONE</button>`;
+    actionButton = `<button class="action-btn action-btn-green-disabled">DONE</button>`;
   }
     else if (order.status === 'cancel') {
     statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCEL</span>';
-    actionButton = `<button class="action-btn action-btn-red-disabled")">CANCEL</button>`;
+    actionButton = `<button class="action-btn action-btn-red-disabled">CANCEL</button>`;
   }
 
   card.innerHTML = `
@@ -692,6 +684,7 @@ document.addEventListener('DOMContentLoaded', function() {
   fetchKitchenStatus();
   switchTab('active');
   initializeEventSource();
+  updateGreetingDate();
   
   // Set greeting date to today in Indonesian format
   const greetingDate = document.querySelector('.greeting-date');
@@ -712,3 +705,16 @@ window.closeDetailModal = closeDetailModal;
 window.syncUpdate = syncUpdate;
 window.openAddOrderModal = openAddOrderModal;
 window.closeAddOrderModal = closeAddOrderModal;
+
+// fungsi untuk menampilkan tanggal
+function updateGreetingDate() {
+    const dateElement = document.getElementById('greeting-date');
+    const today = new Date();
+    const day = today.getDate();
+    const weekday = today.toLocaleDateString('en-US', { weekday: 'long' });
+    const month = today.toLocaleDateString('en-US', { month: 'long' });
+    const year = today.getFullYear();
+    const ordinalSuffix = day > 3 && day < 21 ? 'th' : ['th', 'st', 'nd', 'rd', 'th'][day % 10] || 'th';
+    const formattedDate = `${weekday}, ${day}${ordinalSuffix} ${month} ${year}`;
+    dateElement.textContent = formattedDate;
+}
