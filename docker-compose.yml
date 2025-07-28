@@ -3,7 +3,7 @@ volumes:
   # postgres_storage:
   # ollama_storage:
   # qdrant_storage:
-  pgvector_storage:
+  # pgvector_storage:
 
 networks:
   demo:
@@ -13,52 +13,52 @@ networks:
     name: infinitycafe_shared_network  # Nama yang lebih deskriptif
     # Hapus external: true
 
-x-n8n: &service-n8n
-  image: n8nio/n8n:1.93.0
-  networks: ['demo']
-  environment:
-    - DB_TYPE=postgresdb
-    - DB_POSTGRESDB_HOST=pgvector
-    - DB_POSTGRESDB_USER=${POSTGRES_USER}
-    - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
-    - N8N_PROTOCOL=https
-    - NODE_ENV=production
-   # - WEBHOOK_URL=https://liberal-relative-panther.ngrok-free.app
-    - WEBHOOK_URL=https://${NG_URL}
-    - GENERIC_TIMEZONE=Asia/Jakarta
-    - N8N_DIAGNOSTICS_ENABLED=false
-    - N8N_PERSONALIZATION_ENABLED=false
-    - N8N_ENCRYPTION_KEY
-    - N8N_USER_MANAGEMENT_JWT_SECRET
-    - OLLAMA_HOST=host.docker.internal:11434
-  env_file:
-    - .env
+# x-n8n: &service-n8n
+#   image: n8nio/n8n:1.93.0
+#   networks: ['demo']
+#   environment:
+#     - DB_TYPE=postgresdb
+#     - DB_POSTGRESDB_HOST=pgvector
+#     - DB_POSTGRESDB_USER=${POSTGRES_USER}
+#     - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+#     - N8N_PROTOCOL=https
+#     - NODE_ENV=production
+#    # - WEBHOOK_URL=https://liberal-relative-panther.ngrok-free.app
+#     - WEBHOOK_URL=https://${NG_URL}
+#     - GENERIC_TIMEZONE=Asia/Jakarta
+#     - N8N_DIAGNOSTICS_ENABLED=false
+#     - N8N_PERSONALIZATION_ENABLED=false
+#     - N8N_ENCRYPTION_KEY
+#     - N8N_USER_MANAGEMENT_JWT_SECRET
+#     - OLLAMA_HOST=host.docker.internal:11434
+#   env_file:
+#     - .env
 
-x-ollama: &service-ollama
-  image: ollama/ollama:latest
-  container_name: ollama
-  networks: ['demo']
-  restart: unless-stopped
-  ports:
-    - 11434:11434
-  volumes:
-    - ollama_storage:/root/.ollama
-    - ./modelfile:/modelfile:ro  # Added shared modelfile directory as read-only
+# x-ollama: &service-ollama
+#   image: ollama/ollama:latest
+#   container_name: ollama
+#   networks: ['demo']
+#   restart: unless-stopped
+#   ports:
+#     - 11434:11434
+#   volumes:
+#     - ollama_storage:/root/.ollama
+#     - ./modelfile:/modelfile:ro  # Added shared modelfile directory as read-only
 
-x-init-ollama: &init-ollama
-  image: ollama/ollama:latest
-  networks: ['demo']
-  container_name: ollama-pull-llama
-  volumes:
-    - ./modelfile/cafe.modelfile:/cafe.modelfile   # dari folder `modelfile`
-    - ollama_storage:/root/.ollama
-    - ./modelfile:/modelfile
-  entrypoint: /bin/sh
-  environment:
-    - OLLAMA_HOST=host.docker.internal:11434
-  command:
-    - "-c"
-    - "sleep 3; ollama pull nomic-embed-text"
+# x-init-ollama: &init-ollama
+#   image: ollama/ollama:latest
+#   networks: ['demo']
+#   container_name: ollama-pull-llama
+#   volumes:
+#     - ./modelfile/cafe.modelfile:/cafe.modelfile   # dari folder `modelfile`
+#     - ollama_storage:/root/.ollama
+#     - ./modelfile:/modelfile
+#   entrypoint: /bin/sh
+#   environment:
+#     - OLLAMA_HOST=host.docker.internal:11434
+#   command:
+#     - "-c"
+#     - "sleep 3; ollama pull nomic-embed-text"
 
 services:
   # n8n-import:
@@ -185,50 +185,50 @@ services:
   #     - "-c"
   #     - "sleep 3; echo 'Creating infinityCafe Model'; ollama create infinityCafe -f /modelfile/cafe.modelfile"
 
-  pgadmin:
-    image: dpage/pgadmin4
-    networks: ['demo']
-    hostname: pgadmin
-    container_name: pgadmin-container
-    depends_on:
-      pgvector17:
-        condition: service_healthy
-    ports:
-      - "5050:80"
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
-    restart: unless-stopped
+  # pgadmin:
+  #   image: dpage/pgadmin4
+  #   networks: ['demo']
+  #   hostname: pgadmin
+  #   container_name: pgadmin-container
+  #   depends_on:
+  #     pgvector17:
+  #       condition: service_healthy
+  #   ports:
+  #     - "5050:80"
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+  #     PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+  #   restart: unless-stopped
 
-  pgvector17:
-    image: pgvector/pgvector:pg17
-    networks: ['demo']
-    hostname: pgvector
-    container_name: pgvector
-    ports:
-     - 5555:5432
-    restart: always
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_HOST_AUTH_METHOD=trust
-    volumes:
-    #  - ./pgvector-init.sql:/docker-entrypoint-initdb.d/init.sql
-     - pgvector_storage:/var/lib/postgresql/data
-    #  - ./initdb:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -h pgvector -U ${POSTGRES_USER} -d postgres']
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    # command: >
-    #   bash -c "
-    #   until pg_isready -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres; do
-    #     echo waiting for PGVECTOR...;
-    #     sleep 2;
-    #   done &&
-    #   psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -tc \"SELECT 1 FROM pg_database WHERE datname = 'n8n2'\" |
-    #   grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -c 'CREATE DATABASE n8n2'"
+  # pgvector17:
+  #   image: pgvector/pgvector:pg17
+  #   networks: ['demo']
+  #   hostname: pgvector
+  #   container_name: pgvector
+  #   ports:
+  #    - 5555:5432
+  #   restart: always
+  #   environment:
+  #     - POSTGRES_USER=${POSTGRES_USER}
+  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+  #     - POSTGRES_HOST_AUTH_METHOD=trust
+  #   volumes:
+  #   #  - ./pgvector-init.sql:/docker-entrypoint-initdb.d/init.sql
+  #    - pgvector_storage:/var/lib/postgresql/data
+  #   #  - ./initdb:/docker-entrypoint-initdb.d
+  #   healthcheck:
+  #     test: ['CMD-SHELL', 'pg_isready -h pgvector -U ${POSTGRES_USER} -d postgres']
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 10
+  #   # command: >
+  #   #   bash -c "
+  #   #   until pg_isready -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres; do
+  #   #     echo waiting for PGVECTOR...;
+  #   #     sleep 2;
+  #   #   done &&
+  #   #   psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -tc \"SELECT 1 FROM pg_database WHERE datname = 'n8n2'\" |
+  #   #   grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -c 'CREATE DATABASE n8n2'"
 
   initdb:
     image: pgvector/pgvector:pg17
