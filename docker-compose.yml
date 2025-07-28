@@ -204,7 +204,7 @@ services:
     image: pgvector/pgvector:pg17
     networks: ['demo']
     hostname: pgvector
-    container_name: pgvector-infinitycafe
+    container_name: pgvector_infinitycafe
     ports:
      - 5555:5432
     restart: always
@@ -303,7 +303,7 @@ services:
     build:
       context: ./infinity/
       dockerfile: menu_service/Dockerfile
-    container_name: menu_service
+    container_name: menu_service_infinitycafe
     depends_on:
       pgvector17:
         condition: service_healthy
@@ -328,7 +328,7 @@ services:
     build:
       context: ./infinity/
       dockerfile: order_service/Dockerfile
-    container_name: order_service
+    container_name: order_service_infinitycafe
     depends_on:
       pgvector17:
         condition: service_healthy
@@ -353,7 +353,7 @@ services:
     build:
       context: ./infinity/
       dockerfile: kitchen_service/Dockerfile
-    container_name: kitchen_service
+    container_name: kitchen_service_infinitycafe
     depends_on:
       pgvector17:
         condition: service_healthy
@@ -374,7 +374,7 @@ services:
     build:
       context: ./infinity/
       dockerfile: report_service/Dockerfile
-    container_name: report_service
+    container_name: report_service_infinitycafe
     depends_on:
       pgvector17:
         condition: service_healthy
@@ -398,7 +398,7 @@ services:
     build:
       context: ./infinity/
       dockerfile: inventory_service/Dockerfile
-    container_name: inventory_service
+    container_name: inventory_service_infinitycafe
     depends_on:
       pgvector17:
         condition: service_healthy
@@ -433,7 +433,7 @@ services:
   frontend:
     build:
       context: ./frontend
-    container_name: infinity-frontend
+    container_name: infinity-frontend_infinitycafe
     hostname: frontend
     networks: ['demo']
     ports:
