@@ -79,15 +79,31 @@ function closeConfirmModal() {
 function openDetailModal(order) {
   selectedOrder = order;
   const box = document.getElementById("detail-content");
-  // Tampilkan detail item per baris, termasuk notes jika ada
-  const items = order.detail.split('\n').filter(item => item.trim());
+  // Use order.items if available, else parse from detail
+  const items = order.items && Array.isArray(order.items) && order.items.length > 0
+    ? order.items
+    : (order.detail || '').split('\n').filter(item => item.trim()).map(item => {
+        // fallback parse
+        const [main, notesPart] = item.split(' - Notes:');
+        let name = main;
+        let variant = '';
+        let qty = '';
+        const variantMatch = main.match(/^(\d+)x ([^(]+) \(([^)]+)\)$/);
+        if (variantMatch) {
+          qty = variantMatch[1] + 'x';
+          name = variantMatch[2].trim();
+          variant = variantMatch[3].trim();
+        } else {
+          const noVarMatch = main.match(/^(\d+)x ([^(]+)$/);
+          if (noVarMatch) {
+            qty = noVarMatch[1] + 'x';
+            name = noVarMatch[2].trim();
+          }
+        }
+        return { menu_name: name, quantity: qty, preference: variant, notes: notesPart ? notesPart.trim() : '' };
+      });
   const itemsHtml = items.map(item => {
-    const parts = item.split(' - ');
-    const name = parts[0] || item;
-    const quantity = parts[2] || parts[1] || '1x';
-    const variant = parts.length > 2 ? parts[1] : '';
-    const notes = parts.length > 3 ? parts.slice(3).join(' - ') : (parts.length === 3 ? parts[2] : '');
-    return `<div style='margin-bottom:4px;'><b>${name}</b>${variant ? ' <span style=\"color:#888;font-size:13px;\">(' + variant + ')</span>' : ''} - ${quantity}${notes && notes !== quantity ? `<div style='font-size:12px;color:#888;margin-top:2px;'>Notes: ${notes}</div>` : ''}</div>`;
+    return `<div style='margin-bottom:4px;'><b>${item.menu_name}</b>${item.preference ? ' <span style=\"color:#888;font-size:13px;\">(' + item.preference + ')</span>' : ''} - ${item.quantity}${item.notes ? `<div style='font-size:12px;color:#888;margin-top:2px;'><b>Notes:</b> ${item.notes}</div>` : ''}</div>`;
   }).join('');
   box.innerHTML = `
     <p><strong>Order ID:</strong> ${order.order_id}</p>
@@ -142,22 +158,38 @@ function createOrderCard(order) {
   const time = new Date(order.time_receive).toLocaleString("id-ID");
   const timeDone = order.time_done ? new Date(order.time_done).toLocaleString("id-ID") : null;
 
-  // Parse items from detail
-  // Format: NamaMenu - Varian - Qty - Notes (jika ada)
-  // Kita split per baris, lalu split per ' - '
-  const items = order.detail.split('\n').filter(item => item.trim());
+  // Use order.items if available, else parse from detail
+  const items = order.items && Array.isArray(order.items) && order.items.length > 0
+    ? order.items
+    : (order.detail || '').split('\n').filter(item => item.trim()).map(item => {
+        const [main, notesPart] = item.split(' - Notes:');
+        let name = main;
+        let variant = '';
+        let qty = '';
+        const variantMatch = main.match(/^(\d+)x ([^(]+) \(([^)]+)\)$/);
+        if (variantMatch) {
+          qty = variantMatch[1] + 'x';
+          name = variantMatch[2].trim();
+          variant = variantMatch[3].trim();
+        } else {
+          const noVarMatch = main.match(/^(\d+)x ([^(]+)$/);
+          if (noVarMatch) {
+            qty = noVarMatch[1] + 'x';
+            name = noVarMatch[2].trim();
+          }
+        }
+        return { menu_name: name, quantity: qty, preference: variant, notes: notesPart ? notesPart.trim() : '' };
+      });
   const itemsHtml = items.map(item => {
-    // Cek apakah ada notes di item (format: NamaMenu - Varian - Qty - Notes)
-    const parts = item.split(' - ');
-    const name = parts[0] || item;
-    const quantity = parts[2] || parts[1] || '1x';
-    const variant = parts.length > 2 ? parts[1] : '';
-    const notes = parts.length > 3 ? parts.slice(3).join(' - ') : (parts.length === 3 ? parts[2] : '');
     return `
       <div class="order-item">
-        <span class="item-name">${name}${variant ? ' <span style=\"color:#888;font-size:13px;\">(' + variant + ')</span>' : ''}</span>
-        <span class="item-quantity">${quantity}</span>
-        ${notes && notes !== quantity ? `<div class='item-notes' style='font-size:12px;color:#888;margin-top:2px;'>${notes}</div>` : ''}
+        <div class="item-content">
+          <div class="item-main">
+            <span class="item-name">${item.menu_name}${item.preference ? ' <span class="item-variant">(' + item.preference + ')</span>' : ''}</span>
+            <span class="item-quantity">${item.quantity}</span>
+          </div>
+          ${item.notes ? `<div class="item-notes"><span class="notes-label">Notes:</span> ${item.notes}</div>` : ''}
+        </div>
       </div>
     `;
   }).join('');
@@ -270,11 +302,43 @@ function updateSummary(orders) {
   const activeOrders = orders.filter(order => ['receive', 'making', 'deliver'].includes(order.status));
   const summary = {};
   activeOrders.forEach(order => {
-    const items = order.detail.split('\n').filter(item => item.trim());
+    // Use order.items if available, else parse from detail
+    let items = [];
+    if (order.items && Array.isArray(order.items) && order.items.length > 0) {
+      items = order.items;
+    } else {
+      // Fallback: parse from detail string
+      const detailItems = order.detail.split('\n').filter(item => item.trim());
+      items = detailItems.map(item => {
+        const parts = item.split(' - ');
+        const mainPart = parts[0] || item;
+        const notes = parts[1] || '';
+        
+        // Parse quantity and name from main part
+        const match = mainPart.match(/^(\d+)x\s+(.+?)(?:\s+\(([^)]+)\))?$/);
+        if (match) {
+          return {
+            quantity: parseInt(match[1]),
+            menu_name: match[2].trim(),
+            preference: match[3] || '',
+            notes: notes
+          };
+        } else {
+          return {
+            quantity: 1,
+            menu_name: mainPart.trim(),
+            preference: '',
+            notes: notes
+          };
+        }
+      });
+    }
+    
     items.forEach(item => {
-      const parts = item.split(' - ');
-      const name = parts[0] || item;
-      const variant = parts[1] || '';
+      const name = item.menu_name;
+      const variant = item.preference;
+      const notes = item.notes;
+      
       if (!summary[name]) {
         summary[name] = {
           count: 0,
@@ -283,13 +347,14 @@ function updateSummary(orders) {
           firstQueueNumber: Infinity // Untuk mengurutkan menu berdasarkan antrian terkecil
         };
       }
-      summary[name].count++;
+      summary[name].count += item.quantity || 1;
       const queueNumber = orderIdToQueue[order.order_id] || Infinity;
       summary[name].firstQueueNumber = Math.min(summary[name].firstQueueNumber, queueNumber);
       summary[name].orders.push({
         id: order.order_id,
         label: `#${order.order_id.toString().padStart(2, '0')}`,
         variant,
+        notes,
         customer: order.customer_name ?? '',
         queue: queueNumber,
         time_receive: order.time_receive
@@ -323,13 +388,14 @@ function updateSummary(orders) {
       </div>
       <table class="summary-table">
         <thead>
-          <tr><th>Varian</th><th>Antrian</th></tr>
+          <tr><th>Varian</th><th>Antrian</th><th>Notes</th></tr>
         </thead>
         <tbody>
           ${data.orders.map(order => `
             <tr>
               <td>${order.variant || '-'}</td>
               <td><span class="summary-detail--order" data-order-id="${order.id}" title="${order.label}">${order.queue}</span></td>
+              <td class="${order.notes && order.notes !== '-' ? 'has-notes' : ''}">${order.notes || '-'}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -638,6 +704,15 @@ const addOrderBtn = document.querySelector('.add-order-btn');
 if (addOrderBtn) addOrderBtn.onclick = openAddOrderModal;
 // Handle submit
 const addOrderForm = document.getElementById('add-order-form');
+function showSuccessModal(message) {
+  const modal = document.getElementById('success-modal');
+  const msgBox = document.getElementById('success-message');
+  msgBox.textContent = message;
+  modal.classList.remove('hidden');
+}
+function closeSuccessModal() {
+  document.getElementById('success-modal').classList.add('hidden');
+}
 addOrderForm.onsubmit = async function(e) {
   e.preventDefault();
   const customer_name = document.getElementById('customer_name').value.trim();
@@ -667,6 +742,7 @@ addOrderForm.onsubmit = async function(e) {
     if (data.status === 'success') {
       closeAddOrderModal();
       fetchOrders();
+      showSuccessModal(data.message || 'Pesanan berhasil ditambahkan!');
     } else {
       alert(data.message || 'Gagal membuat pesanan.');
     }
@@ -705,6 +781,8 @@ window.closeDetailModal = closeDetailModal;
 window.syncUpdate = syncUpdate;
 window.openAddOrderModal = openAddOrderModal;
 window.closeAddOrderModal = closeAddOrderModal;
+window.showSuccessModal = showSuccessModal;
+window.closeSuccessModal = closeSuccessModal;
 
 // fungsi untuk menampilkan tanggal
 function updateGreetingDate() {
