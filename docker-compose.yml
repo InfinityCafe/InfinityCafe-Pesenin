@@ -185,20 +185,20 @@ services:
   #     - "-c"
   #     - "sleep 3; echo 'Creating infinityCafe Model'; ollama create infinityCafe -f /modelfile/cafe.modelfile"
 
-  # pgadmin:
-  #   image: dpage/pgadmin4
-  #   networks: ['demo']
-  #   hostname: pgadmin
-  #   container_name: pgadmin-container
-  #   depends_on:
-  #     pgvector17:
-  #       condition: service_healthy
-  #   ports:
-  #     - "5050:80"
-  #   environment:
-  #     PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
-  #     PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
-  #   restart: unless-stopped
+  pgadmin:
+    image: dpage/pgadmin4
+    networks: ['demo']
+    hostname: pgadmin
+    container_name: pgadmin-container_infinitycafe
+    depends_on:
+      pgvector17:
+        condition: service_healthy
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    restart: unless-stopped
 
   pgvector17:
     image: pgvector/pgvector:pg17
@@ -206,7 +206,7 @@ services:
     hostname: pgvector
     container_name: pgvector_infinitycafe
     ports:
-     - 5555:5432
+     - 5432:5432
     restart: always
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
@@ -312,7 +312,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8001:8001"
+      - "3100:8001"
     extra_hosts:
       - "ollama:host-gateway"
     healthcheck:
@@ -337,7 +337,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8002:8002"
+      - "3200:8002"
     extra_hosts:
       - "ollama:host-gateway"
     healthcheck:
@@ -362,7 +362,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8003:8003"
+      - "3300:8003"
     extra_hosts:
       - "ollama:host-gateway"
     healthcheck:
@@ -383,7 +383,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8004:8004"
+      - "3400:8004"
     extra_hosts:
       - "ollama:host-gateway"
     healthcheck:
@@ -407,7 +407,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8005:8005"
+      - "3500:8005"
     extra_hosts:
       - "ollama:host-gateway"
     healthcheck:
@@ -437,7 +437,7 @@ services:
     hostname: frontend
     networks: ['demo']
     ports:
-      - "7777:8080"
+      - "4200:8080"
     volumes:
       - ./frontend/public:/app/public
     extra_hosts:
