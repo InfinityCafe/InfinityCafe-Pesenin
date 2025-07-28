@@ -1,8 +1,8 @@
 volumes:
-  n8n_storage:
-  #postgres_storage:
-  ollama_storage:
-  qdrant_storage:
+  # n8n_storage:
+  # postgres_storage:
+  # ollama_storage:
+  # qdrant_storage:
   pgvector_storage:
 
 networks:
@@ -61,129 +61,129 @@ x-init-ollama: &init-ollama
     - "sleep 3; ollama pull nomic-embed-text"
 
 services:
-  n8n-import:
-    <<: *service-n8n
-    hostname: n8n-import
-    container_name: n8n-import
-    entrypoint: /bin/sh
-    command:
-      - "-c"
-      - "n8n import:credentials --separate --input=/demo-data/credentials && n8n import:workflow --separate --input=/demo-data/workflows"
-    volumes:
-      - ./n8n/demo-data:/demo-data
-    depends_on:
-      pgvector17:
-        condition: service_healthy
+  # n8n-import:
+  #   <<: *service-n8n
+  #   hostname: n8n-import
+  #   container_name: n8n-import
+  #   entrypoint: /bin/sh
+  #   command:
+  #     - "-c"
+  #     - "n8n import:credentials --separate --input=/demo-data/credentials && n8n import:workflow --separate --input=/demo-data/workflows"
+  #   volumes:
+  #     - ./n8n/demo-data:/demo-data
+  #   depends_on:
+  #     pgvector17:
+  #       condition: service_healthy
 
-  n8n:
-    <<: *service-n8n
-    hostname: n8n
-    container_name: n8n
-    restart: unless-stopped
-    ports:
-      - 5678:5678
-    volumes:
-      - n8n_storage:/home/node/.n8n
-      - ./n8n/demo-data:/demo-data
-      - ./shared:/data/shared
-    depends_on:
-      pgvector17:
-        condition: service_healthy
-      n8n-import:
-        condition: service_completed_successfully
-
-  # qdrant:
-  #   image: qdrant/qdrant
-  #   hostname: qdrant
-  #   container_name: qdrant
-  #   networks: ['demo']
+  # n8n:
+  #   <<: *service-n8n
+  #   hostname: n8n
+  #   container_name: n8n
   #   restart: unless-stopped
   #   ports:
-  #     - 6333:6333
+  #     - 5678:5678
   #   volumes:
-  #     - qdrant_storage:/qdrant/storage
+  #     - n8n_storage:/home/node/.n8n
+  #     - ./n8n/demo-data:/demo-data
+  #     - ./shared:/data/shared
+  #   depends_on:
+  #     pgvector17:
+  #       condition: service_healthy
+  #     n8n-import:
+  #       condition: service_completed_successfully
 
-  ollama-cpu:
-    profiles: ["cpu"]
-    <<: *service-ollama
+  # # qdrant:
+  # #   image: qdrant/qdrant
+  # #   hostname: qdrant
+  # #   container_name: qdrant
+  # #   networks: ['demo']
+  # #   restart: unless-stopped
+  # #   ports:
+  # #     - 6333:6333
+  # #   volumes:
+  # #     - qdrant_storage:/qdrant/storage
 
-  ollama-gpu:
-    profiles: ["gpu-nvidia"]
-    <<: *service-ollama
-    networks: ['demo', 'my_shared_network']
-    environment:
-      - OLLAMA_CONTEXT_LENGTH=5000
-      - CUDA_VISIBLE_DEVICES=0
-      # - OLLAMA_NUM_PARALLEL=10
-      # - OLLAMA_MAX_LOADED_MODELS=2
-      # - OLLAMA_FLASH_ATTENTION=true
-      - OLLAMA_KEEP_ALIVE=12h
-      # - OLLAMA_NEW_ENGINE=true
-      # - OLLAMA_MULTIUSER_CACHE=true
-      - OLLAMA_DEBUG=false
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+  # ollama-cpu:
+  #   profiles: ["cpu"]
+  #   <<: *service-ollama
 
-  ollama-gpu-amd:
-    profiles: ["gpu-amd"]
-    <<: *service-ollama
-    image: ollama/ollama:rocm
-    devices:
-      - "/dev/kfd"
-      - "/dev/dri"
+  # ollama-gpu:
+  #   profiles: ["gpu-nvidia"]
+  #   <<: *service-ollama
+  #   networks: ['demo', 'my_shared_network']
+  #   environment:
+  #     - OLLAMA_CONTEXT_LENGTH=5000
+  #     - CUDA_VISIBLE_DEVICES=0
+  #     # - OLLAMA_NUM_PARALLEL=10
+  #     # - OLLAMA_MAX_LOADED_MODELS=2
+  #     # - OLLAMA_FLASH_ATTENTION=true
+  #     - OLLAMA_KEEP_ALIVE=12h
+  #     # - OLLAMA_NEW_ENGINE=true
+  #     # - OLLAMA_MULTIUSER_CACHE=true
+  #     - OLLAMA_DEBUG=false
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
 
-  ollama-pull-llama-cpu:
-    profiles: ["cpu"]
-    <<: *init-ollama
-    depends_on:
-      - ollama-cpu
+  # ollama-gpu-amd:
+  #   profiles: ["gpu-amd"]
+  #   <<: *service-ollama
+  #   image: ollama/ollama:rocm
+  #   devices:
+  #     - "/dev/kfd"
+  #     - "/dev/dri"
 
-  ollama-pull-llama-gpu:
-    profiles: ["gpu-nvidia"]
-    <<: *init-ollama
-    depends_on:
-      - ollama-gpu
+  # ollama-pull-llama-cpu:
+  #   profiles: ["cpu"]
+  #   <<: *init-ollama
+  #   depends_on:
+  #     - ollama-cpu
 
-  ollama-pull-llama-gpu-amd:
-    profiles: [gpu-amd]
-    <<: *init-ollama
-    image: ollama/ollama:rocm
-    depends_on:
-     - ollama-gpu-amd
+  # ollama-pull-llama-gpu:
+  #   profiles: ["gpu-nvidia"]
+  #   <<: *init-ollama
+  #   depends_on:
+  #     - ollama-gpu
 
-  ngrok:
-    image: ngrok/ngrok:latest
-    container_name: ngrok
-    restart: unless-stopped
-    environment:
-      - NGROK_AUTHTOKEN=${NG_CRE}
-    command: http --domain=${NG_URL} n8n:5678
-    network_mode: "service:n8n"
-    depends_on:
-      n8n:
-        condition: service_started
+  # ollama-pull-llama-gpu-amd:
+  #   profiles: [gpu-amd]
+  #   <<: *init-ollama
+  #   image: ollama/ollama:rocm
+  #   depends_on:
+  #    - ollama-gpu-amd
 
-  infinity-cafe-model:
-    image: ollama/ollama:latest
-    networks: ['demo']
-    container_name: infinity-cafe-model
-    depends_on:
-      n8n:
-        condition: service_started
-    volumes:
-      - ollama_storage:/root/.ollama
-      - ./modelfile:/modelfile
-    entrypoint: /bin/sh
-    environment:
-    - OLLAMA_HOST=host.docker.internal:11434
-    command:
-      - "-c"
-      - "sleep 3; echo 'Creating infinityCafe Model'; ollama create infinityCafe -f /modelfile/cafe.modelfile"
+  # ngrok:
+  #   image: ngrok/ngrok:latest
+  #   container_name: ngrok
+  #   restart: unless-stopped
+  #   environment:
+  #     - NGROK_AUTHTOKEN=${NG_CRE}
+  #   command: http --domain=${NG_URL} n8n:5678
+  #   network_mode: "service:n8n"
+  #   depends_on:
+  #     n8n:
+  #       condition: service_started
+
+  # infinity-cafe-model:
+  #   image: ollama/ollama:latest
+  #   networks: ['demo']
+  #   container_name: infinity-cafe-model
+  #   depends_on:
+  #     n8n:
+  #       condition: service_started
+  #   volumes:
+  #     - ollama_storage:/root/.ollama
+  #     - ./modelfile:/modelfile
+  #   entrypoint: /bin/sh
+  #   environment:
+  #   - OLLAMA_HOST=host.docker.internal:11434
+  #   command:
+  #     - "-c"
+  #     - "sleep 3; echo 'Creating infinityCafe Model'; ollama create infinityCafe -f /modelfile/cafe.modelfile"
 
   pgadmin:
     image: dpage/pgadmin4
@@ -307,8 +307,8 @@ services:
     depends_on:
       pgvector17:
         condition: service_healthy
-      n8n-import:
-        condition: service_completed_successfully
+      # n8n-import:
+      #   condition: service_completed_successfully
     env_file:
       - .env
     ports:
@@ -332,8 +332,8 @@ services:
     depends_on:
       pgvector17:
         condition: service_healthy
-      n8n-import:
-        condition: service_completed_successfully
+      # n8n-import:
+      #   condition: service_completed_successfully
     env_file:
       - .env
     ports:
@@ -357,8 +357,8 @@ services:
     depends_on:
       pgvector17:
         condition: service_healthy
-      n8n-import:
-        condition: service_completed_successfully
+      # n8n-import:
+      #   condition: service_completed_successfully
     env_file:
       - .env
     ports:
@@ -378,8 +378,8 @@ services:
     depends_on:
       pgvector17:
         condition: service_healthy
-      n8n-import:
-        condition: service_completed_successfully
+      # n8n-import:
+      #   condition: service_completed_successfully
     env_file:
       - .env
     ports:
@@ -387,7 +387,7 @@ services:
     extra_hosts:
       - "ollama:host-gateway"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://kitchen_service:8003/health"]
+      test: ["CMD", "curl", "-f", "http://report_service:8004/health"]
       interval: 5s
       timeout: 5s
       retries: 3
@@ -402,8 +402,8 @@ services:
     depends_on:
       pgvector17:
         condition: service_healthy
-      n8n-import:
-        condition: service_completed_successfully
+      # n8n-import:
+      #   condition: service_completed_successfully
     env_file:
       - .env
     ports:
