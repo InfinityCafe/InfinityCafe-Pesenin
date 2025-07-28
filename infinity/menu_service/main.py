@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, validator, Field, ValidationError
-from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Table, ForeignKey
+from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Table, ForeignKey, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship, joinedload
 from typing import List, Optional
@@ -21,7 +21,7 @@ from fastapi_mcp import FastApiMCP
 import uvicorn
 from fastapi import APIRouter
 from fastapi.middleware.cors import CORSMiddleware
-
+from inventory_service.models import StockCategory, UnitType, CheckStockStatusRequest
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL_MENU")
 
@@ -124,7 +124,10 @@ class MenuItem(Base):
     base_name = Column(String, index=True, unique=True)
     base_price = Column(Integer)
     isAvail = Column(Boolean, default=True)
-
+    
+    # Relasi ke tabel flavors
+    recipe_ingredients = relationship("RecipeIngredient", back_populates="menu_item")
+    
     flavors = relationship(
         "Flavor",
         secondary=menu_item_flavor_association,
@@ -234,6 +237,32 @@ class SuggestionOut(BaseModel):
     timestamp: datetime
     model_config = { "from_attributes": True }
 
+# Tabel untuk menyimpan informasi bahan yang disinkronkan dari inventory service
+class SyncedInventory(Base):
+    __tablename__ = "synced_inventory"
+    id = Column(Integer, primary_key=True, index=True)  # Tambah Column definisi
+    name = Column(String, index=True)
+    current_quantity = Column(Float, default=0)
+    minimum_quantity = Column(Float, default=0)
+    category = Column(String, index=True)
+    unit = Column(String, index=True)
+        
+    # Tambah relationship ini
+    recipe_ingredients = relationship("RecipeIngredient", back_populates="ingredient")
+    
+# Model untuk bahan yang diperlukan per makanan/minuman
+class RecipeIngredient(Base): 
+    __tablename__ = "recipe_ingredients"
+    id = Column(String, primary_key=True, index=True)
+    menu_item_id = Column(String, ForeignKey('menu_items.id'))
+    ingredient_id = Column(String, ForeignKey('synced_inventory.id'))
+    quantity = Column(Float, nullable=False)
+    unit = Column(UnitType, nullable=False) 
+    
+    # Relasi ke tabel menu_item dan synced_inventory
+    menu_item = relationship("MenuItem", back_populates="recipe_ingredients")
+    ingredient = relationship("SyncedInventory", back_populates="recipe_ingredients")
+    
 def get_db():
     db = SessionLocal()
     try:
@@ -463,6 +492,69 @@ def get_suggestions(db: Session = Depends(get_db)):
 def health_check():
     """Cek apakah service menu sedang berjalan."""
     return {"status": "ok", "service": "menu_service"}
+
+# Endpoint untuk menerima event bahan dari inventory service jika terjadi penambahan agar data dari inventory service dapat disinkronkan dengan menu service
+@app.post("/receive_ingredient_event", summary="Terima Event Bahan", tags=["Inventory"], operation_id="receive ingredient event")
+def receive_ingredient_event(request: Request, db: Session = Depends(get_db)):
+    """Endpoint untuk menerima event bahan dari inventory service."""
+    event = request.json()
+    new_ingredient = SyncedInventory(
+        name=event['payload']['name'],
+        current_quantity=event['payload']['current_quantity'],
+        minimum_quantity=event['payload']['minimum_quantity'],
+        category=event['payload']['category'],
+        unit=event['payload']['unit']
+    )
+    # Simpan event ke database atau proses sesuai kebutuhan
+    db.add(new_ingredient)
+    db.commit()
+    db.refresh(new_ingredient)
+    # Proses event bahan yang diterima
+    logging.info(f"🔄 Menerima event bahan: {event}")
+    return {"message": "Event bahan diterima"}
+
+# Endpoint untuk menerima event bahan jika terjadi update dari inventory service agar data dari inventory service dapat disinkronkan dengan menu service
+@app.put("/update_ingredient", summary="Update Bahan Event", tags=["Inventory"], operation_id="update ingredient event")
+def update_ingredient(request: Request, db: Session = Depends(get_db)):
+    """Endpoint untuk menerima update bahan dari inventory service."""
+    event = request.json()
+    ingredient_id = event['id']
+    
+    # Cek apakah bahan dengan ID tersebut ada
+    ingredient = db.query(SyncedInventory).filter(SyncedInventory.id == ingredient_id).first()
+    if not ingredient:
+        raise HTTPException(status_code=404, detail="Bahan tidak ditemukan")
+    
+    # Update informasi bahan
+    ingredient.name = event['name']
+    ingredient.current_quantity = event['current_quantity']
+    ingredient.minimum_quantity = event['minimum_quantity']
+    ingredient.category = event['category']
+    ingredient.unit = event['unit']
+    
+    db.commit()
+    db.refresh(ingredient)
+    
+    logging.info(f"🔄 Bahan dengan ID {ingredient_id} telah diperbarui: {ingredient}")
+    return {"message": "Bahan berhasil diperbarui", "data": ingredient}
+
+# Endpoint untuk menghapus bahan berdasarkan ID dari inventory service agar data dari inventory service dapat disinkronkan dengan menu service
+@app.delete("/delete_ingredient/{ingredient_id}", summary="Hapus Bahan Event", tags=["Inventory"], operation_id="delete ingredient event")
+def delete_ingredient(ingredient_id: str, db: Session = Depends(get_db)):
+    """Endpoint untuk menghapus bahan berdasarkan ID dari inventory service."""
+    ingredient = db.query(SyncedInventory).filter(SyncedInventory.id == ingredient_id).first()
+    if not ingredient:
+        raise HTTPException(status_code=404, detail="Bahan tidak ditemukan")
+    
+    db.delete(ingredient)
+    db.commit()
+    
+    logging.info(f"🗑️ Bahan dengan ID {ingredient_id} telah dihapus")
+    return {"message": "Bahan berhasil dihapus"}
+
+# Endpoint untuk mendapatkan semua bahan resep yang tersedia sesuai dengan data yang ada di inventory service
+@app.get("/recipe_ingredients/batch", summary="Dapatkan Bahan Resep untuk Menu", tags=["Recipe"], response_model=List[RecipeIngredient], operation_id="get recipe ingredients")
+def get_recipes_by_menu_names()
 
 hostname = socket.gethostname()
 local_ip = socket.gethostbyname(hostname)
