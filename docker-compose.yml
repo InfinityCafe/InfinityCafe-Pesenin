@@ -3,7 +3,7 @@ volumes:
   # postgres_storage:
   # ollama_storage:
   # qdrant_storage:
-  # pgvector_storage:
+  pgvector_storage:
 
 networks:
   demo:
