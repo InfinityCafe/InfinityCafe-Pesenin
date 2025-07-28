@@ -8,19 +8,21 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 
 </head>
-<body>
-  <!-- Header -->
-  <header class="header">
-    <div class="header-left">
-      <h1 class="header-title">Dashboard Dapur</h1>
-      <p class="header-subtitle">Stephany | Barista</p>
+<body data-page="dashboard">
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <h1 class="navbar-title" id="dynamic-title">Infinity Cafe</h1>
+      <p class="navbar-subtitle">Stephany | Barista</p>
     </div>
-    <div class="header-center">
+    <div class="navbar-menu">
+      <button class="nav-btn" id="nav-dashboard" data-url="index.html">Dashboard</button>
+      <button class="nav-btn" id="nav-menu" data-url="flavour.html">Kelola Menu</button>
+    </div>
+    <div class="navbar-right">
       <div class="search-container">
         <input type="text" placeholder="Search" class="search-input">
       </div>
-    </div>
-    <div class="header-right">
       <div class="kitchen-status-container">
         <label class="switch">
           <input type="checkbox" id="kitchen-toggle" checked>
@@ -29,7 +31,7 @@
         <span id="kitchen-status-text" class="kitchen-status-text">BUKA</span>
       </div>
     </div>
-  </header>
+  </nav>
 
   <!-- Main Content -->
   <div class="main-container">

@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', function() {
   initializeEventSource();
 });
 
+
 // Kitchen toggle functionality
 function initializeKitchenToggle() {
   const toggle = document.getElementById('kitchen-toggle');
