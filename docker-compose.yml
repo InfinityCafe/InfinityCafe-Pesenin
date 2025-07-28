@@ -200,35 +200,35 @@ services:
   #     PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
   #   restart: unless-stopped
 
-  # pgvector17:
-  #   image: pgvector/pgvector:pg17
-  #   networks: ['demo']
-  #   hostname: pgvector
-  #   container_name: pgvector
-  #   ports:
-  #    - 5555:5432
-  #   restart: always
-  #   environment:
-  #     - POSTGRES_USER=${POSTGRES_USER}
-  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-  #     - POSTGRES_HOST_AUTH_METHOD=trust
-  #   volumes:
-  #   #  - ./pgvector-init.sql:/docker-entrypoint-initdb.d/init.sql
-  #    - pgvector_storage:/var/lib/postgresql/data
-  #   #  - ./initdb:/docker-entrypoint-initdb.d
-  #   healthcheck:
-  #     test: ['CMD-SHELL', 'pg_isready -h pgvector -U ${POSTGRES_USER} -d postgres']
-  #     interval: 5s
-  #     timeout: 5s
-  #     retries: 10
-  #   # command: >
-  #   #   bash -c "
-  #   #   until pg_isready -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres; do
-  #   #     echo waiting for PGVECTOR...;
-  #   #     sleep 2;
-  #   #   done &&
-  #   #   psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -tc \"SELECT 1 FROM pg_database WHERE datname = 'n8n2'\" |
-  #   #   grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -c 'CREATE DATABASE n8n2'"
+  pgvector17:
+    image: pgvector/pgvector:pg17
+    networks: ['demo']
+    hostname: pgvector
+    container_name: pgvector-infinitycafe
+    ports:
+     - 5555:5432
+    restart: always
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    volumes:
+    #  - ./pgvector-init.sql:/docker-entrypoint-initdb.d/init.sql
+     - pgvector_storage:/var/lib/postgresql/data
+    #  - ./initdb:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h pgvector -U ${POSTGRES_USER} -d postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # command: >
+    #   bash -c "
+    #   until pg_isready -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres; do
+    #     echo waiting for PGVECTOR...;
+    #     sleep 2;
+    #   done &&
+    #   psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -tc \"SELECT 1 FROM pg_database WHERE datname = 'n8n2'\" |
+    #   grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -c 'CREATE DATABASE n8n2'"
 
   initdb:
     image: pgvector/pgvector:pg17
