@@ -10,7 +10,7 @@ networks:
     driver: bridge
   my_shared_network:
     driver: bridge
-    name: infinitycafe_shared_network  # Nama yang lebih deskriptif
+    #name: infinitycafe_shared_network  # Nama yang lebih deskriptif
     # Hapus external: true
 
 x-n8n: &service-n8n
@@ -185,20 +185,20 @@ services:
       - "-c"
       - "sleep 3; echo 'Creating infinityCafe Model'; ollama create infinityCafe -f /modelfile/cafe.modelfile"
 
-  pgadmin:
-    image: dpage/pgadmin4
-    networks: ['demo']
-    hostname: pgadmin
-    container_name: pgadmin-container
-    depends_on:
-      pgvector17:
-        condition: service_healthy
-    ports:
-      - "5050:80"
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
-    restart: unless-stopped
+  # pgadmin:
+  #   image: dpage/pgadmin4
+  #   networks: ['demo']
+  #   hostname: pgadmin
+  #   container_name: pgadmin-container
+  #   depends_on:
+  #     pgvector17:
+  #       condition: service_healthy
+  #   ports:
+  #     - "5050:80"
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+  #     PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+  #   restart: unless-stopped
 
   pgvector17:
     image: pgvector/pgvector:pg17
