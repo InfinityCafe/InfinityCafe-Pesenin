@@ -169,6 +169,31 @@ app.get("/kitchen/orders", async (req, res) => {
   }
 });
 
+app.get("/kitchen/status/now", async (req, res) => {
+  try {
+    const resp = await fetch(`${currentConfig.kitchen}/kitchen/status/now`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch kitchen status" });
+  }
+});
+
+app.post("/kitchen/status", async (req, res) => {
+  try {
+    const isOpen = req.body;
+    const resp = await fetch(`${currentConfig.kitchen}/kitchen/status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(isOpen)
+    });
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update kitchen status" });
+  }
+});
+
 app.post("/kitchen/update_status/:order_id", async (req, res) => {
   const { order_id } = req.params;
   const { status, reason = "" } = req.query;
