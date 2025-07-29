@@ -20,6 +20,7 @@ import asyncio
 import json
 import requests
 from fastapi_mcp import FastApiMCP
+import re
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL_KITCHEN")
@@ -70,6 +71,7 @@ class KitchenOrder(Base):
     time_deliver = Column(DateTime(timezone=True), nullable=True)
     time_done = Column(DateTime(timezone=True), nullable=True)
     cancel_reason = Column(Text, nullable=True)
+    orders_json = Column(Text, nullable=True) # Added orders_json column
 
 Base.metadata.create_all(bind=engine)
 
@@ -77,6 +79,7 @@ class OrderItem(BaseModel):
     menu_name: str
     quantity: int
     preference: str = ""
+    notes: str = ""
 
 class KitchenOrderRequest(BaseModel):
     order_id: str
@@ -134,10 +137,12 @@ async def receive_order(order: KitchenOrderRequest, db: Session = Depends(get_db
         
     # Format detail dengan lebih baik
     detail_str = "\n".join([
-        f"{item.quantity}x {item.menu_name}" + (f" ({item.preference})" if item.preference else "")
+        f"{item.quantity}x {item.menu_name}" +
+        (f" ({item.preference})" if item.preference else "") +
+        (f" - Notes: {item.notes}" if getattr(item, 'notes', None) else "")
         for item in order.orders
     ])
-    
+    import json
     now = datetime.now(jakarta_tz)
     new_order = KitchenOrder(
         order_id=order.order_id,
@@ -146,15 +151,13 @@ async def receive_order(order: KitchenOrderRequest, db: Session = Depends(get_db
         customer_name=order.customer_name,
         table_no=order.table_no,
         room_name=order.room_name,
-        time_receive=now
+        time_receive=now,
+        orders_json=json.dumps([item.model_dump() if hasattr(item, 'model_dump') else dict(item) for item in order.orders])
     )
-    
     db.add(new_order)
     db.commit()
-    
     # Broadcast ke semua client yang terhubung
     await broadcast_orders(db)
-    
     return {
         "message": "Order received by kitchen",
         "order_id": order.order_id,
@@ -283,13 +286,9 @@ def get_kitchen_orders(db: Session = Depends(get_db)):
     now = datetime.now(jakarta_tz)
     start_of_day = datetime(now.year, now.month, now.day, tzinfo=jakarta_tz)
     end_of_day = start_of_day + timedelta(days=1)
-
-    # Ambil order yang masih aktif atau selesai hari ini
     orders = db.query(KitchenOrder).filter(
         or_(
-            # Order yang masih aktif (belum selesai)
             KitchenOrder.status.in_(['receive', 'making', 'deliver']),
-            # Order yang selesai hari ini
             and_(
                 KitchenOrder.status.in_(['done', 'cancel', 'habis']),
                 KitchenOrder.time_receive >= start_of_day,
@@ -297,7 +296,74 @@ def get_kitchen_orders(db: Session = Depends(get_db)):
             )
         )
     ).order_by(KitchenOrder.time_receive.asc()).all()
-    return orders
+    import json
+    result = []
+    for o in orders:
+        # Debug logging
+        print(f"Processing order {o.order_id}")
+        print(f"orders_json: {getattr(o, 'orders_json', None)}")
+        
+        # Ambil items dari orders_json jika ada, fallback ke parse_items jika tidak
+        items = []
+        if getattr(o, 'orders_json', None):
+            try:
+                items = json.loads(o.orders_json)
+                print(f"Successfully parsed orders_json: {items}")
+            except Exception as e:
+                print(f"Error parsing orders_json: {e}")
+                items = []
+        if not items:
+            print(f"No items from orders_json, parsing detail: {o.detail}")
+            def parse_items(detail_str):
+                items = []
+                for item in (detail_str or '').split('\n'):
+                    item = item.strip()
+                    if not item:
+                        continue
+                    main, *notesPart = item.split(' - Notes:')
+                    notes = notesPart[0].strip() if notesPart else ''
+                    name = main
+                    variant = ''
+                    qty = ''
+                    variantMatch = re.match(r'^(\d+)x ([^(]+) \(([^)]+)\)$', main)
+                    if variantMatch:
+                        qty = int(variantMatch.group(1))
+                        name = variantMatch.group(2).strip()
+                        variant = variantMatch.group(3).strip()
+                    else:
+                        noVarMatch = re.match(r'^(\d+)x ([^(]+)$', main)
+                        if noVarMatch:
+                            qty = int(noVarMatch.group(1))
+                            name = noVarMatch.group(2).strip()
+                    items.append({
+                        'menu_name': name,
+                        'quantity': qty,
+                        'preference': variant,
+                        'notes': notes
+                    })
+                return items
+            items = parse_items(o.detail)
+        
+        print(f"Final items for order {o.order_id}: {items}")
+        
+        order_dict = {
+            'order_id': o.order_id,
+            'queue_number': o.queue_number,
+            'detail': o.detail,
+            'items': items,
+            'status': o.status,
+            'time_receive': o.time_receive.isoformat() if o.time_receive else None,
+            'time_done': o.time_done.isoformat() if o.time_done else None,
+            'customer_name': o.customer_name,
+            'table_no': o.table_no,
+            'room_name': o.room_name,
+            'cancel_reason': o.cancel_reason or ''
+        }
+        print(f"Order dict for {o.order_id}: {order_dict}")
+        result.append(order_dict)
+    
+    print(f"Final result: {result}")
+    return result
 
 # @app.get("/kitchen/orders", summary="Lihat semua pesanan", tags=["Kitchen"], operation_id="kitchen order list")
 # def get_kitchen_orders(db: Session = Depends(get_db)):
