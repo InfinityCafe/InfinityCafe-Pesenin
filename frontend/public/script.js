@@ -603,7 +603,7 @@ let menuOptions = [];
 let orderItems = [{ menu_name: '', quantity: 1, preference: '', notes: '' }];
 async function fetchMenuOptions() {
   try {
-    const res = await fetch(`${API_URLS.menu}`);
+    const res = await fetch(`${API_URLS.menu}/menu`);
     menuOptions = await res.json();
     renderOrderItemsList();
   } catch (e) {
