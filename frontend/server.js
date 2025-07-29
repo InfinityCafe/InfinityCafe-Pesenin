@@ -5,7 +5,31 @@ const swaggerJsdoc = require("swagger-jsdoc");
 const fetch = require("node-fetch");
 
 const app = express();
-const PORT = 8080;
+const PORT = process.env.PORT || 8080;
+
+// Environment configuration
+const ENV = process.env.NODE_ENV || 'development';
+const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost';
+
+// API configuration for different environments
+const API_CONFIG = {
+  development: {
+    kitchen: 'http://localhost:8003',
+    order: 'http://localhost:8002',
+    menu: 'http://localhost:8001',
+    report: 'http://localhost:8004',
+    inventory: 'http://localhost:8005'
+  },
+  production: {
+    kitchen: `${API_BASE_URL}:8003`,
+    order: `${API_BASE_URL}:8002`,
+    menu: `${API_BASE_URL}:8001`,
+    report: `${API_BASE_URL}:8004`,
+    inventory: `${API_BASE_URL}:8005`
+  }
+};
+
+const currentConfig = API_CONFIG[ENV] || API_CONFIG.development;
 
 app.use(express.static(path.join(__dirname, "public")));
 app.set("view engine", "ejs");
@@ -137,7 +161,7 @@ app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.get("/kitchen/orders", async (req, res) => {
   try {
-    const resp = await fetch("http://kitchen_service:8003/kitchen/orders");
+    const resp = await fetch(`${currentConfig.kitchen}/kitchen/orders`);
     const data = await resp.json();
     res.json(data);
   } catch (err) {
@@ -149,8 +173,8 @@ app.post("/kitchen/update_status/:order_id", async (req, res) => {
   const { order_id } = req.params;
   const { status, reason = "" } = req.query;
   try {
-    await fetch(`http://kitchen_service:8003/kitchen/update_status/${order_id}?status=${status}&reason=${encodeURIComponent(reason)}`, { method: "POST" });
-    await fetch(`http://order_service:8002/order/update_status/${order_id}?status=${status}`, { method: "POST" });
+    await fetch(`${currentConfig.kitchen}/kitchen/update_status/${order_id}?status=${status}&reason=${encodeURIComponent(reason)}`, { method: "POST" });
+    await fetch(`${currentConfig.order}/order/update_status/${order_id}?status=${status}`, { method: "POST" });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Failed to update status" });
@@ -158,7 +182,7 @@ app.post("/kitchen/update_status/:order_id", async (req, res) => {
 });
 
 app.get("/stream/orders", (req, res) => {
-  const streamReq = fetch("http://kitchen_service:8003/stream/orders");
+  const streamReq = fetch(`${currentConfig.kitchen}/stream/orders`);
   streamReq.then(resp => {
     res.setHeader('Content-Type', 'text/event-stream');
     resp.body.pipe(res);
@@ -167,7 +191,7 @@ app.get("/stream/orders", (req, res) => {
 
 app.get("/", async (req, res) => {
   try {
-    const resp = await fetch("http://kitchen_service:8003/kitchen/orders");
+    const resp = await fetch(`${currentConfig.kitchen}/kitchen/orders`);
     const orders = await resp.json();
     res.render("index", { orders });
   } catch (err) {
@@ -183,7 +207,18 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
+// API configuration endpoint for frontend
+app.get("/api/config", (req, res) => {
+  res.json({
+    environment: ENV,
+    apiUrls: currentConfig,
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`✅ Frontend running at http://localhost:${PORT}`);
   console.log(`📘 Swagger docs available at http://localhost:${PORT}/docs`);
+  console.log(`🌍 Environment: ${ENV}`);
+  console.log(`🔗 API Base URL: ${API_BASE_URL}`);
 });

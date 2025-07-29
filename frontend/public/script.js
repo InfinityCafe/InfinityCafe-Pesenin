@@ -1,3 +1,37 @@
+// Configuration for different environments
+let API_URLS = {
+  kitchen: 'http://localhost:8003',
+  order: 'http://localhost:8002', 
+  menu: 'http://localhost:8001',
+  report: 'http://localhost:8004',
+  inventory: 'http://localhost:8005'
+};
+
+// Load configuration from server
+async function loadApiConfig() {
+  try {
+    const response = await fetch('/api/config');
+    const config = await response.json();
+    API_URLS = config.apiUrls;
+    console.log('🌍 Loaded API configuration:', config);
+  } catch (error) {
+    console.warn('⚠️ Failed to load API config from server, using fallback configuration');
+    // Fallback to hostname-based detection
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      API_URLS = {
+        kitchen: `${protocol}//${hostname}:8003`,
+        order: `${protocol}//${hostname}:8002`,
+        menu: `${protocol}//${hostname}:8001`, 
+        report: `${protocol}//${hostname}:8004`,
+        inventory: `${protocol}//${hostname}:8005`
+      };
+    }
+  }
+}
+
 // Status flow and configuration
 const statusFlow = { receive: "making", making: "deliver", deliver: "done" };
 const statusColors = {
@@ -132,8 +166,8 @@ async function confirmCancel(status) {
 // API functions
 async function syncUpdate(orderId, status, reason = "") {
   try {
-    await fetch(`http://localhost:8003/kitchen/update_status/${orderId}?status=${status}&reason=${encodeURIComponent(reason)}`, { method: "POST" });
-    await fetch(`http://localhost:8002/order/update_status/${orderId}?status=${status}`, { method: "POST" });
+    await fetch(`${API_URLS.kitchen}/kitchen/update_status/${orderId}?status=${status}&reason=${encodeURIComponent(reason)}`, { method: "POST" });
+    await fetch(`${API_URLS.order}/order/update_status/${orderId}?status=${status}`, { method: "POST" });
     document.getElementById("sound-status-update").play().catch(() => {});
     fetchOrders();
     logHistory(orderId, status, reason);
@@ -420,7 +454,7 @@ function fetchOrders() {
   // Show loading state
   document.getElementById('offline-banner').classList.add('hidden');
   
-  fetch("http://localhost:8003/kitchen/orders")
+  fetch(`${API_URLS.kitchen}/kitchen/orders`)
     .then(res => {
       if (!res.ok) {
         throw new Error('Network response was not ok');
@@ -437,7 +471,7 @@ function fetchOrders() {
 
 async function fetchKitchenStatus() {
   try {
-    const res = await fetch("http://localhost:8003/kitchen/status/now");
+    const res = await fetch(`${API_URLS.kitchen}/kitchen/status/now`);
     const data = await res.json();
     updateKitchenStatusUI(data.is_open);
   } catch {
@@ -447,7 +481,7 @@ async function fetchKitchenStatus() {
 
 async function setKitchenStatus(isOpen) {
   try {
-    await fetch("http://localhost:8003/kitchen/status", {
+    await fetch(`${API_URLS.kitchen}/kitchen/status`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(isOpen)
@@ -482,14 +516,14 @@ function updateKitchenStatusUI(isOpen) {
 }
 
 function initializeEventSource() {
-  const eventSource = new EventSource("http://localhost:8003/stream/orders");
+  const eventSource = new EventSource(`${API_URLS.kitchen}/stream/orders`);
   let updateTimeout = null;
   
   eventSource.onmessage = () => {
     if (updateTimeout) clearTimeout(updateTimeout);
     updateTimeout = setTimeout(async () => {
       try {
-        const res = await fetch("http://localhost:8003/kitchen/orders");
+        const res = await fetch(`${API_URLS.kitchen}/kitchen/orders`);
         const data = await res.json();
         
         // Check for new orders
@@ -569,7 +603,7 @@ let menuOptions = [];
 let orderItems = [{ menu_name: '', quantity: 1, preference: '', notes: '' }];
 async function fetchMenuOptions() {
   try {
-    const res = await fetch('http://localhost:8001/menu');
+    const res = await fetch(`${API_URLS.menu}`);
     menuOptions = await res.json();
     renderOrderItemsList();
   } catch (e) {
@@ -733,7 +767,7 @@ addOrderForm.onsubmit = async function(e) {
   submitBtn.disabled = true;
   submitBtn.textContent = 'Saving...';
   try {
-    const res = await fetch('http://localhost:8002/create_order', {
+    const res = await fetch(`${API_URLS.order}/create_order`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ customer_name, table_no, room_name, orders })
@@ -755,6 +789,7 @@ addOrderForm.onsubmit = async function(e) {
 
 // Initialize all functionality when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
+  loadApiConfig(); // Load API configuration on page load
   initializeKitchenToggle();
   initializeSearch();
   fetchKitchenStatus();

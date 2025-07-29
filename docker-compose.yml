@@ -438,6 +438,11 @@ services:
     networks: ['demo']
     ports:
       - "7777:8080"
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - API_BASE_URL=${API_BASE_URL}
+    env_file:
+      - .env
     volumes:
       - ./frontend/public:/app/public
     extra_hosts:

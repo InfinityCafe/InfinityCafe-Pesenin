@@ -76,6 +76,40 @@
     </div>
 
 <script>
+// Configuration for different environments
+let API_URLS = {
+  kitchen: 'http://localhost:8003',
+  order: 'http://localhost:8002', 
+  menu: 'http://localhost:8001',
+  report: 'http://localhost:8004',
+  inventory: 'http://localhost:8005'
+};
+
+// Load configuration from server
+async function loadApiConfig() {
+  try {
+    const response = await fetch('/api/config');
+    const config = await response.json();
+    API_URLS = config.apiUrls;
+    console.log('🌍 Loaded API configuration:', config);
+  } catch (error) {
+    console.warn('⚠️ Failed to load API config from server, using fallback configuration');
+    // Fallback to hostname-based detection
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      API_URLS = {
+        kitchen: `${protocol}//${hostname}:8003`,
+        order: `${protocol}//${hostname}:8002`,
+        menu: `${protocol}//${hostname}:8001`, 
+        report: `${protocol}//${hostname}:8004`,
+        inventory: `${protocol}//${hostname}:8005`
+      };
+    }
+  }
+}
+
 let barChart, pieChart;
 
 function closePieModal() {
@@ -168,7 +202,7 @@ async function loadReport() {
     const timeout = setTimeout(() => controller.abort(), 10000);
 
     try {
-        const res = await fetch(`http://localhost:8004/report?start_date=${start}&end_date=${end}`, { signal: controller.signal });
+        const res = await fetch(`${API_URLS.report}/report?start_date=${start}&end_date=${end}`, { signal: controller.signal });
         clearTimeout(timeout);
         if (!res.ok) throw new Error("Gagal mengambil data laporan");
         const data = await res.json();
@@ -207,7 +241,7 @@ async function loadTopCustomers(start, end, salesData, topMenu) {
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000);
-        const res = await fetch(`http://localhost:8004/report/top_customers?start_date=${start}&end_date=${end}`, { signal: controller.signal });
+        const res = await fetch(`${API_URLS.report}/report/top_customers?start_date=${start}&end_date=${end}`, { signal: controller.signal });
         clearTimeout(timeout);
         if (!res.ok) throw new Error("Gagal ambil data loyal customer");
         const data = await res.json();
@@ -228,7 +262,7 @@ async function fetchSuggestedMenu() {
     const start = document.getElementById("start_date").value;
     const end = document.getElementById("end_date").value;
     try {
-        const res = await fetch(`http://localhost:8004/report/suggested_menu?start_date=${start}&end_date=${end}`);
+        const res = await fetch(`${API_URLS.report}/report/suggested_menu?start_date=${start}&end_date=${end}`);
         const data = await res.json();
         const ul = document.getElementById("usulan-list");
         ul.innerHTML = "";
@@ -270,7 +304,10 @@ async function exportPDF() {
     pdf.save(`laporan_penjualan_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
-window.onload = () => {
+window.onload = async () => {
+    // Load API configuration first
+    await loadApiConfig();
+    
     const today = new Date().toISOString().split('T')[0];
     document.getElementById("start_date").value = today;
     document.getElementById("end_date").value = today;
