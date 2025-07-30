@@ -8,7 +8,8 @@ const app = express();
 const PORT = 8080;
 
 app.use(express.static(path.join(__dirname, "public")));
-app.use(express.json()); // Add JSON parsing middleware
+app.use(express.json({ limit: '10mb' })); // Add JSON parsing middleware with limit
+app.use(express.urlencoded({ extended: true })); // Add URL-encoded parsing middleware
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
@@ -200,7 +201,7 @@ app.get("/kitchen/status/now", async (req, res) => {
 
 app.post("/kitchen/status", async (req, res) => {
   try {
-    const body = await req.json();
+    const body = req.body;
     const resp = await fetch("http://kitchen_service:8003/kitchen/status", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -229,7 +230,7 @@ app.get("/menu", async (req, res) => {
 // ========== ORDER ENDPOINTS ==========
 app.post("/create_order", async (req, res) => {
   try {
-    const body = await req.json();
+    const body = req.body;
     const resp = await fetch("http://order_service:8002/create_order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

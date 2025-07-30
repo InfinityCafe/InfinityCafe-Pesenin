@@ -449,7 +449,7 @@ async function setKitchenStatus(isOpen) {
     await fetch("/kitchen/status", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(isOpen)
+      body: JSON.stringify({ is_open: isOpen })
     });
     fetchKitchenStatus();
   } catch {
