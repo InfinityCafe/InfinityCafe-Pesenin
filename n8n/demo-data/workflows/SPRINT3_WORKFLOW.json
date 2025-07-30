@@ -1,0 +1,853 @@
+{
+  "name": "SPRINT3_WORKFLOW",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message.text }}",
+        "options": {
+          "systemMessage": "saya sedang membuat system message : \nTugasmu adalah mengklasifikasikan maksud (intent) dari pesan pengguna.\n\nKamu hanya boleh membalas dalam format JSON seperti ini:\n{\n  \"intent\": \"<salah_satu_dari_daftar_intent_di_bawah>\"\n}\n\nDaftar intent yang valid:\n- greeting → jika pengguna hanya menyapa (contoh: \"hai\", \"halo\", \"pagi\", \"permisi\")\n- in_context → jika pengguna ingin melihat daftar menu atau menu populer, pengguna ingin melakukan pemesanan atau mengisi formulir pesanan,  pengguna ingin mengetahui status pesanan mereka, mengubah atau membatalkan pesanan, melihat pesanan sebelumnya, bertanya berapa lama pesanan selesai, mengusulkan menu baru ke dapur, rekomendasi makanan/minuman berdasarkan preferensi/cuaca dst.\n- terima_kasih → jika pengguna mengucapkan terima kasih\n- unknown → jika maksud pesan tidak jelas atau tidak termasuk daftar di atas\n\nJangan menambahkan teks penjelas apa pun. Hanya kirim JSON valid.\n\nContoh input dan output:\nInput: \"Halo!\"\nOutput: { \"intent\": \"greeting\" }\n\nInput: \"Saya mau kopi 2 ke ruangan A\"\nOutput: { \"intent\": \"in_context\" } \n\nInput: \"Menu favorit apa hari ini?\"\nOutput: { \"intent\": \"in_context\" } \n\nInput: \"Apa pesanan saya sudah dikirim?\"\nOutput: { \"intent\": \"in_context\" } "
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        -1680,
+        180
+      ],
+      "id": "038ecaa2-6197-4489-8577-e3da21d0818f",
+      "name": "Message Intent Classifier"
+    },
+    {
+      "parameters": {
+        "jsCode": "const chatInput = $input.first().json.message.text\nconst outputRaw = $json.output\nconst userIdTelegram = $input.first().json.message.from.id\n\nlet intent = null\n\ntry {\n  // Ambil JSON terakhir setelah tag </think>\n  const lastPart = outputRaw.split('</think>').pop().trim()\n\n  // Coba parse kalau memang JSON\n  const parsed = JSON.parse(lastPart)\n  intent = parsed.intent\n} catch (e) {\n  // Jika gagal parse, biarkan intent tetap null\n}\n\nreturn {\n  userid : userIdTelegram,\n  input: chatInput,\n  intent: intent\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1140,
+        60
+      ],
+      "id": "18fe1a78-d3df-4dc6-8688-f83b2fa7f521",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        -1280,
+        60
+      ],
+      "id": "a576b7a8-f6fe-431e-8872-0c2fbcf812ca",
+      "name": "Merge3"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -320,
+        60
+      ],
+      "id": "904063f3-be36-42ff-a5f9-38d541e24708",
+      "name": "Merge4"
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1900,
+        40
+      ],
+      "id": "32edc72f-74e7-4d1e-8910-74730de848e2",
+      "name": "Telegram Trigger1",
+      "webhookId": "1c7dce7f-8d9c-4d6c-9c01-4e1a7fb31ff7",
+      "credentials": {
+        "telegramApi": {
+          "id": "UvOwfRmeDHeQx3PN",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2b043724-7d33-4d0e-9b1c-121b55818e1d",
+              "leftValue": "={{ $json.intent }}",
+              "rightValue": "unknown",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -940,
+        60
+      ],
+      "id": "af54b666-9517-483b-82bc-dafb4baf52fe",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger1').item.json.message.chat.id }}",
+        "text": "Mohon maaf, saya belum memahami permintaan Anda. Mungkin pertanyaan Anda di luar konteks pemesanan.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -660,
+        580
+      ],
+      "id": "40fae332-b958-4831-a161-73480dd1fe4e",
+      "name": "Telegram1",
+      "webhookId": "89091109-224d-44cc-9003-7b5a99332f63",
+      "credentials": {
+        "telegramApi": {
+          "id": "UvOwfRmeDHeQx3PN",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.memories\nWHERE userid = '{{$json.userid}}'\nORDER BY id ASC;\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -700,
+        240
+      ],
+      "id": "810e5b7f-887f-4e14-beec-2ad1c7a0da5f",
+      "name": "Get Memories",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "jPKgoIZtB0In6m0d",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "memories",
+        "include": "specifiedFields",
+        "fieldsToInclude": "memory, userid, created_at",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -520,
+        240
+      ],
+      "id": "4c52070b-964d-45ec-8050-f350eeffce76",
+      "name": "Gabung",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.input }}",
+        "options": {
+          "systemMessage": "=Exec tools only./nothink",
+          "maxIterations": 4
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1400,
+        540
+      ],
+      "id": "ba9f84ed-1e52-44a6-b321-a7a115d78e6d",
+      "name": "InfinityCafe AI",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Merge4').item.json.userid }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        0
+      ],
+      "id": "2862d258-9675-4e42-b8bb-4403d8d13930",
+      "name": "Telegram2",
+      "webhookId": "5b91470f-91f4-467f-b6b1-3c8f207166c6",
+      "alwaysOutputData": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "UvOwfRmeDHeQx3PN",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f7b1ac9b-3928-4fdc-9b26-a79acf18f6ee",
+              "name": "output",
+              "value": "={{ \n  (\n    $json.output.includes(\"</think>\") \n      ? $json.output.split(\"</think>\")[1] \n      : $json.output\n  )\n    .replace(/^\\\\n+/, '')        // hapus \\n di awal\n    .replace(/\\\\n/g, '\\n')       // ubah literal \\n jadi newline asli\n    .replace(/_/g, '\\\\_')        // escape underscore\n    .trim()\n}}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        360,
+        20
+      ],
+      "id": "a3340264-4252-4a6c-bad8-39361403f080",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "model": "qwen3:1.7b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -1760,
+        360
+      ],
+      "id": "39cc9e25-f2ae-4196-8b87-66567f130adf",
+      "name": "Base Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "MYDIW8JDnRrfx701",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sseEndpoint": "http://kitchen_service:8003/mcp"
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1,
+      "position": [
+        1580,
+        800
+      ],
+      "id": "339e3a58-6f92-4952-aa9f-332b24fa9f6b",
+      "name": "Kitchen Service",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "sseEndpoint": "http://order_service:8002/mcp"
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1,
+      "position": [
+        1720,
+        840
+      ],
+      "id": "6595c89c-b6fb-4cf4-8fe5-0fe44b5688c1",
+      "name": "Order Service",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "sseEndpoint": "http://menu_service:8001/mcp"
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1,
+      "position": [
+        1860,
+        880
+      ],
+      "id": "8d938c0a-c187-4dca-9660-2d9611d5388e",
+      "name": "Menu Service",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "model": "infinityCafe:latest",
+        "options": {
+          "temperature": 0,
+          "topK": 20,
+          "topP": 0.8,
+          "keepAlive": "12h",
+          "mainGpu": 0,
+          "numPredict": 8000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        740
+      ],
+      "id": "d561a264-e7d7-49b0-b784-499d2953749f",
+      "name": "InfinityCafe",
+      "credentials": {
+        "ollamaApi": {
+          "id": "xHuYe0MDGOs9IpBW",
+          "name": "Local Ollama service"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "memories",
+          "mode": "list",
+          "cachedResultName": "memories"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "userid": "={{ $json.userid }}",
+            "memory": "={{ $fromAI('memory') }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "memory",
+              "displayName": "memory",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "userid",
+              "displayName": "userid",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.6,
+      "position": [
+        380,
+        680
+      ],
+      "id": "2776be79-dd78-4a49-a3a9-934e51e59c68",
+      "name": "Save Memory",
+      "credentials": {
+        "postgres": {
+          "id": "jPKgoIZtB0In6m0d",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.input }}",
+        "options": {
+          "systemMessage": "=# ROLE\nYou are a friendly AI assistant.\nYou are currently talking to {{ $('Telegram Trigger1').item.json.message.from.first_name }}.\n\n# RULES\nWhen a user sends a new message, decide if the user provided any noteworthy information that should be stored in memory. If so, call the Save Memory tool to store this information in memory. DO NOT inform the user that this information was stored in memory.  Simply continue to answer the question or executing the next tasks.\n\n# Tools\n## Save Memory\nUse this tool to store information about the user. Extract and summarize interesting information from the user message and pass it to this tool."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        0,
+        520
+      ],
+      "id": "b85f8018-b551-4504-8de6-d7a457354f83",
+      "name": "HistoryDecisionAgent"
+    },
+    {
+      "parameters": {
+        "model": "qwen3:1.7b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        0,
+        700
+      ],
+      "id": "f47d76c0-9bde-4ac2-be8f-4496df4f422c",
+      "name": "Base Model1",
+      "credentials": {
+        "ollamaApi": {
+          "id": "xHuYe0MDGOs9IpBW",
+          "name": "Local Ollama service"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.input }}",
+        "options": {
+          "systemMessage": "=Jika pesan merupakan pesan yang membutuhkan informasi riwayat obrolan pengguna, maka berikut merupakan riwayat obrolan yang tersedia : \n{{ $('Merge4').item.json.memories.toJsonString() }}\n## Penting !!\n1. Jika tidak memerlukan, maka pastikan setiap jawaban menggunakan tools only.\n2. Jangan mengeluarkan jawaban berupa json.\n3. Jawaban mengacu pada tools only, jangan mengada-ngada.\n4. Jika parameter yang dibutuhkan kurang, maka coba konfirmasi ulang atau tanya ke user/pengguna."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        0,
+        0
+      ],
+      "id": "68cd1399-de33-4458-ac4f-52fcef78d2c9",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "infinityCafe:latest",
+        "options": {
+          "temperature": 0,
+          "topK": 20,
+          "topP": 0.8,
+          "keepAlive": "12h",
+          "mainGpu": 0,
+          "numPredict": 8000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        160
+      ],
+      "id": "22c4391e-86bc-4290-af18-4aef14cda161",
+      "name": "InfinityCafe2",
+      "credentials": {
+        "ollamaApi": {
+          "id": "MYDIW8JDnRrfx701",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sseEndpoint": "http://kitchen_service:8003/mcp",
+        "include": "except",
+        "excludeTools": [
+          "change status"
+        ]
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1,
+      "position": [
+        180,
+        280
+      ],
+      "id": "afeecd94-dc86-46a2-91a2-c924c8430bf4",
+      "name": "Kitchen Service1"
+    },
+    {
+      "parameters": {
+        "sseEndpoint": "http://order_service:8002/mcp"
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1,
+      "position": [
+        320,
+        280
+      ],
+      "id": "3249b9fb-3bda-4c97-a9ca-6e0f42526ed5",
+      "name": "Order Service1"
+    },
+    {
+      "parameters": {
+        "sseEndpoint": "http://menu_service:8001/mcp",
+        "include": "except",
+        "excludeTools": [
+          "add menu",
+          "update menu"
+        ]
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1,
+      "position": [
+        420,
+        220
+      ],
+      "id": "f690f4f0-4b0f-4975-a097-57e22b009670",
+      "name": "Menu Service1"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.userid }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        40,
+        260
+      ],
+      "id": "435ccc1e-970f-40f0-b9b2-f67322219eda",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "jPKgoIZtB0In6m0d",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Message Intent Classifier": {
+      "main": [
+        [
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge3": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge4": {
+      "main": [
+        [
+          {
+            "node": "HistoryDecisionAgent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger1": {
+      "main": [
+        [
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Message Intent Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Merge4",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Memories",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Memories": {
+      "main": [
+        [
+          {
+            "node": "Gabung",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gabung": {
+      "main": [
+        [
+          {
+            "node": "Merge4",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Telegram2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Base Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Message Intent Classifier",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kitchen Service": {
+      "ai_tool": [
+        [
+          {
+            "node": "InfinityCafe AI",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Order Service": {
+      "ai_tool": [
+        [
+          {
+            "node": "InfinityCafe AI",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Menu Service": {
+      "ai_tool": [
+        [
+          {
+            "node": "InfinityCafe AI",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "InfinityCafe": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "InfinityCafe AI",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Memory": {
+      "ai_tool": [
+        [
+          {
+            "node": "HistoryDecisionAgent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Base Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "HistoryDecisionAgent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "InfinityCafe2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kitchen Service1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Order Service1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Menu Service1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a370cf25-7122-47cb-887e-723ffff95ffc",
+  "meta": {
+    "instanceId": "558d88703fb65b2d0e44613bc35916258b0f0bf983c5d4730c00c424b77ca36a"
+  },
+  "id": "cy2FZPoe3THDuNYD",
+  "tags": []
+}
