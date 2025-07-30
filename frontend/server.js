@@ -8,8 +8,7 @@ const app = express();
 const PORT = 8080;
 
 app.use(express.static(path.join(__dirname, "public")));
-app.use(express.json({ limit: '10mb' })); // Add JSON parsing middleware with limit
-app.use(express.urlencoded({ extended: true })); // Add URL-encoded parsing middleware
+app.use(express.json()); // Add JSON parsing middleware
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
