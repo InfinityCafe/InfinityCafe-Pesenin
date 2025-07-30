@@ -64,7 +64,6 @@ class KitchenOrder(Base):
     status = Column(String, default="receive")
     detail = Column(Text)
     customer_name = Column(String)
-    table_no = Column(String)
     room_name = Column(String)
     time_receive = Column(DateTime(timezone=True), nullable=True)
     time_making = Column(DateTime(timezone=True), nullable=True)
@@ -86,7 +85,6 @@ class KitchenOrderRequest(BaseModel):
     queue_number: int  # Menambahkan ini agar bisa konsisten
     orders: List[OrderItem]
     customer_name: str
-    table_no: str
     room_name: str
 
 def get_db():
@@ -149,7 +147,6 @@ async def receive_order(order: KitchenOrderRequest, db: Session = Depends(get_db
         queue_number=order.queue_number,
         detail=detail_str,
         customer_name=order.customer_name,
-        table_no=order.table_no,
         room_name=order.room_name,
         time_receive=now,
         orders_json=json.dumps([item.model_dump() if hasattr(item, 'model_dump') else dict(item) for item in order.orders])
@@ -257,7 +254,6 @@ async def broadcast_orders(db: Session):
             "timestamp": ts.isoformat(),
             "timestamp_receive": o.time_receive.isoformat() if o.time_receive else None,
             "customer_name": o.customer_name,
-            "table_no": o.table_no,
             "room_name": o.room_name,
             "cancel_reason": o.cancel_reason or ""
         })
@@ -355,7 +351,6 @@ def get_kitchen_orders(db: Session = Depends(get_db)):
             'time_receive': o.time_receive.isoformat() if o.time_receive else None,
             'time_done': o.time_done.isoformat() if o.time_done else None,
             'customer_name': o.customer_name,
-            'table_no': o.table_no,
             'room_name': o.room_name,
             'cancel_reason': o.cancel_reason or ''
         }
