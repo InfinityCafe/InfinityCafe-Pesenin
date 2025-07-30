@@ -38,10 +38,11 @@ app = FastAPI(
 # Enable CORS for frontend polling
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://kitchen.gikstaging.com"],  # Dalam production, ganti dengan domain spesifik
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 mcp = FastApiMCP(app, name="Server MCP Infinity", description="Server MCP Infinity Descr",
@@ -269,12 +270,21 @@ async def broadcast_orders(db: Session):
 def health_check():
     return {"status": "ok", "service": "kitchen_service"}
 
+@app.options("/kitchen/orders")
+async def options_kitchen_orders():
+    """Handle preflight OPTIONS requests for /kitchen/orders"""
+    return {"message": "OK"}
+
+@app.options("/receive_order")
+async def options_receive_order():
+    """Handle preflight OPTIONS requests for /receive_order"""
+    return {"message": "OK"}
+
 hostname = socket.gethostname()
 local_ip = socket.gethostbyname(hostname)
 logging.basicConfig(level=logging.INFO)
 logging.info(f"✅ kitchen_service sudah running di http://{local_ip}:8003 add cors")
 
-mcp.setup_server()
 mcp.setup_server()
 
 @app.get("/kitchen/orders", summary="Lihat semua pesanan", tags=["Kitchen"], operation_id="kitchen order list")
