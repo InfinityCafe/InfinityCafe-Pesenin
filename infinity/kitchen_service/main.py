@@ -104,16 +104,19 @@ def get_kitchen_status(db: Session):  #
         db.commit()
     return status
 
+class KitchenStatusRequest(BaseModel):
+    is_open: bool
+
 @app.post("/kitchen/status", summary="Atur status dapur ON/OFF", tags=["Kitchen"])
 def set_kitchen_status(
-    is_open: bool = Body(...),
+    request: KitchenStatusRequest,
     db: Session = Depends(get_db)
 ):
     status = get_kitchen_status(db)
-    status.is_open = is_open
+    status.is_open = request.is_open
     db.commit()
     return {
-        "message": f"Kitchen status set to {'ON' if is_open else 'OFF'}"
+        "message": f"Kitchen status set to {'ON' if request.is_open else 'OFF'}"
     }
 
 @app.get("/kitchen/status/now", summary="Cek status dapur saat ini", tags=["Kitchen"])
