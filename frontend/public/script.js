@@ -108,7 +108,6 @@ function openDetailModal(order) {
   box.innerHTML = `
     <p><strong>Order ID:</strong> ${order.order_id}</p>
     <p><strong>Nama:</strong> ${order.customer_name}</p>
-    <p><strong>Meja:</strong> ${order.table_no}</p>
     <p><strong>Ruangan:</strong> ${order.room_name}</p>
     <p><strong>Status:</strong> ${order.status}</p>
     <p><strong>Waktu:</strong> ${new Date(order.time_receive).toLocaleString("id-ID")}</p>
