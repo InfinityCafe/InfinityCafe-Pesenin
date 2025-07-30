@@ -70,7 +70,7 @@ class KitchenOrder(Base):
     time_deliver = Column(DateTime(timezone=True), nullable=True)
     time_done = Column(DateTime(timezone=True), nullable=True)
     cancel_reason = Column(Text, nullable=True)
-    orders_json = Column(Text, nullable=True) # Added orders_json column
+    orders_json = Column(Text, nullable=True)
 
 Base.metadata.create_all(bind=engine)
 
