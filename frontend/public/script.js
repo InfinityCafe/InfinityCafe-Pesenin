@@ -481,6 +481,7 @@ function updateKitchenStatusUI(isOpen) {
   }
 }
 
+//
 function initializeEventSource() {
   const eventSource = new EventSource("/stream/orders");
   let updateTimeout = null;
