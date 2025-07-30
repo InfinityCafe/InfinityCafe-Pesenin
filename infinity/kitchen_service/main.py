@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException, Depends, Request, Body
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from sqlalchemy import create_engine, Column, String, Text, DateTime, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -78,8 +78,8 @@ Base.metadata.create_all(bind=engine)
 class OrderItem(BaseModel):
     menu_name: str
     quantity: int
-    preference: str = ""
-    notes: str = ""
+    preference: Optional[str] = ""
+    notes: Optional[str] = ""
 
 class KitchenOrderRequest(BaseModel):
     order_id: str
