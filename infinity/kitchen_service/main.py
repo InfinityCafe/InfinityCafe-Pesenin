@@ -107,16 +107,29 @@ class KitchenStatusRequest(BaseModel):
     is_open: bool
 
 @app.post("/kitchen/status", summary="Atur status dapur ON/OFF", tags=["Kitchen"])
-def set_kitchen_status(
-    request: KitchenStatusRequest,
+async def set_kitchen_status(
+    request: Request, 
     db: Session = Depends(get_db)
 ):
-    status = get_kitchen_status(db)
-    status.is_open = request.is_open
-    db.commit()
-    return {
-        "message": f"Kitchen status set to {'ON' if request.is_open else 'OFF'}"
-    }
+    try:
+        body = await request.body() 
+        is_open_str = body.decode("utf-8").strip().lower() 
+
+        if is_open_str == "true": 
+            is_open_value = True 
+        elif is_open_str == "false":
+            is_open_value = False
+        else:
+            raise HTTPException(status_code=400, detail="Invalid boolean value in request body. Must be 'true' or 'false' (plain text).")
+
+        status = get_kitchen_status(db)
+        status.is_open = is_open_value
+        db.commit()
+        return {
+            "message": f"Kitchen status set to {'ON' if is_open_value else 'OFF'}"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to process request body: {e}")
 
 @app.get("/kitchen/status/now", summary="Cek status dapur saat ini", tags=["Kitchen"])
 def get_kitchen_status_endpoint(db: Session = Depends(get_db)):
@@ -124,7 +137,6 @@ def get_kitchen_status_endpoint(db: Session = Depends(get_db)):
     return {
         "is_open": status.is_open
     }
-
 
 @app.post("/receive_order", summary="Terima pesanan", tags=["Kitchen"], operation_id="receive order")
 async def receive_order(order: KitchenOrderRequest, db: Session = Depends(get_db)):
