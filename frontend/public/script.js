@@ -132,8 +132,8 @@ async function confirmCancel(status) {
 // API functions
 async function syncUpdate(orderId, status, reason = "") {
   try {
-    await fetch(`http://localhost:8003/kitchen/update_status/${orderId}?status=${status}&reason=${encodeURIComponent(reason)}`, { method: "POST" });
-    await fetch(`http://localhost:8002/order/update_status/${orderId}?status=${status}`, { method: "POST" });
+    await fetch(`/kitchen/update_status/${orderId}?status=${status}&reason=${encodeURIComponent(reason)}`, { method: "POST" });
+          // Removed direct call to order service - now handled by gateway
     document.getElementById("sound-status-update").play().catch(() => {});
     fetchOrders();
     logHistory(orderId, status, reason);
@@ -420,7 +420,7 @@ function fetchOrders() {
   // Show loading state
   document.getElementById('offline-banner').classList.add('hidden');
   
-  fetch("http://localhost:8003/kitchen/orders")
+      fetch("/kitchen/orders")
     .then(res => {
       if (!res.ok) {
         throw new Error('Network response was not ok');
@@ -437,7 +437,7 @@ function fetchOrders() {
 
 async function fetchKitchenStatus() {
   try {
-    const res = await fetch("http://localhost:8003/kitchen/status/now");
+    const res = await fetch("/kitchen/status/now");
     const data = await res.json();
     updateKitchenStatusUI(data.is_open);
   } catch {
@@ -447,7 +447,7 @@ async function fetchKitchenStatus() {
 
 async function setKitchenStatus(isOpen) {
   try {
-    await fetch("http://localhost:8003/kitchen/status", {
+    await fetch("/kitchen/status", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(isOpen)
@@ -482,14 +482,14 @@ function updateKitchenStatusUI(isOpen) {
 }
 
 function initializeEventSource() {
-  const eventSource = new EventSource("http://localhost:8003/stream/orders");
+  const eventSource = new EventSource("/stream/orders");
   let updateTimeout = null;
   
   eventSource.onmessage = () => {
     if (updateTimeout) clearTimeout(updateTimeout);
     updateTimeout = setTimeout(async () => {
       try {
-        const res = await fetch("http://localhost:8003/kitchen/orders");
+        const res = await fetch("/kitchen/orders");
         const data = await res.json();
         
         // Check for new orders
@@ -569,7 +569,7 @@ let menuOptions = [];
 let orderItems = [{ menu_name: '', quantity: 1, preference: '', notes: '' }];
 async function fetchMenuOptions() {
   try {
-    const res = await fetch('http://localhost:8001/menu');
+    const res = await fetch('/menu');
     menuOptions = await res.json();
     renderOrderItemsList();
   } catch (e) {
@@ -733,7 +733,7 @@ addOrderForm.onsubmit = async function(e) {
   submitBtn.disabled = true;
   submitBtn.textContent = 'Saving...';
   try {
-    const res = await fetch('http://localhost:8002/create_order', {
+    const res = await fetch('/create_order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ customer_name, table_no, room_name, orders })

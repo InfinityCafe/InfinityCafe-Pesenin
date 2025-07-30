@@ -443,6 +443,8 @@ services:
     extra_hosts:
       - "ollama:host-gateway"
     depends_on:
+      gateway:
+        condition: service_started
       menu_service:
         condition: service_started
       kitchen_service:
@@ -477,20 +479,25 @@ services:
   #     # timeout: 5s
   #     # retries: 0
 
-  # gateway:
-  #   networks: ['demo']
-  #   hostname: gateway
-  #   build:
-  #     context: .
-  #     dockerfile: gateway/Dockerfile
-  #   ports:
-  #     - "2323:2323"
-  #   depends_on:
-  #     - menu_service
-  #     - order_service
-  #     - kitchen_service
-  #   env_file:
-  #     - .env
+  gateway:
+    networks: ['demo']
+    hostname: gateway
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    ports:
+      - "2323:2323"
+    depends_on:
+      menu_service:
+        condition: service_started
+      order_service:
+        condition: service_started
+      kitchen_service:
+        condition: service_started
+      report_service:
+        condition: service_started
+    env_file:
+      - .env
 
   # seed_data:
   #   networks: ['demo']
