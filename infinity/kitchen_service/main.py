@@ -129,6 +129,9 @@ def get_kitchen_status(db: Session):  #
         db.commit()
     return status
 
+class KitchenStatusRequest(BaseModel):
+    is_open: bool
+
 @app.post("/kitchen/status", summary="Atur status dapur ON/OFF", tags=["Kitchen"])
 def set_kitchen_status(
     request: KitchenStatusRequest,
