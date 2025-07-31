@@ -1,8 +1,9 @@
 from sqlalchemy import or_, and_, func, Boolean
 
 from fastapi import FastAPI, HTTPException, Depends, Request, Body
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy import create_engine, Column, String, Text, DateTime, Integer
@@ -35,10 +36,32 @@ app = FastAPI(
     version="1.0.0"
 )
 
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Custom handler untuk menangani validasi error, termasuk JSON parsing error"""
+    first_error = exc.errors()[0]
+    field_location = " -> ".join(map(str, first_error['loc']))
+    error_message = first_error['msg']
+    
+    # Handle JSON parsing errors specifically
+    if "JSON" in error_message or "parsing" in error_message.lower():
+        full_message = f"Format JSON tidak valid. Pastikan mengirim objek JSON yang benar, contoh: {{'is_open': true}}"
+    else:
+        full_message = f"Data tidak valid pada field '{field_location}': {error_message}"
+
+    return JSONResponse(
+        status_code=422,
+        content={
+            "status": "error",
+            "message": full_message,
+            "data": {"details": exc.errors()}
+        },
+    )
+
 # Enable CORS for frontend polling
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://kitchen.gikstaging.com"],  # Dalam production, ganti dengan domain spesifik
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -81,6 +104,9 @@ class OrderItem(BaseModel):
     preference: Optional[str] = ""
     notes: Optional[str] = ""
 
+class KitchenStatusRequest(BaseModel):
+    is_open: bool
+
 class KitchenOrderRequest(BaseModel):
     order_id: str
     queue_number: int  # Menambahkan ini agar bisa konsisten
@@ -111,11 +137,14 @@ def set_kitchen_status(
     request: KitchenStatusRequest,
     db: Session = Depends(get_db)
 ):
+
     status = get_kitchen_status(db)
     status.is_open = request.is_open
     db.commit()
     return {
-        "message": f"Kitchen status set to {'ON' if request.is_open else 'OFF'}"
+        "status": "success",
+        "message": f"Kitchen status set to {'ON' if request.is_open else 'OFF'}",
+        "data": {"is_open": request.is_open}
     }
 
 @app.get("/kitchen/status/now", summary="Cek status dapur saat ini", tags=["Kitchen"])
@@ -272,6 +301,21 @@ async def broadcast_orders(db: Session):
 @app.get("/health", summary="Health check", tags=["Utility"], operation_id="health kitchen")
 def health_check():
     return {"status": "ok", "service": "kitchen_service"}
+
+@app.options("/kitchen/status")
+async def options_kitchen_status():
+    """Handle preflight OPTIONS requests for /kitchen/status"""
+    return {"message": "OK"}
+
+@app.options("/kitchen/orders")
+async def options_kitchen_orders():
+    """Handle preflight OPTIONS requests for /kitchen/orders"""
+    return {"message": "OK"}
+
+@app.options("/receive_order")
+async def options_receive_order():
+    """Handle preflight OPTIONS requests for /receive_order"""
+    return {"message": "OK"}
 
 @app.options("/kitchen/orders")
 async def options_kitchen_orders():
