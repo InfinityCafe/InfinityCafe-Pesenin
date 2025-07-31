@@ -200,7 +200,7 @@ app.get("/kitchen/status/now", async (req, res) => {
 
 app.post("/kitchen/status", async (req, res) => {
   try {
-    const body = await req.body();
+    const body = req.body;
     const resp = await fetch("http://kitchen_service:8003/kitchen/status", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -229,7 +229,7 @@ app.get("/menu", async (req, res) => {
 // ========== ORDER ENDPOINTS ==========
 app.post("/create_order", async (req, res) => {
   try {
-    const body = await req.body();
+    const body = req.body;
     const resp = await fetch("http://order_service:8002/create_order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
