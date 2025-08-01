@@ -463,7 +463,7 @@ function updateKitchenStatusUI(isOpen) {
   const offBanner = document.getElementById('kitchen-off-banner');
   
   toggle.checked = isOpen;
-  statusText.textContent = isOpen ? 'BUKA' : 'TUTUP';
+//   statusText.textContent = isOpen ? 'BUKA' : 'TUTUP';
   
   if (!isOpen) {
     offBanner.classList.remove('hidden');
@@ -753,6 +753,31 @@ addOrderForm.onsubmit = async function(e) {
   submitBtn.textContent = 'Save Order';
 };
 
+function setupNavigation() {
+    const currentPage = document.body.dataset.page;
+
+    // Highlight tombol nav sesuai halaman
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        const btnPage = btn.id.replace('nav-', '');
+        if (btnPage === currentPage) {
+            btn.classList.add('active');
+        }
+    });
+
+    // Judul dinamis berdasarkan halaman
+    const pageTitles = {
+        dashboard: "Dashboard Kitchen",
+        menu: "Kelola Menu",
+        pesanan: "Daftar Pesanan",
+        // tambahkan judul page lain disini
+    };
+
+    const navbarTitle = document.getElementById('navbar-title');
+    if (navbarTitle && pageTitles[currentPage]) {
+        navbarTitle.textContent = pageTitles[currentPage];
+    }
+}
+
 // Initialize all functionality when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
   initializeKitchenToggle();
@@ -761,6 +786,7 @@ document.addEventListener('DOMContentLoaded', function() {
   switchTab('active');
   initializeEventSource();
   updateGreetingDate();
+  setupNavigation();
   
   // Set greeting date to today in Indonesian format
   const greetingDate = document.querySelector('.greeting-date');
