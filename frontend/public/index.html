@@ -9,17 +9,17 @@
 
 </head>
 <body data-page="dashboard">
-  <!-- Navbar -->
-  <nav class="navbar">
-    <div class="navbar-brand">
-      <h1 class="navbar-title" id="dynamic-title">Infinity Cafe</h1>
-      <p class="navbar-subtitle">Stephany | Barista</p>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-brand">
+      <h1 class="header-title" id="dynamic-title">Infinity Cafe</h1>
+      <p class="header-subtitle">Stephany | Barista</p>
     </div>
-    <div class="navbar-menu">
-      <button class="nav-btn" id="nav-dashboard" data-url="index.html">Dashboard</button>
-      <button class="nav-btn" id="nav-menu" data-url="flavour.html">Kelola Menu</button>
+    <div class="header-menu">
+      <button class="header-btn" id="header-dashboard" data-url="index.html">Dashboard</button>
+      <button class="header-btn" id="header-menu" data-url="flavour.html">Kelola Menu</button>
     </div>
-    <div class="navbar-right">
+    <div class="header-right">
       <div class="search-container">
         <input type="text" placeholder="Search" class="search-input">
       </div>
@@ -31,7 +31,7 @@
         <span id="kitchen-status-text" class="kitchen-status-text">BUKA</span>
       </div>
     </div>
-  </nav>
+  </header>
 
   <!-- Main Content -->
   <div class="main-container">
@@ -92,30 +92,29 @@
 
     <!-- Sidebar -->
     <div class="sidebar">
-      <div class="sidebar-content">
-        <h3 class="sidebar-title">SUMMARY PESANAN</h3>
-        <div class="summary-item">
-          <div class="summary-header">
-            <span class="summary-name">Kopi Latte</span>
-            <span class="summary-count">4</span>
-          </div>
-          <div class="summary-details">
-            <span class="summary-detail">#01</span>
-            <span class="summary-detail">#02</span>
-            <span class="summary-detail">#03</span>
-            <span class="summary-detail">#04</span>
-          </div>
-          <div class="summary-variants">
-            <div class="variant-item">
-              <span>Salted Caramel</span>
-              <span>Caramel</span>
-              <span>Salted Caramel</span>
-              <span>Caramel</span>
+      <div class="sidebar-column">
+          <h3 class="sidebar-title">SUMMARY PESANAN</h3>
+        <div class="sidebar-content">
+          <!-- <div class="summary-item">
+            <div class="summary-header">
+              <span class="summary-name"></span>
+              <span class="summary-count"></span>
             </div>
-          </div>
+            <div class="summary-details">
+                <span class="summary-detail"></span>
+                <span class="summary-detail"></span>
+                <span class="summary-detail"></span>
+                <span class="summary-detail"></span>
+            </div>
+            <div class="summary-variants">
+              <div class="variant-item"></div>
+            </div>
+          </div> -->
         </div>
       </div>
     </div>
+  </div>
+
   </div>
 
   <!-- Kitchen Off Banner -->

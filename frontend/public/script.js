@@ -261,37 +261,83 @@ function updateSummary(orders) {
   const activeOrders = orders.filter(order => ['receive', 'making', 'deliver'].includes(order.status));
   const summary = {};
   activeOrders.forEach(order => {
-    const items = order.detail.split('\n').filter(item => item.trim());
+    // Use order.items if available, else parse from detail
+    let items = [];
+    if (order.items && Array.isArray(order.items) && order.items.length > 0) {
+      items = order.items;
+    } else {
+      // Fallback: parse from detail string
+      const detailItems = order.detail.split('\n').filter(item => item.trim());
+      items = detailItems.map(item => {
+        const parts = item.split(' - ');
+        const mainPart = parts[0] || item;
+        const notes = parts[1] || '';
+        
+        // Parse quantity and name from main part
+        const match = mainPart.match(/^(\d+)x\s+(.+?)(?:\s+\(([^)]+)\))?$/);
+        if (match) {
+          return {
+            quantity: parseInt(match[1]),
+            menu_name: match[2].trim(),
+            preference: match[3] || '',
+            notes: notes
+          };
+        } else {
+          return {
+            quantity: 1,
+            menu_name: mainPart.trim(),
+            preference: '',
+            notes: notes
+          };
+        }
+      });
+    }
+    
     items.forEach(item => {
-      const parts = item.split(' - ');
-      const name = parts[0] || item;
-      const variant = parts[1] || '';
+      const name = item.menu_name;
+      const variant = item.preference;
+      const notes = item.notes;
+      
       if (!summary[name]) {
         summary[name] = {
           count: 0,
           orders: [],
-          variants: []
+          variants: [],
+          firstQueueNumber: Infinity // Untuk mengurutkan menu berdasarkan antrian terkecil
         };
       }
-      summary[name].count++;
+      summary[name].count += item.quantity || 1;
+      const queueNumber = orderIdToQueue[order.order_id] || Infinity;
+      summary[name].firstQueueNumber = Math.min(summary[name].firstQueueNumber, queueNumber);
       summary[name].orders.push({
         id: order.order_id,
         label: `#${order.order_id.toString().padStart(2, '0')}`,
         variant,
+        notes,
         customer: order.customer_name ?? '',
-        queue: orderIdToQueue[order.order_id] || '-'
+        queue: queueNumber,
+        time_receive: order.time_receive
       });
       if (variant) {
         summary[name].variants.push(variant);
       }
     });
   });
+
   const sidebarContent = document.querySelector('.sidebar-content');
   const existingTitle = sidebarContent.querySelector('.sidebar-title');
   while (sidebarContent.children.length > 1) {
     sidebarContent.removeChild(sidebarContent.lastChild);
   }
-  Object.entries(summary).forEach(([itemName, data]) => {
+
+  // Urutkan menu berdasarkan nomor antrian terkecil
+  const sortedSummary = Object.entries(summary)
+    .sort((a, b) => a[1].firstQueueNumber - b[1].firstQueueNumber);
+
+  sortedSummary.forEach(([itemName, data]) => {
+    // Urutkan orders dalam setiap menu berdasarkan nomor antrian
+    data.orders.sort((a, b) => (a.queue || Infinity) - (b.queue || Infinity));
+    
     const summaryItem = document.createElement('div');
     summaryItem.className = 'summary-item';
     summaryItem.innerHTML = `
@@ -301,13 +347,14 @@ function updateSummary(orders) {
       </div>
       <table class="summary-table">
         <thead>
-          <tr><th>Varian</th><th>Antrian</th></tr>
+          <tr><th>Varian</th><th>Antrian</th><th>Notes</th></tr>
         </thead>
         <tbody>
           ${data.orders.map(order => `
             <tr>
               <td>${order.variant || '-'}</td>
               <td><span class="summary-detail--order" data-order-id="${order.id}" title="${order.label}">${order.queue}</span></td>
+              <td class="${order.notes && order.notes !== '-' ? 'has-notes' : ''}">${order.notes || '-'}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -315,6 +362,7 @@ function updateSummary(orders) {
     `;
     sidebarContent.appendChild(summaryItem);
   });
+
   // Add click event for order id highlight
   sidebarContent.querySelectorAll('.summary-detail--order').forEach(el => {
     el.addEventListener('click', function(e) {
@@ -322,6 +370,9 @@ function updateSummary(orders) {
       highlightOrderCard(orderId);
     });
   });
+
+  // Simpan mapping orderIdToQueue ke window agar bisa dipakai di createOrderCard
+  window._orderIdToQueue = orderIdToQueue;
 }
 
 function fetchOrders() {
