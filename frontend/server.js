@@ -187,3 +187,16 @@ app.listen(PORT, () => {
   console.log(`✅ Frontend running at http://localhost:${PORT}`);
   console.log(`📘 Swagger docs available at http://localhost:${PORT}/docs`);
 });
+
+
+/*-- Endpoint Flavour --*/
+app.get("/flavors", async (req, res) => {
+  try {
+    const resp = await fetch("http://menu_service:8001/flavors");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch flavors ", err);
+    res.status(500).json({ error: "Failed to fetch flavors" });
+  }
+});

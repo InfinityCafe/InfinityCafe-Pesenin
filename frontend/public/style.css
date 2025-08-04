@@ -1933,7 +1933,7 @@ body.tab-done .add-order-btn {
   font-size: 0.92rem;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 340px) {
   .sidebar {
     width: 100%;
     min-width: 0;
