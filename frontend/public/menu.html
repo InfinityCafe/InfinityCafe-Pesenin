@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Menu Management - Infinity Cafe</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
@@ -58,7 +61,7 @@
         <button id="tab-menu" class="tab-btn tab-active" onclick="switchTab('menu')">MENU</button>
         <button id="tab-flavors" class="tab-btn" onclick="switchTab('flavors')">FLAVORS</button>
         <button id="tab-filter" class="tab-btn" onclick="switchTab('filter')">FILTER</button>
-        <button class="add-order-btn" onclick="openAddMenuModal()">ADD NEW MENU</button>
+        <button class="add-order-btn" id="add-new-btn" onclick="openAddModal()">ADD NEW MENU</button>
       </div>
 
       <!-- Tab Content -->
@@ -66,6 +69,13 @@
         <!-- Menu Tab (Default) -->
         <div id="tab-menu-content" class="tab-panel active">
           <div class="table-container">
+            <!-- Search for Menu -->
+            <div class="search-section">
+              <div class="search-container">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="menu-search" placeholder="Search menu..." class="search-input">
+              </div>
+            </div>
             <table id="menu-table">
               <thead>
                 <tr>
@@ -85,7 +95,14 @@
 
         <!-- Flavors Tab -->
         <div id="tab-flavors-content" class="tab-panel">
-           <div class="table-container">
+          <div class="table-container">
+            <!-- Search for Flavors -->
+            <div class="search-section">
+              <div class="search-container">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="flavor-search" placeholder="Search flavors..." class="search-input">
+              </div>
+            </div>
             <table id="flavors-table">
               <thead>
                 <tr>
@@ -112,8 +129,12 @@
 
   <!-- Add Menu Modal -->
   <div id="add-menu-modal" class="modal hidden">
-    <div class="modal-content">
-      <button class="modal-close" onclick="closeAddMenuModal()">&times;</button>
+    <div class="modal-content add-menu-modal">
+      <button class="modal-close" onclick="closeAddMenuModal()">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16.5 5.5L5.5 16.5M5.5 5.5L16.5 16.5" stroke="#B3261E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
       <h3 class="modal-title">Add New Menu</h3>
       <form id="add-menu-form">
         <div class="form-group">
@@ -121,24 +142,117 @@
           <input type="text" id="base-name" name="base-name" placeholder="Type Here ..." required />
         </div>
         <div class="form-group">
-          <label for="base-price">Base Price</label>
+          <label for="base-price">Price</label>
           <input type="number" id="base-price" name="base-price" placeholder="Type Here ..." required />
         </div>
         <div class="form-group">
-          <label for="is-avail">Available</label>
-          <select id="is-avail" name="is-avail">
-            <option value="true">Yes</option>
-            <option value="false">No</option>
-          </select>
+          <label for="is-avail">Is Avail</label>
+          <div class="radio-group">
+            <div class="radio-option">
+              <input type="radio" id="is-avail-true" name="is-avail" value="true" checked />
+              <label for="is-avail-true">True</label>
+            </div>
+            <div class="radio-option">
+              <input type="radio" id="is-avail-false" name="is-avail" value="false" />
+              <label for="is-avail-false">False</label>
+            </div>
+          </div>
         </div>
-        <div class="modal-actions">
-          <button type="button" class="modal-btn modal-btn-cancel" onclick="closeAddMenuModal()">Cancel</button>
-          <button type="submit" class="modal-btn modal-btn-habis" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;">
-            <span class="fa fa-save"></span> Save Menu
-          </button>
-        </div>
+        <button type="submit" class="save-button">
+          <svg width="15" height="16" viewBox="0 0 15 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12.5 4.5H2.5C1.95 4.5 1.5 4.95 1.5 5.5V12.5C1.5 13.05 1.95 13.5 2.5 13.5H12.5C13.05 13.5 13.5 13.05 13.5 12.5V5.5C13.5 4.95 13.05 4.5 12.5 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4.5 4.5V2.5C4.5 1.95 4.95 1.5 5.5 1.5H9.5C10.05 1.5 10.5 1.95 10.5 2.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>Save Menu</span>
+        </button>
       </form>
       <div id="form-error" class="error"></div>
+    </div>
+  </div>
+
+  <!-- Add Flavour Modal -->
+  <div id="add-flavour-modal" class="modal hidden">
+    <div class="modal-content add-flavour-modal">
+      <button class="modal-close" onclick="closeAddFlavourModal()">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16.5 5.5L5.5 16.5M5.5 5.5L16.5 16.5" stroke="#B3261E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <h3 class="modal-title">Create New Flavour</h3>
+      <form id="add-flavour-form">
+        <div class="form-group">
+          <label for="flavour-name">Flavour Name</label>
+          <input type="text" id="flavour-name" name="flavour-name" placeholder="Type Here ..." required />
+        </div>
+        <div class="form-group">
+          <label for="additional-price">Additional Price</label>
+          <input type="number" id="additional-price" name="additional-price" placeholder="Type Here ..." required />
+        </div>
+        <button type="submit" class="save-button">
+          <svg width="15" height="16" viewBox="0 0 15 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12.5 4.5H2.5C1.95 4.5 1.5 4.95 1.5 5.5V12.5C1.5 13.05 1.95 13.5 2.5 13.5H12.5C13.05 13.5 13.5 13.05 13.5 12.5V5.5C13.5 4.95 13.05 4.5 12.5 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4.5 4.5V2.5C4.5 1.95 4.95 1.5 5.5 1.5H9.5C10.05 1.5 10.5 1.95 10.5 2.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>Save Flavour</span>
+        </button>
+      </form>
+      <div id="flavour-form-error" class="error"></div>
+    </div>
+  </div>
+
+  <!-- View Menu Modal -->
+  <div id="view-menu-modal" class="modal hidden">
+    <div class="modal-content view-modal">
+      <button class="modal-close" onclick="closeViewMenuModal()">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16.5 5.5L5.5 16.5M5.5 5.5L16.5 16.5" stroke="#B3261E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <h3 class="modal-title">Menu Details</h3>
+      <div class="view-content">
+        <div class="view-item">
+          <label>Menu Name:</label>
+          <span id="view-menu-name"></span>
+        </div>
+        <div class="view-item">
+          <label>Price:</label>
+          <span id="view-menu-price"></span>
+        </div>
+        <div class="view-item">
+          <label>Available:</label>
+          <span id="view-menu-available"></span>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn-cancel" onclick="closeViewMenuModal()">Close</button>
+        <button class="modal-btn" onclick="editFromView()">Edit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Flavor Modal -->
+  <div id="view-flavor-modal" class="modal hidden">
+    <div class="modal-content view-modal">
+      <button class="modal-close" onclick="closeViewFlavorModal()">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16.5 5.5L5.5 16.5M5.5 5.5L16.5 16.5" stroke="#B3261E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <h3 class="modal-title">Flavor Details</h3>
+      <div class="view-content">
+        <div class="view-item">
+          <label>Flavor Name:</label>
+          <span id="view-flavor-name"></span>
+        </div>
+        <div class="view-item">
+          <label>Additional Price:</label>
+          <span id="view-flavor-price"></span>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn-cancel" onclick="closeViewFlavorModal()">Close</button>
+        <button class="modal-btn" onclick="editFlavorFromView()">Edit</button>
+      </div>
     </div>
   </div>
 
@@ -154,10 +268,13 @@
       document.getElementById(`tab-${tab}`).classList.add('tab-active');
       document.getElementById(`tab-${tab}-content`).classList.add('active');
       
-      // If switching to flavors tab, load flavor data
+      // Update button text based on active tab
+      const addButton = document.getElementById('add-new-btn');
       if (tab === 'flavors') {
+        addButton.textContent = 'ADD NEW FLAVOUR';
         loadFlavors();
       } else if (tab === 'menu') {
+        addButton.textContent = 'ADD NEW MENU';
         loadMenus();
       }
     }
@@ -166,28 +283,43 @@
     async function loadMenus() {
       try {
         const response = await fetch(`${BASE_URL}/menu`);
-        if (!response.ok) throw new Error('Failed to fetch menus');
-        const menus = await response.json();
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        let menus;
+        try {
+          menus = await response.json();
+        } catch (parseError) {
+          throw new Error('Invalid JSON response from server');
+        }
+        
         const tbody = document.querySelector('#menu-table tbody');
         tbody.innerHTML = '';
-        menus.forEach((menu, index) => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td>${index + 1}</td>
-            <td>${menu.base_name}</td>
-            <td>${menu.base_price}</td>
-            <td>${menu.isAvail ? 'Yes' : 'No'}</td>
-            <td class="action-header">
-              <button class="table-action-btn"><i class="fas fa-eye"></i></button>
-              <button class="table-action-btn"><i class="fas fa-edit"></i></button>
-              <button class="table-action-btn"><i class="fas fa-trash"></i></button>
-            </td>
-          `;
-          tbody.appendChild(row);
-        });
+        
+        if (menus && menus.length > 0) {
+          menus.forEach((menu, index) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${index + 1}</td>
+              <td>${menu.base_name}</td>
+              <td>${menu.base_price}</td>
+              <td>${menu.isAvail ? 'Yes' : 'No'}</td>
+              <td class="action-header">
+                <button class="table-action-btn" onclick="viewMenu('${menu.id}')"><i class="fas fa-eye"></i></button>
+                <button class="table-action-btn" onclick="editMenu('${menu.id}')"><i class="fas fa-edit"></i></button>
+                <button class="table-action-btn" onclick="deleteMenu('${menu.id}')"><i class="fas fa-trash"></i></button>
+              </td>
+            `;
+            tbody.appendChild(row);
+          });
+        } else {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No menus found</td></tr>';
+        }
       } catch (error) {
         console.error('Error loading menus:', error);
-        document.getElementById('form-error').textContent = 'Error loading menus';
+        const tbody = document.querySelector('#menu-table tbody');
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Error loading menus: ' + error.message + '</td></tr>';
       }
     }
 
@@ -196,29 +328,41 @@
       try {
         const response = await fetch(`${BASE_URL}/flavors`);
         if (!response.ok) {
-          throw new Error('Failed to fetch flavors');
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        const flavors = await response.json();
+        
+        let flavors;
+        try {
+          flavors = await response.json();
+        } catch (parseError) {
+          throw new Error('Invalid JSON response from server');
+        }
+        
         const tbody = document.querySelector('#flavors-table tbody');
         tbody.innerHTML = '';
-        flavors.forEach((flavors, index) => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td>${index + 1}</td>
-            <td>${flavors.flavor_name}</td>
-            <td>${flavors.additional_price}</td>
-            <td class="action-buttons">
-              <button class="table-action-btn"><i class="fas fa-eye"></i></button>
-              <button class="table-action-btn"><i class="fas fa-edit"></i></button>
-              <button class="table-action-btn"><i class="fas fa-trash"></i></button>
-            </td>
-          `;
-          tbody.appendChild(row);
-        });
+        
+        if (flavors && flavors.length > 0) {
+          flavors.forEach((flavor, index) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${index + 1}</td>
+              <td>${flavor.flavor_name}</td>
+              <td>${flavor.additional_price}</td>
+              <td class="action-header">
+                <button class="table-action-btn" onclick="viewFlavor('${flavor.id}')"><i class="fas fa-eye"></i></button>
+                <button class="table-action-btn" onclick="editFlavor('${flavor.id}')"><i class="fas fa-edit"></i></button>
+                <button class="table-action-btn" onclick="deleteFlavor('${flavor.id}')"><i class="fas fa-trash"></i></button>
+              </td>
+            `;
+            tbody.appendChild(row);
+          });
+        } else {
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">No flavors found</td></tr>';
+        }
       } catch (error) {
         console.error('Error loading flavors:', error);
         const tbody = document.querySelector('#flavors-table tbody');
-        tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: red;">Error loading flavors</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Error loading flavors: ' + error.message + '</td></tr>';
       }
     }
 
@@ -227,14 +371,13 @@
       const menuId = document.getElementById('add-menu-form').getAttribute('data-menu-id') || null;
       const baseName = document.getElementById('base-name').value;
       const basePrice = parseInt(document.getElementById('base-price').value);
-      const isAvail = document.getElementById('is-avail').value === 'true';
-      const flavorIds = document.getElementById('flavor-ids').value.split(',').map(id => id.trim()).filter(id => id);
+      const isAvail = document.querySelector('input[name="is-avail"]:checked').value === 'true';
 
       const data = {
         base_name: baseName,
         base_price: basePrice,
         isAvail: isAvail,
-        flavor_ids: flavorIds
+        flavor_ids: [] // For now, we'll leave flavors empty. Can be enhanced later
       };
 
       try {
@@ -253,12 +396,42 @@
           });
         }
 
-        if (!response.ok) throw new Error('Failed to save menu');
+        if (!response.ok) {
+          let errorMessage = 'Failed to save menu';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.detail || errorData.error || errorMessage;
+          } catch (parseError) {
+            // If response is not JSON (e.g., HTML error page)
+            errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          }
+          throw new Error(errorMessage);
+        }
+        
+        let result;
+        try {
+          result = await response.json();
+          console.log('Menu saved successfully:', result);
+        } catch (parseError) {
+          console.log('Menu saved successfully (no JSON response)');
+        }
+        
         closeAddMenuModal();
         loadMenus();
+        
+        // Show success message
+        const errorElement = document.getElementById('form-error');
+        errorElement.textContent = 'Menu saved successfully!';
+        errorElement.style.color = 'green';
+        setTimeout(() => {
+          errorElement.textContent = '';
+          errorElement.style.color = '';
+        }, 3000);
       } catch (error) {
         console.error('Error saving menu:', error);
-        document.getElementById('form-error').textContent = error.message || 'Error saving menu';
+        const errorElement = document.getElementById('form-error');
+        errorElement.textContent = error.message || 'Error saving menu';
+        errorElement.style.color = 'red';
       }
     }
 
@@ -269,7 +442,14 @@
         .then(menu => {
           document.getElementById('base-name').value = menu.base_name;
           document.getElementById('base-price').value = menu.base_price;
-          document.getElementById('is-avail').value = menu.isAvail;
+          
+          // Set radio button based on isAvail value
+          if (menu.isAvail) {
+            document.getElementById('is-avail-true').checked = true;
+          } else {
+            document.getElementById('is-avail-false').checked = true;
+          }
+          
           document.getElementById('add-menu-form').setAttribute('data-menu-id', menuId);
           openAddMenuModal();
         })
@@ -295,23 +475,96 @@
       }
     }
 
-    // Edit flavor (placeholder)
-    function editFlavor(flavorId) {
-      console.log('Edit flavor:', flavorId);
-      // TODO: Implement edit flavor functionality
-      alert('Edit flavor functionality will be implemented soon');
+    // View menu
+    async function viewMenu(menuId) {
+      try {
+        const response = await fetch(`${BASE_URL}/menu/${menuId}`);
+        if (!response.ok) throw new Error('Failed to fetch menu details');
+        
+        const menu = await response.json();
+        
+        document.getElementById('view-menu-name').textContent = menu.base_name;
+        document.getElementById('view-menu-price').textContent = `Rp ${menu.base_price.toLocaleString()}`;
+        document.getElementById('view-menu-available').textContent = menu.isAvail ? 'Yes' : 'No';
+        
+        // Store the menu ID for edit functionality
+        document.getElementById('view-menu-modal').setAttribute('data-menu-id', menuId);
+        
+        document.getElementById('view-menu-modal').classList.remove('hidden');
+      } catch (error) {
+        console.error('Error viewing menu:', error);
+        alert('Error loading menu details');
+      }
     }
 
-    // Delete flavor (placeholder)
+    // View flavor
+    async function viewFlavor(flavorId) {
+      try {
+        const response = await fetch(`${BASE_URL}/flavors/${flavorId}`);
+        if (!response.ok) throw new Error('Failed to fetch flavor details');
+        
+        const flavor = await response.json();
+        
+        document.getElementById('view-flavor-name').textContent = flavor.flavor_name;
+        document.getElementById('view-flavor-price').textContent = `Rp ${flavor.additional_price.toLocaleString()}`;
+        
+        // Store the flavor ID for edit functionality
+        document.getElementById('view-flavor-modal').setAttribute('data-flavor-id', flavorId);
+        
+        document.getElementById('view-flavor-modal').classList.remove('hidden');
+      } catch (error) {
+        console.error('Error viewing flavor:', error);
+        alert('Error loading flavor details');
+      }
+    }
+
+    // Edit flavor
+    async function editFlavor(flavorId) {
+      try {
+        const response = await fetch(`${BASE_URL}/flavors/${flavorId}`);
+        if (!response.ok) throw new Error('Failed to fetch flavor details');
+        
+        const flavor = await response.json();
+        
+        document.getElementById('flavour-name').value = flavor.flavor_name;
+        document.getElementById('additional-price').value = flavor.additional_price;
+        
+        document.getElementById('add-flavour-form').setAttribute('data-flavour-id', flavorId);
+        openAddFlavourModal();
+      } catch (error) {
+        console.error('Error loading flavor for edit:', error);
+        alert('Error loading flavor for edit');
+      }
+    }
+
+    // Delete flavor
     async function deleteFlavor(flavorId) {
       if (confirm('Are you sure you want to delete this flavor?')) {
-        console.log('Delete flavor:', flavorId);
-        // TODO: Implement delete flavor functionality
-        alert('Delete flavor functionality will be implemented soon');
+        try {
+          const response = await fetch(`${BASE_URL}/flavors/${flavorId}`, {
+            method: 'DELETE'
+          });
+          if (!response.ok) throw new Error('Failed to delete flavor');
+          
+          loadFlavors();
+          alert('Flavor deleted successfully');
+        } catch (error) {
+          console.error('Error deleting flavor:', error);
+          alert('Error deleting flavor');
+        }
       }
     }
 
     // Modal Functions
+    function openAddModal() {
+      const activeTab = document.querySelector('.tab-btn.tab-active').id.replace('tab-', '');
+      if (activeTab === 'flavors') {
+        openAddFlavourModal();
+      } else {
+        openAddMenuModal();
+      }
+    }
+
     function openAddMenuModal() {
       document.getElementById('add-menu-modal').classList.remove('hidden');
     }
@@ -320,7 +573,153 @@
       document.getElementById('add-menu-form').reset();
       document.getElementById('add-menu-form').removeAttribute('data-menu-id');
       document.getElementById('form-error').textContent = '';
+      document.getElementById('form-error').style.color = '';
+      // Reset radio button to default (True)
+      document.getElementById('is-avail-true').checked = true;
       document.getElementById('add-menu-modal').classList.add('hidden');
+    }
+
+    function openAddFlavourModal() {
+      document.getElementById('add-flavour-modal').classList.remove('hidden');
+    }
+
+    function closeAddFlavourModal() {
+      document.getElementById('add-flavour-form').reset();
+      document.getElementById('add-flavour-form').removeAttribute('data-flavour-id');
+      document.getElementById('flavour-form-error').textContent = '';
+      document.getElementById('flavour-form-error').style.color = '';
+      document.getElementById('add-flavour-modal').classList.add('hidden');
+    }
+
+    // View modal functions
+    function closeViewMenuModal() {
+      document.getElementById('view-menu-modal').classList.add('hidden');
+      document.getElementById('view-menu-modal').removeAttribute('data-menu-id');
+    }
+
+    function closeViewFlavorModal() {
+      document.getElementById('view-flavor-modal').classList.add('hidden');
+      document.getElementById('view-flavor-modal').removeAttribute('data-flavor-id');
+    }
+
+    function editFromView() {
+      const menuId = document.getElementById('view-menu-modal').getAttribute('data-menu-id');
+      closeViewMenuModal();
+      editMenu(menuId);
+    }
+
+    function editFlavorFromView() {
+      const flavorId = document.getElementById('view-flavor-modal').getAttribute('data-flavor-id');
+      closeViewFlavorModal();
+      editFlavor(flavorId);
+    }
+
+    // Search functionality
+    function setupSearch() {
+      const menuSearch = document.getElementById('menu-search');
+      const flavorSearch = document.getElementById('flavor-search');
+
+      if (menuSearch) {
+        menuSearch.addEventListener('input', function() {
+          const searchTerm = this.value.toLowerCase();
+          const rows = document.querySelectorAll('#menu-table tbody tr');
+          
+          rows.forEach(row => {
+            const menuName = row.cells[1].textContent.toLowerCase();
+            const price = row.cells[2].textContent.toLowerCase();
+            const isAvail = row.cells[3].textContent.toLowerCase();
+            
+            if (menuName.includes(searchTerm) || price.includes(searchTerm) || isAvail.includes(searchTerm)) {
+              row.style.display = '';
+            } else {
+              row.style.display = 'none';
+            }
+          });
+        });
+      }
+
+      if (flavorSearch) {
+        flavorSearch.addEventListener('input', function() {
+          const searchTerm = this.value.toLowerCase();
+          const rows = document.querySelectorAll('#flavors-table tbody tr');
+          
+          rows.forEach(row => {
+            const flavorName = row.cells[1].textContent.toLowerCase();
+            const price = row.cells[2].textContent.toLowerCase();
+            
+            if (flavorName.includes(searchTerm) || price.includes(searchTerm)) {
+              row.style.display = '';
+            } else {
+              row.style.display = 'none';
+            }
+          });
+        });
+      }
+    }
+
+    // Save or update flavour
+    async function saveFlavour() {
+      const flavourId = document.getElementById('add-flavour-form').getAttribute('data-flavour-id') || null;
+      const flavourName = document.getElementById('flavour-name').value;
+      const additionalPrice = parseInt(document.getElementById('additional-price').value);
+
+      const data = {
+        flavor_name: flavourName,
+        additional_price: additionalPrice
+      };
+
+      try {
+        let response;
+        if (flavourId) {
+          response = await fetch(`${BASE_URL}/flavors/${flavourId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+        } else {
+          response = await fetch(`${BASE_URL}/flavors`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+        }
+
+        if (!response.ok) {
+          let errorMessage = 'Failed to save flavour';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.detail || errorData.error || errorMessage;
+          } catch (parseError) {
+            errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          }
+          throw new Error(errorMessage);
+        }
+        
+        let result;
+        try {
+          result = await response.json();
+          console.log('Flavour saved successfully:', result);
+        } catch (parseError) {
+          console.log('Flavour saved successfully (no JSON response)');
+        }
+        
+        closeAddFlavourModal();
+        loadFlavors();
+        
+        // Show success message
+        const errorElement = document.getElementById('flavour-form-error');
+        errorElement.textContent = 'Flavour saved successfully!';
+        errorElement.style.color = 'green';
+        setTimeout(() => {
+          errorElement.textContent = '';
+          errorElement.style.color = '';
+        }, 3000);
+      } catch (error) {
+        console.error('Error saving flavour:', error);
+        const errorElement = document.getElementById('flavour-form-error');
+        errorElement.textContent = error.message || 'Error saving flavour';
+        errorElement.style.color = 'red';
+      }
     }
 
     // Event listeners
@@ -329,11 +728,17 @@
       await saveMenu();
     });
 
+    document.getElementById('add-flavour-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await saveFlavour();
+    });
+
     // Initial load
     window.addEventListener('load', () => {
       loadMenus();
       switchTab('menu'); // Set default tab
       setupNavigation(); // Setup navigation
+      setupSearch(); // Setup search functionality
     });
   </script>
 </body>
