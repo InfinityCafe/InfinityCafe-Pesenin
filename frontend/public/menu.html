@@ -159,13 +159,14 @@
     async function loadMenus() {
       try {
         const response = await fetch(`${BASE_URL}/menu`);
+        if (!response.ok) throw new Error('Failed to fetch menus');
         const menus = await response.json();
         const tbody = document.querySelector('#menu-table tbody');
         tbody.innerHTML = '';
-        menus.forEach(menu => {
+        menus.forEach((menu, index) => {
           const row = document.createElement('tr');
           row.innerHTML = `
-            <td>${menu.id}</td>
+            <td>${index + 1}</td>
             <td>${menu.base_name}</td>
             <td>${menu.base_price}</td>
             <td>${menu.isAvail ? 'Yes' : 'No'}</td>
@@ -188,13 +189,14 @@
       try {
         // Replace with actual API call for flavors
         const response = await fetch(`${BASE_URL}/flavors`); // Hypothetical endpoint
+        if (!response.ok) throw new Error('Failed to fetch flavors');
         const flavors = await response.json();
         const tbody = document.querySelector('#flavors-table tbody');
         tbody.innerHTML = '';
-        flavors.forEach(flavors => {
+        flavors.forEach((flavors, index) => {
           const row = document.createElement('tr');
           row.innerHTML = `
-            <td>${flavors.id}</td>
+            <td>${index + 1}</td>
             <td>${flavors.flavor_name}</td>
             <td>${flavors.additional_price}</td>
             <td class="action-buttons">
