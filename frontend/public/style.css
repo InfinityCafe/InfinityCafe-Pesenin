@@ -1632,7 +1632,7 @@ body.tab-done .add-order-btn {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
-#flavors-table th:nth-child(2) {
+#flavors-table th:nth-child(3) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
@@ -1679,6 +1679,11 @@ body.tab-done .add-order-btn {
     border-bottom-right-radius: 0.5rem;
 }
 
+#flavors-table td:nth-child(3) {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
 #menu-table td:not(:first-child):not(:last-child)::before,
 #flavors-table td:not(:first-child):not(:last-child)::before {
     content: '';
@@ -1700,27 +1705,31 @@ body.tab-done .add-order-btn {
     border-bottom-right-radius: 0.5rem;
 }
 
-.action-buttons {
+/* .action-buttons {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
     background-color: #F5EFE6;
-    padding: 1rem;
+    padding: 0.25rem;
     border-radius: 0.5rem;
     height: 100%;
-}
+    width: 100%;
+} */
 
-.action-buttons button {
+.table-action-btn {
     background: none;
     border: none;
     cursor: pointer;
     font-size: 1rem;
     color: #685454;
     transition: color 0.2s ease;
+    padding: 0.25rem;
 }
 
-.action-buttons button:hover {
+.table-.action-btn:hover {
     color: #312929;
 }
+
+
 /* --- AKHIR STYLE TABEL --- */
