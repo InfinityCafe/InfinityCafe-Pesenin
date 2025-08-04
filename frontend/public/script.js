@@ -767,7 +767,7 @@ function setupNavigation() {
     // Judul dinamis berdasarkan halaman
     const pageTitles = {
         dashboard: "Dashboard Kitchen",
-        menu: "Kelola Menu",
+        menu: "Management Menu",
         pesanan: "Daftar Pesanan",
         // tambahkan judul page lain disini
     };

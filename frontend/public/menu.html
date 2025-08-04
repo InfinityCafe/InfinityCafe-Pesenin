@@ -7,28 +7,31 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
-<body>
+<body data-page="menu">
   <!-- Header -->
-  <header class="header">
-    <div class="header-left">
-      <h1 class="header-title">Management Menu</h1>
+  <nav class="header">
+    <div class="header-brand">
+      <h1 class="header-title" id="navbar-title">Management Menu</h1>
       <p class="header-subtitle">Stephany | Barista</p>
     </div>
-    <div class="header-center">
-      <div class="search-container">
-        <input type="text" placeholder="Search" class="search-input">
-      </div>
+    <div class="header-menu">
+      <button class="nav-btn" id="nav-dashboard" data-url="index.html">Dashboard</button>
+      <button class="nav-btn" id="nav-menu" data-url="menu.html">Management Menu</button>
     </div>
     <div class="header-right">
+      <div class="search-container">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" placeholder="Search" class="search-input">
+      </div>
       <div class="kitchen-status-container">
         <label class="switch">
           <input type="checkbox" id="kitchen-toggle" checked>
           <span class="slider"></span>
         </label>
-        <span id="kitchen-status-text" class="kitchen-status-text">BUKA</span>
+        <!-- <span id="kitchen-status-text" class="kitchen-status-text">BUKA</span> -->
       </div>
     </div>
-  </header>
+  </nav>
 
   <!-- Main Content -->
   <div class="main-container">
