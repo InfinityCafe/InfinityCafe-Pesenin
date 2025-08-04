@@ -16,8 +16,8 @@
       <p class="header-subtitle">Stephany | Barista</p>
     </div>
     <div class="header-menu">
-      <button class="nav-btn" id="nav-dashboard" data-url="index.html">Dashboard</button>
-      <button class="nav-btn" id="nav-menu" data-url="flavour.html">Management Menu</button>
+      <button class="nav-btn" id="nav-dashboard" data-url="dashboard">Dashboard</button>
+      <button class="nav-btn" id="nav-menu" data-url="management-menu">Management Menu</button>
     </div>
     <div class="header-right">
       <div class="search-container">
@@ -96,14 +96,16 @@
         </div>
     </div>
 
+    <script src="script.js"></script>
+
     <script>
     const BASE_URL = "";
 
     function switchTab(tab) {
       document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('tab-active'));
       document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
-      document.getElementById(tab-${tab}).classList.add('tab-active');
-      document.getElementById(tab-${tab}-content).classList.add('active');
+      document.getElementById(`tab-${tab}`).classList.add('tab-active');
+      document.getElementById(`tab-${tab}-content`).classList.add('active');
     }
 
 
@@ -111,7 +113,7 @@
     async function loadFlavors() {
       try {
         // Replace with actual API call for flavors
-        const response = await fetch(${BASE_URL}/flavors); // Hypothetical endpoint
+        const response = await fetch(`${BASE_URL}/flavors`); // Hypothetical endpoint
         const flavors = await response.json();
         const tbody = document.querySelector('#flavors-table tbody');
         tbody.innerHTML = '';
@@ -120,7 +122,7 @@
           row.innerHTML = `
             <td>${flavors.id}</td>
             <td>${flavors.base_name}</td>
-            <td>${flavors.base_price}
+            <td>${flavors.base_price}</td>
             <td>
               <button class="btn btn-small btn-primary">Edit</button>
               <button class="btn btn-small btn-danger">Delete</button>
@@ -152,13 +154,13 @@
       try {
         let response;
         if (menuId) {
-          response = await fetch(${BASE_URL}/menu/${menuId}, {
+          response = await fetch(`${BASE_URL}/menu/${menuId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
           });
         } else {
-          response = await fetch(${BASE_URL}/menu, {
+          response = await fetch(`${BASE_URL}/menu`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
@@ -176,7 +178,7 @@
 
     // Edit menu
     function editMenu(menuId) {
-      fetch(${BASE_URL}/menu/${menuId})
+      fetch(`${BASE_URL}/menu/${menuId}`)
         .then(response => response.json())
         .then(menu => {
           document.getElementById('base-name').value = menu.base_name;
@@ -195,7 +197,7 @@
     async function deleteMenu(menuId) {
       if (confirm('Are you sure you want to delete this menu?')) {
         try {
-          const response = await fetch(${BASE_URL}/menu/${menuId}, {
+          const response = await fetch(`${BASE_URL}/menu/${menuId}`, {
             method: 'DELETE'
           });
           if (!response.ok) throw new Error('Failed to delete menu');
@@ -229,7 +231,8 @@
     window.addEventListener('load', () => {
       loadMenus();
       // loadFlavors(); // Uncomment when flavors API is ready
-      switchTab('menu'); // Set default tab
+      switchTab('flavour'); // Set default tab to flavour
+      setupNavigation(); // Setup navigation
     });
   </script>
 </body>

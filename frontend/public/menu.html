@@ -15,8 +15,8 @@
       <p class="header-subtitle">Stephany | Barista</p>
     </div>
     <div class="header-menu">
-      <button class="nav-btn" id="nav-dashboard" data-url="index.html">Dashboard</button>
-      <button class="nav-btn" id="nav-menu" data-url="menu.html">Management Menu</button>
+      <button class="nav-btn" id="nav-dashboard" data-url="dashboard">Dashboard</button>
+      <button class="nav-btn" id="nav-menu" data-url="management-menu">Management Menu</button>
     </div>
     <div class="header-right">
       <div class="search-container">
@@ -142,6 +142,13 @@
       document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
       document.getElementById(`tab-${tab}`).classList.add('tab-active');
       document.getElementById(`tab-${tab}-content`).classList.add('active');
+      
+      // If switching to flavors tab, load flavor data
+      if (tab === 'flavors') {
+        loadFlavors();
+      } else if (tab === 'menu') {
+        loadMenus();
+      }
     }
 
     // Load all menus
@@ -171,29 +178,37 @@
       }
     }
 
-    // Load flavors (placeholder)
+    // Load flavors
     async function loadFlavors() {
       try {
-        // Replace with actual API call for flavors
-        const response = await fetch(`${BASE_URL}/flavors`); // Hypothetical endpoint
+        const response = await fetch(`${BASE_URL}/flavors`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch flavors');
+        }
         const flavors = await response.json();
         const tbody = document.querySelector('#flavors-table tbody');
         tbody.innerHTML = '';
-        flavors.forEach(flavors => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td>${flavors.id}</td>
-            <td>${flavors.base_name}</td>
-            <td>
-              <button class="btn btn-small btn-primary">Edit</button>
-              <button class="btn btn-small btn-danger">Delete</button>
-            </td>
-          `;
-          tbody.appendChild(row);
-        });
+        
+        if (flavors && flavors.length > 0) {
+          flavors.forEach(flavor => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${flavor.id}</td>
+              <td>${flavor.base_name}</td>
+              <td>
+                <button class="btn btn-small btn-primary" onclick="editFlavor('${flavor.id}')">Edit</button>
+                <button class="btn btn-small btn-danger" onclick="deleteFlavor('${flavor.id}')">Delete</button>
+              </td>
+            `;
+            tbody.appendChild(row);
+          });
+        } else {
+          tbody.innerHTML = '<tr><td colspan="3" style="text-align: center;">No flavors found</td></tr>';
+        }
       } catch (error) {
         console.error('Error loading flavors:', error);
-        document.getElementById('form-error').textContent = 'Error loading flavors';
+        const tbody = document.querySelector('#flavors-table tbody');
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: red;">Error loading flavors</td></tr>';
       }
     }
 
@@ -270,6 +285,22 @@
       }
     }
 
+    // Edit flavor (placeholder)
+    function editFlavor(flavorId) {
+      console.log('Edit flavor:', flavorId);
+      // TODO: Implement edit flavor functionality
+      alert('Edit flavor functionality will be implemented soon');
+    }
+
+    // Delete flavor (placeholder)
+    async function deleteFlavor(flavorId) {
+      if (confirm('Are you sure you want to delete this flavor?')) {
+        console.log('Delete flavor:', flavorId);
+        // TODO: Implement delete flavor functionality
+        alert('Delete flavor functionality will be implemented soon');
+      }
+    }
+
     // Modal Functions
     function openAddMenuModal() {
       document.getElementById('add-menu-modal').classList.remove('hidden');
@@ -291,8 +322,8 @@
     // Initial load
     window.addEventListener('load', () => {
       loadMenus();
-      loadFlavors(); // Uncomment when flavors API is ready
       switchTab('menu'); // Set default tab
+      setupNavigation(); // Setup navigation
     });
   </script>
 </body>

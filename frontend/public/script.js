@@ -764,9 +764,26 @@ function setupNavigation() {
         }
     });
 
+    // Add click event listeners for navigation
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const targetUrl = this.getAttribute('data-url');
+            if (targetUrl) {
+                // Determine the correct route based on the button
+                let route = '/dashboard';
+                if (this.id === 'nav-menu') {
+                    route = '/management-menu';
+                } else if (this.id === 'nav-dashboard') {
+                    route = '/dashboard';
+                }
+                window.location.href = route;
+            }
+        });
+    });
+
     // Judul dinamis berdasarkan halaman
     const pageTitles = {
-        dashboard: "Dashboard Kitchen",
+        dashboard: "Infinity Cafe",
         menu: "Management Menu",
         pesanan: "Daftar Pesanan",
         // tambahkan judul page lain disini
