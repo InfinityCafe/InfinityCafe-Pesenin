@@ -1595,22 +1595,24 @@ body.tab-done .add-order-btn {
     overflow: hidden;
 }
 
-table {
+#menu-table, #flavors-table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0.75rem;
     text-align: center;
 }
 
-table th, table td {
+#menu-table th, #menu-table td,
+#flavors-table th, #flavors-table td{
     position: relative;
 }
 
-table thead tr {
+#menu-table thead tr,
+#flavors-table thead tr {
     background-color: transparent;
 }
 
-table th {
+#menu-table th, #flavors-table th {
     padding: 0.75rem 1rem;
     text-align: center;
     font-weight: bold;
@@ -1621,7 +1623,8 @@ table th {
 }
 
 /* Sudut untuk blok header utama */
-table th:first-child {
+#menu-table th:first-child,
+#flavors-table th:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
 }
@@ -1634,7 +1637,8 @@ table th:first-child {
     border-bottom-right-radius: 0.5rem;
 }
 
-table th:not(:first-child):not(.action-header)::before {
+#menu-table th:not(:first-child):not(.action-header)::before,
+#flavors-table th:not(:first-child):not(.action-header)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -1644,32 +1648,39 @@ table th:not(:first-child):not(.action-header)::before {
     background-color: #8D7272;
 }
 
-table th.action-header {
+#menu-table th.action-header, #flavors-table th.action-header {
     background-color: #8D7272;
     border-radius: 0.5rem;
 }
 
-table tbody tr {
+#menu-table tbody tr, #flavors-table tbody tr {
     background-color: transparent;
 }
 
-table td {
+#menu-table td, #flavors-table td {
     padding: 1rem;
     vertical-align: middle;
     background-color: #F4F1E8;
     font-weight: bold;
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
 }
 
-table td:first-child {
+#menu-table td:first-child,
+#flavors-table td:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
 }
+
 #menu-table td:nth-child(4) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
 
-table td:not(:first-child):not(:last-child)::before {
+#menu-table td:not(:first-child):not(:last-child)::before,
+#flavors-table td:not(:first-child):not(:last-child)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -1679,11 +1690,14 @@ table td:not(:first-child):not(:last-child)::before {
     background-color: #F4F1E8;
 }
 
-table td:last-child {
+#menu-table td:last-child,
+#flavors-table td:last-child{
     background-color: #F4F1E8;
     padding: 0;
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
 }
 
 .action-buttons {
