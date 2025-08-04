@@ -226,6 +226,18 @@ app.get("/menu", async (req, res) => {
   }
 });
 
+// ========== FLAVOUR ENDPOINTS ==========
+app.get("/flavors", async (req, res) => {
+  try {
+    const resp = await fetch("http://menu_service:8001/flavors");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch flavors ", err);
+    res.status(500).json({ error: "Failed to fetch flavors" });
+  }
+});
+
 // ========== ORDER ENDPOINTS ==========
 app.post("/create_order", async (req, res) => {
   try {
