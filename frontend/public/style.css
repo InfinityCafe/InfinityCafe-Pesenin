@@ -1578,3 +1578,135 @@ body.tab-done .add-order-btn {
 .add-flavour-btn:hover {
     background-color: #503A3A;
 }
+
+/* --- STYLE TABEL --- */
+.tab-panel {
+    display: none;
+}
+.tab-panel.active {
+    display: block;
+}
+
+.table-container {
+    background-color: white;
+    border: 2px solid #DCD0A8;
+    border-radius: 1rem;
+    padding: 1rem;
+    overflow: hidden;
+}
+
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0.75rem;
+    text-align: center;
+}
+
+table th, table td {
+    position: relative;
+}
+
+table thead tr {
+    background-color: transparent;
+}
+
+table th {
+    padding: 0.75rem 1rem;
+    text-align: center;
+    font-weight: bold;
+    color: white;
+    text-transform: uppercase;
+    font-size: 16px;
+    background-color: #8D7272;
+}
+
+/* Sudut untuk blok header utama */
+table th:first-child {
+    border-top-left-radius: 0.5rem;
+    border-bottom-left-radius: 0.5rem;
+}
+#menu-table th:nth-child(4) {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+#flavors-table th:nth-child(2) {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
+table th:not(:first-child):not(.action-header)::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -0.75rem;
+    width: 0.75rem;
+    height: 100%;
+    background-color: #8D7272;
+}
+
+table th.action-header {
+    background-color: #8D7272;
+    border-radius: 0.5rem;
+}
+
+table tbody tr {
+    background-color: transparent;
+}
+
+table td {
+    padding: 1rem;
+    vertical-align: middle;
+    background-color: #F4F1E8;
+    font-weight: bold;
+}
+
+table td:first-child {
+    border-top-left-radius: 0.5rem;
+    border-bottom-left-radius: 0.5rem;
+}
+#menu-table td:nth-child(4) {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
+table td:not(:first-child):not(:last-child)::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -0.75rem;
+    width: 0.75rem;
+    height: 100%;
+    background-color: #F4F1E8;
+}
+
+table td:last-child {
+    background-color: #F4F1E8;
+    padding: 0;
+    border-top-left-radius: 0.5rem;
+    border-bottom-left-radius: 0.5rem;
+}
+
+.action-buttons {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    background-color: #F5EFE6;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    height: 100%;
+}
+
+.action-buttons button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    color: #685454;
+    transition: color 0.2s ease;
+}
+
+.action-buttons button:hover {
+    color: #312929;
+}
+/* --- AKHIR STYLE TABEL --- */

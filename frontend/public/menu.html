@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Menu Management - Infinity Cafe</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <h1 class="header-title">Management Menu</h1>
+      <p class="header-subtitle">Stephany | Barista</p>
+    </div>
+    <div class="header-center">
+      <div class="search-container">
+        <input type="text" placeholder="Search" class="search-input">
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="kitchen-status-container">
+        <label class="switch">
+          <input type="checkbox" id="kitchen-toggle" checked>
+          <span class="slider"></span>
+        </label>
+        <span id="kitchen-status-text" class="kitchen-status-text">BUKA</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <div class="main-container">
+<div class="content-area">
+    
+      <!-- Greeting Message -->
+      <div class="greeting-message">
+        <h2>Hi, John Doe, here's list menu!</h2>
+        <p class="greeting-date" id="greeting-date">Monday, 14th July 2025</p>
+      </div>
+
+      <!-- Tab Navigation -->
+      <div class="tab-navigation">
+        <button id="tab-menu" class="tab-btn tab-active" onclick="switchTab('menu')">MENU</button>
+        <button id="tab-flavors" class="tab-btn" onclick="switchTab('flavors')">FLAVORS</button>
+        <button id="tab-filter" class="tab-btn" onclick="switchTab('filter')">FILTER</button>
+        <button class="add-order-btn" onclick="openAddMenuModal()">ADD NEW MENU</button>
+      </div>
+
+      <!-- Tab Content -->
+      <div id="tab-content">
+        <!-- Menu Tab (Default) -->
+        <div id="tab-menu-content" class="tab-panel active">
+          <div class="table-container">
+            <table id="menu-table">
+              <thead>
+                <tr>
+                  <th>NO</th>
+                  <th>MENU NAME</th>
+                  <th>PRICE</th>
+                  <th>IS AVAIL</th>
+                  <th class="action-header">ACTION</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Rows will be populated by script.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Flavors Tab -->
+        <div id="tab-flavors-content" class="tab-panel">
+           <div class="table-container">
+            <table id="flavors-table">
+              <thead>
+                <tr>
+                  <th>NO</th>
+                  <th>NAME</th>
+                  <th class="action-header">ACTION</th>
+                </tr>
+              </thead>
+              <tbody>
+
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Filter Tab -->
+        <div id="tab-filter-content" class="tab-panel">
+            <p>Filter functionality to be implemented.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Menu Modal -->
+  <div id="add-menu-modal" class="modal hidden">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeAddMenuModal()">&times;</button>
+      <h3 class="modal-title">Add New Menu</h3>
+      <form id="add-menu-form">
+        <div class="form-group">
+          <label for="base-name">Menu Name</label>
+          <input type="text" id="base-name" name="base-name" placeholder="Type Here ..." required />
+        </div>
+        <div class="form-group">
+          <label for="base-price">Base Price</label>
+          <input type="number" id="base-price" name="base-price" placeholder="Type Here ..." required />
+        </div>
+        <div class="form-group">
+          <label for="is-avail">Available</label>
+          <select id="is-avail" name="is-avail">
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="modal-btn modal-btn-cancel" onclick="closeAddMenuModal()">Cancel</button>
+          <button type="submit" class="modal-btn modal-btn-habis" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;">
+            <span class="fa fa-save"></span> Save Menu
+          </button>
+        </div>
+      </form>
+      <div id="form-error" class="error"></div>
+    </div>
+  </div>
+
+  
+  <script src="script.js"></script>
+
+  <script>
+    const BASE_URL = "";
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('tab-active'));
+      document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+      document.getElementById(`tab-${tab}`).classList.add('tab-active');
+      document.getElementById(`tab-${tab}-content`).classList.add('active');
+    }
+
+    // Load all menus
+    async function loadMenus() {
+      try {
+        const response = await fetch(`${BASE_URL}/menu`);
+        const menus = await response.json();
+        const tbody = document.querySelector('#menu-table tbody');
+        tbody.innerHTML = '';
+        menus.forEach(menu => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${menu.id}</td>
+            <td>${menu.base_name}</td>
+            <td>${menu.base_price}</td>
+            <td>${menu.isAvail ? 'Yes' : 'No'}</td>
+            <td>
+              <button class="btn btn-small btn-primary" onclick="editMenu('${menu.id}')">Edit</button>
+              <button class="btn btn-small btn-danger" onclick="deleteMenu('${menu.id}')">Delete</button>
+            </td>
+          `;
+          tbody.appendChild(row);
+        });
+      } catch (error) {
+        console.error('Error loading menus:', error);
+        document.getElementById('form-error').textContent = 'Error loading menus';
+      }
+    }
+
+    // Load flavors (placeholder)
+    async function loadFlavors() {
+      try {
+        // Replace with actual API call for flavors
+        const response = await fetch(`${BASE_URL}/flavors`); // Hypothetical endpoint
+        const flavors = await response.json();
+        const tbody = document.querySelector('#flavors-table tbody');
+        tbody.innerHTML = '';
+        flavors.forEach(flavors => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${flavors.id}</td>
+            <td>${flavors.base_name}</td>
+            <td>
+              <button class="btn btn-small btn-primary">Edit</button>
+              <button class="btn btn-small btn-danger">Delete</button>
+            </td>
+          `;
+          tbody.appendChild(row);
+        });
+      } catch (error) {
+        console.error('Error loading flavors:', error);
+        document.getElementById('form-error').textContent = 'Error loading flavors';
+      }
+    }
+
+    // Save or update menu
+    async function saveMenu() {
+      const menuId = document.getElementById('add-menu-form').getAttribute('data-menu-id') || null;
+      const baseName = document.getElementById('base-name').value;
+      const basePrice = parseInt(document.getElementById('base-price').value);
+      const isAvail = document.getElementById('is-avail').value === 'true';
+      const flavorIds = document.getElementById('flavor-ids').value.split(',').map(id => id.trim()).filter(id => id);
+
+      const data = {
+        base_name: baseName,
+        base_price: basePrice,
+        isAvail: isAvail,
+        flavor_ids: flavorIds
+      };
+
+      try {
+        let response;
+        if (menuId) {
+          response = await fetch(`${BASE_URL}/menu/${menuId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+        } else {
+          response = await fetch(`${BASE_URL}/menu`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+        }
+
+        if (!response.ok) throw new Error('Failed to save menu');
+        closeAddMenuModal();
+        loadMenus();
+      } catch (error) {
+        console.error('Error saving menu:', error);
+        document.getElementById('form-error').textContent = error.message || 'Error saving menu';
+      }
+    }
+
+    // Edit menu
+    function editMenu(menuId) {
+      fetch(`${BASE_URL}/menu/${menuId}`)
+        .then(response => response.json())
+        .then(menu => {
+          document.getElementById('base-name').value = menu.base_name;
+          document.getElementById('base-price').value = menu.base_price;
+          document.getElementById('is-avail').value = menu.isAvail;
+          document.getElementById('add-menu-form').setAttribute('data-menu-id', menuId);
+          openAddMenuModal();
+        })
+        .catch(error => {
+          console.error('Error loading menu for edit:', error);
+          document.getElementById('form-error').textContent = 'Error loading menu for edit';
+        });
+    }
+
+    // Delete menu
+    async function deleteMenu(menuId) {
+      if (confirm('Are you sure you want to delete this menu?')) {
+        try {
+          const response = await fetch(`${BASE_URL}/menu/${menuId}`, {
+            method: 'DELETE'
+          });
+          if (!response.ok) throw new Error('Failed to delete menu');
+          loadMenus();
+        } catch (error) {
+          console.error('Error deleting menu:', error);
+          document.getElementById('form-error').textContent = 'Error deleting menu';
+        }
+      }
+    }
+
+    // Modal Functions
+    function openAddMenuModal() {
+      document.getElementById('add-menu-modal').classList.remove('hidden');
+    }
+
+    function closeAddMenuModal() {
+      document.getElementById('add-menu-form').reset();
+      document.getElementById('add-menu-form').removeAttribute('data-menu-id');
+      document.getElementById('form-error').textContent = '';
+      document.getElementById('add-menu-modal').classList.add('hidden');
+    }
+
+    // Event listeners
+    document.getElementById('add-menu-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await saveMenu();
+    });
+
+    // Initial load
+    window.addEventListener('load', () => {
+      loadMenus();
+      loadFlavors(); // Uncomment when flavors API is ready
+      switchTab('menu'); // Set default tab
+    });
+  </script>
+</body>
+</html>
