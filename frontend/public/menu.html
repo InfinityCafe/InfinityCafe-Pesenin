@@ -33,6 +33,16 @@
     </div>
   </nav>
 
+  <!-- Kitchen Off Banner -->
+  <div id="kitchen-off-banner" class="kitchen-off-banner hidden">
+      🚫 Dapur sedang OFF. Tidak dapat menerima/memproses pesanan.
+  </div>
+
+  <!-- Offline Banner -->
+  <div id="offline-banner" class="offline-banner hidden">
+      🔌 Gagal ambil data. Cek koneksi.
+  </div>
+
   <!-- Main Content -->
   <div class="main-container">
 <div class="content-area">
@@ -80,7 +90,8 @@
               <thead>
                 <tr>
                   <th>NO</th>
-                  <th>NAME</th>
+                  <th>FLAVOUR NAME</th>
+                  <th>ADDITIONAL PRICE</th>
                   <th class="action-header">ACTION</th>
                 </tr>
               </thead>
@@ -165,9 +176,10 @@
             <td>${menu.base_name}</td>
             <td>${menu.base_price}</td>
             <td>${menu.isAvail ? 'Yes' : 'No'}</td>
-            <td>
-              <button class="btn btn-small btn-primary" onclick="editMenu('${menu.id}')">Edit</button>
-              <button class="btn btn-small btn-danger" onclick="deleteMenu('${menu.id}')">Delete</button>
+            <td class="action-buttons">
+              <button class="table-action-btn"><i class="fas fa-eye"></i></button>
+              <button class="table-action-btn"><i class="fas fa-edit"></i></button>
+              <button class="table-action-btn"><i class="fas fa-trash"></i></button>
             </td>
           `;
           tbody.appendChild(row);
@@ -188,23 +200,20 @@
         const flavors = await response.json();
         const tbody = document.querySelector('#flavors-table tbody');
         tbody.innerHTML = '';
-        
-        if (flavors && flavors.length > 0) {
-          flavors.forEach(flavor => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-              <td>${flavor.id}</td>
-              <td>${flavor.base_name}</td>
-              <td>
-                <button class="btn btn-small btn-primary" onclick="editFlavor('${flavor.id}')">Edit</button>
-                <button class="btn btn-small btn-danger" onclick="deleteFlavor('${flavor.id}')">Delete</button>
-              </td>
-            `;
-            tbody.appendChild(row);
-          });
-        } else {
-          tbody.innerHTML = '<tr><td colspan="3" style="text-align: center;">No flavors found</td></tr>';
-        }
+        flavors.forEach(flavors => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${flavors.id}</td>
+            <td>${flavors.flavor_name}</td>
+            <td>${flavors.additional_price}</td>
+            <td class="action-buttons">
+              <button class="table-action-btn"><i class="fas fa-eye"></i></button>
+              <button class="table-action-btn"><i class="fas fa-edit"></i></button>
+              <button class="table-action-btn"><i class="fas fa-trash"></i></button>
+            </td>
+          `;
+          tbody.appendChild(row);
+        });
       } catch (error) {
         console.error('Error loading flavors:', error);
         const tbody = document.querySelector('#flavors-table tbody');
