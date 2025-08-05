@@ -118,7 +118,6 @@
                   <th>MENU NAME</th>
                   <th>PRICE</th>
                   <th>IS AVAIL</th>
-                  <th>FLAVORS</th>
                   <th class="action-header">ACTION</th>
                 </tr>
               </thead>
@@ -498,18 +497,6 @@
       
       if (currentPageData.length > 0) {
         currentPageData.forEach((menu, index) => {
-            // Get flavor names for this menu
-            let flavorText = 'None';
-            console.log('menu.flavors:', menu.flavors);
-            if (menu.flavors && menu.flavors.length > 0) {
-              console.log(`Menu ${menu.base_name} has flavors:`, menu.flavors);
-              const flavorTags = [];
-              for (const flavor of menu.flavors) {
-                flavorTags.push(`<span class="flavor-tag">${flavor.flavor_name}</span>`);
-              }
-              flavorText = flavorTags.join('');
-              console.log(`Final flavor text for ${menu.base_name}:`, flavorText);
-            }
             
             const row = document.createElement('tr');
             row.innerHTML = `
@@ -517,7 +504,6 @@
               <td>${menu.base_name}</td>
               <td>${menu.base_price}</td>
               <td>${menu.isAvail ? 'Yes' : 'No'}</td>
-              <td class="flavor-cell">${flavorText}</td>
               <td class="action-header">
                 <button class="table-action-btn" onclick="viewMenu('${menu.id}')"><i class="fas fa-eye"></i></button>
                 <button class="table-action-btn" onclick="editMenu('${menu.id}')"><i class="fas fa-edit"></i></button>
@@ -527,7 +513,7 @@
             tbody.appendChild(row);
           });
         } else {
-          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No menus found</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No menus found</td></tr>';
         }
       
       updateMenuTableInfo();
@@ -1357,9 +1343,9 @@
         // Load flavors separately for flavor selector
         await loadFlavors();
         
-        switchTab('menu'); // Set default tab
-        setupNavigation(); // Setup navigation
-        setupSearch(); // Setup search functionality
+      switchTab('menu'); // Set default tab
+      setupNavigation(); // Setup navigation
+      setupSearch(); // Setup search functionality
         
         // Ensure navigation is properly set up after DOM is fully loaded
         setTimeout(() => {
