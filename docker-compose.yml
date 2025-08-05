@@ -180,25 +180,42 @@ services:
       - ./modelfile:/modelfile
     entrypoint: /bin/sh
     environment:
-    - OLLAMA_HOST=host.docker.internal:11434
+    - OLLAMA_HOST=ollama:11434
     command:
       - "-c"
       - "sleep 3; echo 'Creating infinityCafe Model'; ollama create infinityCafe -f /modelfile/cafe.modelfile"
 
-  # pgadmin:
-  #   image: dpage/pgadmin4
-  #   networks: ['demo']
-  #   hostname: pgadmin
-  #   container_name: pgadmin-container
-  #   depends_on:
-  #     pgvector17:
-  #       condition: service_healthy
-  #   ports:
-  #     - "5050:80"
-  #   environment:
-  #     PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
-  #     PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
-  #   restart: unless-stopped
+  user-parser-model:
+    image: ollama/ollama:latest
+    networks: ['demo']
+    container_name: user-parser-model
+    depends_on:
+      n8n:
+        condition: service_started
+    volumes:
+      - ollama_storage:/root/.ollama
+      - ./modelfile:/modelfile
+    entrypoint: /bin/sh
+    environment:
+    - OLLAMA_HOST=ollama:11434
+    command:
+      - "-c"
+      - "sleep 3; echo 'Creating userParser Model'; ollama create userParser -f /modelfile/user2json.modelfile"
+
+  pgadmin:
+    image: dpage/pgadmin4
+    networks: ['demo']
+    hostname: pgadmin
+    container_name: pgadmin-container
+    depends_on:
+      pgvector17:
+        condition: service_healthy
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    restart: unless-stopped
 
   pgvector17:
     image: pgvector/pgvector:pg17
@@ -435,7 +452,7 @@ services:
       context: ./frontend
     container_name: infinity-frontend
     hostname: frontend
-    networks: ['demo']
+    networks: ['demo', 'my_shared_network']
     ports:
       - "7777:8080"
     volumes:
