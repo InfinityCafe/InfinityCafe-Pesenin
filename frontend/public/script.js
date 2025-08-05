@@ -211,7 +211,11 @@ function createOrderCard(order) {
     statusBadge = '<span class="status-badge status-done"><i class="fa-solid fa-check"></i> DONE</span>';
     actionButton = `<button class="action-btn action-btn-green-disabled">DONE</button>`;
   }
-    else if (order.status === 'cancel') {
+  else if (order.status === 'cancel') {
+    statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCEL</span>';
+    actionButton = `<button class="action-btn action-btn-red-disabled">CANCEL</button>`;
+  }
+  else if (order.status === 'habis') {
     statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCEL</span>';
     actionButton = `<button class="action-btn action-btn-red-disabled">CANCEL</button>`;
   }
