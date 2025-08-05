@@ -8,6 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/responsive-tables.css">
+  <link rel="stylesheet" href="css/navbar.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
 <body data-page="menu">
@@ -19,7 +21,7 @@
     </div>
     <div class="header-menu">
       <button class="nav-btn" id="nav-dashboard" data-url="dashboard">Dashboard</button>
-      <button class="nav-btn" id="nav-menu" data-url="management-menu">Management Menu</button>
+      <button class="nav-btn active" id="nav-menu" data-url="management-menu">Management Menu</button>
     </div>
     <div class="header-right">
       <div class="search-container">
@@ -60,7 +62,6 @@
       <div class="tab-navigation">
         <button id="tab-menu" class="tab-btn tab-active" onclick="switchTab('menu')">MENU</button>
         <button id="tab-flavors" class="tab-btn" onclick="switchTab('flavors')">FLAVORS</button>
-        <button id="tab-filter" class="tab-btn" onclick="switchTab('filter')">FILTER</button>
         <button class="add-order-btn" id="add-new-btn" onclick="openAddModal()">ADD NEW MENU</button>
       </div>
 
@@ -69,13 +70,47 @@
         <!-- Menu Tab (Default) -->
         <div id="tab-menu-content" class="tab-panel active">
           <div class="table-container">
-            <!-- Search for Menu -->
-            <div class="search-section">
+            <!-- Search and Filter Section for Menu -->
+            <div class="search-filter-section">
               <div class="search-container">
                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
                 <input type="text" id="menu-search" placeholder="Search menu..." class="search-input">
               </div>
+              <div class="filter-container">
+                <button class="filter-btn" onclick="toggleFilterMenu()">
+                  <i class="fas fa-filter"></i>
+                  Filter
+                </button>
+                <div class="filter-dropdown" id="menu-filter-dropdown">
+                  <div class="filter-group">
+                    <label>Status:</label>
+                    <select id="menu-status-filter">
+                      <option value="">All</option>
+                      <option value="Yes">Available</option>
+                      <option value="No">Not Available</option>
+                    </select>
             </div>
+                  <div class="filter-group">
+                    <label>Price Range:</label>
+                    <div class="price-range">
+                      <input type="number" id="menu-price-min" placeholder="Min" class="price-input">
+                      <span>-</span>
+                      <input type="number" id="menu-price-max" placeholder="Max" class="price-input">
+                    </div>
+                  </div>
+                  <div class="filter-actions">
+                    <button class="apply-filter-btn" onclick="applyMenuFilter()">Apply</button>
+                    <button class="clear-filter-btn" onclick="clearMenuFilter()">Clear</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Table Info -->
+            <div class="table-info">
+              <span id="menu-table-info">Showing 0 of 0 entries</span>
+            </div>
+            
             <table id="menu-table">
               <thead>
                 <tr>
@@ -83,6 +118,7 @@
                   <th>MENU NAME</th>
                   <th>PRICE</th>
                   <th>IS AVAIL</th>
+                  <th>FLAVORS</th>
                   <th class="action-header">ACTION</th>
                 </tr>
               </thead>
@@ -90,19 +126,73 @@
                 <!-- Rows will be populated by script.js -->
               </tbody>
             </table>
+            
+            <!-- Pagination for Menu -->
+            <div class="pagination-container" id="menu-pagination">
+              <div class="pagination-info">
+                <span id="menu-pagination-info">Page 1 of 1</span>
+              </div>
+              <div class="pagination-controls">
+                <button class="pagination-btn" id="menu-prev-btn" onclick="changeMenuPage(-1)">
+                  <i class="fas fa-chevron-left"></i>
+                </button>
+                <div class="page-numbers" id="menu-page-numbers">
+                  <!-- Page numbers will be generated here -->
+                </div>
+                <button class="pagination-btn" id="menu-next-btn" onclick="changeMenuPage(1)">
+                  <i class="fas fa-chevron-right"></i>
+                </button>
+              </div>
+              <div class="pagination-size">
+                <label>Show:</label>
+                <select id="menu-page-size" onchange="changeMenuPageSize()">
+                  <option value="5">5</option>
+                  <option value="10" selected>10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                </select>
+                <span>entries</span>
+              </div>
+            </div>
           </div>
         </div>
 
         <!-- Flavors Tab -->
         <div id="tab-flavors-content" class="tab-panel">
           <div class="table-container">
-            <!-- Search for Flavors -->
-            <div class="search-section">
+            <!-- Search and Filter Section for Flavors -->
+            <div class="search-filter-section">
               <div class="search-container">
                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
                 <input type="text" id="flavor-search" placeholder="Search flavors..." class="search-input">
               </div>
+              <div class="filter-container">
+                <button class="filter-btn" onclick="toggleFilterFlavor()">
+                  <i class="fas fa-filter"></i>
+                  Filter
+                </button>
+                <div class="filter-dropdown" id="flavor-filter-dropdown">
+                  <div class="filter-group">
+                    <label>Price Range:</label>
+                    <div class="price-range">
+                      <input type="number" id="flavor-price-min" placeholder="Min" class="price-input">
+                      <span>-</span>
+                      <input type="number" id="flavor-price-max" placeholder="Max" class="price-input">
             </div>
+                  </div>
+                  <div class="filter-actions">
+                    <button class="apply-filter-btn" onclick="applyFlavorFilter()">Apply</button>
+                    <button class="clear-filter-btn" onclick="clearFlavorFilter()">Clear</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Table Info -->
+            <div class="table-info">
+              <span id="flavor-table-info">Showing 0 of 0 entries</span>
+            </div>
+            
             <table id="flavors-table">
               <thead>
                 <tr>
@@ -116,13 +206,38 @@
 
               </tbody>
             </table>
+            
+            <!-- Pagination for Flavors -->
+            <div class="pagination-container" id="flavor-pagination">
+              <div class="pagination-info">
+                <span id="flavor-pagination-info">Page 1 of 1</span>
+          </div>
+              <div class="pagination-controls">
+                <button class="pagination-btn" id="flavor-prev-btn" onclick="changeFlavorPage(-1)">
+                  <i class="fas fa-chevron-left"></i>
+                </button>
+                <div class="page-numbers" id="flavor-page-numbers">
+                  <!-- Page numbers will be generated here -->
+        </div>
+                <button class="pagination-btn" id="flavor-next-btn" onclick="changeFlavorPage(1)">
+                  <i class="fas fa-chevron-right"></i>
+                </button>
+        </div>
+              <div class="pagination-size">
+                <label>Show:</label>
+                <select id="flavor-page-size" onchange="changeFlavorPageSize()">
+                  <option value="5">5</option>
+                  <option value="10" selected>10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                </select>
+                <span>entries</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Filter Tab -->
-        <div id="tab-filter-content" class="tab-panel">
-            <p>Filter functionality to be implemented.</p>
-        </div>
+
       </div>
     </div>
   </div>
@@ -155,6 +270,18 @@
             <div class="radio-option">
               <input type="radio" id="is-avail-false" name="is-avail" value="false" />
               <label for="is-avail-false">False</label>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="menu-flavors">Available Flavors</label>
+          <div class="flavor-selector">
+            <div class="flavor-selector-header">
+              <button type="button" class="select-all-btn" onclick="toggleAllFlavors()">Select All</button>
+              <button type="button" class="clear-all-btn" onclick="clearAllFlavors()">Clear All</button>
+            </div>
+            <div class="flavor-checkboxes" id="flavor-checkboxes">
+              <!-- Flavor checkboxes will be populated here -->
             </div>
           </div>
         </div>
@@ -222,6 +349,10 @@
           <label>Available:</label>
           <span id="view-menu-available"></span>
         </div>
+        <div class="view-item">
+          <label>Available Flavors:</label>
+          <span id="view-menu-flavors" class="flavor-display"></span>
+        </div>
       </div>
       <div class="modal-actions">
         <button class="modal-btn modal-btn-cancel" onclick="closeViewMenuModal()">Close</button>
@@ -262,6 +393,27 @@
   <script>
     const BASE_URL = "";
 
+    // Global variables for pagination and filtering
+    let allMenus = [];
+    let allFlavors = [];
+    let filteredMenus = [];
+    let filteredFlavors = [];
+    let selectedFlavorIds = [];
+    
+    // Data loading state
+    let menusLoaded = false;
+    let flavorsLoaded = false;
+    
+    // Menu pagination state
+    let menuCurrentPage = 1;
+    let menuPageSize = 10;
+    let menuTotalPages = 1;
+    
+    // Flavor pagination state
+    let flavorCurrentPage = 1;
+    let flavorPageSize = 10;
+    let flavorTotalPages = 1;
+
     function switchTab(tab) {
       document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('tab-active'));
       document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
@@ -275,11 +427,14 @@
         loadFlavors();
       } else if (tab === 'menu') {
         addButton.textContent = 'ADD NEW MENU';
-        loadMenus();
+        // Load menus (flavors are included in menu data)
+        loadMenus().catch(error => {
+          console.error('Error loading data for menu tab:', error);
+        });
       }
     }
 
-    // Load all menus
+    // Load all menus with pagination
     async function loadMenus() {
       try {
         const response = await fetch(`${BASE_URL}/menu`);
@@ -294,17 +449,75 @@
           throw new Error('Invalid JSON response from server');
         }
         
+        allMenus = menus || [];
+        filteredMenus = [...allMenus];
+        menusLoaded = true;
+        
+        // Always render table, flavors are included in menu data
+        await renderMenuTable();
+        updateMenuPagination();
+        
+        // Load flavors separately for flavor selector (if not loaded yet)
+        if (!flavorsLoaded) {
+          try {
+            await loadFlavors();
+          } catch (error) {
+            console.error('Error loading flavors for selector:', error);
+          }
+        }
+        
+        return allMenus; // Return menus for promise chaining
+      } catch (error) {
+        console.error('Error loading menus:', error);
+        const tbody = document.querySelector('#menu-table tbody');
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: red;">Error loading menus: ' + error.message + '</td></tr>';
+        throw error;
+      }
+    }
+
+    // Render menu table with pagination
+    async function renderMenuTable() {
         const tbody = document.querySelector('#menu-table tbody');
         tbody.innerHTML = '';
         
-        if (menus && menus.length > 0) {
-          menus.forEach((menu, index) => {
+        // Ensure menu data is loaded before rendering
+        if (!menusLoaded) {
+          await loadMenus();
+        }
+        
+      const startIndex = (menuCurrentPage - 1) * menuPageSize;
+      const endIndex = startIndex + menuPageSize;
+      const currentPageData = filteredMenus.slice(startIndex, endIndex);
+      
+      // Debug logging
+      console.log('Rendering menu table with:', {
+        allMenus: allMenus.length,
+        allFlavors: allFlavors.length,
+        currentPageData: currentPageData.length
+      });
+      
+      if (currentPageData.length > 0) {
+        currentPageData.forEach((menu, index) => {
+            // Get flavor names for this menu
+            let flavorText = 'None';
+            console.log('menu.flavors:', menu.flavors);
+            if (menu.flavors && menu.flavors.length > 0) {
+              console.log(`Menu ${menu.base_name} has flavors:`, menu.flavors);
+              const flavorTags = [];
+              for (const flavor of menu.flavors) {
+                flavorTags.push(`<span class="flavor-tag">${flavor.flavor_name}</span>`);
+              }
+              flavorText = flavorTags.join('');
+              console.log(`Final flavor text for ${menu.base_name}:`, flavorText);
+            }
+            
             const row = document.createElement('tr');
             row.innerHTML = `
-              <td>${index + 1}</td>
+            <td>${startIndex + index + 1}</td>
               <td>${menu.base_name}</td>
               <td>${menu.base_price}</td>
               <td>${menu.isAvail ? 'Yes' : 'No'}</td>
+              <td class="flavor-cell">${flavorText}</td>
               <td class="action-header">
                 <button class="table-action-btn" onclick="viewMenu('${menu.id}')"><i class="fas fa-eye"></i></button>
                 <button class="table-action-btn" onclick="editMenu('${menu.id}')"><i class="fas fa-edit"></i></button>
@@ -314,16 +527,109 @@
             tbody.appendChild(row);
           });
         } else {
-          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No menus found</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No menus found</td></tr>';
         }
-      } catch (error) {
-        console.error('Error loading menus:', error);
-        const tbody = document.querySelector('#menu-table tbody');
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Error loading menus: ' + error.message + '</td></tr>';
+      
+      updateMenuTableInfo();
+    }
+
+    // Update menu pagination
+    function updateMenuPagination() {
+      menuTotalPages = Math.ceil(filteredMenus.length / menuPageSize);
+      if (menuTotalPages === 0) menuTotalPages = 1;
+      
+      if (menuCurrentPage > menuTotalPages) {
+        menuCurrentPage = menuTotalPages;
+      }
+      
+      renderMenuPagination();
+    }
+
+    // Render menu pagination controls
+    function renderMenuPagination() {
+      const pageNumbers = document.getElementById('menu-page-numbers');
+      const prevBtn = document.getElementById('menu-prev-btn');
+      const nextBtn = document.getElementById('menu-next-btn');
+      const paginationInfo = document.getElementById('menu-pagination-info');
+      
+      // Update pagination info
+      paginationInfo.textContent = `Page ${menuCurrentPage} of ${menuTotalPages}`;
+      
+      // Update prev/next buttons
+      prevBtn.disabled = menuCurrentPage === 1;
+      nextBtn.disabled = menuCurrentPage === menuTotalPages;
+      
+      // Generate page numbers
+      pageNumbers.innerHTML = '';
+      const maxVisiblePages = 5;
+      let startPage = Math.max(1, menuCurrentPage - Math.floor(maxVisiblePages / 2));
+      let endPage = Math.min(menuTotalPages, startPage + maxVisiblePages - 1);
+      
+      if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+      }
+      
+      for (let i = startPage; i <= endPage; i++) {
+        const pageBtn = document.createElement('button');
+        pageBtn.className = `page-number ${i === menuCurrentPage ? 'active' : ''}`;
+        pageBtn.textContent = i;
+        pageBtn.onclick = () => {
+          menuCurrentPage = i;
+          renderMenuTable();
+          renderMenuPagination();
+        };
+        pageNumbers.appendChild(pageBtn);
       }
     }
 
-    // Load flavors
+    // Update menu table info
+    function updateMenuTableInfo() {
+      const tableInfo = document.getElementById('menu-table-info');
+      const startIndex = (menuCurrentPage - 1) * menuPageSize + 1;
+      const endIndex = Math.min(menuCurrentPage * menuPageSize, filteredMenus.length);
+      const total = filteredMenus.length;
+      
+      tableInfo.textContent = `Showing ${startIndex} to ${endIndex} of ${total} entries`;
+    }
+
+    // Change menu page
+    async function changeMenuPage(direction) {
+      const newPage = menuCurrentPage + direction;
+      if (newPage >= 1 && newPage <= menuTotalPages) {
+        menuCurrentPage = newPage;
+        await renderMenuTable();
+        renderMenuPagination();
+      }
+    }
+
+    // Change menu page size
+    async function changeMenuPageSize() {
+      menuPageSize = parseInt(document.getElementById('menu-page-size').value);
+      menuCurrentPage = 1;
+      updateMenuPagination();
+      await renderMenuTable();
+    }
+
+    // Ensure data is loaded
+    async function ensureDataLoaded() {
+      try {
+        if (!menusLoaded) {
+          await loadMenus();
+        }
+        // Only load flavors if needed for flavor selector
+        if (!flavorsLoaded) {
+          await loadFlavors();
+        }
+      } catch (error) {
+        console.error('Error ensuring data is loaded:', error);
+        // Set flags to false to allow retry
+        menusLoaded = false;
+        flavorsLoaded = false;
+        throw error;
+      }
+    }
+    
+    // Load flavors with pagination
     async function loadFlavors() {
       try {
         const response = await fetch(`${BASE_URL}/flavors`);
@@ -338,14 +644,37 @@
           throw new Error('Invalid JSON response from server');
         }
         
+        allFlavors = flavors || [];
+        filteredFlavors = [...allFlavors];
+        flavorsLoaded = true;
+        renderFlavorTable();
+        updateFlavorPagination();
+        
+        // No need to re-render menu table since flavors are included in menu data
+        
+        return allFlavors; // Return flavors for promise chaining
+      } catch (error) {
+        console.error('Error loading flavors:', error);
+        const tbody = document.querySelector('#flavors-table tbody');
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Error loading flavors: ' + error.message + '</td></tr>';
+        throw error;
+      }
+    }
+
+    // Render flavor table with pagination
+    function renderFlavorTable() {
         const tbody = document.querySelector('#flavors-table tbody');
         tbody.innerHTML = '';
         
-        if (flavors && flavors.length > 0) {
-          flavors.forEach((flavor, index) => {
+      const startIndex = (flavorCurrentPage - 1) * flavorPageSize;
+      const endIndex = startIndex + flavorPageSize;
+      const currentPageData = filteredFlavors.slice(startIndex, endIndex);
+      
+      if (currentPageData.length > 0) {
+        currentPageData.forEach((flavor, index) => {
             const row = document.createElement('tr');
             row.innerHTML = `
-              <td>${index + 1}</td>
+            <td>${startIndex + index + 1}</td>
               <td>${flavor.flavor_name}</td>
               <td>${flavor.additional_price}</td>
               <td class="action-header">
@@ -359,12 +688,193 @@
         } else {
           tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">No flavors found</td></tr>';
         }
-      } catch (error) {
-        console.error('Error loading flavors:', error);
-        const tbody = document.querySelector('#flavors-table tbody');
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Error loading flavors: ' + error.message + '</td></tr>';
+      
+      updateFlavorTableInfo();
+    }
+
+    // Update flavor pagination
+    function updateFlavorPagination() {
+      flavorTotalPages = Math.ceil(filteredFlavors.length / flavorPageSize);
+      if (flavorTotalPages === 0) flavorTotalPages = 1;
+      
+      if (flavorCurrentPage > flavorTotalPages) {
+        flavorCurrentPage = flavorTotalPages;
+      }
+      
+      renderFlavorPagination();
+    }
+
+    // Render flavor pagination controls
+    function renderFlavorPagination() {
+      const pageNumbers = document.getElementById('flavor-page-numbers');
+      const prevBtn = document.getElementById('flavor-prev-btn');
+      const nextBtn = document.getElementById('flavor-next-btn');
+      const paginationInfo = document.getElementById('flavor-pagination-info');
+      
+      // Update pagination info
+      paginationInfo.textContent = `Page ${flavorCurrentPage} of ${flavorTotalPages}`;
+      
+      // Update prev/next buttons
+      prevBtn.disabled = flavorCurrentPage === 1;
+      nextBtn.disabled = flavorCurrentPage === flavorTotalPages;
+      
+      // Generate page numbers
+      pageNumbers.innerHTML = '';
+      const maxVisiblePages = 5;
+      let startPage = Math.max(1, flavorCurrentPage - Math.floor(maxVisiblePages / 2));
+      let endPage = Math.min(flavorTotalPages, startPage + maxVisiblePages - 1);
+      
+      if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+      }
+      
+      for (let i = startPage; i <= endPage; i++) {
+        const pageBtn = document.createElement('button');
+        pageBtn.className = `page-number ${i === flavorCurrentPage ? 'active' : ''}`;
+        pageBtn.textContent = i;
+        pageBtn.onclick = () => {
+          flavorCurrentPage = i;
+          renderFlavorTable();
+          renderFlavorPagination();
+        };
+        pageNumbers.appendChild(pageBtn);
       }
     }
+
+    // Update flavor table info
+    function updateFlavorTableInfo() {
+      const tableInfo = document.getElementById('flavor-table-info');
+      const startIndex = (flavorCurrentPage - 1) * flavorPageSize + 1;
+      const endIndex = Math.min(flavorCurrentPage * flavorPageSize, filteredFlavors.length);
+      const total = filteredFlavors.length;
+      
+      tableInfo.textContent = `Showing ${startIndex} to ${endIndex} of ${total} entries`;
+    }
+
+    // Change flavor page
+    function changeFlavorPage(direction) {
+      const newPage = flavorCurrentPage + direction;
+      if (newPage >= 1 && newPage <= flavorTotalPages) {
+        flavorCurrentPage = newPage;
+        renderFlavorTable();
+        renderFlavorPagination();
+      }
+    }
+
+    // Change flavor page size
+    function changeFlavorPageSize() {
+      flavorPageSize = parseInt(document.getElementById('flavor-page-size').value);
+      flavorCurrentPage = 1;
+      updateFlavorPagination();
+      renderFlavorTable();
+    }
+
+    // Filter functions
+    function toggleFilterMenu() {
+      const dropdown = document.getElementById('menu-filter-dropdown');
+      dropdown.classList.toggle('show');
+    }
+
+    function toggleFilterFlavor() {
+      const dropdown = document.getElementById('flavor-filter-dropdown');
+      dropdown.classList.toggle('show');
+    }
+
+    async function applyMenuFilter() {
+      const searchTerm = document.getElementById('menu-search').value.toLowerCase();
+      const statusFilter = document.getElementById('menu-status-filter').value;
+      const priceMin = document.getElementById('menu-price-min').value;
+      const priceMax = document.getElementById('menu-price-max').value;
+      
+      filteredMenus = allMenus.filter(menu => {
+        // Search filter
+        const matchesSearch = menu.base_name.toLowerCase().includes(searchTerm) ||
+                            menu.base_price.toString().includes(searchTerm);
+        
+        // Status filter
+        const matchesStatus = !statusFilter || 
+                            (statusFilter === 'Yes' && menu.isAvail) ||
+                            (statusFilter === 'No' && !menu.isAvail);
+        
+        // Price filter
+        const matchesPrice = (!priceMin || menu.base_price >= parseInt(priceMin)) &&
+                           (!priceMax || menu.base_price <= parseInt(priceMax));
+        
+        return matchesSearch && matchesStatus && matchesPrice;
+      });
+      
+      menuCurrentPage = 1;
+      updateMenuPagination();
+      await renderMenuTable();
+      
+      // Close dropdown
+      document.getElementById('menu-filter-dropdown').classList.remove('show');
+    }
+
+    async function clearMenuFilter() {
+      document.getElementById('menu-search').value = '';
+      document.getElementById('menu-status-filter').value = '';
+      document.getElementById('menu-price-min').value = '';
+      document.getElementById('menu-price-max').value = '';
+      
+      filteredMenus = [...allMenus];
+      menuCurrentPage = 1;
+      updateMenuPagination();
+      await renderMenuTable();
+      
+      // Close dropdown
+      document.getElementById('menu-filter-dropdown').classList.remove('show');
+    }
+
+    function applyFlavorFilter() {
+      const searchTerm = document.getElementById('flavor-search').value.toLowerCase();
+      const priceMin = document.getElementById('flavor-price-min').value;
+      const priceMax = document.getElementById('flavor-price-max').value;
+      
+      filteredFlavors = allFlavors.filter(flavor => {
+        // Search filter
+        const matchesSearch = flavor.flavor_name.toLowerCase().includes(searchTerm) ||
+                            flavor.additional_price.toString().includes(searchTerm);
+        
+        // Price filter
+        const matchesPrice = (!priceMin || flavor.additional_price >= parseInt(priceMin)) &&
+                           (!priceMax || flavor.additional_price <= parseInt(priceMax));
+        
+        return matchesSearch && matchesPrice;
+      });
+      
+      flavorCurrentPage = 1;
+      updateFlavorPagination();
+      renderFlavorTable();
+      
+      // Close dropdown
+      document.getElementById('flavor-filter-dropdown').classList.remove('show');
+    }
+
+    function clearFlavorFilter() {
+      document.getElementById('flavor-search').value = '';
+      document.getElementById('flavor-price-min').value = '';
+      document.getElementById('flavor-price-max').value = '';
+      
+      filteredFlavors = [...allFlavors];
+      flavorCurrentPage = 1;
+      updateFlavorPagination();
+      renderFlavorTable();
+      
+      // Close dropdown
+      document.getElementById('flavor-filter-dropdown').classList.remove('show');
+    }
+
+    // Close filter dropdowns when clicking outside
+    document.addEventListener('click', function(event) {
+      const menuFilterDropdown = document.getElementById('menu-filter-dropdown');
+      const flavorFilterDropdown = document.getElementById('flavor-filter-dropdown');
+      
+      if (!event.target.closest('.filter-container')) {
+        menuFilterDropdown.classList.remove('show');
+        flavorFilterDropdown.classList.remove('show');
+      }
+    });
 
     // Save or update menu
     async function saveMenu() {
@@ -377,20 +887,20 @@
         base_name: baseName,
         base_price: basePrice,
         isAvail: isAvail,
-        flavor_ids: [] // For now, we'll leave flavors empty. Can be enhanced later
+        flavor_ids: selectedFlavorIds
       };
 
       try {
         let response;
         if (menuId) {
           response = await fetch(`${BASE_URL}/menu/${menuId}`, {
-            method: 'PUT',
+            method: "PUT",
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
           });
         } else {
           response = await fetch(`${BASE_URL}/menu`, {
-            method: 'POST',
+            method: "POST",
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
           });
@@ -416,8 +926,12 @@
           console.log('Menu saved successfully (no JSON response)');
         }
         
+        // Reset selectedFlavorIds before closing modal
+        selectedFlavorIds = [];
         closeAddMenuModal();
-        loadMenus();
+        await loadMenus();
+        
+        // Menu table will be re-rendered automatically by loadMenus
         
         // Show success message
         const errorElement = document.getElementById('form-error');
@@ -450,6 +964,10 @@
             document.getElementById('is-avail-false').checked = true;
           }
           
+          // Set selected flavors
+          selectedFlavorIds = menu.flavors ? menu.flavors.map(f => f.id) : [];
+          console.log('Selected flavor IDs for edit:', selectedFlavorIds);
+          
           document.getElementById('add-menu-form').setAttribute('data-menu-id', menuId);
           openAddMenuModal();
         })
@@ -464,10 +982,12 @@
       if (confirm('Are you sure you want to delete this menu?')) {
         try {
           const response = await fetch(`${BASE_URL}/menu/${menuId}`, {
-            method: 'DELETE'
+            method: "DELETE"
           });
           if (!response.ok) throw new Error('Failed to delete menu');
-          loadMenus();
+          await loadMenus();
+          
+          // Menu table will be re-rendered automatically by loadMenus
         } catch (error) {
           console.error('Error deleting menu:', error);
           document.getElementById('form-error').textContent = 'Error deleting menu';
@@ -486,6 +1006,18 @@
         document.getElementById('view-menu-name').textContent = menu.base_name;
         document.getElementById('view-menu-price').textContent = `Rp ${menu.base_price.toLocaleString()}`;
         document.getElementById('view-menu-available').textContent = menu.isAvail ? 'Yes' : 'No';
+        
+        // Display available flavors
+        let flavorsText = 'None';
+        console.log('viewMenu menu.flavors:', menu.flavors);
+        if (menu.flavors && menu.flavors.length > 0) {
+          const flavorItems = [];
+          for (const flavor of menu.flavors) {
+            flavorItems.push(`<div class="flavor-item">${flavor.flavor_name}<span class="flavor-price">(+Rp ${flavor.additional_price.toLocaleString()})</span></div>`);
+          }
+          flavorsText = flavorItems.join('');
+        }
+        document.getElementById('view-menu-flavors').innerHTML = flavorsText;
         
         // Store the menu ID for edit functionality
         document.getElementById('view-menu-modal').setAttribute('data-menu-id', menuId);
@@ -542,7 +1074,7 @@
       if (confirm('Are you sure you want to delete this flavor?')) {
         try {
           const response = await fetch(`${BASE_URL}/flavors/${flavorId}`, {
-            method: 'DELETE'
+            method: "DELETE"
           });
           if (!response.ok) throw new Error('Failed to delete flavor');
           
@@ -566,6 +1098,29 @@
     }
 
     function openAddMenuModal() {
+      // Load flavors if not already loaded
+      if (allFlavors.length === 0) {
+        loadFlavors().then(() => {
+          populateFlavorCheckboxes();
+        });
+      } else {
+        populateFlavorCheckboxes();
+      }
+      
+      // Set modal title based on whether we're editing or adding
+      const modalTitle = document.querySelector('#add-menu-modal .modal-title');
+      const isEditing = document.getElementById('add-menu-form').hasAttribute('data-menu-id');
+      modalTitle.textContent = isEditing ? 'Edit Menu' : 'Add New Menu';
+      
+      // If editing, ensure selectedFlavorIds are preserved
+      if (isEditing) {
+        console.log('Opening edit modal with selectedFlavorIds:', selectedFlavorIds);
+        // Re-populate checkboxes to ensure selected flavors are checked
+        setTimeout(() => {
+          populateFlavorCheckboxes();
+        }, 100);
+      }
+      
       document.getElementById('add-menu-modal').classList.remove('hidden');
     }
 
@@ -576,6 +1131,14 @@
       document.getElementById('form-error').style.color = '';
       // Reset radio button to default (True)
       document.getElementById('is-avail-true').checked = true;
+      // Reset flavor selection (only if not already reset)
+      if (selectedFlavorIds.length > 0) {
+        selectedFlavorIds = [];
+        populateFlavorCheckboxes();
+      }
+      // Reset modal title
+      const modalTitle = document.querySelector('#add-menu-modal .modal-title');
+      modalTitle.textContent = 'Add New Menu';
       document.getElementById('add-menu-modal').classList.add('hidden');
     }
 
@@ -614,45 +1177,20 @@
       editFlavor(flavorId);
     }
 
-    // Search functionality
+    // Enhanced search functionality with real-time filtering
     function setupSearch() {
       const menuSearch = document.getElementById('menu-search');
       const flavorSearch = document.getElementById('flavor-search');
 
       if (menuSearch) {
         menuSearch.addEventListener('input', function() {
-          const searchTerm = this.value.toLowerCase();
-          const rows = document.querySelectorAll('#menu-table tbody tr');
-          
-          rows.forEach(row => {
-            const menuName = row.cells[1].textContent.toLowerCase();
-            const price = row.cells[2].textContent.toLowerCase();
-            const isAvail = row.cells[3].textContent.toLowerCase();
-            
-            if (menuName.includes(searchTerm) || price.includes(searchTerm) || isAvail.includes(searchTerm)) {
-              row.style.display = '';
-            } else {
-              row.style.display = 'none';
-            }
-          });
+          applyMenuFilter();
         });
       }
 
       if (flavorSearch) {
         flavorSearch.addEventListener('input', function() {
-          const searchTerm = this.value.toLowerCase();
-          const rows = document.querySelectorAll('#flavors-table tbody tr');
-          
-          rows.forEach(row => {
-            const flavorName = row.cells[1].textContent.toLowerCase();
-            const price = row.cells[2].textContent.toLowerCase();
-            
-            if (flavorName.includes(searchTerm) || price.includes(searchTerm)) {
-              row.style.display = '';
-            } else {
-              row.style.display = 'none';
-            }
-          });
+          applyFlavorFilter();
         });
       }
     }
@@ -672,13 +1210,13 @@
         let response;
         if (flavourId) {
           response = await fetch(`${BASE_URL}/flavors/${flavourId}`, {
-            method: 'PUT',
+            method: "PUT",
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
           });
         } else {
           response = await fetch(`${BASE_URL}/flavors`, {
-            method: 'POST',
+            method: "POST",
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
           });
@@ -733,12 +1271,108 @@
       await saveFlavour();
     });
 
+    // Setup navigation
+    function setupNavigation() {
+      const navButtons = document.querySelectorAll('.nav-btn');
+      
+      // Remove active class from all nav buttons first
+      navButtons.forEach(btn => {
+        btn.classList.remove('active');
+      });
+      
+      // Add active class to current page
+      const currentPath = window.location.pathname;
+      navButtons.forEach(btn => {
+        const url = btn.getAttribute('data-url');
+        if (url && (currentPath === `/${url}` || (currentPath === '/' && url === 'dashboard'))) {
+          btn.classList.add('active');
+        }
+        
+        btn.addEventListener('click', () => {
+          if (url) {
+            window.location.href = `/${url}`;
+          }
+        });
+      });
+    }
+
+    // Flavor Selector Functions
+    function populateFlavorCheckboxes() {
+      const flavorCheckboxes = document.getElementById('flavor-checkboxes');
+      flavorCheckboxes.innerHTML = '';
+      
+      console.log('Populating flavor checkboxes with selectedFlavorIds:', selectedFlavorIds);
+      
+      allFlavors.forEach(flavor => {
+        const checkboxItem = document.createElement('div');
+        checkboxItem.className = 'flavor-checkbox-item';
+        const isChecked = selectedFlavorIds.includes(flavor.id);
+        checkboxItem.innerHTML = `
+          <input type="checkbox" id="flavor-${flavor.id}" value="${flavor.id}" 
+                 ${isChecked ? 'checked' : ''} 
+                 onchange="updateSelectedFlavors()">
+          <label for="flavor-${flavor.id}">
+            ${flavor.flavor_name}
+            <span class="flavor-price">(+Rp ${flavor.additional_price.toLocaleString()})</span>
+          </label>
+        `;
+        flavorCheckboxes.appendChild(checkboxItem);
+      });
+    }
+
+    function updateSelectedFlavors() {
+      selectedFlavorIds = [];
+      const checkboxes = document.querySelectorAll('#flavor-checkboxes input[type="checkbox"]:checked');
+      checkboxes.forEach(checkbox => {
+        selectedFlavorIds.push(checkbox.value);
+      });
+    }
+
+    function toggleAllFlavors() {
+      const checkboxes = document.querySelectorAll('#flavor-checkboxes input[type="checkbox"]');
+      const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+      
+      checkboxes.forEach(checkbox => {
+        checkbox.checked = !allChecked;
+      });
+      
+      updateSelectedFlavors();
+    }
+
+    function clearAllFlavors() {
+      const checkboxes = document.querySelectorAll('#flavor-checkboxes input[type="checkbox"]');
+      checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+      });
+      
+      selectedFlavorIds = [];
+    }
+
     // Initial load
-    window.addEventListener('load', () => {
-      loadMenus();
-      switchTab('menu'); // Set default tab
-      setupNavigation(); // Setup navigation
-      setupSearch(); // Setup search functionality
+    window.addEventListener('load', async () => {
+      try {
+        // Load menus (flavors are included in menu data)
+        await loadMenus();
+        
+        // Load flavors separately for flavor selector
+        await loadFlavors();
+        
+        switchTab('menu'); // Set default tab
+        setupNavigation(); // Setup navigation
+        setupSearch(); // Setup search functionality
+        
+        // Ensure navigation is properly set up after DOM is fully loaded
+        setTimeout(() => {
+          setupNavigation();
+        }, 100);
+      } catch (error) {
+        console.error('Error during initial load:', error);
+        // Show error message to user
+        const tbody = document.querySelector('#menu-table tbody');
+        if (tbody) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: red;">Error loading data: ' + error.message + '</td></tr>';
+        }
+      }
     });
   </script>
 </body>
