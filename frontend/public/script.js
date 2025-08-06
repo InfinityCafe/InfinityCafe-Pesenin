@@ -251,19 +251,20 @@ function renderOrders(orders) {
   const doneOrderColumn = document.getElementById("done-order-column");
   const cancelOrderColumn = document.getElementById("cancel-order-column");
   
-  // Clear all columns
+  // Clear all columns completely
   newOrderColumn.innerHTML = '';
   makingColumn.innerHTML = '';
   deliverColumn.innerHTML = '';
   doneOrderColumn.innerHTML = '';
   cancelOrderColumn.innerHTML = '';
   
-  // Sort orders by time received (FIFO)
-  orders.sort((a, b) => new Date(a.time_receive) - new Date(b.time_receive));
+  // Validate and filter orders
+  const validOrders = orders.filter(order => order && order.order_id && order.detail);
   
-  orders.forEach(order => {
-    if (!order.order_id || !order.detail) return;
-    
+  // Sort orders by time received (FIFO)
+  validOrders.sort((a, b) => new Date(a.time_receive) - new Date(b.time_receive));
+  
+  validOrders.forEach(order => {
     const orderCard = createOrderCard(order);
     
     // Place order in appropriate column based on status
@@ -280,11 +281,14 @@ function renderOrders(orders) {
     }
   });
   
-  // Update sidebar summary
-  updateSummary(orders);
+  // Update sidebar summary with fresh data
+  updateSummary(validOrders);
 }
 
 function updateSummary(orders) {
+  // Reset global mapping to prevent stale data
+  window._orderIdToQueue = {};
+  
   // Ambil tanggal hari ini (YYYY-MM-DD)
   const todayStr = new Date().toISOString().slice(0, 10);
   // Filter orders yang time_receive-nya hari ini
@@ -369,9 +373,11 @@ function updateSummary(orders) {
   });
 
   const sidebarContent = document.querySelector('.sidebar-content');
+  // Clear all content except the title
   const existingTitle = sidebarContent.querySelector('.sidebar-title');
-  while (sidebarContent.children.length > 1) {
-    sidebarContent.removeChild(sidebarContent.lastChild);
+  sidebarContent.innerHTML = '';
+  if (existingTitle) {
+    sidebarContent.appendChild(existingTitle);
   }
 
   // Urutkan menu berdasarkan nomor antrian terkecil
@@ -381,6 +387,11 @@ function updateSummary(orders) {
   sortedSummary.forEach(([itemName, data]) => {
     // Urutkan orders dalam setiap menu berdasarkan nomor antrian
     data.orders.sort((a, b) => (a.queue || Infinity) - (b.queue || Infinity));
+    
+    // Remove duplicates from orders array
+    const uniqueOrders = data.orders.filter((order, index, self) => 
+      index === self.findIndex(o => o.id === order.id)
+    );
     
     const summaryItem = document.createElement('div');
     summaryItem.className = 'summary-item';
@@ -394,7 +405,7 @@ function updateSummary(orders) {
           <tr><th>Varian</th><th>Antrian</th><th>Notes</th></tr>
         </thead>
         <tbody>
-          ${data.orders.map(order => `
+          ${uniqueOrders.map(order => `
             <tr>
               <td>${order.variant || '-'}</td>
               <td><span class="summary-detail--order" data-order-id="${order.id}" title="${order.label}">${order.queue}</span></td>
@@ -510,11 +521,13 @@ function initializeEventSource() {
         }
         
         localStorage.setItem("lastActiveOrderIds", JSON.stringify(activeIds));
+        
+        // Force re-render with fresh data
         renderOrders(data);
       } catch (error) {
         console.error('Error fetching orders:', error);
       }
-    }, 1000);
+    }, 300); // Reduced from 1000ms to 300ms for faster updates
   };
   
   eventSource.onerror = (error) => {
