@@ -771,7 +771,7 @@ input:checked + .slider:before {
 
 /* Sidebar */
 .sidebar {
-    width: 360px;
+    width: 365px;
     /* background: #F5EFE6; */
     border-radius: 0.75rem;
     /* padding: 2rem 1.2rem 2rem 1.2rem; */
@@ -792,7 +792,7 @@ input:checked + .slider:before {
     border-radius: 0.75rem;
     background-color: #F5EFE6;
     position: relative;
-    width: 340px;
+    width: 345px;
     padding-right: 0 0 10px 0;
     box-shadow: 0 2px 8px 0 rgba(0,0,0,0.04);
     display: flex;
@@ -2245,6 +2245,8 @@ body.tab-done .add-order-btn {
 }
 #menu-table th:nth-child(4) {
     width: 100px;
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
 }
 
 #menu-table th:nth-child(5) {
@@ -2282,20 +2284,23 @@ body.tab-done .add-order-btn {
     vertical-align: middle;
     background-color: #F4F1E8;
     font-weight: bold;
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
+    /* border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem; */
+    
 }
 
 #menu-table td:first-child,
 #flavors-table td:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
+    /* border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem; */
 }
 
 #menu-table td:nth-child(4) {
     width: 100px;
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
 }
 
 #menu-table td:nth-child(5) {
