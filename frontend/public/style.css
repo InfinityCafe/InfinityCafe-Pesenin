@@ -781,13 +781,13 @@ input:checked + .slider:before {
     border: 2px solid #DCD0A8;
     display: flex;
     flex-direction: column;
-    min-height: 95.5vh;
-    max-height: 95.5vh
+    min-height: 97.4vh;
+    max-height: 97.4vh
 }
 
 .sidebar-column {
-    min-height: 92vh;
-    max-height: 92vh;
+    min-height: 94vh;
+    max-height: 94vh;
     padding: 10px;
     /* border: 2px solid #DCD0A8; */
     border-radius: 0.75rem;
@@ -805,9 +805,9 @@ input:checked + .slider:before {
     font-size: 19px;
     font-weight: 800;
     color: #412E27;
-    margin-bottom: 1.2rem;
-    padding-bottom: 24px;
-    padding-top: 20px;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    padding-top: 10px;
     border-bottom: 1px solid #8D7272;
     text-align: center;
     position: sticky;
@@ -818,8 +818,8 @@ input:checked + .slider:before {
 }
 
 .sidebar-content {
-    max-height: 77vh;
-    min-height: 77vh;
+    max-height: 79vh;
+    min-height: 79vh;
     flex: 1;
     overflow-y: auto;
     padding-bottom: 10px;
