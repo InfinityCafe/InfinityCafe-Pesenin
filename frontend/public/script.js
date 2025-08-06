@@ -34,7 +34,7 @@ function setupNavigation() {
     // Map judul halaman berdasarkan data-page
     const pageTitles = {
         dashboard: "Dashboard Kitchen",
-        menu: "Management Menu",
+        menu: "Menu Management",
         pesanan: "Daftar Pesanan",
         // Tambah halaman lain di sini
     };
@@ -54,7 +54,7 @@ function setupNavigation() {
             const targetUrl = this.getAttribute('data-url');
             const overrideRoutes = {
                 'nav-dashboard': '/dashboard',
-                'nav-menu': '/management-menu',
+                'nav-menu': '/menu-management',
                 // Tambahkan mapping khusus di sini jika perlu
             };
 

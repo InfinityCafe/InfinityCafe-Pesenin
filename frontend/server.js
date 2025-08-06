@@ -176,7 +176,7 @@ app.get("/dashboard", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.get("/management-menu", (req, res) => {
+app.get("/menu-management", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "menu.html"));
 });
 
