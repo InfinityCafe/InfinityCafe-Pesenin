@@ -353,6 +353,14 @@ def delete_flavor_item(flavor_id: str, db: Session = Depends(get_db)):
             detail=f"Varian rasa tidak dapat dihapus karena masih digunakan oleh menu: {', '.join(menu_names)}"
         )
     
+    # Hapus relasi dari tabel association terlebih dahulu
+    db.execute(
+        menu_item_flavor_association.delete().where(
+            menu_item_flavor_association.c.flavor_id == flavor_id
+        )
+    )
+    
+    # Hapus flavor
     db.delete(db_flavor)
     db.commit()
     

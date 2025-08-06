@@ -386,6 +386,71 @@
     </div>
   </div>
 
+  <!-- Delete Confirmation Modal -->
+  <div id="delete-confirm-modal" class="modal hidden">
+    <div class="modal-content delete-confirm-modal">
+      <button class="modal-close" onclick="closeDeleteConfirmModal()">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16.5 5.5L5.5 16.5M5.5 5.5L16.5 16.5" stroke="#B3261E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <div class="modal-header">
+        <i class="fas fa-exclamation-triangle warning-icon"></i>
+        <h3 class="modal-title">Konfirmasi Hapus</h3>
+      </div>
+      <div class="modal-body">
+        <p id="delete-confirm-message">Apakah Anda yakin ingin menghapus item ini?</p>
+        <p class="delete-warning">Tindakan ini tidak dapat dibatalkan.</p>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn-cancel" onclick="closeDeleteConfirmModal()">Batal</button>
+        <button class="modal-btn modal-btn-danger" id="delete-confirm-btn">Hapus</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Success Modal -->
+  <div id="success-modal" class="modal hidden">
+    <div class="modal-content success-modal">
+      <button class="modal-close" onclick="closeSuccessModal()">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16.5 5.5L5.5 16.5M5.5 5.5L16.5 16.5" stroke="#B3261E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <div class="modal-header">
+        <i class="fas fa-check-circle success-icon"></i>
+        <h3 class="modal-title">Berhasil!</h3>
+      </div>
+      <div class="modal-body">
+        <p id="success-message">Operasi berhasil dilakukan.</p>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn" onclick="closeSuccessModal()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Modal -->
+  <div id="error-modal" class="modal hidden">
+    <div class="modal-content error-modal">
+      <button class="modal-close" onclick="closeErrorModal()">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16.5 5.5L5.5 16.5M5.5 5.5L16.5 16.5" stroke="#B3261E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <div class="modal-header">
+        <i class="fas fa-exclamation-circle error-icon"></i>
+        <h3 class="modal-title">Terjadi Kesalahan</h3>
+      </div>
+      <div class="modal-body">
+        <p id="error-message">Terjadi kesalahan saat melakukan operasi.</p>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn" onclick="closeErrorModal()">OK</button>
+      </div>
+    </div>
+  </div>
+
   
   <script src="script.js"></script>
 
@@ -451,6 +516,9 @@
         allMenus = menus || [];
         filteredMenus = [...allMenus];
         menusLoaded = true;
+        
+        // Reset pagination to first page when data changes
+        menuCurrentPage = 1;
         
         // Always render table, flavors are included in menu data
         await renderMenuTable();
@@ -633,10 +701,17 @@
         allFlavors = flavors || [];
         filteredFlavors = [...allFlavors];
         flavorsLoaded = true;
+        
+        // Reset pagination to first page when data changes
+        flavorCurrentPage = 1;
+        
         renderFlavorTable();
         updateFlavorPagination();
         
-        // No need to re-render menu table since flavors are included in menu data
+        // Also update flavor checkboxes in menu modal if it's open
+        if (document.getElementById('add-menu-modal').classList.contains('hidden') === false) {
+          populateFlavorCheckboxes();
+        }
         
         return allFlavors; // Return flavors for promise chaining
       } catch (error) {
@@ -920,18 +995,10 @@
         // Menu table will be re-rendered automatically by loadMenus
         
         // Show success message
-        const errorElement = document.getElementById('form-error');
-        errorElement.textContent = 'Menu saved successfully!';
-        errorElement.style.color = 'green';
-        setTimeout(() => {
-          errorElement.textContent = '';
-          errorElement.style.color = '';
-        }, 3000);
+        showSuccessModal(result.message || 'Menu berhasil disimpan');
       } catch (error) {
         console.error('Error saving menu:', error);
-        const errorElement = document.getElementById('form-error');
-        errorElement.textContent = error.message || 'Error saving menu';
-        errorElement.style.color = 'red';
+        showErrorModal('Error saving menu: ' + error.message);
       }
     }
 
@@ -959,26 +1026,39 @@
         })
         .catch(error => {
           console.error('Error loading menu for edit:', error);
-          document.getElementById('form-error').textContent = 'Error loading menu for edit';
+          showErrorModal('Error loading menu for edit: ' + error.message);
         });
     }
 
     // Delete menu
     async function deleteMenu(menuId) {
-      if (confirm('Are you sure you want to delete this menu?')) {
-        try {
-          const response = await fetch(`${BASE_URL}/menu/${menuId}`, {
-            method: "DELETE"
-          });
-          if (!response.ok) throw new Error('Failed to delete menu');
-          await loadMenus();
-          
-          // Menu table will be re-rendered automatically by loadMenus
-        } catch (error) {
-          console.error('Error deleting menu:', error);
-          document.getElementById('form-error').textContent = 'Error deleting menu';
+      // Get menu name for confirmation message
+      const menu = allMenus.find(m => m.id === menuId);
+      const menuName = menu ? menu.base_name : 'this menu';
+      
+      showDeleteConfirmModal(
+        `Apakah Anda yakin ingin menghapus menu "${menuName}"?`,
+        async () => {
+          try {
+            const response = await fetch(`${BASE_URL}/menu/${menuId}`, {
+              method: "DELETE"
+            });
+            
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.detail || 'Failed to delete menu');
+            }
+            
+            const result = await response.json();
+            await loadMenus();
+            
+            showSuccessModal(result.message || 'Menu berhasil dihapus');
+          } catch (error) {
+            console.error('Error deleting menu:', error);
+            showErrorModal('Error deleting menu: ' + error.message);
+          }
         }
-      }
+      );
     }
 
     // View menu
@@ -1011,7 +1091,7 @@
         document.getElementById('view-menu-modal').classList.remove('hidden');
       } catch (error) {
         console.error('Error viewing menu:', error);
-        alert('Error loading menu details');
+        showErrorModal('Error loading menu details: ' + error.message);
       }
     }
 
@@ -1032,7 +1112,7 @@
         document.getElementById('view-flavor-modal').classList.remove('hidden');
       } catch (error) {
         console.error('Error viewing flavor:', error);
-        alert('Error loading flavor details');
+        showErrorModal('Error loading flavor details: ' + error.message);
       }
     }
 
@@ -1051,26 +1131,44 @@
         openAddFlavourModal();
       } catch (error) {
         console.error('Error loading flavor for edit:', error);
-        alert('Error loading flavor for edit');
+        showErrorModal('Error loading flavor for edit: ' + error.message);
       }
     }
 
     // Delete flavor
     async function deleteFlavor(flavorId) {
-      if (confirm('Are you sure you want to delete this flavor?')) {
-        try {
-          const response = await fetch(`${BASE_URL}/flavors/${flavorId}`, {
-            method: "DELETE"
-          });
-          if (!response.ok) throw new Error('Failed to delete flavor');
-          
-          loadFlavors();
-          alert('Flavor deleted successfully');
-        } catch (error) {
-          console.error('Error deleting flavor:', error);
-          alert('Error deleting flavor');
+      // Get flavor name for confirmation message
+      const flavor = allFlavors.find(f => f.id === flavorId);
+      const flavorName = flavor ? flavor.flavor_name : 'this flavor';
+      
+      showDeleteConfirmModal(
+        `Apakah Anda yakin ingin menghapus varian rasa "${flavorName}"?`,
+        async () => {
+          try {
+            const response = await fetch(`${BASE_URL}/flavors/${flavorId}`, {
+              method: "DELETE"
+            });
+            
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.detail || 'Failed to delete flavor');
+            }
+            
+            const result = await response.json();
+            
+            // Refresh flavors data
+            await loadFlavors();
+            
+            // Also refresh menu data to update flavor associations
+            await loadMenus();
+            
+            showSuccessModal(result.message || 'Varian rasa berhasil dihapus');
+          } catch (error) {
+            console.error('Error deleting flavor:', error);
+            showErrorModal('Error deleting flavor: ' + error.message);
+          }
         }
-      }
+      );
     }
 
     // Modal Functions
@@ -1231,18 +1329,10 @@
         loadFlavors();
         
         // Show success message
-        const errorElement = document.getElementById('flavour-form-error');
-        errorElement.textContent = 'Flavour saved successfully!';
-        errorElement.style.color = 'green';
-        setTimeout(() => {
-          errorElement.textContent = '';
-          errorElement.style.color = '';
-        }, 3000);
+        showSuccessModal(result.message || 'Varian rasa berhasil disimpan');
       } catch (error) {
         console.error('Error saving flavour:', error);
-        const errorElement = document.getElementById('flavour-form-error');
-        errorElement.textContent = error.message || 'Error saving flavour';
-        errorElement.style.color = 'red';
+        showErrorModal('Error saving flavour: ' + error.message);
       }
     }
 
@@ -1289,6 +1379,11 @@
       
       console.log('Populating flavor checkboxes with selectedFlavorIds:', selectedFlavorIds);
       
+      // Filter out any selected flavor IDs that no longer exist in allFlavors
+      selectedFlavorIds = selectedFlavorIds.filter(id => 
+        allFlavors.some(flavor => flavor.id === id)
+      );
+      
       allFlavors.forEach(flavor => {
         const checkboxItem = document.createElement('div');
         checkboxItem.className = 'flavor-checkbox-item';
@@ -1332,6 +1427,41 @@
       });
       
       selectedFlavorIds = [];
+    }
+
+    // Modal Functions for Delete, Success, and Error
+    function showDeleteConfirmModal(message, onConfirm) {
+      document.getElementById('delete-confirm-message').textContent = message;
+      document.getElementById('delete-confirm-modal').classList.remove('hidden');
+      
+      // Set up confirm button action
+      const confirmBtn = document.getElementById('delete-confirm-btn');
+      confirmBtn.onclick = () => {
+        closeDeleteConfirmModal();
+        onConfirm();
+      };
+    }
+
+    function closeDeleteConfirmModal() {
+      document.getElementById('delete-confirm-modal').classList.add('hidden');
+    }
+
+    function showSuccessModal(message) {
+      document.getElementById('success-message').textContent = message;
+      document.getElementById('success-modal').classList.remove('hidden');
+    }
+
+    function closeSuccessModal() {
+      document.getElementById('success-modal').classList.add('hidden');
+    }
+
+    function showErrorModal(message) {
+      document.getElementById('error-message').textContent = message;
+      document.getElementById('error-modal').classList.remove('hidden');
+    }
+
+    function closeErrorModal() {
+      document.getElementById('error-modal').classList.add('hidden');
     }
 
     // Initial load
