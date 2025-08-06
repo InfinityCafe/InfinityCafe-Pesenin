@@ -290,12 +290,13 @@ input:checked + .slider:before {
     font-size: 16px;
     cursor: pointer;
     transition: all 0.2s ease;
-    background-color: #F3F4F6;
+    background-color: #F8F9FA;
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.04);
     color: #8D7272;
 }
 
 .tab-btn.tab-active {
-    background-color: #8D7272;
+    background: linear-gradient(to right, #8D7272, #B5A4A4);
     color: #FFFFFF;
 }
 
