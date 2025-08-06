@@ -17,8 +17,8 @@
       <p class="header-subtitle">Stephany | Barista</p>
     </div>
     <div class="header-menu">
-      <button class="nav-btn" id="nav-dashboard" data-url="index.html" onclick="window.location.href = '/index.html';">Dashboard</button>
-      <button class="nav-btn" id="nav-menu" data-url="menu.html" onclick="window.location.href = '/menu.html';">Management Menu</button>
+        <button class="nav-btn" id="nav-dashboard" data-url="dashboard" onclick="window.location.href = '/index.html';">Dashboard</button>
+        <button class="nav-btn" id="nav-menu" data-url="management-menu" onclick="window.location.href = '/menu.html';">Management Menu</button>
     </div>
     <div class="header-right">
       <div class="search-container">
@@ -202,41 +202,7 @@
   <audio id="sound-status-update" src="https://www.myinstants.com/media/sounds/smw_1-up.mp3" preload="auto"></audio>
 
   <script src="script.js"></script>
-  <script>
-    // Setup navigation for navbar active state
-    function setupNavigation() {
-      const navButtons = document.querySelectorAll('.nav-btn');
-      
-      // Remove active class from all nav buttons first
-      navButtons.forEach(btn => {
-        btn.classList.remove('active');
-      });
-      
-      // Add active class to current page
-      const currentPath = window.location.pathname;
-      navButtons.forEach(btn => {
-        const url = btn.getAttribute('data-url');
-        if (url && (currentPath === `/${url}` || (currentPath === '/' && url === 'dashboard'))) {
-          btn.classList.add('active');
-        }
-        
-        btn.addEventListener('click', () => {
-          if (url) {
-            window.location.href = `/${url}`;
-          }
-        });
-      });
-    }
+  <script src="index.js"></script>
 
-    // Initialize navigation when page loads
-    window.addEventListener('load', () => {
-      setupNavigation();
-      
-      // Ensure navigation is properly set up after DOM is fully loaded
-      setTimeout(() => {
-        setupNavigation();
-      }, 100);
-    });
-  </script>
 </body>
 </html>

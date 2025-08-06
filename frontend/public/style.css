@@ -1679,7 +1679,7 @@ input:checked + .slider:before {
     }
     
     /* Large Desktop */
-    @media (min-width: 1025px) and (max-width: 1440px) {
+    @media (min-width: 1025px) and (max-width: 1599px) {
         .order-columns {
             grid-template-columns: repeat(3, 1fr);
             gap: 16px;
@@ -1697,7 +1697,7 @@ input:checked + .slider:before {
     }
     
     /* Extra Large Desktop */
-    @media (min-width: 1441px) {
+    @media (min-width: 1600px) {
         .order-columns {
             grid-template-columns: repeat(3, 1fr);
             gap: 20px;
