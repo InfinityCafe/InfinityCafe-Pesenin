@@ -283,7 +283,7 @@ input:checked + .slider:before {
 .tab-btn {
     padding: 0.75rem 1.5rem;
     border: none;
-    width: 150px;
+    width: 142px;
     height: 45px;
     border-radius: 0.5rem;
     font-weight: 600;
@@ -304,7 +304,7 @@ input:checked + .slider:before {
     margin-left: auto;
     padding: 0.75rem 1.5rem;
     height: 44.72px;
-    max-width: 329px;
+    max-width: 300.5px;
     width: 100%;
     border: none;
     border-radius: 0.5rem;
@@ -910,6 +910,7 @@ input:checked + .slider:before {
     text-align: center;
 }
 
+
 /* Hover effect for queue */
 /* .summary-table td:nth-child(2):hover {
     transform: translateX(2px);
@@ -978,10 +979,10 @@ input:checked + .slider:before {
 }
 
 /* Hover effect for notes */
-.summary-table td:nth-child(3):hover {
+/* .summary-table td:nth-child(3):hover {
     transform: translateX(2px);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-}
+} */
 
 /* Notes header styling */
 .summary-table td:nth-child(3) {
@@ -2232,10 +2233,10 @@ body.tab-done .add-order-btn {
     padding: 0.75rem 1rem;
     text-align: center;
     font-weight: bold;
-    color: white;
+    color: #312929;
     text-transform: uppercase;
     font-size: 16px;
-    background-color: #8D7272;
+    background-color: #CAB99D;
 }
 
 /* Sudut untuk blok header utama */
@@ -2266,11 +2267,11 @@ body.tab-done .add-order-btn {
     left: -0.75rem;
     width: 0.75rem;
     height: 100%;
-    background-color: #8D7272;
+    background-color: #CAB99D;
 }
 
 #menu-table th.action-header, #flavors-table th.action-header {
-    background-color: #8D7272;
+    background-color: #CAB99D;
     border-radius: 0.5rem;
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
@@ -2285,6 +2286,7 @@ body.tab-done .add-order-btn {
     vertical-align: middle;
     background-color: #F4F1E8;
     font-weight: bold;
+    color: #312929;
     /* border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem; */
     
