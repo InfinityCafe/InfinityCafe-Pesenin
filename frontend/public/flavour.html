@@ -349,7 +349,8 @@
             
             if (!response.ok) {
               const errorData = await response.json();
-              throw new Error(errorData.detail || 'Failed to delete menu');
+              showErrorModal(errorData.detail || 'Gagal menghapus menu');
+              return;
             }
             
             const result = await response.json();

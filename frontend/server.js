@@ -249,7 +249,9 @@ app.post("/menu", async (req, res) => {
       body: JSON.stringify(body)
     });
     const data = await resp.json();
-    res.json(data);
+    
+    // Forward the status code from the backend service
+    res.status(resp.status).json(data);
   } catch (err) {
     console.error("Failed to create menu ", err);
     res.status(500).json({ error: "Failed to create menu" });
@@ -266,7 +268,9 @@ app.put("/menu/:menu_id", async (req, res) => {
       body: JSON.stringify(body)
     });
     const data = await resp.json();
-    res.json(data);
+    
+    // Forward the status code from the backend service
+    res.status(resp.status).json(data);
   } catch (err) {
     console.error("Failed to update menu ", err);
     res.status(500).json({ error: "Failed to update menu" });
@@ -280,7 +284,9 @@ app.delete("/menu/:menu_id", async (req, res) => {
       method: "DELETE"
     });
     const data = await resp.json();
-    res.json(data);
+    
+    // Forward the status code from the backend service
+    res.status(resp.status).json(data);
   } catch (err) {
     console.error("Failed to delete menu ", err);
     res.status(500).json({ error: "Failed to delete menu" });
@@ -320,7 +326,9 @@ app.post("/flavors", async (req, res) => {
       body: JSON.stringify(body)
     });
     const data = await resp.json();
-    res.json(data);
+    
+    // Forward the status code from the backend service
+    res.status(resp.status).json(data);
   } catch (err) {
     console.error("Failed to create flavor ", err);
     res.status(500).json({ error: "Failed to create flavor" });
@@ -337,7 +345,9 @@ app.put("/flavors/:flavor_id", async (req, res) => {
       body: JSON.stringify(body)
     });
     const data = await resp.json();
-    res.json(data);
+    
+    // Forward the status code from the backend service
+    res.status(resp.status).json(data);
   } catch (err) {
     console.error("Failed to update flavor ", err);
     res.status(500).json({ error: "Failed to update flavor" });
@@ -351,7 +361,9 @@ app.delete("/flavors/:flavor_id", async (req, res) => {
       method: "DELETE"
     });
     const data = await resp.json();
-    res.json(data);
+    
+    // Forward the status code from the backend service
+    res.status(resp.status).json(data);
   } catch (err) {
     console.error("Failed to delete flavor ", err);
     res.status(500).json({ error: "Failed to delete flavor" });

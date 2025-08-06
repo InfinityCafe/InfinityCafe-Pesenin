@@ -971,7 +971,9 @@
           let errorMessage = 'Failed to save menu';
           try {
             const errorData = await response.json();
-            errorMessage = errorData.detail || errorData.error || errorMessage;
+            console.log('Menu save error response:', errorData);
+            // Backend returns error message in 'message' field, not 'detail'
+            errorMessage = errorData.message || errorData.detail || errorData.error || errorMessage;
           } catch (parseError) {
             // If response is not JSON (e.g., HTML error page)
             errorMessage = `HTTP ${response.status}: ${response.statusText}`;
@@ -1046,7 +1048,12 @@
             
             if (!response.ok) {
               const errorData = await response.json();
-              throw new Error(errorData.detail || 'Failed to delete menu');
+              console.log('Menu delete error response:', errorData);
+              
+              // Backend returns error message in 'message' field, not 'detail'
+              const errorMessage = errorData.message || errorData.detail || 'Gagal menghapus menu';
+              showErrorModal(errorMessage);
+              return;
             }
             
             const result = await response.json();
@@ -1151,7 +1158,12 @@
             
             if (!response.ok) {
               const errorData = await response.json();
-              throw new Error(errorData.detail || 'Failed to delete flavor');
+              console.log('Flavor delete error response:', errorData);
+              
+              // Backend returns error message in 'message' field, not 'detail'
+              const errorMessage = errorData.message || errorData.detail || 'Gagal menghapus varian rasa';
+              showErrorModal(errorMessage);
+              return;
             }
             
             const result = await response.json();
@@ -1310,7 +1322,9 @@
           let errorMessage = 'Failed to save flavour';
           try {
             const errorData = await response.json();
-            errorMessage = errorData.detail || errorData.error || errorMessage;
+            console.log('Flavour save error response:', errorData);
+            // Backend returns error message in 'message' field, not 'detail'
+            errorMessage = errorData.message || errorData.detail || errorData.error || errorMessage;
           } catch (parseError) {
             errorMessage = `HTTP ${response.status}: ${response.statusText}`;
           }
