@@ -167,15 +167,17 @@ app.get("/stream/orders", (req, res) => {
   }).catch(() => res.status(500).end());
 });
 
-app.get("/", async (req, res) => {
-  try {
-    const resp = await fetch("http://kitchen_service:8003/kitchen/orders");
-    const orders = await resp.json();
-    res.render("index", { orders });
-  } catch (err) {
-    console.error("Error on fetching orders ", err);
-    res.render("index", { orders: [] });
-  }
+// ========== PAGE ROUTES ==========
+app.get("/", (req, res) => {
+  res.redirect("/dashboard");
+});
+
+app.get("/dashboard", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+app.get("/management-menu", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "menu.html"));
 });
 
 app.get("/reportkitchen", (req, res) => {
@@ -223,6 +225,136 @@ app.get("/menu", async (req, res) => {
   } catch (err) {
     console.error("Failed to fetch menu ", err);
     res.status(500).json({ error: "Failed to fetch menu" });
+  }
+});
+
+app.get("/menu/:menu_id", async (req, res) => {
+  try {
+    const { menu_id } = req.params;
+    const resp = await fetch(`http://menu_service:8001/menu/${menu_id}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch menu by ID ", err);
+    res.status(500).json({ error: "Failed to fetch menu by ID" });
+  }
+});
+
+app.post("/menu", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://menu_service:8001/menu", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to create menu ", err);
+    res.status(500).json({ error: "Failed to create menu" });
+  }
+});
+
+app.put("/menu/:menu_id", async (req, res) => {
+  try {
+    const { menu_id } = req.params;
+    const body = req.body;
+    const resp = await fetch(`http://menu_service:8001/menu/${menu_id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to update menu ", err);
+    res.status(500).json({ error: "Failed to update menu" });
+  }
+});
+
+app.delete("/menu/:menu_id", async (req, res) => {
+  try {
+    const { menu_id } = req.params;
+    const resp = await fetch(`http://menu_service:8001/menu/${menu_id}`, {
+      method: "DELETE"
+    });
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to delete menu ", err);
+    res.status(500).json({ error: "Failed to delete menu" });
+  }
+});
+
+// ========== FLAVOUR ENDPOINTS ==========
+app.get("/flavors", async (req, res) => {
+  try {
+    const resp = await fetch("http://menu_service:8001/flavors");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch flavors ", err);
+    res.status(500).json({ error: "Failed to fetch flavors" });
+  }
+});
+
+app.get("/flavors/:flavor_id", async (req, res) => {
+  try {
+    const { flavor_id } = req.params;
+    const resp = await fetch(`http://menu_service:8001/flavors/${flavor_id}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch flavor by ID ", err);
+    res.status(500).json({ error: "Failed to fetch flavor by ID" });
+  }
+});
+
+app.post("/flavors", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://menu_service:8001/flavors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to create flavor ", err);
+    res.status(500).json({ error: "Failed to create flavor" });
+  }
+});
+
+app.put("/flavors/:flavor_id", async (req, res) => {
+  try {
+    const { flavor_id } = req.params;
+    const body = req.body;
+    const resp = await fetch(`http://menu_service:8001/flavors/${flavor_id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to update flavor ", err);
+    res.status(500).json({ error: "Failed to update flavor" });
+  }
+});
+
+app.delete("/flavors/:flavor_id", async (req, res) => {
+  try {
+    const { flavor_id } = req.params;
+    const resp = await fetch(`http://menu_service:8001/flavors/${flavor_id}`, {
+      method: "DELETE"
+    });
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to delete flavor ", err);
+    res.status(500).json({ error: "Failed to delete flavor" });
   }
 });
 

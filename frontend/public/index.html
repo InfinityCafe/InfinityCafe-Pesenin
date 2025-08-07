@@ -8,28 +8,41 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 
 </head>
-<body>
+<body data-page="dashboard">
   <!-- Header -->
-  <header class="header">
-    <div class="header-left">
-      <h1 class="header-title">Dashboard Dapur</h1>
+  <nav class="header">
+    <div class="header-brand">
+      <h1 class="header-title" id="navbar-title">Infinity Cafe</h1>
       <p class="header-subtitle">Stephany | Barista</p>
     </div>
-    <div class="header-center">
-      <div class="search-container">
-        <input type="text" placeholder="Search" class="search-input">
-      </div>
+    <div class="header-menu">
+      <button class="nav-btn" id="nav-dashboard" data-url="dashboard">Dashboard</button>
+      <button class="nav-btn" id="nav-menu" data-url="management-menu">Management Menu</button>
     </div>
     <div class="header-right">
+      <div class="search-container">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" placeholder="Search" class="search-input">
+      </div>
       <div class="kitchen-status-container">
         <label class="switch">
           <input type="checkbox" id="kitchen-toggle" checked>
           <span class="slider"></span>
         </label>
-        <span id="kitchen-status-text" class="kitchen-status-text">BUKA</span>
+        <!-- <span id="kitchen-status-text" class="kitchen-status-text">BUKA</span> -->
       </div>
     </div>
-  </header>
+  </nav>
+
+    <!-- Kitchen Off Banner -->
+    <div id="kitchen-off-banner" class="kitchen-off-banner hidden">
+        🚫 Dapur sedang OFF. Tidak dapat menerima/memproses pesanan.
+    </div>
+
+    <!-- Offline Banner -->
+    <div id="offline-banner" class="offline-banner hidden">
+        🔌 Gagal ambil data. Cek koneksi.
+    </div>
 
   <!-- Main Content -->
   <div class="main-container">
@@ -44,7 +57,7 @@
       <div class="tab-navigation">
         <button id="tab-active" class="tab-btn tab-active" onclick="switchTab('active')">ACTIVE</button>
         <button id="tab-done" class="tab-btn" onclick="switchTab('done')">DONE</button>
-        <button class="add-order-btn">ADD PESANAN BARU</button>
+        <button class="add-order-btn">ADD NEW ORDER</button>
       </div>
 
       <!-- Order Columns -->
@@ -90,40 +103,29 @@
 
     <!-- Sidebar -->
     <div class="sidebar">
-      <div class="sidebar-content">
-        <h3 class="sidebar-title">SUMMARY PESANAN</h3>
-        <div class="summary-item">
-          <div class="summary-header">
-            <span class="summary-name">Kopi Latte</span>
-            <span class="summary-count">4</span>
-          </div>
-          <div class="summary-details">
-            <span class="summary-detail">#01</span>
-            <span class="summary-detail">#02</span>
-            <span class="summary-detail">#03</span>
-            <span class="summary-detail">#04</span>
-          </div>
-          <div class="summary-variants">
-            <div class="variant-item">
-              <span>Salted Caramel</span>
-              <span>Caramel</span>
-              <span>Salted Caramel</span>
-              <span>Caramel</span>
+      <div class="sidebar-column">
+          <h3 class="sidebar-title">ORDER SUMMARY</h3>
+        <div class="sidebar-content">
+          <!-- <div class="summary-item">
+            <div class="summary-header">
+              <span class="summary-name"></span>
+              <span class="summary-count"></span>
             </div>
-          </div>
+            <div class="summary-details">
+                <span class="summary-detail"></span>
+                <span class="summary-detail"></span>
+                <span class="summary-detail"></span>
+                <span class="summary-detail"></span>
+            </div>
+            <div class="summary-variants">
+              <div class="variant-item"></div>
+            </div>
+          </div> -->
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Kitchen Off Banner -->
-  <div id="kitchen-off-banner" class="kitchen-off-banner hidden">
-    🚫 Dapur sedang OFF. Tidak dapat menerima/memproses pesanan.
-  </div>
-
-  <!-- Offline Banner -->
-  <div id="offline-banner" class="offline-banner hidden">
-    🔌 Gagal ambil data. Cek koneksi.
   </div>
 
   <!-- Confirm Modal -->
