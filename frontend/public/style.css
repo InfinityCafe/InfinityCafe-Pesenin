@@ -641,7 +641,7 @@ input:checked + .slider:before {
 }
 
 .status-badge {
-    padding: 0.25rem 0.75rem;
+    padding: 0.25rem 0.5rem;
     border-radius: 1rem;
     font-size: 12px;
     font-weight: 600;
@@ -1994,6 +1994,10 @@ input:checked + .slider:before {
   flex: 1;
   overflow-y: auto;
   padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+  justify-content: flex-start;
 }
 
 .done-orders .order-list {
@@ -2005,13 +2009,40 @@ input:checked + .slider:before {
   justify-items: center;
 }
 
-.done-orders .order-list .order-card {
+/* .done-orders .order-list .order-card {
   width: 100%;
   max-width: 260px;
   min-width: 180px;
   height: auto;
   box-sizing: border-box;
   margin: 0 auto;
+} */
+
+.done-orders .order-card {
+    width: 100%;
+    max-width: 260px;
+    min-width: 180px;
+    height: auto;
+    box-sizing: border-box;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.done-orders .order-contents {
+    flex: 1;
+    background-color: white;
+    padding: 8px;
+    border-radius: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.done-orders .order-items {
+    flex: 1;
+    margin-bottom: 1rem;
 }
 
 @media (max-width: 1200px) {
