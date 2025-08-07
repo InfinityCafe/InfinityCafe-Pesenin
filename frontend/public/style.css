@@ -301,12 +301,16 @@ input:checked + .slider:before {
     background: #F8F9FA;
     color: #8D7272;
     box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
+    /* box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); */
     transition: color 0.2ease;
 }
 
 .tab-btn.tab-active {
     background: linear-gradient(to right, #8D7272, #B5A4A4);
     color: #FFFFFF;
+    box-shadow: none;
+    transition: none;
+    cursor: default;
 }
 
 .add-order-btn {
@@ -324,7 +328,8 @@ input:checked + .slider:before {
     font-weight: 700;
     font-size: 14px;
     cursor: pointer;
-    transition: transform 0.2s ease;
+    transform: scale(1);
+    transition: all 0.2s ease;
     /* min-width: 1; */
     padding-left: 6%;
     padding-right: 6%;
@@ -349,6 +354,7 @@ input:checked + .slider:before {
 }
 
 .add-order-btn:hover {
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
     transition: opacity 0.3s ease;
     background: #503A3A;
     transform: scale(1.01);
@@ -419,6 +425,7 @@ input:checked + .slider:before {
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
     border: 1px solid #E5E7EB;
     cursor: pointer;
+    transform: scale(1);
     transition: all 0.2s ease;
 }
 
@@ -447,6 +454,8 @@ input:checked + .slider:before {
 
 .order-card:hover {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    transform: scale(1.01);
+    transition: all;
 }
 
 .order-header {
@@ -562,7 +571,7 @@ input:checked + .slider:before {
 }
 
 .item-notes:hover {
-    transform: translateX(2px);
+    /* transform: translateX(2px); */
     box-shadow: 0 2px 6px rgba(245, 158, 11, 0.2);
 }
 
@@ -610,7 +619,7 @@ input:checked + .slider:before {
 }
 
 .item-notes:hover {
-    transform: translateX(2px);
+    /* transform: translateX(2px); */
     box-shadow: 0 2px 6px rgba(245, 158, 11, 0.2);
 }
 
@@ -1091,8 +1100,8 @@ input:checked + .slider:before {
         right: 1rem;
         background: none;
         border: none;
-        font-size: 1.5rem;
-        color: #EF4444;
+        font-size: 40px;
+        color: #B3261E;
         cursor: pointer;
         padding: 0.25rem;
         border-radius: 50%;
@@ -1994,6 +2003,8 @@ input:checked + .slider:before {
   resize: vertical;
 }
 #add-order-modal .modal-btn {
+  position: relative;
+  overflow: hidden;
   border-radius: 10px;
   font-family: 'Inter', sans-serif;
   font-weight: 700;
@@ -2006,7 +2017,12 @@ input:checked + .slider:before {
 #add-order-modal .modal-btn-habis {
   background: linear-gradient(90deg, #207156 0%, #60b7a6 100%);
   color: #fff;
-  box-shadow: 0 2px 8px #0001;
+}
+#add-order-modal .modal-btn-habis:hover {
+  box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
+  transition: opacity 0.3s ease;
+  background: #207156;
+  transform: scale(1.01);
 }
 #add-order-modal .modal-btn-cancel {
   background: #fff;
@@ -2021,7 +2037,7 @@ input:checked + .slider:before {
 }
 #add-order-modal .modal-close {
   color: #B3261E;
-  font-size: 1.7rem;
+  font-size: 40px;
   background: none;
   border: none;
   position: absolute;
@@ -2318,7 +2334,8 @@ body.tab-done .add-order-btn {
 
 .summary-detail--order {
   cursor: pointer;
-  transition: color 0.18s, background 0.18s, box-shadow 0.18s;
+  /* transition: color 0.18s, background 0.18s, box-shadow 0.18s; */
+  transition: color 0.3s ease-in-out, background 0.3s ease-in-out, box-shadow 0.3s ease-in-out, border 0.3s ease-in-out;
   border-radius: 999px;
   padding: 5px 16px;
   background: #fff;
@@ -2719,6 +2736,8 @@ body.tab-done .add-order-btn {
 }
 
 .add-flavour-modal .save-button {
+    position: relative;
+    overflow: hidden;
     width: 100%;
     height: 53px;
     background: linear-gradient(90deg, #207156 0%, #60B7A6 100%);
@@ -2734,14 +2753,17 @@ body.tab-done .add-order-btn {
     justify-content: center;
     gap: 8px;
     cursor: pointer;
-    box-shadow: 4px 6px 6px 0px rgba(0, 0, 0, 0.25);
+    /* box-shadow: 4px 6px 6px 0px rgba(0, 0, 0, 0.25); */
     margin-top: 24px;
     transition: all 0.3s ease;
 }
 
 .add-flavour-modal .save-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 6px 8px 8px 0px rgba(0, 0, 0, 0.3);
+    /* transform: translateY(-2px); */
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
+    transition: opacity 0.3s ease;
+    background: #207156;
+    transform: scale(1.01);
 }
 
 .add-flavour-modal .save-button svg {
@@ -2750,6 +2772,8 @@ body.tab-done .add-order-btn {
 }
 
 .add-flavour-modal .modal-close {
+    color: #B3261E;
+    font-size: 40px;
     position: absolute;
     top: 35px;
     right: 35px;
@@ -2762,11 +2786,6 @@ body.tab-done .add-order-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-}
-
-.add-flavour-modal .modal-close svg {
-    width: 22px;
-    height: 22px;
 }
 
 .add-flavour-modal .error {
@@ -2845,6 +2864,8 @@ body.tab-done .add-order-btn {
 }
 
 .add-menu-modal .save-button {
+    position: relative;
+    overflow: hidden;
     width: 100%;
     height: 53px;
     background: linear-gradient(90deg, #207156 0%, #60B7A6 100%);
@@ -2860,14 +2881,16 @@ body.tab-done .add-order-btn {
     justify-content: center;
     gap: 8px;
     cursor: pointer;
-    box-shadow: 4px 6px 6px 0px rgba(0, 0, 0, 0.25);
+    /* box-shadow: 4px 6px 6px 0px rgba(0, 0, 0, 0.25); */
     margin-top: 24px;
     transition: all 0.3s ease;
 }
 
 .add-menu-modal .save-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 6px 8px 8px 0px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
+    transition: opacity 0.3s ease;
+    background: #207156;
+    transform: scale(1.01);
 }
 
 .add-menu-modal .save-button svg {
@@ -2876,6 +2899,8 @@ body.tab-done .add-order-btn {
 }
 
 .add-menu-modal .modal-close {
+    color: #B3261E;
+    font-size: 40px;
     position: absolute;
     top: 35px;
     right: 35px;
@@ -2888,11 +2913,6 @@ body.tab-done .add-order-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-}
-
-.add-menu-modal .modal-close svg {
-    width: 22px;
-    height: 22px;
 }
 
 .add-menu-modal .error {
@@ -3769,6 +3789,8 @@ body.tab-done .add-order-btn {
 }
 
 .view-modal .modal-close {
+    color: #B3261E;
+    font-size: 40px;
     position: absolute;
     top: 35px;
     right: 35px;
@@ -3782,11 +3804,6 @@ body.tab-done .add-order-btn {
     align-items: center;
     justify-content: center;
     z-index: 10;
-}
-
-.view-modal .modal-close svg {
-    width: 22px;
-    height: 22px;
 }
 
 /* Responsive adjustments for search and view modals */
