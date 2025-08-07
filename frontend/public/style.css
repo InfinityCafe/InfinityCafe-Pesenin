@@ -295,6 +295,13 @@ input:checked + .slider:before {
     color: #8D7272;
 }
 
+.tab-btn:hover {
+    background: #F8F9FA;
+    color: #8D7272;
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
+    transition: color 0.2ease;
+}
+
 .tab-btn.tab-active {
     background: linear-gradient(to right, #8D7272, #B5A4A4);
     color: #FFFFFF;
@@ -330,7 +337,7 @@ input:checked + .slider:before {
     color: white;
     opacity: 0;
     transition: opacity 0.3s ease;
-    transform: scale(1.02);
+    transform: scale(1.01);
     z-index: -1;
     pointer-events: none;
 }
@@ -342,7 +349,7 @@ input:checked + .slider:before {
 .add-order-btn:hover {
     transition: opacity 0.3s ease;
     background: #503A3A;
-    transform: scale(1.02);
+    transform: scale(1.01);
 }
 
 /* Order Columns */
@@ -2112,7 +2119,7 @@ input:checked + .slider:before {
   
   .done-orders .order-list {
     gap: 0.75rem;
-    padding: 0 2px 8px;
+    padding: 0 12px 12px;    
   }
   
   .done-orders .column {
@@ -2321,7 +2328,7 @@ body.tab-done .add-order-btn {
 #menu-table th:nth-child(5) {
     width: 200px;
 }
-#flavors-table th:nth-child(3) {
+#flavors-table th:nth-child(4) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
@@ -2377,7 +2384,7 @@ body.tab-done .add-order-btn {
     width: 200px;
 }
 
-#flavors-table td:nth-child(3) {
+#flavors-table td:nth-child(4) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
