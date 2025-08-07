@@ -1,3 +1,8 @@
+// Login guard
+if (!localStorage.getItem('access_token')) {
+  window.location.href = 'login.html';
+}
+
 // Status flow and configuration
 const statusFlow = { receive: "making", making: "deliver", deliver: "done" };
 const statusColors = {

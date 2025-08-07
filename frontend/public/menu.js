@@ -1,3 +1,28 @@
+// Login guard
+if (!localStorage.getItem('access_token')) {
+  window.location.href = 'login.html';
+}
+
+// Fungsi logout
+function logout() {
+  localStorage.removeItem('access_token');
+  window.location.href = 'login.html';
+}
+
+// Tambahkan tombol logout ke header setelah DOM siap
+window.addEventListener('DOMContentLoaded', function () {
+  const headerRight = document.querySelector('.header-right');
+  if (headerRight && !document.getElementById('logout-btn')) {
+    const logoutBtn = document.createElement('button');
+    logoutBtn.className = 'nav-btn';
+    logoutBtn.id = 'logout-btn';
+    logoutBtn.textContent = 'Logout';
+    logoutBtn.style.marginLeft = '1rem';
+    logoutBtn.onclick = logout;
+    headerRight.appendChild(logoutBtn);
+  }
+});
+
 const BASE_URL = "";
 
 // Global variables for pagination and filtering

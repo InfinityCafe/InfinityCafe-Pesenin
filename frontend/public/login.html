@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login - Infinity Cafe</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/responsive-tables.css">
+  <link rel="stylesheet" href="css/navbar.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #F8F9FA;
+    }
+    .login-container {
+      background: #fff;
+      border-radius: 1rem;
+      box-shadow: 0 4px 24px rgba(104,84,84,0.10);
+      padding: 2.5rem 2rem 2rem 2rem;
+      width: 100%;
+      max-width: 370px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+    }
+    .login-logo {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #685454;
+      margin-bottom: 0.5rem;
+      letter-spacing: 1px;
+    }
+    .login-title {
+      font-size: 1.1rem;
+      color: #685454;
+      margin-bottom: 1.5rem;
+      font-weight: 500;
+      text-align: center;
+    }
+    .login-form {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 1.1rem;
+    }
+    .login-form label {
+      font-size: 0.95rem;
+      color: #685454;
+      margin-bottom: 0.3rem;
+      font-weight: 500;
+    }
+    .login-form input[type="text"],
+    .login-form input[type="password"] {
+      width: 100%;
+      padding: 0.7rem 1rem;
+      border: 1px solid #DCD0A8;
+      border-radius: 0.5rem;
+      background: #F8F9FA;
+      font-size: 1rem;
+      outline: none;
+      transition: border 0.2s;
+    }
+    .login-form input:focus {
+      border-color: #685454;
+    }
+    .login-form button {
+      width: 100%;
+      padding: 0.7rem 0;
+      background: #685454;
+      color: #fff;
+      border: none;
+      border-radius: 0.5rem;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 0.5rem;
+    }
+    .login-form button:hover {
+      background: #4d3a3a;
+    }
+    .login-error {
+      color: #B3261E;
+      background: #FDECEC;
+      border-radius: 0.4rem;
+      padding: 0.5rem 1rem;
+      font-size: 0.95rem;
+      margin-top: 0.5rem;
+      text-align: center;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-logo"><i class="fa-solid fa-mug-hot"></i> Infinity Cafe</div>
+    <div class="login-title">Login ke Sistem</div>
+    <form class="login-form" id="login-form" autocomplete="off">
+      <div>
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" required autocomplete="username" />
+      </div>
+      <div>
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password" />
+      </div>
+      <button type="submit">Login</button>
+      <div class="login-error" id="login-error"></div>
+    </form>
+  </div>
+  <script src="login.js"></script>
+</body>
+</html>

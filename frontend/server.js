@@ -429,6 +429,21 @@ app.get("/report/suggested_menu", async (req, res) => {
   }
 });
 
+// Proxy login endpoint
+app.post('/login', async (req, res) => {
+  try {
+    const response = await fetch('http://user_service:8005/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`✅ Frontend running at http://localhost:${PORT}`);
   console.log(`📘 Swagger docs available at http://localhost:${PORT}/docs`);
