@@ -215,6 +215,10 @@ function createOrderCard(order) {
     statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCEL</span>';
     actionButton = `<button class="action-btn action-btn-red-disabled">CANCEL</button>`;
   }
+    else if (order.status === 'habis') {
+    statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCEL</span>';
+    actionButton = `<button class="action-btn action-btn-red-disabled">CANCEL</button>`;
+  }
 
   card.innerHTML = `
     <div class="order-header">
