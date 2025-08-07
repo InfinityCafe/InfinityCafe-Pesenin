@@ -171,6 +171,14 @@
                 </button>
                 <div class="filter-dropdown" id="flavor-filter-dropdown">
                   <div class="filter-group">
+                    <label>Status:</label>
+                    <select id="flavor-status-filter">
+                      <option value="">All</option>
+                      <option value="Yes">Available</option>
+                      <option value="No">Not Available</option>
+                    </select>
+                  </div>
+                  <div class="filter-group">
                     <label>Price Range:</label>
                     <div class="price-range">
                       <input type="number" id="flavor-price-min" placeholder="Min" class="price-input">
@@ -197,6 +205,7 @@
                   <th>NO</th>
                   <th>FLAVOUR NAME</th>
                   <th>ADDITIONAL PRICE</th>
+                  <th>STATUS</th>
                   <th class="action-header">ACTION</th>
                 </tr>
               </thead>

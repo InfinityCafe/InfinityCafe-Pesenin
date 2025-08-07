@@ -44,7 +44,8 @@ function switchTab(tab) {
 // Load all menus with pagination
 async function loadMenus() {
     try {
-    const response = await fetch(`${BASE_URL}/menu`);
+    // Use /menu/all endpoint to get all menus (including unavailable ones) for admin view
+    const response = await fetch(`${BASE_URL}/menu/all`);
     if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -229,7 +230,8 @@ async function ensureDataLoaded() {
 // Load flavors with pagination
 async function loadFlavors() {
     try {
-    const response = await fetch(`${BASE_URL}/flavors`);
+    // Use /flavors/all endpoint to get all flavors (including unavailable ones) for admin view
+    const response = await fetch(`${BASE_URL}/flavors/all`);
     if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -260,7 +262,7 @@ async function loadFlavors() {
     } catch (error) {
     console.error('Error loading flavors:', error);
     const tbody = document.querySelector('#flavors-table tbody');
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Error loading flavors: ' + error.message + '</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Error loading flavors: ' + error.message + '</td></tr>';
     throw error;
     }
 }
@@ -281,6 +283,7 @@ function renderFlavorTable() {
         <td>${startIndex + index + 1}</td>
             <td>${flavor.flavor_name}</td>
             <td>${flavor.additional_price}</td>
+            <td>${flavor.isAvail ? 'Available' : 'Unavailable'}</td>
             <td class="action-header">
             <button class="table-action-btn" onclick="viewFlavor('${flavor.id}')"><i class="fas fa-eye"></i></button>
             <button class="table-action-btn" onclick="editFlavor('${flavor.id}')"><i class="fas fa-edit"></i></button>
@@ -290,7 +293,7 @@ function renderFlavorTable() {
         tbody.appendChild(row);
         });
     } else {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">No flavors found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No flavors found</td></tr>';
     }
     
     updateFlavorTableInfo();
@@ -432,6 +435,7 @@ async function clearMenuFilter() {
 
 function applyFlavorFilter() {
     const searchTerm = document.getElementById('flavor-search').value.toLowerCase();
+    const statusFilter = document.getElementById('flavor-status-filter').value;
     const priceMin = document.getElementById('flavor-price-min').value;
     const priceMax = document.getElementById('flavor-price-max').value;
     
@@ -440,11 +444,16 @@ function applyFlavorFilter() {
     const matchesSearch = flavor.flavor_name.toLowerCase().includes(searchTerm) ||
                         flavor.additional_price.toString().includes(searchTerm);
     
+    // Status filter
+    const matchesStatus = !statusFilter || 
+                        (statusFilter === 'Yes' && flavor.isAvail) ||
+                        (statusFilter === 'No' && !flavor.isAvail);
+    
     // Price filter
     const matchesPrice = (!priceMin || flavor.additional_price >= parseInt(priceMin)) &&
                         (!priceMax || flavor.additional_price <= parseInt(priceMax));
     
-    return matchesSearch && matchesPrice;
+    return matchesSearch && matchesStatus && matchesPrice;
     });
     
     flavorCurrentPage = 1;
@@ -457,6 +466,7 @@ function applyFlavorFilter() {
 
 function clearFlavorFilter() {
     document.getElementById('flavor-search').value = '';
+    document.getElementById('flavor-status-filter').value = '';
     document.getElementById('flavor-price-min').value = '';
     document.getElementById('flavor-price-max').value = '';
     
