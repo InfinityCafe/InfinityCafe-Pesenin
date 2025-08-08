@@ -101,6 +101,7 @@ Base.metadata.create_all(bind=engine)
 class OrderItem(BaseModel):
     menu_name: str
     quantity: int
+    telegram_id: str = ""  # Menambahkan telegram_id untuk konsistensi
     preference: Optional[str] = ""
     notes: Optional[str] = ""
 
