@@ -109,6 +109,7 @@ class OrderItem(Base):
     __tablename__ = "order_items"
     id = Column(Integer, primary_key=True, index=True)
     order_id = Column(String, ForeignKey("orders.order_id"))
+    telegram_id = Column(String, nullable=False)
     menu_name = Column(String)
     quantity = Column(Integer)
     preference = Column(Text)
@@ -120,6 +121,7 @@ Base.metadata.create_all(bind=engine)
 class OrderItemSchema(BaseModel):
     menu_name: str = Field(..., min_length=1, description="Nama menu tidak boleh kosong.")
     quantity: int = Field(..., gt=0, description="Jumlah pesanan harus lebih dari 0.")
+    telegram_id : str = Field(..., min_length=1, description="ID Telegram tidak boleh kosong.")
     preference: Optional[str] = ""
     notes: Optional[str] = None
 
