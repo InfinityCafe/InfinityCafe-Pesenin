@@ -344,7 +344,7 @@ input:checked + .slider:before {
     color: white;
     opacity: 0;
     transition: opacity 0.3s ease;
-    transform: scale(1.01);
+    transform: scale(1.02);
     z-index: -1;
     pointer-events: none;
 }
@@ -357,7 +357,7 @@ input:checked + .slider:before {
     box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
     transition: opacity 0.3s ease;
     background: #503A3A;
-    transform: scale(1.01);
+    transform: scale(1.02);
 }
 
 /* Order Columns */
@@ -1140,21 +1140,24 @@ input:checked + .slider:before {
     }
 
     .modal-btn-cancel {
-        background-color: #EF4444;
+        background: linear-gradient(to right, #D57F0E, #FFC763);
+        /* background-color: #FFE8C0; */
         color: white;
     }
 
     .modal-btn-cancel:hover {
-        background-color: #DC2626;
+    transform: translateY(-2px);
+    box-shadow: 2px 4px 4px 0px rgba(0, 0, 0, 0.3);
     }
 
     .modal-btn-habis {
-        background-color: #6B7280;
+        background: linear-gradient(90deg, #b3261e 0%, #f26060 100%);
         color: white;
     }
 
     .modal-btn-habis:hover {
-        background-color: #4B5563;
+    transform: translateY(-2px);
+    box-shadow: 2px 4px 4px 0px rgba(0, 0, 0, 0.3);
     }
 
     .modal-detail {
@@ -1898,7 +1901,7 @@ input:checked + .slider:before {
             padding: 8px;
         }
         .greeting-message h2 {
-            font-size: 20px;
+            font-size: 20px; waktunya
         }
         .greeting-date {
             font-size: 13px;
@@ -2308,7 +2311,7 @@ input:checked + .slider:before {
   
   .done-orders .order-list {
     gap: 0.75rem;
-    padding: 0 12px 12px;    
+    padding: 0 2px 8px;
   }
   
   .done-orders .column {
@@ -2529,7 +2532,7 @@ body.tab-done .add-order-btn {
 #menu-table th:nth-child(5) {
     width: 200px;
 }
-#flavors-table th:nth-child(4) {
+#flavors-table th:nth-child(3) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
@@ -2585,7 +2588,7 @@ body.tab-done .add-order-btn {
     width: 200px;
 }
 
-#flavors-table td:nth-child(4) {
+#flavors-table td:nth-child(3) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
