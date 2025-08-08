@@ -1901,7 +1901,7 @@ input:checked + .slider:before {
             padding: 8px;
         }
         .greeting-message h2 {
-            font-size: 20px; waktunya
+            font-size: 20px;
         }
         .greeting-date {
             font-size: 13px;
