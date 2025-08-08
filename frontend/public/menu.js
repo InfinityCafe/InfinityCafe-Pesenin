@@ -1,12 +1,12 @@
 // Login guard
 if (!localStorage.getItem('access_token')) {
-  window.location.href = 'login.html';
+  window.location.href = '/login';
 }
 
 // Fungsi logout
 function logout() {
   localStorage.removeItem('access_token');
-  window.location.href = 'login.html';
+  window.location.href = '/login';
 }
 
 // Tambahkan tombol logout ke header setelah DOM siap
