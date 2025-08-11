@@ -35,7 +35,7 @@ function switchTab(tab) {
   const doneBtn = document.getElementById('tab-done');
   const orderColumns = document.querySelector('.order-columns');
   const doneOrders = document.getElementById('done-orders');
-  const sidebar = document.querySelector('.sidebar');
+  const sidebar = document.getElementById('sidebar');
   document.body.classList.remove('tab-active', 'tab-done');
   document.body.classList.add(tab === 'active' ? 'tab-active' : 'tab-done');
   

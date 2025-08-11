@@ -62,34 +62,36 @@
       </div>
 
       <!-- Order Columns -->
-      <div class="order-columns">
-        <div class="column">
-          <h3 class="column-title">New Order</h3>
-          <div class="column-content">
-            <div id="new-order-column" class="order-list"></div>
-          </div>
-        </div>
-        <div class="column">
-          <h3 class="column-title">Making</h3>
-          <div class="column-content">
-            <div id="making-column" class="order-list"></div>
-          </div>
-        </div>
-        <div class="column">
-          <h3 class="column-title">Deliver</h3>
-          <div class="column-content">
-            <div id="deliver-column" class="order-list"></div>
-          </div>
+      <div class="dashboard-layout">
+        <div class="order-columns">
+            <div class="column">
+            <h3 class="column-title">New Order</h3>
+            <div class="column-content">
+                <div id="new-order-column" class="order-list"></div>
+            </div>
+            </div>
+            <div class="column">
+            <h3 class="column-title">Making</h3>
+            <div class="column-content">
+                <div id="making-column" class="order-list"></div>
+            </div>
+            </div>
+            <div class="column">
+            <h3 class="column-title">Deliver</h3>
+            <div class="column-content">
+                <div id="deliver-column" class="order-list"></div>
+            </div>
+            </div>
         </div>
         <!-- Sidebar -->
-        <div class="column">
-        <div class="sidebar-column">
-            <h3 class="column-title sidebar-title">ORDER SUMMARY</h3>
-            <div class="column-content sidebar-content"></div>
+        <div class="column sidebar" id="sidebar">
+            <!-- <div class="sidebar-column"> -->
+                <h3 class="column-title sidebar-title">ORDER SUMMARY</h3>
+                <div class="column-content sidebar-content"></div>
+            <!-- </div> -->
         </div>
-      </div>
-        </div>
-      </div>
+    </div>
+
 
       <!-- Done Orders (Hidden by default) -->
       <div id="done-orders" class="done-orders hidden">
@@ -100,7 +102,7 @@
               <div id="done-order-column" class="order-list"></div>
             </div>
           </div>
-          <div class="column">
+          <div class="column sidebar">
             <h3 class="column-title">Cancel</h3>
             <div class="column-content">
               <div id="cancel-order-column" class="order-list"></div>
@@ -108,15 +110,8 @@
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- Sidebar -->
-    <!-- <div class="sidebar">
-      <div class="sidebar-column">
-          <h3 class="sidebar-title">ORDER SUMMARY</h3>
-            <div class="sidebar-content"></div>
       </div>
-    </div> -->
+
   </div>
 
   </div>
