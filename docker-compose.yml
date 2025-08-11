@@ -301,6 +301,10 @@ services:
           psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB_INVENTORY}'" |
           grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -c 'CREATE DATABASE ${POSTGRES_DB_INVENTORY}' &&
 
+          echo 'Create Database User...' &&
+          psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB_USER}'" |
+          grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -c 'CREATE DATABASE ${POSTGRES_DB_USER}' &&
+          
           echo 'All databases created successfully!' &&
           echo 'Initializing vector extension and seeding data...' &&
           
@@ -441,7 +445,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8005:8005"
+      - "8006:8006"
     extra_hosts:
       - "ollama:host-gateway"
     healthcheck:
@@ -449,6 +453,32 @@ services:
       interval: 5s
       timeout: 5s
       retries: 3
+
+
+  user_service:
+    networks: ['demo', 'my_shared_network']
+    hostname: user_service
+    build:
+      context: ./infinity/ 
+      dockerfile: user_service/Dockerfile
+    container_name: user_service
+    depends_on:
+      pgvector17:
+        condition: service_healthy
+      n8n-import:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    ports:
+      - "8005:8005" 
+    extra_hosts:
+      - "ollama:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://user_service:8005/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
 
   # kitchen_dashboard_pwa:
   #   build:

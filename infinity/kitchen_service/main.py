@@ -101,6 +101,7 @@ Base.metadata.create_all(bind=engine)
 class OrderItem(BaseModel):
     menu_name: str
     quantity: int
+    telegram_id: str = ""  # Menambahkan telegram_id untuk konsistensi
     preference: Optional[str] = ""
     notes: Optional[str] = ""
 
@@ -133,8 +134,8 @@ class KitchenStatusRequest(BaseModel):
     is_open: bool
 
 @app.post("/kitchen/status", summary="Atur status dapur ON/OFF", tags=["Kitchen"])
-def set_kitchen_status(
-    request: KitchenStatusRequest,
+async def set_kitchen_status(
+    status_request: KitchenStatusRequest, 
     db: Session = Depends(get_db)
 ):
 
@@ -153,7 +154,6 @@ def get_kitchen_status_endpoint(db: Session = Depends(get_db)):
     return {
         "is_open": status.is_open
     }
-
 
 @app.post("/receive_order", summary="Terima pesanan", tags=["Kitchen"], operation_id="receive order")
 async def receive_order(order: KitchenOrderRequest, db: Session = Depends(get_db)):
