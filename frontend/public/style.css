@@ -380,7 +380,7 @@ input:checked + .slider:before {
     max-height: 75vh;
     padding: 0; */
     border: 2px solid #DCD0A8;
-    border-radius: 12px;
+    border-radius: 14px;
     background-color: white;
     /* position: relative;
     width: 329px;
@@ -428,12 +428,14 @@ input:checked + .slider:before {
     font-size: 19px;
     text-transform: uppercase;
     padding: 12px;
+    
 }
 
 .column-content, .sidebar-content {
     flex-grow: 1;
     overflow-y: auto;
     min-height: 0;
+    border-radius: 14px;
 }
 .column-content {
     padding: 1rem 1.25rem;
@@ -1562,6 +1564,53 @@ input:checked + .slider:before {
         .customer-name {
             font-size: 14px;
         }
+
+        .login-glass-card {
+        flex-direction: column;
+        min-height: 500px;
+        max-height: 90vh;
+        padding: 1rem;
+        }
+
+        .login-form-section {
+            padding: 32px 24px;
+            min-width: 0;
+        }
+
+        .login-image-section {
+            padding: 16px 0;
+            max-width: 100%;
+            min-width: 0;
+        }
+
+        .barista-image {
+            max-width: 250px;
+            max-height: 250px;
+        }
+
+        .login-container {
+            max-width: 100%;
+            padding: 1.5rem 1rem;
+        }
+
+        .logo-cafe-title {
+            font-size: 22px;
+        }
+
+        .logo-cafe-subtitle {
+            font-size: 14px;
+        }
+
+        .login-form input[type="text"],
+        .login-form input[type="password"] {
+            height: 40px;
+            font-size: 13px;
+        }
+
+        .login-form button {
+            font-size: 0.9rem;
+            padding: 0.6rem 0;
+        }
     }
 
     @media (max-width: 480px) {
@@ -1727,6 +1776,54 @@ input:checked + .slider:before {
             font-size: 12px;
             padding: 6px 10px;
         } */
+
+        .login-glass-card {
+        min-height: 400px;
+        max-height: 85vh;
+        padding: 0.5rem;
+        border-radius: 15px;
+        }
+
+        .login-form-section {
+            padding: 24px 16px;
+        }
+
+        .login-image-section {
+            padding: 8px 0;
+        }
+
+        .barista-image {
+            max-width: 200px;
+            max-height: 200px;
+        }
+
+        .login-container {
+            padding: 1rem 0.75rem;
+        }
+
+        .logo-cafe-title {
+            font-size: 18px;
+        }
+
+        .logo-cafe-subtitle {
+            font-size: 12px;
+        }
+
+        .login-form input[type="text"],
+        .login-form input[type="password"] {
+            height: 36px;
+            font-size: 12px;
+        }
+
+        .login-form button {
+            font-size: 0.8rem;
+            padding: 0.5rem 0;
+        }
+
+        .login-error {
+            font-size: 0.9rem;
+            padding: 0.4rem 0.8rem;
+        }
     }
     
     /* Tablet Landscape */
@@ -1779,6 +1876,18 @@ input:checked + .slider:before {
         
         .greeting-date {
             font-size: 15px;
+        }
+
+        .login-glass-card {
+        min-height: 600px;
+        }
+
+        .login-image-section {
+            max-width: 600px;
+        }
+
+        .barista-image {
+            max-width: 300px;
         }
     }
     
@@ -3821,62 +3930,162 @@ body.tab-done .add-order-btn {
     z-index: 10;
 }
 
-body[data-page="login"] {
+.background-wrapper {
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #F8F9FA;
+    background-image: url('img/bg-gradient.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    width: 100%;
+    max-width: 100%;
+}
+
+body[data-page="login"] {
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+}
+
+.login-glass-card {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    max-width: 95%;
+    min-height: 650px;
+    max-height: 95%;
+    background: rgba(255, 255, 255, 0.29);
+    border-radius: 25px;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    border: 1.5px solid rgba(255, 255, 255, 0.29);
+    overflow: hidden;
+}
+
+.login-form-section {
+    flex: 1 1 0;
+    padding: 56px 48px 56px 56px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: transparent;
+    min-width: 320px;
+}
+
+.login-brand-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.login-image-section {
+    /* max-width: 350px; */
+    width: 100%;
+    height: auto;
+    flex: 1 1 0;
+    max-width: 769px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    padding: 32px, 56px, 32px 0;
+    min-width: 320px;
+}
+
+.barista-image {
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  max-height: 100%;
+  display: block;
+  border-radius: 12px;
+  /* box-shadow: 0 4px 24px rgba(104,84,84,0.10); */
+  background: transparent;
+  margin: auto;
 }
 
 .login-container {
-    background: #fff;
+    flex: 1;
+    background: rgba(255, 255, 255, 0.29);
+    backdrop-filter: blur(5px);
     border-radius: 1rem;
     box-shadow: 0 4px 24px rgba(104,84,84,0.10);
     padding: 2.5rem 2rem 2rem 2rem;
     width: 100%;
-    max-width: 370px;
+    max-width: 401px;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 1.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.29);
 }
 .login-logo {
-    font-size: 2rem;
-    font-weight: 700;
-    color: #685454;
-    margin-bottom: 0.5rem;
-    letter-spacing: 1px;
-}
-.login-title {
-    font-size: 1.1rem;
-    color: #685454;
-    margin-bottom: 1.5rem;
-    font-weight: 500;
     text-align: center;
+    margin-bottom: 0px;
 }
+
+.login-image {
+    width: 80px;
+    height: auto;
+}
+
+.login-brand {
+    text-align: center;
+    padding: 0 1rem;
+}
+
+.logo-cafe-title {
+    font-size: 26px;
+    font-weight: 800;
+    color: #312929;
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+.logo-cafe-subtitle {
+    font-size: 16px;
+    color: #312929;
+    margin-bottom: 54px;
+    font-weight: 100;
+    text-align: center;
+    margin: 0;
+}
+
 .login-form {
     width: 100%;
+    max-width: 410px;
     display: flex;
     flex-direction: column;
     gap: 1.1rem;
 }
 .login-form label {
-    font-size: 0.95rem;
-    color: #685454;
+    font-size: 16px;
+    color: #312929;
     margin-bottom: 0.3rem;
-    font-weight: 500;
+    font-weight:700;
 }
 .login-form input[type="text"],
 .login-form input[type="password"] {
     width: 100%;
-    padding: 0.7rem 1rem;
-    border: 1px solid #DCD0A8;
-    border-radius: 0.5rem;
-    background: #F8F9FA;
-    font-size: 1rem;
-    outline: none;
-    transition: border 0.2s;
+    height: 44px;
+    background-color: #FFFFFF;
+    border: none;
+    border-radius: 10px;
+    padding: 0 22px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 1.21;
+    color: #312929;
+    box-shadow: inset 0px 4px 4px 0px rgba(0, 0, 0, 0.25);
+    box-sizing: border-box;
 }
 .login-form input:focus {
     border-color: #685454;
@@ -3884,8 +4093,8 @@ body[data-page="login"] {
 .login-form button {
     width: 100%;
     padding: 0.7rem 0;
-    background: #685454;
-    color: #fff;
+    background: linear-gradient(90deg, #207156 0%, #60b7a6 100%);
+    color: #FFFFFF;
     border: none;
     border-radius: 0.5rem;
     font-size: 1rem;
@@ -3895,11 +4104,15 @@ body[data-page="login"] {
     margin-top: 0.5rem;
 }
 .login-form button:hover {
-    background: #4d3a3a;
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
+    transition: opacity 0.3s ease;
+    background: #207156;
+    transform: scale(1.01);
 }
+
 .login-error {
     color: #B3261E;
-    background: #FDECEC;
+    background: #FDECEC;    
     border-radius: 0.4rem;
     padding: 0.5rem 1rem;
     font-size: 0.95rem;
@@ -3907,6 +4120,22 @@ body[data-page="login"] {
     text-align: center;
     display: none;
 }
+
+/* Responsive Adjustments */
+/* @media (max-width: 768px) {
+    .login-wrapper {
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .login-barista {
+        max-width: 300px;
+    }
+
+    .login-container {
+        max-width: 90%;
+    }
+} */
 
 /* Responsive adjustments for search and view modals */
 @media (max-width: 768px) {
