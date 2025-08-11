@@ -101,6 +101,7 @@ Base.metadata.create_all(bind=engine)
 class OrderItem(BaseModel):
     menu_name: str
     quantity: int
+    telegram_id: str = ""  # Menambahkan telegram_id untuk konsistensi
     preference: Optional[str] = ""
     notes: Optional[str] = ""
 
@@ -132,6 +133,16 @@ def get_kitchen_status(db: Session):  #
 class KitchenStatusRequest(BaseModel):
     is_open: bool
 
+@app.get("/kitchen/status", summary="Cek status dapur saat ini", tags=["Kitchen"])
+def get_kitchen_status_simple(db: Session = Depends(get_db)):
+    status = get_kitchen_status(db)
+    return {
+        "status": "success",
+        "data": {
+            "is_open": status.is_open
+        }
+    }
+
 @app.post("/kitchen/status", summary="Atur status dapur ON/OFF", tags=["Kitchen"])
 async def set_kitchen_status(
     status_request: KitchenStatusRequest, 
@@ -139,19 +150,12 @@ async def set_kitchen_status(
 ):
 
     status = get_kitchen_status(db)
-    status.is_open = request.is_open
+    status.is_open = status_request.is_open
     db.commit()
     return {
         "status": "success",
-        "message": f"Kitchen status set to {'ON' if request.is_open else 'OFF'}",
-        "data": {"is_open": request.is_open}
-    }
-
-@app.get("/kitchen/status/now", summary="Cek status dapur saat ini", tags=["Kitchen"])
-def get_kitchen_status_endpoint(db: Session = Depends(get_db)):
-    status = get_kitchen_status(db)
-    return {
-        "is_open": status.is_open
+        "message": f"Kitchen status set to {'ON' if status_request.is_open else 'OFF'}",
+        "data": {"is_open": status_request.is_open}
     }
 
 @app.post("/receive_order", summary="Terima pesanan", tags=["Kitchen"], operation_id="receive order")
