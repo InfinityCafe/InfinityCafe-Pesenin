@@ -143,6 +143,13 @@ def get_kitchen_status_simple(db: Session = Depends(get_db)):
         }
     }
 
+@app.get("/kitchen/status/now", summary="Cek status dapur saat ini (format sederhana)", tags=["Kitchen"])
+def get_kitchen_status_now(db: Session = Depends(get_db)):
+    status = get_kitchen_status(db)
+    return {
+        "is_open": status.is_open
+    }
+
 @app.post("/kitchen/status", summary="Atur status dapur ON/OFF", tags=["Kitchen"])
 async def set_kitchen_status(
     status_request: KitchenStatusRequest, 

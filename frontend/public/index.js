@@ -33,17 +33,18 @@ let selectedOrderId = null;
 let selectedOrder = null;
 let currentTab = 'active';
 
-// // Kitchen toggle functionality
-// function initializeKitchenToggle() {
-//   const toggle = document.getElementById('kitchen-toggle');
-//   const statusText = document.getElementById('kitchen-status-text');
+// Kitchen toggle functionality
+function initializeKitchenToggle() {
+  const toggle = document.getElementById('kitchen-toggle');
   
-//   toggle.addEventListener('change', function() {
-//     const isOpen = this.checked;
-//     setKitchenStatus(isOpen);
-//     statusText.textContent = isOpen ? 'BUKA' : 'TUTUP';
-//   });
-// }
+  toggle.addEventListener('change', function() {
+    const isOpen = this.checked;
+    setKitchenStatus(isOpen);
+  });
+  
+  // Fetch initial kitchen status when page loads
+  fetchKitchenStatus();
+}
 
 // Tab switching functionality
 function switchTab(tab) {
@@ -471,51 +472,63 @@ function fetchOrders() {
     });
 }
 
-// async function fetchKitchenStatus() {
-//   try {
-//     const res = await fetch("/kitchen/status/now");
-//     const data = await res.json();
-//     updateKitchenStatusUI(data.is_open);
-//   } catch {
-//     updateKitchenStatusUI(false);
-//   }
-// }
+async function fetchKitchenStatus() {
+  try {
+    const res = await fetch("/kitchen/status/now");
+    if (!res.ok) {
+      throw new Error('Failed to fetch kitchen status');
+    }
+    const data = await res.json();
+    updateKitchenStatusUI(data.is_open);
+  } catch (error) {
+    console.error('Error fetching kitchen status:', error);
+    updateKitchenStatusUI(false);
+  }
+}
 
-// async function setKitchenStatus(isOpen) {
-//   try {
-//     await fetch("/kitchen/status", {
-//       method: "POST",
-//       headers: { "Content-Type": "application/json" },
-//       body: JSON.stringify({ is_open: isOpen })
-//     });
-//     fetchKitchenStatus();
-//   } catch {
-//     alert("Gagal mengubah status dapur");
-//   }
-// }
+async function setKitchenStatus(isOpen) {
+  try {
+    const res = await fetch("/kitchen/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_open: isOpen })
+    });
+    
+    if (!res.ok) {
+      throw new Error('Failed to update kitchen status');
+    }
+    
+    await fetchKitchenStatus();
+  } catch (error) {
+    console.error('Error setting kitchen status:', error);
+    alert("Gagal mengubah status dapur. Silakan coba lagi.");
+    // Revert toggle to match actual status
+    fetchKitchenStatus();
+  }
+}
 
-// function updateKitchenStatusUI(isOpen) {
-//   const toggle = document.getElementById('kitchen-toggle');
-//   const statusText = document.getElementById('kitchen-status-text');
-//   const offBanner = document.getElementById('kitchen-off-banner');
+function updateKitchenStatusUI(isOpen) {
+  const toggle = document.getElementById('kitchen-toggle');
+  const offBanner = document.getElementById('kitchen-off-banner');
   
-//   toggle.checked = isOpen;
-// //   statusText.textContent = isOpen ? 'BUKA' : 'TUTUP';
+  // Update toggle state
+  toggle.checked = isOpen;
   
-//   if (!isOpen) {
-//     offBanner.classList.remove('hidden');
-//     // Disable all action buttons when kitchen is closed
-//     document.querySelectorAll('.action-btn').forEach(btn => {
-//       btn.disabled = true;
-//     });
-//   } else {
-//     offBanner.classList.add('hidden');
-//     // Enable all action buttons when kitchen is open
-//     document.querySelectorAll('.action-btn').forEach(btn => {
-//       btn.disabled = false;
-//     });
-//   }
-// }
+  // Show/hide banner
+  if (!isOpen) {
+    offBanner.classList.remove('hidden');
+    // Disable all action buttons when kitchen is closed
+    document.querySelectorAll('.action-btn').forEach(btn => {
+      btn.disabled = true;
+    });
+  } else {
+    offBanner.classList.add('hidden');
+    // Enable all action buttons when kitchen is open
+    document.querySelectorAll('.action-btn').forEach(btn => {
+      btn.disabled = false;
+    });
+  }
+}
 
 //
 function initializeEventSource() {
@@ -1182,7 +1195,8 @@ addOrderForm.onsubmit = async function(e) {
       menu_name: i.menu_name,
       quantity: i.quantity,
       preference: i.preference,
-      notes: i.notes
+      notes: i.notes,
+      telegram_id: "0" // Otomatis mengisi telegram_id dengan "0"
     }));
   } else {
     // Custom order tab
@@ -1198,7 +1212,8 @@ addOrderForm.onsubmit = async function(e) {
         quantity: i.quantity,
         preference: preference, // Kirim preferences sebagai string dengan pemisah koma
         notes: i.notes,
-        custom_flavour: true // Pastikan flag custom_flavour tetap ada
+        custom_flavour: true, // Pastikan flag custom_flavour tetap ada
+        telegram_id: "0" // Otomatis mengisi telegram_id dengan "0"
       };
     });
     is_custom = true;
@@ -1395,9 +1410,8 @@ function updateGreetingDate() {
 
 // Initialize all functionality when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-  initializeKitchenToggle();
+  initializeKitchenToggle(); // This now calls fetchKitchenStatus internally
   initializeSearch();
-//   fetchKitchenStatus();
   switchTab('active');
   initializeEventSource();
   fetchAllFlavors();
