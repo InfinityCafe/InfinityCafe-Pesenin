@@ -149,6 +149,13 @@
     <div class="modal-content">
       <button class="modal-close" onclick="closeAddOrderModal()">&times;</button>
       <h3 class="modal-title">Create New Order</h3>
+      
+      <!-- Tab Navigation untuk Modal -->
+      <div class="modal-tab-navigation">
+        <button id="tab-regular-order" class="modal-tab-btn modal-tab-active" onclick="switchOrderTab('regular')">REGULAR ORDER</button>
+        <button id="tab-custom-order" class="modal-tab-btn" onclick="switchOrderTab('custom')">CUSTOM ORDER</button>
+      </div>
+      
       <form id="add-order-form">
         <div class="form-group">
           <label for="customer_name">Customer Name</label>
@@ -158,12 +165,24 @@
           <label for="room_name">Room</label>
           <input type="text" id="room_name" name="room_name" placeholder="Type Here ..." required />
         </div>
-        <div id="order-items-list"></div>
-        <button type="button" id="add-order-item-btn" class="modal-btn modal-btn-outline" style="width:100%;margin:16px 0 0 0;display:flex;align-items:center;justify-content:center;gap:8px;">
-          Add New Item <span style="font-size:20px;line-height:1;">+</span>
-        </button>
+        
+        <!-- Regular Order Tab Content -->
+        <div id="regular-order-content" class="order-tab-content">
+          <div id="order-items-list"></div>
+          <button type="button" id="add-order-item-btn" class="modal-btn modal-btn-outline" style="width:100%;margin:16px 0 0 0;display:flex;align-items:center;justify-content:center;gap:8px;">
+            Add New Item <span style="font-size:20px;line-height:1;">+</span>
+          </button>
+        </div>
+        
+        <!-- Custom Order Tab Content -->
+        <div id="custom-order-content" class="order-tab-content hidden">
+          <div id="custom-order-items-list"></div>
+          <button type="button" id="add-custom-order-item-btn" class="modal-btn modal-btn-outline" style="width:100%;margin:16px 0 0 0;display:flex;align-items:center;justify-content:center;gap:8px;">
+            Add New Custom Item <span style="font-size:20px;line-height:1;">+</span>
+          </button>
+        </div>
+        
         <div class="modal-actions">
-          <!-- <button type="button" class="modal-btn modal-btn-cancel" onclick="closeAddOrderModal()">Cancel</button> -->
           <button type="submit" class="modal-btn modal-btn-habis" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;">
             <span class="fa fa-save"></span> Save Order
           </button>

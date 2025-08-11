@@ -2232,10 +2232,63 @@ input:checked + .slider:before {
   gap: 0.5rem;
   margin-top: 24px;
 }
+
+/* Modal Tab Styling */
+.modal-tab-navigation {
+  display: flex;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #DCD0A8;
+}
+
+.modal-tab-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 10px 15px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #685454;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.modal-tab-btn:hover {
+  color: #312929;
+}
+
+.modal-tab-active {
+  color: #207156;
+}
+
+.modal-tab-active:after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: #207156;
+  border-radius: 3px 3px 0 0;
+}
+
+.order-tab-content {
+  display: block;
+}
+
+.order-tab-content.hidden {
+  display: none;
+}
+
 @media (max-width: 600px) {
   #add-order-modal .modal-content {
     max-width: 98vw;
     padding: 18px 4vw;
+  }
+  
+  .modal-tab-btn {
+    font-size: 12px;
+    padding: 8px 10px;
   }
 }
 
