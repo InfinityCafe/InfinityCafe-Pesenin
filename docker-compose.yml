@@ -202,6 +202,23 @@ services:
       - "-c"
       - "sleep 3; echo 'Creating userParser Model'; ollama create userParser -f /modelfile/user2json.modelfile"
 
+  message-generator-model:
+    image: ollama/ollama:latest
+    networks: ['demo']
+    container_name: message-generator-model
+    depends_on:
+      n8n:
+        condition: service_started
+    volumes:
+      - ollama_storage:/root/.ollama
+      - ./modelfile:/modelfile
+    entrypoint: /bin/sh
+    environment:
+    - OLLAMA_HOST=ollama:11434
+    command:
+      - "-c"
+      - "sleep 3; echo 'Creating messageGen Model'; ollama create messageGen -f /modelfile/messageGenerator.modelfile"
+
   pgadmin:
     image: dpage/pgadmin4
     networks: ['demo']
