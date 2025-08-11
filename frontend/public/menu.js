@@ -3,6 +3,58 @@ if (!localStorage.getItem('access_token')) {
   window.location.href = '/login';
 }
 
+// Fungsi untuk mendekode token JWT
+function parseJwt(token) {
+  try {
+    // Memisahkan header, payload, dan signature
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    // Decode base64 dan parse JSON
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error('Error parsing JWT token:', e);
+    return {};
+  }
+}
+
+// Fungsi untuk menampilkan data user dari token JWT
+function displayUserInfo() {
+  try {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      const userData = parseJwt(token);
+      const username = userData.sub || 'User';
+      
+      // Update header subtitle (nama dan peran)
+      const headerSubtitle = document.querySelector('.header-subtitle');
+      if (headerSubtitle) {
+        headerSubtitle.textContent = `${username} | Barista`;
+      }
+      
+      // Update greeting message
+      const greetingMessage = document.querySelector('.greeting-message h2');
+      if (greetingMessage) {
+        greetingMessage.textContent = `Hi, ${username}, here's list menu!`;
+      }
+    }
+  } catch (error) {
+    console.error('Error displaying user info:', error);
+  }
+}
+
+// Fungsi untuk memperbarui tanggal greeting
+function updateGreetingDate() {
+  const dateElement = document.getElementById('greeting-date');
+  if (dateElement) {
+    const today = new Date();
+    const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+    dateElement.textContent = today.toLocaleDateString('id-ID', options);
+  }
+}
+
 // Fungsi logout
 function logout() {
   localStorage.removeItem('access_token');
@@ -21,6 +73,10 @@ window.addEventListener('DOMContentLoaded', function () {
     logoutBtn.onclick = logout;
     headerRight.appendChild(logoutBtn);
   }
+  
+  // Tampilkan info user dan update tanggal
+  displayUserInfo();
+  updateGreetingDate();
 });
 
 const BASE_URL = "";
@@ -1068,6 +1124,10 @@ window.addEventListener('load', async () => {
     switchTab('menu'); // Set default tab
     setupNavigation(); // Setup navigation
     setupSearch(); // Setup search functionality
+    
+    // Tampilkan info user dan update tanggal
+    displayUserInfo();
+    updateGreetingDate();
     
     // Ensure navigation is properly set up after DOM is fully loaded
     setTimeout(() => {

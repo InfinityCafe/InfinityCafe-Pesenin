@@ -3,6 +3,23 @@ if (!localStorage.getItem('access_token')) {
   window.location.href = '/login';
 }
 
+// Fungsi untuk mendekode token JWT
+function parseJwt(token) {
+  try {
+    // Memisahkan header, payload, dan signature
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    // Decode base64 dan parse JSON
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error('Error parsing JWT token:', e);
+    return {};
+  }
+}
+
 // Status flow and configuration
 const statusFlow = { receive: "making", making: "deliver", deliver: "done" };
 const statusColors = {
@@ -1341,6 +1358,41 @@ addOrderForm.onsubmit = async function(e) {
 //     }
 // }
 
+// Fungsi untuk menampilkan data user dari token JWT
+function displayUserInfo() {
+  try {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      const userData = parseJwt(token);
+      const username = userData.sub || 'User';
+      
+      // Update header subtitle (nama dan peran)
+      const headerSubtitle = document.querySelector('.header-subtitle');
+      if (headerSubtitle) {
+        headerSubtitle.textContent = `${username} | Barista`;
+      }
+      
+      // Update greeting message
+      const greetingMessage = document.querySelector('.greeting-message h2');
+      if (greetingMessage) {
+        greetingMessage.textContent = `Hi, ${username}, here's today's orders!`;
+      }
+    }
+  } catch (error) {
+    console.error('Error displaying user info:', error);
+  }
+}
+
+// Fungsi untuk memperbarui tanggal greeting
+function updateGreetingDate() {
+  const dateElement = document.getElementById('greeting-date');
+  if (dateElement) {
+    const today = new Date();
+    const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+    dateElement.textContent = today.toLocaleDateString('id-ID', options);
+  }
+}
+
 // Initialize all functionality when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
   initializeKitchenToggle();
@@ -1350,16 +1402,9 @@ document.addEventListener('DOMContentLoaded', function() {
   initializeEventSource();
   fetchAllFlavors();
   fetchMenuOptions();
-//   updateGreetingDate();
+  displayUserInfo(); // Menampilkan info user dari token JWT
+  updateGreetingDate(); // Memperbarui tanggal greeting
 //   setupNavigation();
-  
-  // Set greeting date to today in Indonesian format
-//   const greetingDate = document.querySelector('.greeting-date');
-//   if (greetingDate) {
-//     const today = new Date();
-//     const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-//     greetingDate.textContent = today.toLocaleDateString('id-ID', options);
-//   }
 });
 
 // Global functions for event handlers
