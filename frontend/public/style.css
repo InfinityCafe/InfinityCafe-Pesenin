@@ -831,7 +831,7 @@ input:checked + .slider:before {
 }
 
 /* Sidebar */
-.sidebar {
+.column.sidebar {
     width: 365px;
     flex-shrink: 0;
     border: 2px solid #DCD0A8;
