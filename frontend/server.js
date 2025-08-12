@@ -176,12 +176,16 @@ app.get("/dashboard", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.get("/management-menu", (req, res) => {
+app.get("/menu-management", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "menu.html"));
 });
 
 app.get("/reportkitchen", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "report.html"));
+});
+
+app.get("/login", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "login.html"));
 });
 
 app.get("/health", (req, res) => {
@@ -249,7 +253,9 @@ app.post("/menu", async (req, res) => {
       body: JSON.stringify(body)
     });
     const data = await resp.json();
-    res.json(data);
+    
+    // Forward the status code from the backend service
+    res.status(resp.status).json(data);
   } catch (err) {
     console.error("Failed to create menu ", err);
     res.status(500).json({ error: "Failed to create menu" });
@@ -266,7 +272,9 @@ app.put("/menu/:menu_id", async (req, res) => {
       body: JSON.stringify(body)
     });
     const data = await resp.json();
-    res.json(data);
+    
+    // Forward the status code from the backend service
+    res.status(resp.status).json(data);
   } catch (err) {
     console.error("Failed to update menu ", err);
     res.status(500).json({ error: "Failed to update menu" });
@@ -280,7 +288,9 @@ app.delete("/menu/:menu_id", async (req, res) => {
       method: "DELETE"
     });
     const data = await resp.json();
-    res.json(data);
+    
+    // Forward the status code from the backend service
+    res.status(resp.status).json(data);
   } catch (err) {
     console.error("Failed to delete menu ", err);
     res.status(500).json({ error: "Failed to delete menu" });
@@ -320,7 +330,9 @@ app.post("/flavors", async (req, res) => {
       body: JSON.stringify(body)
     });
     const data = await resp.json();
-    res.json(data);
+    
+    // Forward the status code from the backend service
+    res.status(resp.status).json(data);
   } catch (err) {
     console.error("Failed to create flavor ", err);
     res.status(500).json({ error: "Failed to create flavor" });
@@ -337,7 +349,9 @@ app.put("/flavors/:flavor_id", async (req, res) => {
       body: JSON.stringify(body)
     });
     const data = await resp.json();
-    res.json(data);
+    
+    // Forward the status code from the backend service
+    res.status(resp.status).json(data);
   } catch (err) {
     console.error("Failed to update flavor ", err);
     res.status(500).json({ error: "Failed to update flavor" });
@@ -351,7 +365,9 @@ app.delete("/flavors/:flavor_id", async (req, res) => {
       method: "DELETE"
     });
     const data = await resp.json();
-    res.json(data);
+    
+    // Forward the status code from the backend service
+    res.status(resp.status).json(data);
   } catch (err) {
     console.error("Failed to delete flavor ", err);
     res.status(500).json({ error: "Failed to delete flavor" });
@@ -414,6 +430,21 @@ app.get("/report/suggested_menu", async (req, res) => {
   } catch (err) {
     console.error("Failed to fetch suggested menu ", err);
     res.status(500).json({ error: "Failed to fetch suggested menu" });
+  }
+});
+
+// Proxy login endpoint
+app.post('/login', async (req, res) => {
+  try {
+    const response = await fetch('http://user_service:8005/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

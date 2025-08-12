@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard Dapur - Infinity Cafe</title>
+  <title>Dashboard Kitchen - Infinity Cafe</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/navbar.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 
 </head>
@@ -12,12 +13,12 @@
   <!-- Header -->
   <nav class="header">
     <div class="header-brand">
-      <h1 class="header-title" id="navbar-title">Infinity Cafe</h1>
+      <h1 class="header-title" id="navbar-title">Dashboard Kitchen</h1>
       <p class="header-subtitle">Stephany | Barista</p>
     </div>
     <div class="header-menu">
-      <button class="nav-btn" id="nav-dashboard" data-url="dashboard">Dashboard</button>
-      <button class="nav-btn" id="nav-menu" data-url="management-menu">Management Menu</button>
+      <button class="nav-btn" id="nav-dashboard" data-url="dashboard" onclick="window.location.href = '/index.html';">Dashboard</button>
+      <button class="nav-btn" id="nav-menu" data-url="menu-management" onclick="window.location.href = '/menu.html';">Menu Management</button>
     </div>
     <div class="header-right">
       <div class="search-container">
@@ -61,26 +62,36 @@
       </div>
 
       <!-- Order Columns -->
-      <div class="order-columns">
-        <div class="column">
-          <h3 class="column-title">New Order</h3>
-          <div class="column-content">
-            <div id="new-order-column" class="order-list"></div>
-          </div>
+      <div class="dashboard-layout">
+        <div class="order-columns">
+            <div class="column">
+            <h3 class="column-title">New Order</h3>
+            <div class="column-content">
+                <div id="new-order-column" class="order-list"></div>
+            </div>
+            </div>
+            <div class="column">
+            <h3 class="column-title">Making</h3>
+            <div class="column-content">
+                <div id="making-column" class="order-list"></div>
+            </div>
+            </div>
+            <div class="column">
+            <h3 class="column-title">Deliver</h3>
+            <div class="column-content">
+                <div id="deliver-column" class="order-list"></div>
+            </div>
+            </div>
         </div>
-        <div class="column">
-          <h3 class="column-title">Making</h3>
-          <div class="column-content">
-            <div id="making-column" class="order-list"></div>
-          </div>
+        <!-- Sidebar -->
+        <div class="column sidebar" id="sidebar">
+            <!-- <div class="sidebar-column"> -->
+                <h3 class="column-title sidebar-title">ORDER SUMMARY</h3>
+                <div class="column-content sidebar-content"></div>
+            <!-- </div> -->
         </div>
-        <div class="column">
-          <h3 class="column-title">Deliver</h3>
-          <div class="column-content">
-            <div id="deliver-column" class="order-list"></div>
-          </div>
-        </div>
-      </div>
+    </div>
+
 
       <!-- Done Orders (Hidden by default) -->
       <div id="done-orders" class="done-orders hidden">
@@ -91,7 +102,7 @@
               <div id="done-order-column" class="order-list"></div>
             </div>
           </div>
-          <div class="column">
+          <div class="column sidebar">
             <h3 class="column-title">Cancel</h3>
             <div class="column-content">
               <div id="cancel-order-column" class="order-list"></div>
@@ -99,31 +110,8 @@
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- Sidebar -->
-    <div class="sidebar">
-      <div class="sidebar-column">
-          <h3 class="sidebar-title">ORDER SUMMARY</h3>
-        <div class="sidebar-content">
-          <!-- <div class="summary-item">
-            <div class="summary-header">
-              <span class="summary-name"></span>
-              <span class="summary-count"></span>
-            </div>
-            <div class="summary-details">
-                <span class="summary-detail"></span>
-                <span class="summary-detail"></span>
-                <span class="summary-detail"></span>
-                <span class="summary-detail"></span>
-            </div>
-            <div class="summary-variants">
-              <div class="variant-item"></div>
-            </div>
-          </div> -->
-        </div>
       </div>
-    </div>
+
   </div>
 
   </div>
@@ -135,7 +123,7 @@
       <h3 class="modal-title">Konfirmasi Pembatalan</h3>
       <p class="modal-text">Pilih alasan pembatalan atau kehabisan bahan.</p>
       <div class="modal-actions">
-        <button onclick="confirmCancel('cancel')" class="modal-btn modal-btn-cancel">Batal</button>
+        <button onclick="confirmCancel('cancel')" class="modal-btn modal-btn-cancel">Alasan Lain</button>
         <button onclick="confirmCancel('habis')" class="modal-btn modal-btn-habis">Habis</button>
       </div>
     </div>
@@ -161,6 +149,13 @@
     <div class="modal-content">
       <button class="modal-close" onclick="closeAddOrderModal()">&times;</button>
       <h3 class="modal-title">Create New Order</h3>
+      
+      <!-- Tab Navigation untuk Modal -->
+      <div class="modal-tab-navigation">
+        <button id="tab-regular-order" class="modal-tab-btn modal-tab-active" onclick="switchOrderTab('regular')">REGULAR ORDER</button>
+        <button id="tab-custom-order" class="modal-tab-btn" onclick="switchOrderTab('custom')">CUSTOM ORDER</button>
+      </div>
+      
       <form id="add-order-form">
         <div class="form-group">
           <label for="customer_name">Customer Name</label>
@@ -170,12 +165,24 @@
           <label for="room_name">Room</label>
           <input type="text" id="room_name" name="room_name" placeholder="Type Here ..." required />
         </div>
-        <div id="order-items-list"></div>
-        <button type="button" id="add-order-item-btn" class="modal-btn modal-btn-outline" style="width:100%;margin:16px 0 0 0;display:flex;align-items:center;justify-content:center;gap:8px;">
-          Add New Item <span style="font-size:20px;line-height:1;">+</span>
-        </button>
+        
+        <!-- Regular Order Tab Content -->
+        <div id="regular-order-content" class="order-tab-content">
+          <div id="order-items-list"></div>
+          <button type="button" id="add-order-item-btn" class="modal-btn modal-btn-outline" style="width:100%;margin:16px 0 0 0;display:flex;align-items:center;justify-content:center;gap:8px;">
+            Add New Item <span style="font-size:20px;line-height:1;">+</span>
+          </button>
+        </div>
+        
+        <!-- Custom Order Tab Content -->
+        <div id="custom-order-content" class="order-tab-content hidden">
+          <div id="custom-order-items-list"></div>
+          <button type="button" id="add-custom-order-item-btn" class="modal-btn modal-btn-outline" style="width:100%;margin:16px 0 0 0;display:flex;align-items:center;justify-content:center;gap:8px;">
+            Add New Custom Item <span style="font-size:20px;line-height:1;">+</span>
+          </button>
+        </div>
+        
         <div class="modal-actions">
-          <button type="button" class="modal-btn modal-btn-cancel" onclick="closeAddOrderModal()">Cancel</button>
           <button type="submit" class="modal-btn modal-btn-habis" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;">
             <span class="fa fa-save"></span> Save Order
           </button>
@@ -200,6 +207,32 @@
   <audio id="sound-new-order" src="https://www.myinstants.com/media/sounds/mario-coin.mp3" preload="auto"></audio>
   <audio id="sound-status-update" src="https://www.myinstants.com/media/sounds/smw_1-up.mp3" preload="auto"></audio>
 
+  <script>
+// Login guard
+if (!localStorage.getItem('access_token')) {
+  window.location.href = '/login';
+}
+// Fungsi logout
+function logout() {
+  localStorage.removeItem('access_token');
+  window.location.href = '/login';
+}
+// Tambahkan tombol logout ke header setelah DOM siap
+window.addEventListener('DOMContentLoaded', function () {
+  const headerRight = document.querySelector('.header-right');
+  if (headerRight && !document.getElementById('logout-btn')) {
+    const logoutBtn = document.createElement('button');
+    logoutBtn.className = 'nav-btn';
+    logoutBtn.id = 'logout-btn';
+    logoutBtn.textContent = 'Logout';
+    logoutBtn.style.marginLeft = '1rem';
+    logoutBtn.onclick = logout;
+    headerRight.appendChild(logoutBtn);
+  }
+});
+  </script>
   <script src="script.js"></script>
+  <script src="index.js"></script>
+
 </body>
 </html>
