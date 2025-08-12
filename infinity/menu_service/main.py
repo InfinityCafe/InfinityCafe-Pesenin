@@ -69,7 +69,18 @@ async def value_error_handler(request: Request, exc: ValueError):
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Custom handler untuk HTTPException, merubah status menjadi 200 untuk kompatibilitas n8n jika error adalah validation related."""
-    # Jika error adalah validation related (400, 404), ubah ke 200
+    # Untuk endpoint flavors, jangan ubah status code agar frontend bisa mendeteksi error dengan benar
+    if request.url.path.startswith("/flavors"):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "status": "error",
+                "message": exc.detail,
+                "data": {"error_type": "business_logic_error", "original_status": exc.status_code}
+            }
+        )
+    
+    # Jika error adalah validation related (400, 404), ubah ke 200 untuk kompatibilitas n8n
     if exc.status_code in [400, 404]:
         return JSONResponse(
             status_code=200,
@@ -356,6 +367,14 @@ def delete_flavor_item(flavor_id: str, db: Session = Depends(get_db)):
             detail=f"Varian rasa tidak dapat dihapus karena masih digunakan oleh menu: {', '.join(menu_names)}"
         )
     
+    # Hapus relasi dari tabel association terlebih dahulu
+    db.execute(
+        menu_item_flavor_association.delete().where(
+            menu_item_flavor_association.c.flavor_id == flavor_id
+        )
+    )
+    
+    # Hapus flavor
     db.delete(db_flavor)
     db.commit()
     
