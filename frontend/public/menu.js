@@ -45,14 +45,18 @@ function displayUserInfo() {
   }
 }
 
-// Fungsi untuk memperbarui tanggal greeting
+// Fungsi untuk memperbarui tanggal greeting (English with ordinal)
 function updateGreetingDate() {
   const dateElement = document.getElementById('greeting-date');
-  if (dateElement) {
-    const today = new Date();
-    const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-    dateElement.textContent = today.toLocaleDateString('id-ID', options);
-  }
+  if (!dateElement) return;
+  const today = new Date();
+  const day = today.getDate();
+  const weekday = today.toLocaleDateString('en-US', { weekday: 'long' });
+  const month = today.toLocaleDateString('en-US', { month: 'long' });
+  const year = today.getFullYear();
+  const ordinalSuffix = day > 3 && day < 21 ? 'th' : ['th', 'st', 'nd', 'rd'][day % 10] || 'th';
+  const formattedDate = `${weekday}, ${day}${ordinalSuffix} ${month} ${year}`;
+  dateElement.textContent = formattedDate;
 }
 
 // Fungsi logout
