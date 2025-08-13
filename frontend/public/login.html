@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login - Infinity Cafe</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/responsive-tables.css">
+  <link rel="stylesheet" href="css/navbar.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</head>
+<body data-page="login">
+  <div class="background-wrapper">
+    <div class="login-glass-card">
+      <div class="login-form-section">
+        <div class="login-brand-container">
+          <div class="login-logo">
+            <img src="img/logo-GIK (1).png" alt="Infinity Cafe Logo" class="logo-image">
+          </div>
+          <div class="login-brand">
+            <h1 class="logo-cafe-title">Infinity Cafe</h1>
+            <p class="logo-cafe-subtitle">Login to Kitchen Dashboard</p>
+          </div>
+          <form class="login-form" id="login-form" autocomplete="off">
+          <div>
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" placeholder="Type Here..." autocomplete="username" required />
+          </div>
+          <div>
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" placeholder="Type Here..." autocomplete="current-password" required />
+          </div>
+          <button type="submit">Login</button>
+          <div class="login-error" id="login-error"></div>
+        </form>
+        </div>
+      </div>
+      <div class="login-image-section">
+        <img src="img/barista.png" alt="Barista Infinity Cafe" class="barista-image">
+      </div>
+    </div>
+  </div>
+  <script src="login.js"></script>
+</body>
+</html>

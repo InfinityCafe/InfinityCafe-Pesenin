@@ -10,4 +10,5 @@ python-dotenv
 requests
 httpx
 pytz
-
+passlib[bcrypt]
+python-jose[cryptography]

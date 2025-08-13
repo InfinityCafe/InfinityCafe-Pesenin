@@ -56,10 +56,11 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://kitchen.gikstaging.com"],  # Dalam production, ganti dengan domain spesifik
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 mcp = FastApiMCP(app,name="Server MCP Infinity",
@@ -88,7 +89,6 @@ class Order(Base):
     order_id = Column(String, primary_key=True)
     queue_number = Column(Integer, nullable=False)
     customer_name = Column(String)
-    table_no = Column(String)
     room_name = Column(String)
     status = Column(String, default="receive")
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
@@ -109,6 +109,7 @@ class OrderItem(Base):
     __tablename__ = "order_items"
     id = Column(Integer, primary_key=True, index=True)
     order_id = Column(String, ForeignKey("orders.order_id"))
+    telegram_id = Column(String, nullable=False)
     menu_name = Column(String)
     quantity = Column(Integer)
     preference = Column(Text)
@@ -120,6 +121,7 @@ Base.metadata.create_all(bind=engine)
 class OrderItemSchema(BaseModel):
     menu_name: str = Field(..., min_length=1, description="Nama menu tidak boleh kosong.")
     quantity: int = Field(..., gt=0, description="Jumlah pesanan harus lebih dari 0.")
+    telegram_id : str = Field(..., min_length=1, description="ID Telegram tidak boleh kosong.")
     preference: Optional[str] = ""
     notes: Optional[str] = None
 
@@ -128,7 +130,6 @@ class OrderItemSchema(BaseModel):
 
 class CreateOrderRequest(BaseModel):
     customer_name: str = Field(..., min_length=1, description="Nama pelanggan tidak boleh kosong.")
-    table_no: str = Field(..., min_length=1, description="Nomor meja tidak boleh kosong.")
     room_name: str = Field(..., min_length=1, description="Nama ruangan tidak boleh kosong.")
     orders: List[OrderItemSchema] = Field(..., min_length=1, description="Daftar pesanan tidak boleh kosong.")
 
@@ -348,7 +349,6 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
             order_id=order_id,
             queue_number=new_queue_number,
             customer_name=req.customer_name,
-            table_no=req.table_no,
             room_name=req.room_name,
             is_custom=False
         )
@@ -356,7 +356,7 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         for item in req.orders:
             db.add(OrderItem(order_id=order_id, **item.model_dump()))
         
-        outbox_payload = { "order_id": order_id, "queue_number": new_queue_number, "orders": [item.model_dump() for item in req.orders], "customer_name": req.customer_name, "table_no": req.table_no, "room_name": req.room_name }
+        outbox_payload = { "order_id": order_id, "queue_number": new_queue_number, "orders": [item.model_dump() for item in req.orders], "customer_name": req.customer_name, "room_name": req.room_name }
         create_outbox_event(db, order_id, "order_created", outbox_payload)
         db.commit()
     except Exception as e:
@@ -371,7 +371,7 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
 
     return JSONResponse(status_code=200, content={
         "status": "success",
-        "message": f"Pesanan kamu telah berhasil diproses dengan id order : {order_id}, mohon ditunggu ya !",
+        "message": f"Pesanan kamu telah berhasil diproses dengan id order : {order_id} dan dengan no antrian : {new_queue_number} mohon ditunggu ya !",
         "data": {
             "order_id": order_id,
             "queue_number": new_queue_number
@@ -440,7 +440,6 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
             order_id=order_id,
             queue_number=new_queue_number,
             customer_name=req.customer_name,
-            table_no=req.table_no,
             room_name=req.room_name,
             is_custom=True
         )
@@ -448,7 +447,7 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         for item in req.orders:
             db.add(OrderItem(order_id=order_id, **item.model_dump()))
         
-        outbox_payload = { "order_id": order_id, "queue_number": new_queue_number, "orders": [item.model_dump() for item in req.orders], "customer_name": req.customer_name, "table_no": req.table_no, "room_name": req.room_name }
+        outbox_payload = { "order_id": order_id, "queue_number": new_queue_number, "orders": [item.model_dump() for item in req.orders], "customer_name": req.customer_name, "room_name": req.room_name }
         create_outbox_event(db, order_id, "order_created", outbox_payload)
         db.commit()
     except Exception as e:
