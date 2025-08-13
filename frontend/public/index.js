@@ -94,6 +94,21 @@ function openConfirmModal(orderId) {
   document.getElementById("confirm-modal").classList.remove("hidden");
 }
 
+// Ensure error modal helpers exist and avoid overlapping modals
+function showErrorModal(message) {
+  const success = document.getElementById('success-modal');
+  if (success) success.classList.add('hidden');
+  const msg = document.getElementById('error-message');
+  if (msg) msg.textContent = message;
+  const modal = document.getElementById('error-modal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeErrorModal() {
+  const modal = document.getElementById('error-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
 function closeConfirmModal() {
   selectedOrderId = null;
   document.getElementById("confirm-modal").classList.add("hidden");
@@ -160,7 +175,7 @@ async function syncUpdate(orderId, status, reason = "") {
     fetchOrders();
     logHistory(orderId, status, reason);
   } catch (err) {
-    alert("Gagal update status ke kitchen/order service");
+    showErrorModal("Gagal update status ke kitchen/order service");
   }
 }
 
@@ -501,7 +516,7 @@ async function setKitchenStatus(isOpen) {
     await fetchKitchenStatus();
   } catch (error) {
     console.error('Error setting kitchen status:', error);
-    alert("Gagal mengubah status dapur. Silakan coba lagi.");
+    showErrorModal("Gagal mengubah status dapur. Silakan coba lagi.");
     // Revert toggle to match actual status
     fetchKitchenStatus();
   }
@@ -1167,10 +1182,13 @@ if (addOrderBtn) addOrderBtn.onclick = openAddOrderModal;
 // Handle submit
 const addOrderForm = document.getElementById('add-order-form');
 function showSuccessModal(message) {
+  // Hide error modal if visible to avoid overlap
+  const err = document.getElementById('error-modal');
+  if (err) err.classList.add('hidden');
   const modal = document.getElementById('success-modal');
   const msgBox = document.getElementById('success-message');
-  msgBox.textContent = message;
-  modal.classList.remove('hidden');
+  if (msgBox) msgBox.textContent = message;
+  if (modal) modal.classList.remove('hidden');
 }
 function closeSuccessModal() {
   document.getElementById('success-modal').classList.add('hidden');
@@ -1237,12 +1255,12 @@ addOrderForm.onsubmit = async function(e) {
   }
   
   if (!isValid) {
-    alert('Mohon lengkapi nama pelanggan dan ruangan.');
+    showErrorModal('Mohon lengkapi nama pelanggan dan ruangan.');
     return;
   }
   
   if (orders.length === 0) {
-    alert('Mohon tambahkan minimal 1 item pesanan.');
+    showErrorModal('Mohon tambahkan minimal 1 item pesanan.');
     return;
   }
   
@@ -1288,12 +1306,12 @@ addOrderForm.onsubmit = async function(e) {
   });
   
   if (invalidItems) {
-    alert('Mohon pilih menu untuk semua item pesanan.');
+    showErrorModal('Mohon pilih menu untuk semua item pesanan.');
     return;
   }
   
   if (invalidFlavors) {
-    alert('Mohon pilih minimal 1 flavour untuk menu yang memerlukan flavour.');
+    showErrorModal('Mohon pilih minimal 1 flavour untuk menu yang memerlukan flavour.');
     return;
   }
   
@@ -1320,11 +1338,11 @@ addOrderForm.onsubmit = async function(e) {
       fetchOrders();
       showSuccessModal(data.message || 'Pesanan berhasil ditambahkan!');
     } else {
-      alert(data.message || 'Gagal membuat pesanan.');
+      showErrorModal(data.message || 'Gagal membuat pesanan.');
     }
   } catch (err) {
     console.error('Error creating order:', err);
-    alert('Gagal terhubung ke server order.');
+    showErrorModal('Gagal terhubung ke server order.');
   }
   
   submitBtn.disabled = false;

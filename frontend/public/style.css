@@ -2861,7 +2861,9 @@ body.tab-done .add-order-btn {
     padding: 32px;
     max-width: 481px;
     width: 481px;
-    height: 426px;
+    height: auto;
+    max-height: 90vh;
+    overflow-y: auto;
     position: relative;
 }
 
@@ -2888,6 +2890,36 @@ body.tab-done .add-order-btn {
     color: #312929;
     display: block;
     margin-bottom: 8px;
+}
+
+/* Flavour status radio group - align with menu modal styling, responsive-safe */
+.add-flavour-modal .radio-group {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.add-flavour-modal .radio-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.add-flavour-modal .radio-option input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    accent-color: #312929;
+}
+
+.add-flavour-modal .radio-option label {
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 1.21;
+    color: #312929;
+    margin: 0;
 }
 
 .add-flavour-modal .form-group input[type="text"],
@@ -3282,6 +3314,13 @@ body.tab-done .add-order-btn {
         padding: 20px;
         min-height: auto;
         max-height: 90vh;
+    }
+    .add-flavour-modal {
+        width: 95vw;
+        max-width: 95vw;
+        padding: 20px;
+        max-height: 90vh;
+        overflow-y: auto;
     }
     
     .add-menu-modal .flavor-selector {

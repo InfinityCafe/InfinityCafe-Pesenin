@@ -578,6 +578,12 @@ async function saveMenu() {
     const basePrice = parseInt(document.getElementById('base-price').value);
     const isAvail = document.querySelector('input[name="is-avail"]:checked').value === 'true';
 
+    // Client-side validation for non-negative price
+    if (isNaN(basePrice) || basePrice < 0) {
+    	showErrorModal('Harga menu tidak boleh negatif.');
+    	return;
+    }
+
     const data = {
     base_name: baseName,
     base_price: basePrice,
@@ -746,6 +752,8 @@ async function viewFlavor(flavorId) {
     
     document.getElementById('view-flavor-name').textContent = flavor.flavor_name;
     document.getElementById('view-flavor-price').textContent = `Rp ${flavor.additional_price.toLocaleString()}`;
+    const availEl = document.getElementById('view-flavor-available');
+    if (availEl) availEl.textContent = flavor.isAvail ? 'Yes' : 'No';
     
     // Store the flavor ID for edit functionality
     document.getElementById('view-flavor-modal').setAttribute('data-flavor-id', flavorId);
@@ -767,7 +775,15 @@ async function editFlavor(flavorId) {
     
     document.getElementById('flavour-name').value = flavor.flavor_name;
     document.getElementById('additional-price').value = flavor.additional_price;
-    
+    // Set radio button berdasarkan isAvail
+    if (flavor.isAvail) {
+        document.getElementById('is-flavour-avail-true').checked = true;
+    } else {
+        document.getElementById('is-flavour-avail-false').checked = true;
+    }
+    // Ubah judul modal menjadi Edit Flavour
+    const modalTitle = document.querySelector('#add-flavour-modal .modal-title');
+    if (modalTitle) modalTitle.textContent = 'Edit Flavour';
     document.getElementById('add-flavour-form').setAttribute('data-flavour-id', flavorId);
     openAddFlavourModal();
     } catch (error) {
@@ -873,6 +889,11 @@ function closeAddMenuModal() {
 }
 
 function openAddFlavourModal() {
+    // Pastikan judul default saat create
+    const modalTitle = document.querySelector('#add-flavour-modal .modal-title');
+    if (modalTitle && !document.getElementById('add-flavour-form').getAttribute('data-flavour-id')) {
+        modalTitle.textContent = 'Create New Flavour';
+    }
     document.getElementById('add-flavour-modal').classList.remove('hidden');
 }
 
@@ -881,6 +902,9 @@ function closeAddFlavourModal() {
     document.getElementById('add-flavour-form').removeAttribute('data-flavour-id');
     document.getElementById('flavour-form-error').textContent = '';
     document.getElementById('flavour-form-error').style.color = '';
+    // Reset radio ke default Available
+    const availTrue = document.getElementById('is-flavour-avail-true');
+    if (availTrue) availTrue.checked = true;
     document.getElementById('add-flavour-modal').classList.add('hidden');
 }
 
@@ -930,10 +954,18 @@ async function saveFlavour() {
     const flavourId = document.getElementById('add-flavour-form').getAttribute('data-flavour-id') || null;
     const flavourName = document.getElementById('flavour-name').value;
     const additionalPrice = parseInt(document.getElementById('additional-price').value);
+    const isAvail = document.querySelector('input[name="flavour-is-avail"]:checked').value === 'true';
+
+    // Client-side validation for non-negative additional price
+    if (isNaN(additionalPrice) || additionalPrice < 0) {
+    	showErrorModal('Harga tambahan tidak boleh negatif.');
+    	return;
+    }
 
     const data = {
     flavor_name: flavourName,
-    additional_price: additionalPrice
+    additional_price: additionalPrice,
+    isAvail: isAvail
     };
 
     try {
@@ -1095,6 +1127,9 @@ function closeDeleteConfirmModal() {
 }
 
 function showSuccessModal(message) {
+    // Hide error modal if visible
+    const err = document.getElementById('error-modal');
+    if (err) err.classList.add('hidden');
     document.getElementById('success-message').textContent = message;
     document.getElementById('success-modal').classList.remove('hidden');
 }
@@ -1104,6 +1139,9 @@ function closeSuccessModal() {
 }
 
 function showErrorModal(message) {
+    // Hide success modal if visible
+    const suc = document.getElementById('success-modal');
+    if (suc) suc.classList.add('hidden');
     document.getElementById('error-message').textContent = message;
     document.getElementById('error-modal').classList.remove('hidden');
 }

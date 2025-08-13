@@ -263,7 +263,7 @@
         </div>
         <div class="form-group">
           <label for="base-price">Price</label>
-          <input type="number" id="base-price" name="base-price" placeholder="Type Here ..." required />
+          <input type="number" id="base-price" name="base-price" placeholder="Type Here ..." required min="0" step="1" />
         </div>
         <div class="form-group">
           <label for="is-avail">Status</label>
@@ -313,7 +313,20 @@
         </div>
         <div class="form-group">
           <label for="additional-price">Additional Price</label>
-          <input type="number" id="additional-price" name="additional-price" placeholder="Type Here ..." required />
+          <input type="number" id="additional-price" name="additional-price" placeholder="Type Here ..." required min="0" step="1" />
+        </div>
+        <div class="form-group">
+          <label for="flavour-is-avail">Status</label>
+          <div class="radio-group">
+            <div class="radio-option">
+              <input type="radio" id="is-flavour-avail-true" name="flavour-is-avail" value="true" checked />
+              <label for="is-flavour-avail-true">Available</label>
+            </div>
+            <div class="radio-option">
+              <input type="radio" id="is-flavour-avail-false" name="flavour-is-avail" value="false" />
+              <label for="is-flavour-avail-false">Unavailable</label>
+            </div>
+          </div>
         </div>
         <button type="submit" class="save-button">
           <span class="fa fa-save"></span>
@@ -371,6 +384,10 @@
         <div class="view-item">
           <label>Additional Price:</label>
           <span id="view-flavor-price"></span>
+        </div>
+        <div class="view-item">
+          <label>Available:</label>
+          <span id="view-flavor-available"></span>
         </div>
       </div>
       <div class="modal-actions">
