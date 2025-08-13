@@ -554,15 +554,31 @@ def get_order_status(order_id: str, db: Session = Depends(get_db)):
     if not order:
         return JSONResponse(status_code=200, content={"status": "error", "message": "Order not found", "data": None})
     
+    order_items = db.query(OrderItem).filter(OrderItem.order_id == order_id).all()
+    
+    order_status_details = {
+        "order_id": order.order_id,
+        "queue_number": order.queue_number,
+        "customer_name": order.customer_name,
+        "room_name": order.room_name,
+        "status": order.status,
+        "created_at": order.created_at.isoformat(),
+        "cancel_reason": order.cancel_reason,
+        "is_custom": order.is_custom,
+        "orders": [
+            {
+                "menu_name": item.menu_name,
+                "quantity": item.quantity,
+                "preference": item.preference if item.preference else "",
+                "notes": item.notes
+            } for item in order_items
+        ]
+    }
+    
     return JSONResponse(status_code=200, content={
         "status": "success",
         "message": "Status pesanan berhasil diambil.",
-        "data": {
-            "order_id": order.order_id,
-            "status": order.status,
-            "queue_number": order.queue_number,
-            "created_at": order.created_at.isoformat()
-        }
+        "data": order_status_details
     })
 
 @app.get("/order", summary="Semua pesanan", tags=["Order"], operation_id="list order")
