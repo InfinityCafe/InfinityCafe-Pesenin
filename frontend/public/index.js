@@ -262,7 +262,7 @@ function createOrderCard(order) {
     <div class="order-header">
       <span class="order-number">${queueNumber ? `#${queueNumber}` : ''}</span>
       <span class="customer-name">${order.customer_name ?? 'John Doe'}</span>
-      ${["receive", "making", "deliver"].includes(order.status) ? `<button class="order-close" onclick="event.stopPropagation(); openConfirmModal('${order.order_id}')">&times;</button>` : ""}
+      ${order.status === "receive" ? `<button class="order-close" onclick="event.stopPropagation(); openConfirmModal('${order.order_id}')">&times;</button>` : ""}
     </div>
     <div class="order-contents">
         <div class="order-location">

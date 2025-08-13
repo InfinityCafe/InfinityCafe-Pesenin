@@ -428,7 +428,8 @@ input:checked + .slider:before {
     font-size: 19px;
     text-transform: uppercase;
     padding: 12px;
-    
+    width: 285px;
+    margin: auto;
 }
 
 .column-content, .sidebar-content {
@@ -1833,7 +1834,13 @@ input:checked + .slider:before {
             gap: 12px;
         }
         
-        .column, .sidebar {
+        .column {
+            width: auto;
+            min-height: 70vh;
+            max-height: 70vh;
+        }
+
+        .column.sidebar {
             width: auto;
             min-height: 70vh;
             max-height: 70vh;
@@ -2706,10 +2713,11 @@ body.tab-done .add-order-btn {
 #menu-table th:nth-child(5) {
     width: 200px;
 }
-#flavors-table th:nth-child(3) {
+#flavors-table th:nth-child(4) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
+
 
 #menu-table th:not(:first-child):not(.action-header)::before,
 #flavors-table th:not(:first-child):not(.action-header)::before {
@@ -2762,7 +2770,7 @@ body.tab-done .add-order-btn {
     width: 200px;
 }
 
-#flavors-table td:nth-child(3) {
+#flavors-table td:nth-child(4) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
