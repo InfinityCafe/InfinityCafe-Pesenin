@@ -593,7 +593,36 @@ function updateKitchenStatusUI(isOpen) {
   }
 }
 
-//
+let pollingInterval = null;
+let lastOrderId = null;
+
+function startOrderPolling() {
+  if (pollingInterval) return;
+  pollingInterval = setInterval(async () => {
+    try {
+      const res = await fetch("/kitchen/orders");
+      const orders = await res.json();
+      renderOrders(orders);
+
+      if (orders && orders.length > 0) {
+        const newestOrder = orders[orders.length - 1];
+        if (lastOrderId !== newestOrder.order_id) {
+          lastOrderId = newestOrder.order_id;
+          const audio = document.getElementById("sound-new-order");
+          if (audio) audio.play().catch(() => {});
+        }
+      }
+    } catch (err) {
+      document.getElementById("offline-banner").classList.remove("hidden");
+    }
+  }, 5000);
+}
+
+function stopOrderPolling() {
+  if (pollingInterval) clearInterval(pollingInterval);
+  pollingInterval = null;
+}
+
 function initializeEventSource() {
   const eventSource = new EventSource("/stream/orders");
   let updateTimeout = null;
@@ -631,11 +660,14 @@ function initializeEventSource() {
   eventSource.onerror = (error) => {
     console.error('EventSource error:', error);
     document.getElementById("offline-banner").classList.remove("hidden");
+    eventSource.close();
+    startOrderPolling();
   };
   
   eventSource.onopen = () => {
     console.log('EventSource connected');
     document.getElementById("offline-banner").classList.add("hidden");
+    stopOrderPolling();
   };
 }
 
