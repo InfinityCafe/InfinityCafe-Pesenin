@@ -86,62 +86,153 @@ function initializeKitchenToggle() {
         setKitchenStatus(isOpen);
         // statusText.textContent = isOpen ? 'BUKA' : 'TUTUP';
     });
+
+    fetchKitchenStatus();
 }
 
 async function fetchKitchenStatus() {
     try {
         const res = await fetch("/kitchen/status/now");
+        if (!res.ok) {
+        throw new Error('Failed to fetch kitchen status');
+        }
         const data = await res.json();
         updateKitchenStatusUI(data.is_open);
-    } catch {
+    } catch (error) {
+        console.error('Error fetching kitchen status:', error);
         updateKitchenStatusUI(false);
     }
 }
 
 async function setKitchenStatus(isOpen) {
     try {
-        await fetch("/kitchen/status", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ is_open: isOpen })
+        const res = await fetch("/kitchen/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_open: isOpen })
         });
-        // updateKitchenStatusUI(isOpen);
-        fetchKitchenStatus();
-    } catch {
-        alert("Gagal mengubah status dapur");
+        
+        if (!res.ok) {
+        throw new Error('Failed to update kitchen status');
+        }
+        
+        await fetchKitchenStatus();
+    } catch (error) {
+        console.error('Error setting kitchen status:', error);
+        showErrorModal("Gagal mengubah status dapur. Silakan coba lagi.");
+        // Revert toggle to match actual status
         fetchKitchenStatus();
     }
 }
 
 function updateKitchenStatusUI(isOpen) {
     const toggle = document.getElementById('kitchen-toggle');
-    const statusText = document.getElementById('kitchen-status-text');
     const offBanner = document.getElementById('kitchen-off-banner');
-    const actionButtons = document.querySelectorAll('.action-btn');
-
-    if (toggle) {
-        toggle.checked = isOpen;
-    }
-
-    if (statusText) {
-        statusText.textContent = isOpen ? 'BUKA' : 'TUTUP';
-    }
-
-    if (offBanner) {
-        offBanner.classList.toggle('hidden', isOpen); // true = hide
-    }
-
-    if (actionButtons.length > 0) {
-        actionButtons.forEach(btn => {
-            btn.disabled = !isOpen;
+    
+    // Update toggle state
+    toggle.checked = isOpen;
+    
+    // Show/hide banner
+    if (!isOpen) {
+        offBanner.classList.remove('hidden');
+        // Disable all action buttons when kitchen is closed
+        document.querySelectorAll('.action-btn').forEach(btn => {
+        btn.disabled = true;
         });
+    } else {
+        offBanner.classList.add('hidden');
+        // Enable all action buttons when kitchen is open
+        document.querySelectorAll('.action-btn').forEach(btn => {
+        btn.disabled = false;
+        });
+    }
+}
+
+// Fungsi logout
+function logout() {
+    localStorage.removeItem('access_token');
+    window.location.href = '/login';
+}
+
+// Fungsi untuk menambahkan tombol logout ke header
+function setupLogoutButton() {
+    const headerRight = document.querySelector('.header-right');
+    if (headerRight && !document.getElementById('logout-btn')) {
+        const logoutBtn = document.createElement('button');
+        logoutBtn.className = 'nav-btn';
+        logoutBtn.id = 'logout-btn';
+        logoutBtn.textContent = 'Logout';
+        logoutBtn.style.marginLeft = '1rem';
+        logoutBtn.onclick = logout;
+        headerRight.appendChild(logoutBtn);
+    }
+}
+
+// Login guard
+function checkAuth() {
+    const publicPages = ['login'];
+    const currentPage = document.body.dataset.page || window.location.pathname.split('/').pop().replace('.html', '');
+    
+    if (!publicPages.includes(currentPage) && !localStorage.getItem('access_token')) {
+        window.location.href = '/login';
+    }
+}
+
+// Fungsi untuk mendekode token JWT
+function parseJwt(token) {
+    try {
+        // Memisahkan header, payload, dan signature
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        // Decode base64 dan parse JSON
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        console.error('Error parsing JWT token:', e);
+        return {};
+    }
+}
+// Fungsi untuk menampilkan data user dari token JWT
+function displayUserInfo() {
+    try {
+        const token = localStorage.getItem('access_token');
+        if (token) {
+            const userData = parseJwt(token);
+            const username = userData.sub || 'User';
+            
+            // Update header subtitle (nama dan peran)
+            const headerSubtitle = document.querySelector('.header-subtitle');
+            if (headerSubtitle) {
+                headerSubtitle.textContent = `${username} | Barista`;
+            }
+            
+            // Update greeting message berdasarkan halaman
+            const currentPage = document.body.dataset.page;
+            const greetingMessage = document.querySelector('.greeting-message h2');
+            if (greetingMessage) {
+                if (currentPage === 'menu') {
+                    greetingMessage.textContent = `Hi, ${username}, here's list menu!`;
+                } else if (currentPage === 'dashboard') {
+                    greetingMessage.textContent = `Hi, ${username}, here's today's orders!`;
+                } else {
+                    greetingMessage.textContent = `Hi, ${username}!`;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error displaying user info:', error);
     }
 }
 
 // Inisialisasi kode bersama saat DOM dimuat
 document.addEventListener('DOMContentLoaded', function() {
+    checkAuth();
     updateGreetingDate();
     setupNavigation();
     initializeKitchenToggle();
     fetchKitchenStatus();
+    setupLogoutButton();
+    displayUserInfo();
 });
