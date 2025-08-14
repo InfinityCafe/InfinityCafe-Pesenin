@@ -1,14 +1,25 @@
 -- Mengatur zona waktu sesi ke Asia/Jakarta
 SET TIME ZONE 'Asia/Jakarta';
 
+-- Membuat ekstensi vector jika belum ada
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- ===================================================================
--- NORMALISASI ENUM (menyamakan nilai enum ke lowercase yang dipakai di kode)
--- Jika sebelumnya enum berisi 'Ingredient' / 'Packaging' / 'Gram' / 'Milliliter' / 'Piece'
--- akan di-rename menjadi 'ingredient' / 'packaging' / 'gram' / 'milliliter' / 'piece'.
--- (Butuh PostgreSQL >= 10 untuk ALTER TYPE ... RENAME VALUE)
+-- MEMBUAT ENUM TYPES UNTUK INVENTORY
 -- ===================================================================
 DO $$
 BEGIN
+    -- Buat enum stockcategory jika belum ada
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'stockcategory') THEN
+        CREATE TYPE stockcategory AS ENUM ('ingredient', 'packaging');
+    END IF;
+    
+    -- Buat enum unittype jika belum ada
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'unittype') THEN
+        CREATE TYPE unittype AS ENUM ('gram', 'milliliter', 'piece');
+    END IF;
+    
+    -- Normalisasi enum yang sudah ada (jika diperlukan)
     -- stockcategory: Ingredient -> ingredient
     IF EXISTS (
         SELECT 1 FROM pg_type t JOIN pg_enum e ON t.oid=e.enumtypid
@@ -64,14 +75,57 @@ BEGIN
         ALTER TYPE unittype RENAME VALUE 'Piece' TO 'piece';
     END IF;
 END $$;
+-- ===================================================================
+-- MEMBUAT TABEL YANG DIBUTUHKAN JIKA BELUM ADA
+-- ===================================================================
 
-CREATE EXTENSION IF NOT EXISTS vector;
+-- Tabel embeddings untuk AI/vector operations
 CREATE TABLE IF NOT EXISTS embeddings (
     id SERIAL PRIMARY KEY,
     embedding vector,
     text text,
     created_at timestamptz DEFAULT now()
 );
+
+-- Tabel utama inventories
+CREATE TABLE IF NOT EXISTS inventories (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR NOT NULL,
+    current_quantity FLOAT DEFAULT 0,
+    minimum_quantity FLOAT DEFAULT 0,
+    category stockcategory NOT NULL,
+    unit unittype NOT NULL
+);
+
+-- Tabel inventory_outbox untuk event sourcing
+CREATE TABLE IF NOT EXISTS inventory_outbox (
+    id SERIAL PRIMARY KEY,
+    event_type VARCHAR NOT NULL,
+    payload TEXT NOT NULL,
+    processed BOOLEAN DEFAULT FALSE,
+    processed_at TIMESTAMP,
+    retry_count INTEGER DEFAULT 0,
+    max_retries INTEGER DEFAULT 3,
+    error_message TEXT
+);
+
+-- Tabel consumption_log untuk tracking konsumsi stok
+CREATE TABLE IF NOT EXISTS consumption_log (
+    id SERIAL PRIMARY KEY,
+    order_id VARCHAR UNIQUE NOT NULL,
+    per_menu_payload TEXT,
+    per_ingredient_payload TEXT,
+    consumed BOOLEAN DEFAULT FALSE,
+    rolled_back BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT now()
+);
+
+-- Membuat index yang diperlukan
+CREATE INDEX IF NOT EXISTS idx_inventories_name ON inventories(name);
+CREATE INDEX IF NOT EXISTS idx_inventories_category ON inventories(category);
+CREATE INDEX IF NOT EXISTS idx_inventories_unit ON inventories(unit);
+CREATE INDEX IF NOT EXISTS idx_inventory_outbox_event_type ON inventory_outbox(event_type);
+CREATE INDEX IF NOT EXISTS idx_consumption_log_order_id ON consumption_log(order_id);
 
 -- ===================================================================
 -- SEEDER INVENTORY (Bahan & Packaging) sesuai daftar kebutuhan resep
@@ -84,33 +138,51 @@ CREATE TABLE IF NOT EXISTS embeddings (
 --     Jika ingin tracking per rasa, pindahkan masing-masing flavor ke resep & order.
 -- ===================================================================
 
--- Bersihkan tabel inventories bila diperlukan
-TRUNCATE TABLE inventories RESTART IDENTITY CASCADE;
+-- Bersihkan tabel inventories bila diperlukan (hanya jika sudah ada data)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM inventories) THEN
+        TRUNCATE TABLE inventories RESTART IDENTITY CASCADE;
+        TRUNCATE TABLE inventory_outbox RESTART IDENTITY CASCADE;
+        TRUNCATE TABLE consumption_log RESTART IDENTITY CASCADE;
+    END IF;
+END $$;
 
 -- Gunakan ID eksplisit agar sinkron dengan menu_service.synced_inventory
 -- BAHAN DASAR MINUMAN (stok diperbanyak)
-INSERT INTO inventories (id, name, current_quantity, minimum_quantity, category, unit) VALUES
-(1,  'Creamer',               5000,   500,  'ingredient', 'gram'),
-(2,  'Kopi Robusta',         20000,  2000,  'ingredient', 'gram'),
-(3,  'Susu Cair',            50000,  5000,  'ingredient', 'milliliter'),
-(4,  'SKM',                  10000,  1000,  'ingredient', 'milliliter'),
-(5,  'Gula Aren Cair',       10000,  1000,  'ingredient', 'milliliter'),
-(6,  'Gula Pasir',           15000,  1500,  'ingredient', 'gram'),
-(7,  'Ice Batu',             50000,  5000,  'ingredient', 'gram'),
-(8,  'Air',                 100000, 10000,  'ingredient', 'milliliter'),
-(9,  'Air Panas',            50000,  5000,  'ingredient', 'milliliter'),
-(10, 'Biji Selasih',          1000,   100,  'ingredient', 'gram'),
-(11, 'Soda',                 10000,  1000,  'ingredient', 'milliliter'),
-(12, 'Teh Celup',              500,    50,  'ingredient', 'piece'),
-(13, 'Kopi Nescafe',            10,     2,  'ingredient', 'piece'),
-(14, 'Flavor Syrup Generic', 20000,  2000,  'ingredient', 'milliliter'),
-(15, 'Milkshake Powder Generic', 5000, 500, 'ingredient', 'gram');
+INSERT INTO inventories (id, name, current_quantity, minimum_quantity, category, unit) 
+VALUES
+(1,  'Creamer',               500,   500,  'ingredient'::stockcategory, 'gram'::unittype),
+(2,  'Kopi Robusta',         2000,  2000,  'ingredient'::stockcategory, 'gram'::unittype),
+(3,  'Susu Cair',            5000,  5000,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(4,  'SKM',                  1000,  1000,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(5,  'Gula Aren Cair',       1000,  1000,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(6,  'Gula Pasir',           1500,  1500,  'ingredient'::stockcategory, 'gram'::unittype),
+(7,  'Ice Batu',             5000,  5000,  'ingredient'::stockcategory, 'gram'::unittype),
+(8,  'Biji Selasih',          100,   100,  'ingredient'::stockcategory, 'gram'::unittype),
+(9,  'Soda',                 1000,  1000,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(10, 'Teh Celup',              50,    50,  'ingredient'::stockcategory, 'piece'::unittype),
+(11, 'Kopi Nescafe',            10,     10,  'ingredient'::stockcategory, 'piece'::unittype),
+(12, 'Butterscout',            356,   356,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(13, 'French Mocca',           560,   560,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(14, 'Rosted Almond',          231,   231,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(15, 'Creme Brulee',           358,   358,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(16, 'Irish',                  500,   500,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(17, 'Havana',                  82,    82,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(18, 'Salted Caramel',         600,   600,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(19, 'Mangga',                 183,   183,  'ingredient'::stockcategory, 'gram'::unittype),
+(20, 'Permenkaret',            398,   398,  'ingredient'::stockcategory, 'gram'::unittype),
+(21, 'Tiramisu',               484,   484,  'ingredient'::stockcategory, 'gram'::unittype),
+(22, 'Redvelvet',              863,   863,  'ingredient'::stockcategory, 'gram'::unittype),
+(23, 'Strawberry',             600,   600,  'ingredient'::stockcategory, 'gram'::unittype),
+(24, 'Vanilla',                318,   318,  'ingredient'::stockcategory, 'gram'::unittype);
 
 -- PACKAGING & PERLENGKAPAN (stok diperbanyak)
-INSERT INTO inventories (id, name, current_quantity, minimum_quantity, category, unit) VALUES
-(16, 'Cup Plastik',           5000,   500, 'packaging', 'piece'),
-(17, 'Cup Kertas',            7000,   700, 'packaging', 'piece'),
-(18, 'Sedotan',               5000,   500, 'packaging', 'piece');
+INSERT INTO inventories (id, name, current_quantity, minimum_quantity, category, unit) 
+VALUES
+(25, 'Cup Plastik',           500,   500, 'packaging'::stockcategory, 'piece'::unittype),
+(26, 'Cup Kertas',            700,   700, 'packaging'::stockcategory, 'piece'::unittype),
+(27, 'Sedotan',               500,   500, 'packaging'::stockcategory, 'piece'::unittype);
 
 -- Pastikan sequence lanjut setelah ID max
 SELECT setval(pg_get_serial_sequence('inventories','id'), (SELECT MAX(id) FROM inventories));

@@ -5,10 +5,14 @@ from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_mcp import FastApiMCP
 from pydantic import BaseModel, Field, model_validator, field_validator
+from typing import Optional
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, Enum as SQLEnum
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
 from sqlalchemy.exc import SQLAlchemyError
 from pytz import timezone as pytz_timezone
+
+# Global variable for debugging
+last_debug_info = []
 from datetime import datetime
 import enum, os, json, logging, requests, math, socket, threading, time
 
@@ -40,6 +44,7 @@ app.add_middleware(
 mcp = FastApiMCP(app, name="Server MCP Infinity", description="Server MCP Infinity Descr",
     include_operations=["add ingredient", "list ingredients", "update ingredient", "delete ingredient", "ingredient status", "ingredient stream"]
 )
+
 mcp.mount(mount_path="/mcp", transport="sse")
 jakarta_tz = pytz_timezone('Asia/Jakarta')
 
@@ -143,6 +148,7 @@ class UpdateIngredientRequest(ValidateIngredientRequest):
 class BatchStockItem(BaseModel):
     menu_name: str
     quantity: int = Field(gt=0)
+    preference: Optional[str] = ""
 
 
 class BatchStockRequest(BaseModel):
@@ -155,6 +161,7 @@ class BatchStockResponse(BaseModel):
     shortages: list = Field(default_factory=list)
     partial_suggestions: list = Field(default_factory=list)
     details: list = Field(default_factory=list)
+    debug_info: list = Field(default_factory=list)  # Temporary for debugging
 
 
 # ===================== OUTBOX HELPERS =====================
@@ -305,6 +312,26 @@ def health():
     return {"status": "ok", "service": "inventory_service"}
 
 
+# Debug endpoint to check flavor processing
+@app.get("/debug/last_processing", tags=["Debug"])
+async def get_last_debug_info():
+    return {"debug_info": last_debug_info}
+
+# Test endpoint untuk debug preference
+@app.post("/debug/test_preference", tags=["Debug"])
+async def test_preference(request: BatchStockRequest):
+    result = []
+    for item in request.items:
+        result.append({
+            "menu_name": item.menu_name,
+            "quantity": item.quantity,
+            "preference": item.preference,
+            "preference_received": bool(item.preference),
+            "preference_length": len(item.preference or "")
+        })
+    return {"received_items": result, "order_id": request.order_id}
+
+
 # ===================== STOCK CHECK & CONSUME =====================
 class StockRequestPayload(BaseModel):
     order_id: str
@@ -317,6 +344,9 @@ def check_and_consume(
     db: Session = Depends(get_db),
     consume: bool = Query(True, description="False = hanya cek (dry-run)")
 ):
+    global last_debug_info  # Declare global at the start
+    debug_info = []  # Initialize debug_info early
+    
     # Idempotensi adalah kemampuan untuk mengulangi operasi yang sama tanpa efek samping
     # contohnya adalah permintaan yang sama dapat dikirim berulang kali tanpa mengubah hasil
     existing = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == req.order_id).first()
@@ -338,12 +368,13 @@ def check_and_consume(
         resp.raise_for_status()
         recipes = resp.json().get("recipes", {})
     except Exception as e:
-        return BatchStockResponse(can_fulfill=False, shortages=[{"error": f"Gagal ambil resep: {e}"}], partial_suggestions=[], details=[])
+        return BatchStockResponse(can_fulfill=False, shortages=[{"error": f"Gagal ambil resep: {e}"}], partial_suggestions=[], details=[], debug_info=[])
 
+    # Process each menu item for stock calculation
     need_map = {}  # ing_id -> {needed, unit, menus:set()}
     per_menu_detail = []
     shortages = []
-
+    
     for it in req.items:
         r_items = recipes.get(it.menu_name, [])
         per_menu_detail.append({
@@ -353,11 +384,84 @@ def check_and_consume(
         })
         if not r_items:
             shortages.append({"reason": "Menu tanpa resep", "menu_name": it.menu_name})
+        
+        # Proses resep dasar
         for r in r_items:
             ing_id = r["ingredient_id"]
             need_map.setdefault(ing_id, {"needed": 0, "unit": r["unit"], "menus": set()})
             need_map[ing_id]["needed"] += r["quantity"] * it.quantity
             need_map[ing_id]["menus"].add(it.menu_name)
+        
+        # Tambahkan flavor jika diperlukan
+        # PENTING: Flavor tidak terikat ke menu tertentu, bisa digunakan untuk semua menu atau custom order
+        preference = it.preference or ""  # Get preference directly from request item
+        print(f"🔍 DEBUG: Checking preference for {it.menu_name}: '{preference}'")
+        debug_info.append(f"Checking preference for {it.menu_name}: '{preference}'")
+        if preference:
+            # Map flavor name ke ingredient_id (universal untuk semua menu)
+            flavor_mapping = {
+                "Butterscotch": 12, "Butterscout": 12,
+                "French Mocca": 13, "French Mocha": 13,
+                "Roasted Almond": 14, "Rosted Almond": 14,
+                "Creme Brulee": 15,
+                "Irish": 16,
+                "Havana": 17,
+                "Salted Caramel": 18,
+                "Mangga": 19, "Mango": 19,
+                "Permenkaret": 20, "Bubble Gum": 20,
+                "Tiramisu": 21,
+                "Redvelvet": 22, "Red Velvet": 22,
+                "Strawberry": 23, "Stroberi": 23,
+                "Vanilla": 24,
+                # Tambah flavor lain sesuai inventory
+                "Macadamia Nut": 12,  # Bisa mapping ke existing atau ID baru
+                "Java Brown Sugar": 13,  # Flexible mapping
+                "Chocolate": 15,
+                "Taro": 21,
+                "Choco Malt": 22,
+                "Choco Hazelnut": 23,
+                "Choco Biscuit": 24,
+                "Milktea": 16,
+                "Banana": 19,
+                "Alpukat": 20,
+                "Green Tea": 21,
+                "Markisa": 22,
+                "Melon": 23,
+                "Nanas": 24
+            }
+            
+            flavor_id = flavor_mapping.get(preference)
+            if flavor_id:
+                # Tentukan quantity flavor berdasarkan jenis menu
+                # Default: semua menu bisa pakai flavor dengan quantity standar
+                flavor_qty = 25  # default milliliter untuk liquid
+                flavor_unit = "milliliter"
+                
+                # Khusus untuk menu tertentu, sesuaikan quantity dan unit
+                if it.menu_name in ["Milkshake"] or "milkshake" in it.menu_name.lower():
+                    # Untuk milkshake, beberapa flavor bisa dalam bentuk powder (gram)
+                    powder_flavors = ["Mangga", "Mango", "Permenkaret", "Bubble Gum", "Tiramisu", "Redvelvet", "Red Velvet", "Strawberry", "Stroberi", "Vanilla", "Chocolate", "Taro", "Banana", "Alpukat"]
+                    if preference in powder_flavors:
+                        flavor_qty = 30
+                        flavor_unit = "gram"
+                elif "squash" in it.menu_name.lower():
+                    # Squash biasanya pakai lebih sedikit flavor
+                    flavor_qty = 20
+                    flavor_unit = "milliliter"
+                elif any(keyword in it.menu_name.lower() for keyword in ["custom", "special", "premium"]):
+                    # Custom order bisa pakai lebih banyak flavor
+                    flavor_qty = 35
+                    flavor_unit = "milliliter"
+                
+                need_map.setdefault(flavor_id, {"needed": 0, "unit": flavor_unit, "menus": set()})
+                need_map[flavor_id]["needed"] += flavor_qty * it.quantity
+                need_map[flavor_id]["menus"].add(f"{it.menu_name} ({preference})")
+                
+                print(f"🎯 DEBUG: Added flavor {preference} (ID:{flavor_id}) {flavor_qty}{flavor_unit} for {it.menu_name}")
+                debug_info.append(f"Added flavor {preference} (ID:{flavor_id}) {flavor_qty}{flavor_unit} for {it.menu_name}")
+            else:
+                print(f"⚠️ DEBUG: Flavor '{preference}' tidak ditemukan dalam mapping untuk menu {it.menu_name}")
+                debug_info.append(f"Flavor '{preference}' tidak ditemukan dalam mapping untuk menu {it.menu_name}")
 
     inv_map = {}
     if need_map:
@@ -372,6 +476,7 @@ def check_and_consume(
         if available < data["needed"]:
             shortages.append({
                 "ingredient_id": ing_id,
+                "ingredient_name": inv.name if inv else f"ID-{ing_id}",
                 "required": data["needed"],
                 "available": available,
                 "unit": data["unit"],
@@ -418,7 +523,8 @@ def check_and_consume(
                 consumed=False
             ))
             db.commit()
-        return BatchStockResponse(can_fulfill=True, shortages=[], partial_suggestions=[], details=per_menu_detail)
+        last_debug_info = debug_info
+        return BatchStockResponse(can_fulfill=True, shortages=[], partial_suggestions=[], details=per_menu_detail, debug_info=debug_info)
 
     # Konsumsi stok
     per_ing_detail = []
@@ -431,6 +537,7 @@ def check_and_consume(
                 raise ValueError(f"Stok negatif ingredient {ing_id}")
             per_ing_detail.append({
                 "ingredient_id": ing_id,
+                "ingredient_name": inv.name,
                 "deducted": data["needed"],
                 "before": before,
                 "after": inv.current_quantity,
@@ -448,10 +555,68 @@ def check_and_consume(
                 consumed=True
             ))
         db.commit()
-        return BatchStockResponse(can_fulfill=True, shortages=[], partial_suggestions=[], details=per_menu_detail)
+        logging.info(f"✅ Stok berhasil dikonsumsi untuk order {req.order_id}: {len(per_ing_detail)} ingredients")
+        last_debug_info = debug_info
+        return BatchStockResponse(can_fulfill=True, shortages=[], partial_suggestions=[], details=per_menu_detail, debug_info=debug_info)
     except Exception as e:
         db.rollback()
-        return BatchStockResponse(can_fulfill=False, shortages=[{"error": f"Gagal konsumsi stok: {e}"}], partial_suggestions=[], details=[])
+        logging.error(f"❌ Gagal konsumsi stok untuk order {req.order_id}: {e}")
+        return BatchStockResponse(can_fulfill=False, shortages=[{"error": f"Gagal konsumsi stok: {e}"}], partial_suggestions=[], details=[], debug_info=debug_info)
+
+
+@app.get("/flavor_mapping", summary="Mapping flavor ke ingredient ID", tags=["Inventory"])
+def get_flavor_mapping():
+    """Mengembalikan mapping nama flavor ke ingredient ID untuk debugging."""
+    return {
+        "flavor_mapping": {
+            # Mapping berdasarkan inventory yang ada
+            "Butterscotch": 12, "Butterscout": 12,
+            "French Mocca": 13, "French Mocha": 13,
+            "Roasted Almond": 14, "Rosted Almond": 14,
+            "Creme Brulee": 15,
+            "Irish": 16,
+            "Havana": 17,
+            "Salted Caramel": 18,
+            "Mangga": 19, "Mango": 19,
+            "Permenkaret": 20, "Bubble Gum": 20,
+            "Tiramisu": 21,
+            "Redvelvet": 22, "Red Velvet": 22,
+            "Strawberry": 23, "Stroberi": 23,
+            "Vanilla": 24,
+            # Mapping tambahan untuk flavor dari menu service
+            "Macadamia Nut": 12,  # Mapping ke Butterscotch sebagai substitute
+            "Java Brown Sugar": 13,  # Mapping ke French Mocca sebagai substitute
+            "Chocolate": 15,  # Mapping ke Creme Brulee
+            "Taro": 21,  # Mapping ke Tiramisu
+            "Choco Malt": 22,  # Mapping ke Redvelvet
+            "Choco Hazelnut": 23,  # Mapping ke Strawberry
+            "Choco Biscuit": 24,  # Mapping ke Vanilla
+            "Milktea": 16,  # Mapping ke Irish
+            "Banana": 19,  # Mapping ke Mangga
+            "Alpukat": 20,  # Mapping ke Permenkaret
+            "Green Tea": 21,  # Mapping ke Tiramisu
+            "Markisa": 22,  # Mapping ke Redvelvet
+            "Melon": 23,  # Mapping ke Strawberry
+            "Nanas": 24   # Mapping ke Vanilla
+        },
+        "powder_flavors": [
+            "Mangga", "Mango", "Permenkaret", "Bubble Gum", "Tiramisu", 
+            "Redvelvet", "Red Velvet", "Strawberry", "Stroberi", "Vanilla", 
+            "Chocolate", "Taro", "Banana", "Alpukat"
+        ],
+        "flavor_quantities": {
+            "default_liquid": 25,     # milliliter untuk kopi/cappuccino
+            "milkshake_powder": 30,   # gram untuk milkshake powder
+            "milkshake_liquid": 25,   # milliliter untuk milkshake liquid
+            "squash": 20,             # milliliter untuk squash (lebih sedikit)
+            "custom_premium": 35      # milliliter untuk custom order premium
+        },
+        "menu_compatibility": {
+            "note": "Semua flavor bisa digunakan untuk semua menu dan custom order",
+            "flexible": "Tidak ada batasan menu_item_flavor_association di inventory level",
+            "custom_order_support": "Penuh mendukung custom order dengan flavor apapun"
+        }
+    }
 
 
 @app.post("/stock/rollback/{order_id}", summary="Rollback konsumsi stok", tags=["Inventory"])
@@ -467,16 +632,163 @@ def rollback(order_id: str, db: Session = Depends(get_db)):
         if ids:
             invs = db.query(Inventory).filter(Inventory.id.in_(ids)).with_for_update().all()
             inv_map = {i.id: i for i in invs}
+            restored_items = []
             for d in per_ing:
                 inv = inv_map.get(d["ingredient_id"])
                 if inv:
                     inv.current_quantity += d["deducted"]
+                    restored_items.append({
+                        "ingredient_id": d["ingredient_id"],
+                        "ingredient_name": d.get("ingredient_name", inv.name),
+                        "restored_quantity": d["deducted"],
+                        "unit": d["unit"]
+                    })
         log.rolled_back = True
         db.commit()
-        return {"status": "success", "message": f"Rollback order {order_id} berhasil", "restored": len(per_ing)}
+        logging.info(f"✅ Rollback berhasil untuk order {order_id}: {len(restored_items)} ingredients")
+        return {
+            "status": "success", 
+            "message": f"Rollback order {order_id} berhasil", 
+            "restored": len(restored_items),
+            "restored_items": restored_items
+        }
     except Exception as e:
         db.rollback()
+        logging.error(f"❌ Gagal rollback order {order_id}: {e}")
         return {"status": "error", "message": f"Gagal rollback: {e}"}
+
+@app.post("/stock/check_custom_with_flavor", summary="Cek stok untuk custom order dengan flavor", tags=["Inventory"])
+def check_custom_with_flavor(
+    req: dict,  # {"menu_name": "Kopi Custom", "quantity": 1, "flavor": "Irish", "order_id": "test"}
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint khusus untuk testing custom order dengan flavor.
+    Tidak memerlukan resep dari menu_service, langsung hitung flavor yang diperlukan.
+    """
+    menu_name = req.get("menu_name", "Custom Menu")
+    quantity = req.get("quantity", 1)
+    flavor = req.get("flavor", "")
+    order_id = req.get("order_id", f"TEST_{datetime.now().strftime('%H%M%S')}")
+    
+    if not flavor:
+        return {"can_fulfill": False, "message": "Flavor harus diisi untuk custom order"}
+    
+    # Map flavor ke ingredient
+    flavor_mapping = {
+        "Butterscotch": 12, "Butterscout": 12,
+        "French Mocca": 13, "French Mocha": 13,
+        "Roasted Almond": 14, "Rosted Almond": 14,
+        "Creme Brulee": 15,
+        "Irish": 16,
+        "Havana": 17,
+        "Salted Caramel": 18,
+        "Mangga": 19, "Mango": 19,
+        "Permenkaret": 20, "Bubble Gum": 20,
+        "Tiramisu": 21,
+        "Redvelvet": 22, "Red Velvet": 22,
+        "Strawberry": 23, "Stroberi": 23,
+        "Vanilla": 24,
+        # Extended mapping
+        "Macadamia Nut": 12, "Java Brown Sugar": 13, "Chocolate": 15,
+        "Taro": 21, "Choco Malt": 22, "Choco Hazelnut": 23,
+        "Choco Biscuit": 24, "Milktea": 16, "Banana": 19,
+        "Alpukat": 20, "Green Tea": 21, "Markisa": 22,
+        "Melon": 23, "Nanas": 24
+    }
+    
+    flavor_id = flavor_mapping.get(flavor)
+    if not flavor_id:
+        return {
+            "can_fulfill": False, 
+            "message": f"Flavor '{flavor}' tidak tersedia",
+            "available_flavors": list(flavor_mapping.keys())
+        }
+    
+    # Cek stok flavor
+    inv = db.query(Inventory).filter(Inventory.id == flavor_id).first()
+    if not inv:
+        return {"can_fulfill": False, "message": f"Ingredient untuk flavor '{flavor}' tidak ditemukan"}
+    
+    # Hitung kebutuhan (custom order pakai quantity premium)
+    needed_qty = 35 * quantity  # 35ml/gram untuk custom order
+    
+    if inv.current_quantity < needed_qty:
+        return {
+            "can_fulfill": False,
+            "message": f"Stok {flavor} tidak cukup",
+            "details": {
+                "flavor": flavor,
+                "ingredient_id": flavor_id,
+                "ingredient_name": inv.name,
+                "needed": needed_qty,
+                "available": inv.current_quantity,
+                "unit": inv.unit.value,
+                "shortage": needed_qty - inv.current_quantity
+            }
+        }
+    
+    return {
+        "can_fulfill": True,
+        "message": f"Custom order '{menu_name}' dengan flavor '{flavor}' dapat dipenuhi",
+        "details": {
+            "menu_name": menu_name,
+            "quantity": quantity,
+            "flavor": flavor,
+            "ingredient_id": flavor_id,
+            "ingredient_name": inv.name,
+            "needed": needed_qty,
+            "available": inv.current_quantity,
+            "unit": inv.unit.value,
+            "remaining_after": inv.current_quantity - needed_qty
+        },
+        "order_id": order_id
+    }
+
+
+@app.get("/consumption_log/{order_id}", summary="Lihat log konsumsi order", tags=["Inventory"])
+def get_consumption_log(order_id: str, db: Session = Depends(get_db)):
+    """Melihat detail konsumsi stok untuk order tertentu."""
+    log = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
+    if not log:
+        raise HTTPException(status_code=404, detail="Log konsumsi tidak ditemukan")
+    
+    result = {
+        "order_id": log.order_id,
+        "consumed": log.consumed,
+        "rolled_back": log.rolled_back,
+        "created_at": log.created_at.isoformat() if log.created_at else None,
+        "per_menu_summary": json.loads(log.per_menu_payload) if log.per_menu_payload else [],
+        "ingredient_details": json.loads(log.per_ingredient_payload) if log.per_ingredient_payload else []
+    }
+    return result
+
+
+@app.get("/consumption_log", summary="Lihat semua log konsumsi", tags=["Inventory"])
+def get_all_consumption_logs(
+    db: Session = Depends(get_db),
+    limit: int = Query(50, le=100),
+    consumed_only: bool = Query(False)
+):
+    """Melihat semua log konsumsi dengan filter."""
+    query = db.query(ConsumptionLog)
+    if consumed_only:
+        query = query.filter(ConsumptionLog.consumed.is_(True))
+    
+    logs = query.order_by(ConsumptionLog.created_at.desc()).limit(limit).all()
+    
+    result = []
+    for log in logs:
+        result.append({
+            "order_id": log.order_id,
+            "consumed": log.consumed,
+            "rolled_back": log.rolled_back,
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+            "ingredient_count": len(json.loads(log.per_ingredient_payload)) if log.per_ingredient_payload else 0
+        })
+    
+    return {"logs": result, "total": len(result)}
+
 
 # === PASTIKAN create_all SETELAH SEMUA MODEL TERDEFINISI ===
 def init_db():

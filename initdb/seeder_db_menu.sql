@@ -1,11 +1,24 @@
 -- Mengatur zona waktu sesi ke Asia/Jakarta
-SET TIME ZONE 'Asia/Jakarta';
+SET TIMEZONE = 'Asia/Jakarta';
 
--- Membuat ekstensi 'vector' jika belum ada (berguna untuk AI/embedding)
-CREATE EXTENSION IF NOT EXISTS vector;
+-- SQL Server tidak memerlukan ekstensi vector
 
--- Membersihkan data lama dari tabel-tabel terkait agar tidak ada duplikasi
-TRUNCATE TABLE menu_items, flavors, menu_item_flavor_association, menu_suggestions RESTART IDENTITY CASCADE;
+-- Membersihkan data lama dari tabel-tabel terkait agar tidak ada duplikasi (jika tabel sudah ada)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'menu_items') THEN
+        TRUNCATE TABLE menu_items RESTART IDENTITY CASCADE;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'flavors') THEN
+        TRUNCATE TABLE flavors RESTART IDENTITY CASCADE;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'menu_item_flavor_association') THEN
+        TRUNCATE TABLE menu_item_flavor_association RESTART IDENTITY CASCADE;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'menu_suggestions') THEN
+        TRUNCATE TABLE menu_suggestions RESTART IDENTITY CASCADE;
+    END IF;
+END $$;
 
 -- LANGKAH 1: ISI TABEL MASTER 'flavors'
 INSERT INTO flavors (id, flavor_name, additional_price, "isAvail") VALUES

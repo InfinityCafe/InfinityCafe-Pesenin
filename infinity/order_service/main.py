@@ -332,15 +332,18 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     
     # Cek stok 
     try:
+        inventory_payload = {
+            "order_id": temp_order_id,
+            "items": [
+                {"menu_name": item.menu_name, "quantity": item.quantity, "preference": item.preference}
+                for item in req.orders
+            ]
+        }
+        print(f"🔍 DEBUG ORDER SERVICE: Sending to inventory: {inventory_payload}")
+        
         stock_resp = requests.post(
             f"{INVENTORY_SERVICE_URL}/stock/check_and_consume",
-            json={
-                "order_id": temp_order_id,
-                "items": [
-                    {"menu_name": item.menu_name, "quantity": item.quantity}
-                    for item in req.orders
-                ]
-            },
+            json=inventory_payload,
             timeout=7
         )
         stock_data = stock_resp.json()
@@ -478,15 +481,18 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     
     # Pengecekan stock
     try:
+        inventory_payload = {
+            "order_id": temp_order_id,
+            "items": [
+                {"menu_name": item.menu_name, "quantity": item.quantity, "preference": item.preference}
+                for item in req.orders
+            ]
+        }
+        print(f"🔍 DEBUG ORDER SERVICE: Sending to inventory: {inventory_payload}")
+        
         stock_resp = requests.post(
             f"{INVENTORY_SERVICE_URL}/stock/check_and_consume",
-            json={
-                "order_id": temp_order_id,
-                "items": [
-                    {"menu_name": item.menu_name, "quantity": item.quantity}
-                    for item in req.orders
-                ]
-            },
+            json=inventory_payload,
             timeout=7
         )
         stock_data = stock_resp.json()
