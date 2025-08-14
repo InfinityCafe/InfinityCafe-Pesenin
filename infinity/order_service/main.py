@@ -357,13 +357,13 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         logging.warning(f"⚠️ Gagal memproses outbox events: {e}")
 
     order_details = {
-        "order_id": order_id,
         "queue_number": new_queue_number,
         "customer_name": req.customer_name,
         "room_name": req.room_name,
         "status": "receive",
         "created_at": new_order.created_at.isoformat(),
         "is_custom": False,
+        "total_items": len(req.orders),
         "orders": [
             {
                 "menu_name": item.menu_name,
@@ -376,7 +376,7 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
 
     return JSONResponse(status_code=200, content={
         "status": "success",
-        "message": f"Pesanan kamu telah berhasil diproses dengan id order : {order_id} dan dengan no antrian : {new_queue_number} mohon ditunggu ya !",
+        "message": f"Pesanan kamu telah berhasil diproses dengan no antrian : {new_queue_number} mohon ditunggu ya !",
         "data": order_details
     })
 
@@ -463,13 +463,13 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         logging.warning(f"⚠️ Gagal memproses outbox events: {e}")
 
     order_details = {
-        "order_id": order_id,
         "queue_number": new_queue_number,
         "customer_name": req.customer_name,
         "room_name": req.room_name,
         "status": "receive",
         "created_at": new_order.created_at.isoformat(),
         "is_custom": True,
+        "total_items": len(req.orders),
         "orders": [
             {
                 "menu_name": item.menu_name,
@@ -482,7 +482,7 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
 
     return JSONResponse(status_code=200, content={
         "status": "success",
-        "message": f"Pesanan custom kamu telah berhasil diproses dengan id order : {order_id}, mohon ditunggu ya !",
+        "message": f"Pesanan custom kamu telah berhasil diproses dengan no antrian : {new_queue_number}, mohon ditunggu ya !",
         "data": order_details
     })
 
