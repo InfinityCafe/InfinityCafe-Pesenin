@@ -637,7 +637,7 @@ async function viewMenu(menuId) {
     
     document.getElementById('view-menu-name').textContent = menu.base_name;
     document.getElementById('view-menu-price').textContent = `Rp ${menu.base_price.toLocaleString()}`;
-    document.getElementById('view-menu-available').textContent = menu.isAvail ? 'Yes' : 'No';
+    document.getElementById('view-menu-available').textContent = menu.isAvail ? 'Available' : 'Unavailable';
     
     // Display available flavors
     let flavorsText = 'None';
@@ -672,7 +672,7 @@ async function viewFlavor(flavorId) {
     document.getElementById('view-flavor-name').textContent = flavor.flavor_name;
     document.getElementById('view-flavor-price').textContent = `Rp ${flavor.additional_price.toLocaleString()}`;
     const availEl = document.getElementById('view-flavor-available');
-    if (availEl) availEl.textContent = flavor.isAvail ? 'Yes' : 'No';
+    if (availEl) availEl.textContent = flavor.isAvail ? 'Available' : 'Unavailable';
     
     // Store the flavor ID for edit functionality
     document.getElementById('view-flavor-modal').setAttribute('data-flavor-id', flavorId);

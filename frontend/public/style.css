@@ -3577,7 +3577,7 @@ body.tab-done .add-order-btn {
     font-weight: 600;
     font-size: 14px;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
 }
 
 .apply-filter-btn {
@@ -3586,8 +3586,10 @@ body.tab-done .add-order-btn {
 }
 
 .apply-filter-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(32, 113, 86, 0.3);
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
+    transition: opacity 0.3s ease;
+    background: #207156;
+    transform: scale(1.02);
 }
 
 .clear-filter-btn {
@@ -3598,8 +3600,8 @@ body.tab-done .add-order-btn {
 
 .clear-filter-btn:hover {
     background: #E8E4D8;
-    transform: translateY(-2px);
-}
+    transition: opacity 0.3s ease;
+    transform: scale(1.02);}
 
 /* Table Info Styles */
 .table-info {
@@ -3994,23 +3996,26 @@ body.tab-done .add-order-btn {
 
 .view-modal .modal-btn-cancel {
     background-color: #E0E0E0;
-    color: #312929;
+    /* color: #312929; */
 }
 
 .view-modal .modal-btn-cancel:hover {
     background-color: #D0D0D0;
-    transform: translateY(-2px);
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
 }
 
 .view-modal .modal-btn:not(.modal-btn-cancel) {
     background: linear-gradient(90deg, #207156 0%, #60B7A6 100%);
     color: #FFFFFF;
-    box-shadow: 4px 6px 6px 0px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
 }
 
 .view-modal .modal-btn:not(.modal-btn-cancel):hover {
-    transform: translateY(-2px);
-    box-shadow: 6px 8px 8px 0px rgba(0, 0, 0, 0.3);
+    background: #207156;
+    transition: opacity 0.3s ease;
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
 }
 
 .view-modal .modal-close {
