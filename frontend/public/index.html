@@ -103,7 +103,7 @@
             </div>
           </div>
           <div class="column sidebar">
-            <h3 class="column-title">Cancel</h3>
+            <h3 class="column-title">Cancelled</h3>
             <div class="column-content">
               <div id="cancel-order-column" class="order-list"></div>
             </div>
@@ -199,6 +199,18 @@
       <div id="success-message" class="modal-text" style="margin-bottom:24px;"></div>
       <div class="modal-actions" style="justify-content:center;">
         <button class="modal-btn modal-btn-habis" onclick="closeSuccessModal()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Modal -->
+  <div id="error-modal" class="modal hidden">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeErrorModal()">&times;</button>
+      <h3 class="modal-title">Terjadi Kesalahan</h3>
+      <div id="error-message" class="modal-text" style="margin-bottom:24px;"></div>
+      <div class="modal-actions" style="justify-content:center;">
+        <button class="modal-btn modal-btn-habis" onclick="closeErrorModal()">OK</button>
       </div>
     </div>
   </div>
