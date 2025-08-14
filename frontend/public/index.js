@@ -162,8 +162,44 @@ function closeDetailModal() {
 async function confirmCancel(status) {
   const reason = status === "cancel" ? prompt("Masukkan alasan pembatalan:", "Tidak jadi") : "Bahan habis";
   if (!reason) return closeConfirmModal();
-  await syncUpdate(selectedOrderId, status, reason);
+  
+  if (status === "cancel") {
+    // Use proper cancel_order endpoint
+    await cancelOrder(selectedOrderId, reason);
+  } else {
+    // Use existing update_status for other statuses
+    await syncUpdate(selectedOrderId, status, reason);
+  }
   closeConfirmModal();
+}
+
+// New function to cancel order using proper endpoint
+async function cancelOrder(orderId, reason) {
+  try {
+    const response = await fetch('/cancel_order', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        order_id: orderId,
+        reason: reason
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (result.status === 'success') {
+      document.getElementById("sound-status-update").play().catch(() => {});
+      fetchOrders();
+      logHistory(orderId, 'cancelled', reason);
+      showSuccessModal('Pesanan berhasil dibatalkan');
+    } else {
+      showErrorModal(result.message || 'Gagal membatalkan pesanan');
+    }
+  } catch (err) {
+    showErrorModal("Gagal membatalkan pesanan");
+  }
 }
 
 // API functions
@@ -249,12 +285,16 @@ function createOrderCard(order) {
     statusBadge = '<span class="status-badge status-done"><i class="fa-solid fa-check"></i> DONE</span>';
     actionButton = `<button class="action-btn action-btn-green-disabled">DONE</button>`;
   }
-    else if (order.status === 'cancel') {
+  else if (order.status === 'cancelled') {
+    statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCELLED</span>';
+    actionButton = `<button class="action-btn action-btn-red-disabled">CANCELLED</button>`;
+  }
+  else if (order.status === 'cancel') {
     statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCEL</span>';
     actionButton = `<button class="action-btn action-btn-red-disabled">CANCEL</button>`;
   }
-    else if (order.status === 'habis') {
-    statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCEL</span>';
+  else if (order.status === 'habis') {
+    statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCEL</button>';
     actionButton = `<button class="action-btn action-btn-red-disabled">CANCEL</button>`;
   }
 
@@ -314,7 +354,7 @@ function renderOrders(orders) {
       deliverColumn.appendChild(orderCard);
     } else if (order.status === 'done') {
       doneOrderColumn.appendChild(orderCard);
-    } else if (order.status === 'cancel' || order.status === 'habis') {
+    } else if (order.status === 'cancel' || order.status === 'habis' || order.status === 'cancelled') {
       cancelOrderColumn.appendChild(orderCard);
     }
   });
