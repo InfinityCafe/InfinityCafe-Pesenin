@@ -28,6 +28,14 @@ const statusColors = {
   cancel: "bg-red-100", habis: "bg-orange-100"
 };
 
+// Helper function to format status display consistently
+function formatStatusDisplay(status) {
+  if (status === 'cancel' || status === 'cancelled') {
+    return 'CANCELLED';
+  }
+  return status.toUpperCase();
+}
+
 // Global variables
 let selectedOrderId = null;
 let selectedOrder = null;
@@ -147,7 +155,7 @@ function openDetailModal(order) {
     <p><strong>Order ID:</strong> ${order.order_id}</p>
     <p><strong>Nama:</strong> ${order.customer_name}</p>
     <p><strong>Ruangan:</strong> ${order.room_name}</p>
-    <p><strong>Status:</strong> ${order.status}</p>
+    <p><strong>Status:</strong> ${formatStatusDisplay(order.status)}</p>
     <p><strong>Waktu:</strong> ${new Date(order.time_receive).toLocaleString("id-ID")}</p>
     <div style='margin-top:10px;'><strong>Detail:</strong><br>${itemsHtml}</div>
   `;
@@ -290,12 +298,12 @@ function createOrderCard(order) {
     actionButton = `<button class="action-btn action-btn-red-disabled">CANCELLED</button>`;
   }
   else if (order.status === 'cancel') {
-    statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCEL</span>';
-    actionButton = `<button class="action-btn action-btn-red-disabled">CANCEL</button>`;
+    statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCELLED</span>';
+    actionButton = `<button class="action-btn action-btn-red-disabled">CANCELLED</button>`;
   }
   else if (order.status === 'habis') {
-    statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCEL</button>';
-    actionButton = `<button class="action-btn action-btn-red-disabled">CANCEL</button>`;
+    statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCELLED</span>';
+    actionButton = `<button class="action-btn action-btn-red-disabled">CANCELLED</button>`;
   }
 
   card.innerHTML = `
