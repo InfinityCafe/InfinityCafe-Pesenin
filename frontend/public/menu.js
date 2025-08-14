@@ -1,88 +1,3 @@
-// Login guard
-if (!localStorage.getItem('access_token')) {
-  window.location.href = '/login';
-}
-
-// Fungsi untuk mendekode token JWT
-function parseJwt(token) {
-  try {
-    // Memisahkan header, payload, dan signature
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    // Decode base64 dan parse JSON
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    console.error('Error parsing JWT token:', e);
-    return {};
-  }
-}
-
-// Fungsi untuk menampilkan data user dari token JWT
-function displayUserInfo() {
-  try {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      const userData = parseJwt(token);
-      const username = userData.sub || 'User';
-      
-      // Update header subtitle (nama dan peran)
-      const headerSubtitle = document.querySelector('.header-subtitle');
-      if (headerSubtitle) {
-        headerSubtitle.textContent = `${username} | Barista`;
-      }
-      
-      // Update greeting message
-      const greetingMessage = document.querySelector('.greeting-message h2');
-      if (greetingMessage) {
-        greetingMessage.textContent = `Hi, ${username}, here's list menu!`;
-      }
-    }
-  } catch (error) {
-    console.error('Error displaying user info:', error);
-  }
-}
-
-// Fungsi untuk memperbarui tanggal greeting (English with ordinal)
-function updateGreetingDate() {
-  const dateElement = document.getElementById('greeting-date');
-  if (!dateElement) return;
-  const today = new Date();
-  const day = today.getDate();
-  const weekday = today.toLocaleDateString('en-US', { weekday: 'long' });
-  const month = today.toLocaleDateString('en-US', { month: 'long' });
-  const year = today.getFullYear();
-  const ordinalSuffix = day > 3 && day < 21 ? 'th' : ['th', 'st', 'nd', 'rd'][day % 10] || 'th';
-  const formattedDate = `${weekday}, ${day}${ordinalSuffix} ${month} ${year}`;
-  dateElement.textContent = formattedDate;
-}
-
-// Fungsi logout
-function logout() {
-  localStorage.removeItem('access_token');
-  window.location.href = '/login';
-}
-
-// Tambahkan tombol logout ke header setelah DOM siap
-window.addEventListener('DOMContentLoaded', function () {
-  const headerRight = document.querySelector('.header-right');
-  if (headerRight && !document.getElementById('logout-btn')) {
-    const logoutBtn = document.createElement('button');
-    logoutBtn.className = 'nav-btn';
-    logoutBtn.id = 'logout-btn';
-    logoutBtn.textContent = 'Logout';
-    logoutBtn.style.marginLeft = '1rem';
-    logoutBtn.onclick = logout;
-    headerRight.appendChild(logoutBtn);
-  }
-  
-  // Tampilkan info user dan update tanggal
-  displayUserInfo();
-  updateGreetingDate();
-});
-
 const BASE_URL = "";
 
 // Global variables for pagination and filtering
@@ -722,7 +637,7 @@ async function viewMenu(menuId) {
     
     document.getElementById('view-menu-name').textContent = menu.base_name;
     document.getElementById('view-menu-price').textContent = `Rp ${menu.base_price.toLocaleString()}`;
-    document.getElementById('view-menu-available').textContent = menu.isAvail ? 'Yes' : 'No';
+    document.getElementById('view-menu-available').textContent = menu.isAvail ? 'Available' : 'Unavailable';
     
     // Display available flavors
     let flavorsText = 'None';
@@ -757,7 +672,7 @@ async function viewFlavor(flavorId) {
     document.getElementById('view-flavor-name').textContent = flavor.flavor_name;
     document.getElementById('view-flavor-price').textContent = `Rp ${flavor.additional_price.toLocaleString()}`;
     const availEl = document.getElementById('view-flavor-available');
-    if (availEl) availEl.textContent = flavor.isAvail ? 'Yes' : 'No';
+    if (availEl) availEl.textContent = flavor.isAvail ? 'Available' : 'Unavailable';
     
     // Store the flavor ID for edit functionality
     document.getElementById('view-flavor-modal').setAttribute('data-flavor-id', flavorId);
@@ -1166,10 +1081,6 @@ window.addEventListener('load', async () => {
     switchTab('menu'); // Set default tab
     setupNavigation(); // Setup navigation
     setupSearch(); // Setup search functionality
-    
-    // Tampilkan info user dan update tanggal
-    displayUserInfo();
-    updateGreetingDate();
     
     // Ensure navigation is properly set up after DOM is fully loaded
     setTimeout(() => {
