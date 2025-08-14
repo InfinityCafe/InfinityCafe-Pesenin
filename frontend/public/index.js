@@ -94,6 +94,21 @@ function openConfirmModal(orderId) {
   document.getElementById("confirm-modal").classList.remove("hidden");
 }
 
+// Ensure error modal helpers exist and avoid overlapping modals
+function showErrorModal(message) {
+  const success = document.getElementById('success-modal');
+  if (success) success.classList.add('hidden');
+  const msg = document.getElementById('error-message');
+  if (msg) msg.textContent = message;
+  const modal = document.getElementById('error-modal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeErrorModal() {
+  const modal = document.getElementById('error-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
 function closeConfirmModal() {
   selectedOrderId = null;
   document.getElementById("confirm-modal").classList.add("hidden");
@@ -147,8 +162,44 @@ function closeDetailModal() {
 async function confirmCancel(status) {
   const reason = status === "cancel" ? prompt("Masukkan alasan pembatalan:", "Tidak jadi") : "Bahan habis";
   if (!reason) return closeConfirmModal();
-  await syncUpdate(selectedOrderId, status, reason);
+  
+  if (status === "cancel") {
+    // Use proper cancel_order endpoint
+    await cancelOrder(selectedOrderId, reason);
+  } else {
+    // Use existing update_status for other statuses
+    await syncUpdate(selectedOrderId, status, reason);
+  }
   closeConfirmModal();
+}
+
+// New function to cancel order using proper endpoint
+async function cancelOrder(orderId, reason) {
+  try {
+    const response = await fetch('/cancel_order', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        order_id: orderId,
+        reason: reason
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (result.status === 'success') {
+      document.getElementById("sound-status-update").play().catch(() => {});
+      fetchOrders();
+      logHistory(orderId, 'cancelled', reason);
+      showSuccessModal('Pesanan berhasil dibatalkan');
+    } else {
+      showErrorModal(result.message || 'Gagal membatalkan pesanan');
+    }
+  } catch (err) {
+    showErrorModal("Gagal membatalkan pesanan");
+  }
 }
 
 // API functions
@@ -160,7 +211,7 @@ async function syncUpdate(orderId, status, reason = "") {
     fetchOrders();
     logHistory(orderId, status, reason);
   } catch (err) {
-    alert("Gagal update status ke kitchen/order service");
+    showErrorModal("Gagal update status ke kitchen/order service");
   }
 }
 
@@ -234,12 +285,16 @@ function createOrderCard(order) {
     statusBadge = '<span class="status-badge status-done"><i class="fa-solid fa-check"></i> DONE</span>';
     actionButton = `<button class="action-btn action-btn-green-disabled">DONE</button>`;
   }
-    else if (order.status === 'cancel') {
+  else if (order.status === 'cancelled') {
+    statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCELLED</span>';
+    actionButton = `<button class="action-btn action-btn-red-disabled">CANCELLED</button>`;
+  }
+  else if (order.status === 'cancel') {
     statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCEL</span>';
     actionButton = `<button class="action-btn action-btn-red-disabled">CANCEL</button>`;
   }
-    else if (order.status === 'habis') {
-    statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCEL</span>';
+  else if (order.status === 'habis') {
+    statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCEL</button>';
     actionButton = `<button class="action-btn action-btn-red-disabled">CANCEL</button>`;
   }
 
@@ -247,7 +302,7 @@ function createOrderCard(order) {
     <div class="order-header">
       <span class="order-number">${queueNumber ? `#${queueNumber}` : ''}</span>
       <span class="customer-name">${order.customer_name ?? 'John Doe'}</span>
-      ${["receive", "making", "deliver"].includes(order.status) ? `<button class="order-close" onclick="event.stopPropagation(); openConfirmModal('${order.order_id}')">&times;</button>` : ""}
+      ${order.status === "receive" ? `<button class="order-close" onclick="event.stopPropagation(); openConfirmModal('${order.order_id}')">&times;</button>` : ""}
     </div>
     <div class="order-contents">
         <div class="order-location">
@@ -299,7 +354,7 @@ function renderOrders(orders) {
       deliverColumn.appendChild(orderCard);
     } else if (order.status === 'done') {
       doneOrderColumn.appendChild(orderCard);
-    } else if (order.status === 'cancel' || order.status === 'habis') {
+    } else if (order.status === 'cancel' || order.status === 'habis' || order.status === 'cancelled') {
       cancelOrderColumn.appendChild(orderCard);
     }
   });
@@ -501,7 +556,7 @@ async function setKitchenStatus(isOpen) {
     await fetchKitchenStatus();
   } catch (error) {
     console.error('Error setting kitchen status:', error);
-    alert("Gagal mengubah status dapur. Silakan coba lagi.");
+    showErrorModal("Gagal mengubah status dapur. Silakan coba lagi.");
     // Revert toggle to match actual status
     fetchKitchenStatus();
   }
@@ -1167,10 +1222,13 @@ if (addOrderBtn) addOrderBtn.onclick = openAddOrderModal;
 // Handle submit
 const addOrderForm = document.getElementById('add-order-form');
 function showSuccessModal(message) {
+  // Hide error modal if visible to avoid overlap
+  const err = document.getElementById('error-modal');
+  if (err) err.classList.add('hidden');
   const modal = document.getElementById('success-modal');
   const msgBox = document.getElementById('success-message');
-  msgBox.textContent = message;
-  modal.classList.remove('hidden');
+  if (msgBox) msgBox.textContent = message;
+  if (modal) modal.classList.remove('hidden');
 }
 function closeSuccessModal() {
   document.getElementById('success-modal').classList.add('hidden');
@@ -1237,12 +1295,12 @@ addOrderForm.onsubmit = async function(e) {
   }
   
   if (!isValid) {
-    alert('Mohon lengkapi nama pelanggan dan ruangan.');
+    showErrorModal('Mohon lengkapi nama pelanggan dan ruangan.');
     return;
   }
   
   if (orders.length === 0) {
-    alert('Mohon tambahkan minimal 1 item pesanan.');
+    showErrorModal('Mohon tambahkan minimal 1 item pesanan.');
     return;
   }
   
@@ -1288,12 +1346,12 @@ addOrderForm.onsubmit = async function(e) {
   });
   
   if (invalidItems) {
-    alert('Mohon pilih menu untuk semua item pesanan.');
+    showErrorModal('Mohon pilih menu untuk semua item pesanan.');
     return;
   }
   
   if (invalidFlavors) {
-    alert('Mohon pilih minimal 1 flavour untuk menu yang memerlukan flavour.');
+    showErrorModal('Mohon pilih minimal 1 flavour untuk menu yang memerlukan flavour.');
     return;
   }
   
@@ -1320,11 +1378,11 @@ addOrderForm.onsubmit = async function(e) {
       fetchOrders();
       showSuccessModal(data.message || 'Pesanan berhasil ditambahkan!');
     } else {
-      alert(data.message || 'Gagal membuat pesanan.');
+      showErrorModal(data.message || 'Gagal membuat pesanan.');
     }
   } catch (err) {
     console.error('Error creating order:', err);
-    alert('Gagal terhubung ke server order.');
+    showErrorModal('Gagal terhubung ke server order.');
   }
   
   submitBtn.disabled = false;
@@ -1398,14 +1456,18 @@ function displayUserInfo() {
   }
 }
 
-// Fungsi untuk memperbarui tanggal greeting
+// Fungsi untuk memperbarui tanggal greeting (English with ordinal)
 function updateGreetingDate() {
   const dateElement = document.getElementById('greeting-date');
-  if (dateElement) {
-    const today = new Date();
-    const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-    dateElement.textContent = today.toLocaleDateString('id-ID', options);
-  }
+  if (!dateElement) return;
+  const today = new Date();
+  const day = today.getDate();
+  const weekday = today.toLocaleDateString('en-US', { weekday: 'long' });
+  const month = today.toLocaleDateString('en-US', { month: 'long' });
+  const year = today.getFullYear();
+  const ordinalSuffix = day > 3 && day < 21 ? 'th' : ['th', 'st', 'nd', 'rd'][day % 10] || 'th';
+  const formattedDate = `${weekday}, ${day}${ordinalSuffix} ${month} ${year}`;
+  dateElement.textContent = formattedDate;
 }
 
 // Initialize all functionality when DOM is loaded
