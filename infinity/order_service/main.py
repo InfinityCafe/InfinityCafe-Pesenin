@@ -70,13 +70,12 @@ mcp = FastApiMCP(app,name="Server MCP Infinity",
 mcp.mount(mount_path="/mcp",transport="sse")
 jakarta_tz = pytz_timezone('Asia/Jakarta')
 
-# Menambahkan tabel outbox untuk menyimpan pesan yang akan dikirim ke kitchen_service
 class OrderOutbox(Base):
     __tablename__ = "order_outbox"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     order_id = Column(String, nullable=False)
-    event_type = Column(String, nullable=False)  # order_created, order_cancelled, order_updated
-    payload = Column(Text, nullable=False)  # JSON
+    event_type = Column(String, nullable=False)
+    payload = Column(Text, nullable=False)
     processed = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
     processed_at = Column(DateTime(timezone=True), nullable=True)
@@ -369,13 +368,28 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     except Exception as e:
         logging.warning(f"⚠️ Gagal memproses outbox events: {e}")
 
+    order_details = {
+        "order_id": order_id,
+        "queue_number": new_queue_number,
+        "customer_name": req.customer_name,
+        "room_name": req.room_name,
+        "status": "receive",
+        "created_at": new_order.created_at.isoformat(),
+        "is_custom": False,
+        "orders": [
+            {
+                "menu_name": item.menu_name,
+                "quantity": item.quantity,
+                "preference": item.preference if item.preference else "",
+                "notes": item.notes
+            } for item in req.orders
+        ]
+    }
+
     return JSONResponse(status_code=200, content={
         "status": "success",
         "message": f"Pesanan kamu telah berhasil diproses dengan id order : {order_id} dan dengan no antrian : {new_queue_number} mohon ditunggu ya !",
-        "data": {
-            "order_id": order_id,
-            "queue_number": new_queue_number
-        }
+        "data": order_details
     })
 
 @app.post("/custom_order", summary="Buat pesanan custom (tanpa validasi menu)", tags=["Order"], operation_id="add custom order")
@@ -460,13 +474,28 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     except Exception as e:
         logging.warning(f"⚠️ Gagal memproses outbox events: {e}")
 
+    order_details = {
+        "order_id": order_id,
+        "queue_number": new_queue_number,
+        "customer_name": req.customer_name,
+        "room_name": req.room_name,
+        "status": "receive",
+        "created_at": new_order.created_at.isoformat(),
+        "is_custom": True,
+        "orders": [
+            {
+                "menu_name": item.menu_name,
+                "quantity": item.quantity,
+                "preference": item.preference if item.preference else "",
+                "notes": item.notes
+            } for item in req.orders
+        ]
+    }
+
     return JSONResponse(status_code=200, content={
         "status": "success",
         "message": f"Pesanan custom kamu telah berhasil diproses dengan id order : {order_id}, mohon ditunggu ya !",
-        "data": {
-            "order_id": order_id,
-            "queue_number": new_queue_number
-        }
+        "data": order_details
     })
 
 @app.post("/cancel_order", summary="Batalkan pesanan", tags=["Order"], operation_id="cancel order")
@@ -479,6 +508,8 @@ def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
     if order.status != "receive":
         return JSONResponse(status_code=200, content={"status": "error", "message": f"Maaf, pesanan dengan ID: {req.order_id} sudah dalam proses pembuatan dan tidak dapat dibatalkan.", "data": None})
 
+    order_items = db.query(OrderItem).filter(OrderItem.order_id == req.order_id).all()
+    
     order.status = "cancelled"
     order.cancel_reason = req.reason
     
@@ -491,7 +522,31 @@ def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
     except Exception as e:
         logging.warning(f"⚠️ Gagal memproses cancel outbox event: {e}")
     
-    return JSONResponse(status_code=200, content={"status": "success", "message": f"Pesanan kamu dengan ID: {req.order_id} telah berhasil dibatalkan.", "data": {"order_id": req.order_id}})
+    cancelled_order_details = {
+        "order_id": order.order_id,
+        "queue_number": order.queue_number,
+        "customer_name": order.customer_name,
+        "room_name": order.room_name,
+        "status": "cancelled",
+        "cancel_reason": req.reason,
+        "created_at": order.created_at.isoformat(),
+        "cancelled_at": datetime.now(jakarta_tz).isoformat(),
+        "is_custom": order.is_custom,
+        "orders": [
+            {
+                "menu_name": item.menu_name,
+                "quantity": item.quantity,
+                "preference": item.preference if item.preference else "",
+                "notes": item.notes
+            } for item in order_items
+        ]
+    }
+    
+    return JSONResponse(status_code=200, content={
+        "status": "success", 
+        "message": f"Pesanan kamu dengan ID: {req.order_id} telah berhasil dibatalkan.", 
+        "data": cancelled_order_details
+    })
 
 @app.post("/internal/update_status/{order_id}", tags=["Internal"])
 def update_order_status_from_kitchen(order_id: str, req: StatusUpdateRequest, db: Session = Depends(get_db)):
@@ -513,15 +568,31 @@ def get_order_status(order_id: str, db: Session = Depends(get_db)):
     if not order:
         return JSONResponse(status_code=200, content={"status": "error", "message": "Order not found", "data": None})
     
+    order_items = db.query(OrderItem).filter(OrderItem.order_id == order_id).all()
+    
+    order_status_details = {
+        "order_id": order.order_id,
+        "queue_number": order.queue_number,
+        "customer_name": order.customer_name,
+        "room_name": order.room_name,
+        "status": order.status,
+        "created_at": order.created_at.isoformat(),
+        "cancel_reason": order.cancel_reason,
+        "is_custom": order.is_custom,
+        "orders": [
+            {
+                "menu_name": item.menu_name,
+                "quantity": item.quantity,
+                "preference": item.preference if item.preference else "",
+                "notes": item.notes
+            } for item in order_items
+        ]
+    }
+    
     return JSONResponse(status_code=200, content={
         "status": "success",
         "message": "Status pesanan berhasil diambil.",
-        "data": {
-            "order_id": order.order_id,
-            "status": order.status,
-            "queue_number": order.queue_number,
-            "created_at": order.created_at.isoformat()
-        }
+        "data": order_status_details
     })
 
 @app.get("/order", summary="Semua pesanan", tags=["Order"], operation_id="list order")
