@@ -25,7 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL_ORDER")
 MENU_SERVICE_URL = os.getenv("MENU_SERVICE_URL", "http://menu_service:8001")
-INVENTORY_SERVICE_URL = os.getenv("INVENTORY_SERVICE_URL", "http://inventory_service:8005")
+INVENTORY_SERVICE_URL = os.getenv("INVENTORY_SERVICE_URL", "http://inventory_service:8006")
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -277,18 +277,6 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     validation_error = validate_order_items(req.orders)
     if validation_error:
         return JSONResponse(status_code=200, content={"status": "error", "message": validation_error, "data": None})
-
-    # Cek apakah ketersediaan stok masih ada
-    try :
-        stock_check_url = f"{INVENTORY_SERVICE_URL}/check_stock"
-        stock_check_response = requests.post(stock_check_url, json=[{"menu_name": item.menu_name, "quantity": item.quantity} for item in req.orders], timeout=5)
-        stock_check_response.raise_for_status()
-        stock_data = stock_check_response.json()
-        if not stock_data.get("available", True):
-            return JSONResponse(status_code=200, content={"status": "error", "message": "Stok bahan tidak mencukupi untuk pesanan ini.", "data": None})
-    except requests.RequestException as e:
-        logging.error(f"Gagal menghubungi inventory_service untuk cek stok: {e}")
-        return JSONResponse(status_code=200, content={"status": "error", "message": "Tidak dapat memvalidasi stok bahan saat ini.", "data": None})
     
     flavor_required_menus = ["Caffe Latte", "Cappuccino", "Milkshake", "Squash"]
     temp_order_id = req.order_id if req.order_id else generate_order_id()
@@ -341,7 +329,47 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     order_id = temp_order_id
     if db.query(Order).filter(Order.order_id == order_id).first():
         return JSONResponse(status_code=200, content={"status": "error", "message": f"Pesanan dengan ID {order_id} sudah dalam proses.", "data": None})
-
+    
+    # Cek stok 
+    try:
+        stock_resp = requests.post(
+            f"{INVENTORY_SERVICE_URL}/stock/check_and_consume",
+            json={
+                "order_id": temp_order_id,
+                "items": [
+                    {"menu_name": item.menu_name, "quantity": item.quantity}
+                    for item in req.orders
+                ]
+            },
+            timeout=7
+        )
+        stock_data = stock_resp.json()
+        if not stock_data.get("can_fulfill", False):
+            # Bentuk pesan informatif
+            msg = "Stok belum mencukupi."
+            shortages = stock_data.get("shortages") or []
+            if shortages:
+                detail_parts = []
+                for s in shortages[:5]:
+                    detail_parts.append(f"ID {s.get('ingredient_id')} perlu {s.get('required')} (ada {s.get('available')})")
+                msg += " Kekurangan: " + "; ".join(detail_parts)
+            partial = stock_data.get("partial_suggestions")
+            if partial:
+                sug_parts = [f"{p['menu_name']} bisa {p['can_make']}/{p['requested']}" for p in partial]
+                msg += " | Saran partial: " + ", ".join(sug_parts)
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": msg,
+                "data": stock_data
+            })
+    except Exception as e:
+        logging.error(f"Gagal cek stok batch: {e}")
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": "Tidak dapat memvalidasi stok saat ini.",
+            "data": None
+        })
+        
     try:
         new_queue_number = get_next_queue_number(db)
         new_order = Order(
@@ -447,7 +475,42 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     order_id = temp_order_id
     if db.query(Order).filter(Order.order_id == order_id).first():
         return JSONResponse(status_code=200, content={"status": "error", "message": f"Pesanan dengan ID {order_id} sudah dalam proses.", "data": None})
-
+    
+    # Pengecekan stock
+    try:
+        stock_resp = requests.post(
+            f"{INVENTORY_SERVICE_URL}/stock/check_and_consume",
+            json={
+                "order_id": temp_order_id,
+                "items": [
+                    {"menu_name": item.menu_name, "quantity": item.quantity}
+                    for item in req.orders
+                ]
+            },
+            timeout=7
+        )
+        stock_data = stock_resp.json()
+        if not stock_data.get("can_fulfill", False):
+            msg = "Stok belum mencukupi."
+            shortages = stock_data.get("shortages") or []
+            if shortages:
+                detail_parts = []
+                for s in shortages[:5]:
+                    detail_parts.append(f"ID {s.get('ingredient_id')} perlu {s.get('required')} (ada {s.get('available')})")
+                msg += " Kekurangan: " + "; ".join(detail_parts)
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": msg,
+                "data": stock_data
+            })
+    except Exception as e:
+        logging.error(f"Gagal cek stok batch (custom): {e}")
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": "Tidak dapat memvalidasi stok saat ini.",
+            "data": None
+        })
+        
     try:
         new_queue_number = get_next_queue_number(db)
         new_order = Order(
