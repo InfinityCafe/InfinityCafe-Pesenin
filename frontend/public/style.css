@@ -330,6 +330,7 @@ input:checked + .slider:before {
     cursor: pointer;
     transform: scale(1);
     transition: all 0.2s ease;
+    white-space: nowrap;
     /* min-width: 1; */
     padding-left: 6%;
     padding-right: 6%;
