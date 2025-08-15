@@ -1662,3 +1662,4 @@ frontend/node_modules/z-schema/src/ZSchema.js
 frontend/node_modules/z-schema/src/schemas/hyper-schema.json
 frontend/node_modules/z-schema/src/schemas/schema.json
 .env
+merged-model.gguf

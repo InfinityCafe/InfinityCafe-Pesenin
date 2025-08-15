@@ -10,7 +10,7 @@ networks:
     driver: bridge
   my_shared_network:
     driver: bridge
-    name: infinitycafe_shared_network  # Nama yang lebih deskriptif
+    #name: infinitycafe_shared_network  # Nama yang lebih deskriptif
     # Hapus external: true
 
 x-n8n: &service-n8n
@@ -180,10 +180,44 @@ services:
       - ./modelfile:/modelfile
     entrypoint: /bin/sh
     environment:
-    - OLLAMA_HOST=host.docker.internal:11434
+    - OLLAMA_HOST=ollama:11434
     command:
       - "-c"
       - "sleep 3; echo 'Creating infinityCafe Model'; ollama create infinityCafe -f /modelfile/cafe.modelfile"
+
+  user-parser-model:
+    image: ollama/ollama:latest
+    networks: ['demo']
+    container_name: user-parser-model
+    depends_on:
+      n8n:
+        condition: service_started
+    volumes:
+      - ollama_storage:/root/.ollama
+      - ./modelfile:/modelfile
+    entrypoint: /bin/sh
+    environment:
+    - OLLAMA_HOST=ollama:11434
+    command:
+      - "-c"
+      - "sleep 3; echo 'Creating userParser Model'; ollama create userParser -f /modelfile/user2json.modelfile"
+
+  message-generator-model:
+    image: ollama/ollama:latest
+    networks: ['demo']
+    container_name: message-generator-model
+    depends_on:
+      n8n:
+        condition: service_started
+    volumes:
+      - ollama_storage:/root/.ollama
+      - ./modelfile:/modelfile
+    entrypoint: /bin/sh
+    environment:
+    - OLLAMA_HOST=ollama:11434
+    command:
+      - "-c"
+      - "sleep 3; echo 'Creating messageGen Model'; ollama create messageGen -f /modelfile/messageGenerator.modelfile"
 
   pgadmin:
     image: dpage/pgadmin4
@@ -465,7 +499,7 @@ services:
       context: ./frontend
     container_name: infinity-frontend
     hostname: frontend
-    networks: ['demo']
+    networks: ['demo', 'my_shared_network']
     ports:
       - "7777:8080"
     volumes:

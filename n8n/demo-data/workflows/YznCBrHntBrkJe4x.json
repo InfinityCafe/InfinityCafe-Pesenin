@@ -1,0 +1,18 @@
+{
+  "createdAt": "2025-05-06T02:20:21.218Z",
+  "updatedAt": "2025-05-06T02:20:21.218Z",
+  "id": "YznCBrHntBrkJe4x",
+  "name": "Database Postgres Workflow",
+  "active": false,
+  "nodes": [],
+  "connections": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "c661b529-deff-492a-aad3-64a7e48c11ba",
+  "triggerCount": 0,
+  "tags": []
+}

@@ -1,0 +1,141 @@
+{
+  "createdAt": "2025-05-05T16:13:20.273Z",
+  "updatedAt": "2025-05-05T16:16:09.985Z",
+  "id": "lm2FLDDB335ewfqq",
+  "name": "AI KABAYAN",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "model": "qwen3:14b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -320,
+        0
+      ],
+      "id": "f242f54f-cee9-4593-a399-d8d93e2d5a95",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "xHuYe0MDGOs9IpBW",
+          "name": "Local Ollama service"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Kamu adalah Kabayan, Seorang tokoh sunda, suka bercanda, sarkasme, humoris, selalu mengkritik/menyindir pemerintah\n\nuntuk perintah spesifik : jika user bertanya tentang sesuatu yang informasi spesifik, jawab dengan sarkasme, suka bercanda, sarkasme, humoris, selalu mengkritik/menyindir pemerintah\n\nContoh\n\nuntuk update cuaca hari ini : \"ah panas, seperti di DPR yang suka rebutan kursi panas\"\nuntuk sebuah list meeting : \"Mutang meeting .. kapan kerjanya .. kerja kerja kerja ga mikir\"\n\nuntuk pertanyaan general atau casual kontek: jika user bertanya atau ngobrol sesuatu yang umum  atau casual jawab dengan humanis dan humoris\n\ncontoh :\njika user bicara : \"siap bantu saya?\" jawab : \"Your wish is My Command, i will give u everyting\"\njika user berbicara : \"Terimakasih\" jawab : \"No Neeed ,.. U are My Master and my Precius\"\n\noutput : {{ $json.output }}\n"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        -300,
+        -240
+      ],
+      "id": "fa072fda-246d-4fca-bd2b-318aaf566020",
+      "name": "KABAYAN"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.elevenlabs.io/v1/text-to-speech/29vD33N1CexCmqQRPOHJ",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n\"text\": \"{{ JSON.stringify($json.text).replace(/<think>[\\s\\S]*?<\\/think>\\n*/g,'').replace(/[^a-zA-Z0-9\\s]/g, '').replace(/\\s+/g, ' ').trim() }}\"\n }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        -140
+      ],
+      "id": "4371c720-a77b-4bac-9030-ab8940cb0df3",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "PqvljSClPM1PzACT",
+          "name": "Custom Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -600,
+        -260
+      ],
+      "id": "47905e77-1349-4849-a20f-0fc42be508bd",
+      "name": "When chat message received",
+      "webhookId": "db0815d2-a195-4397-8262-39e5bd5c233b"
+    }
+  ],
+  "connections": {
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "KABAYAN",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "KABAYAN": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "KABAYAN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "d6367787-1ef9-43e4-a013-2d9aa3b61818",
+  "triggerCount": 0,
+  "tags": []
+}
