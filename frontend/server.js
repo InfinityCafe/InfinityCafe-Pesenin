@@ -6,6 +6,7 @@ const fetch = require("node-fetch");
 
 const app = express();
 const PORT = 8080;
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "https://liberal-relative-panther.ngrok-free.app/webhook/trigger-order-status";
 
 // Middleware
 app.use(express.json());
@@ -84,7 +85,25 @@ app.post("/kitchen/update_status/:order_id", async (req, res) => {
   const { order_id } = req.params;
   const { status, reason = "" } = req.query;
   try {
-    await fetch(`http://kitchen_service:8003/kitchen/update_status/${order_id}?status=${status}&reason=${encodeURIComponent(reason)}`, { method: "POST" });
+    // Update status di kitchen_service
+    await fetch(
+      `http://kitchen_service:8003/kitchen/update_status/${order_id}?status=${status}&reason=${encodeURIComponent(reason)}`,
+      { method: "POST" }
+    );
+
+    // Trigger n8n webhook (GET) - non-blocking agar tidak mengganggu response
+    try {
+      const qs = new URLSearchParams({
+        order_id: String(order_id || ""),
+        status: String(status || ""),
+        reason: String(reason || "")
+      });
+      fetch(`${N8N_WEBHOOK_URL}?${qs.toString()}`, { method: "GET" })
+        .catch(err => console.error("Failed to call n8n webhook ", err));
+    } catch (whErr) {
+      console.error("n8n webhook error ", whErr);
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error("Failed to update status ", err);
