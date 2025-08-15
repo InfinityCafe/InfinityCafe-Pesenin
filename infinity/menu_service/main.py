@@ -552,10 +552,28 @@ def suggest_menu(item: SuggestionItem, db: Session = Depends(get_db)):
             "data": None
         }
 
-@app.get("/menu_suggestion", summary="Lihat Semua Usulan", tags=["Usulan Menu"], response_model=List[SuggestionOut], operation_id="list usulan menu")
+@app.get("/menu_suggestion", summary="Lihat Semua Usulan", tags=["Usulan Menu"], operation_id="list usulan menu")
 def get_suggestions(db: Session = Depends(get_db)):
     """Menampilkan seluruh usulan menu terbaru dari pelanggan."""
-    return db.query(MenuSuggestion).order_by(MenuSuggestion.timestamp.desc()).all()
+    suggestions = db.query(MenuSuggestion).order_by(MenuSuggestion.timestamp.desc()).all()
+    
+    if not suggestions:
+        return {
+            "status": "success",
+            "message": "Saat ini belum ada usulan menu dari pelanggan lain. Yuk, jadi yang pertama! Kami sangat menantikan ide-ide seru dari Anda" ,
+            "data": []
+        }
+    
+    # Format data hanya nama menu saja
+    menu_names = []
+    for suggestion in suggestions:
+        menu_names.append(suggestion.menu_name)
+    
+    return {
+        "status": "success", 
+        "message": f" Hallo! Kami punya beberapa usulan menu yang baru nih dari pelanggan lain, coba cek siapa tahu ada yang cocok dengan anda:",
+        "data": menu_names
+    }
 
 @app.get("/health", summary="Health Check", tags=["Utility"])
 def health_check():
