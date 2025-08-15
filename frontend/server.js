@@ -56,18 +56,38 @@ app.post("/create_order", async (req, res) => {
 app.post("/cancel_order", async (req, res) => {
   try {
     const body = req.body;
+
+    // Panggil service untuk cancel order
     const resp = await fetch("http://order_service:8002/cancel_order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     });
+
     const data = await resp.json();
+
+    // Setelah cancel berhasil, trigger webhook ke n8n (GET) - non-blocking
+    try {
+      const { order_id = "", reason = "" } = body;
+      const qs = new URLSearchParams({
+        order_id: String(order_id),
+        status: "cancel", // status diset manual
+        reason: String(reason || "Cancelled by user")
+      });
+
+      fetch(`${N8N_WEBHOOK_URL}?${qs.toString()}`, { method: "GET" })
+        .catch(err => console.error("Failed to call n8n webhook ", err));
+    } catch (whErr) {
+      console.error("n8n webhook error ", whErr);
+    }
+
     res.json(data);
   } catch (err) {
     console.error("Failed to cancel order ", err);
     res.status(500).json({ error: "Failed to cancel order" });
   }
 });
+
 
 // Kitchen endpoints
 app.get("/kitchen/orders", async (req, res) => {
