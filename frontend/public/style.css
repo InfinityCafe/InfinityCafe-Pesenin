@@ -3860,8 +3860,8 @@ body.tab-done .add-order-btn {
     width: 500px;
     position: relative;
     max-height: 90vh;
-    overflow-y: auto;
-    overflow-x: hidden;
+    /* overflow-y: auto;
+    overflow-x: hidden; */
 }
 
 .view-modal .modal-title {
