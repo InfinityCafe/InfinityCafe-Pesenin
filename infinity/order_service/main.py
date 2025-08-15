@@ -586,6 +586,17 @@ def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
     create_outbox_event(db, req.order_id, "order_cancelled", cancel_payload)
     db.commit()
     
+    # Rollback inventory untuk pesanan yang dibatalkan
+    try:
+        rollback_response = requests.post(f"{INVENTORY_SERVICE_URL}/stock/rollback/{req.order_id}")
+        if rollback_response.status_code == 200:
+            rollback_data = rollback_response.json()
+            logging.info(f"✅ Inventory rollback berhasil untuk order {req.order_id}: {rollback_data}")
+        else:
+            logging.warning(f"⚠️ Inventory rollback gagal untuk order {req.order_id}: {rollback_response.text}")
+    except Exception as e:
+        logging.error(f"❌ Error saat rollback inventory untuk order {req.order_id}: {e}")
+    
     try:
         process_outbox_events(db)
     except Exception as e:
