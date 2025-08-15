@@ -715,9 +715,10 @@ input:checked + .slider:before {
     color: #1A508A;
 }
 
-.status-deliver {
+.status-deliver, .status-available {
     background-color: #BBF7D0;
-    color: #207156;
+    color: #207156 !important;
+    font-weight: 600 !important;
 }
 
 .status-done {
@@ -727,6 +728,11 @@ input:checked + .slider:before {
 .status-cancel {
     background-color: #EEEEEE;
     color: #B3261E;
+}
+.status-unavailable {
+    background-color: #F5C1BD;
+    color: #B3261E !important;
+    font-weight: 600 !important;
 }
 
 .action-btn {
@@ -1133,25 +1139,33 @@ input:checked + .slider:before {
         transition: all 0.2s ease;
     }
 
-    .modal-btn-cancel {
+    .modal-btn-cancel,
+    .view-modal.modal-btn-cancel {
         background: linear-gradient(to right, #D57F0E, #FFC763);
-        /* background-color: #FFE8C0; */
         color: white;
+        transition: all 0.2s ease;
     }
 
-    .modal-btn-cancel:hover {
-    transform: translateY(-2px);
-    box-shadow: 2px 4px 4px 0px rgba(0, 0, 0, 0.3);
+    .modal-btn-cancel:hover,
+    .view-modal .modal-btn-cancel:hover {
+        transition: opacity 0.3s ease;
+        background: #D57F0E;
+        transform: scale(1.02);
+        box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
     }
 
-    .modal-btn-habis {
+    .modal-btn-habis,
+    .delete-confirm-modal .modal-btn-danger {
         background: linear-gradient(90deg, #b3261e 0%, #f26060 100%);
         color: white;
     }
 
-    .modal-btn-habis:hover {
-    transform: translateY(-2px);
-    box-shadow: 2px 4px 4px 0px rgba(0, 0, 0, 0.3);
+    .modal-btn-habis:hover,
+    .delete-confirm-modal .modal-btn-danger:hover {
+        transition: opacity 0.3s ease;
+        background: #B3261E;
+        transform: scale(1.02);
+        box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
     }
 
     .modal-detail {
@@ -1211,21 +1225,6 @@ input:checked + .slider:before {
     .delete-confirm-modal .modal-actions {
         justify-content: center;
         gap: 1rem;
-    }
-
-    .delete-confirm-modal .modal-btn-danger {
-        background-color: #EF4444;
-        color: white;
-        border: none;
-        padding: 0.75rem 1.5rem;
-        border-radius: 0.5rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-
-    .delete-confirm-modal .modal-btn-danger:hover {
-        background-color: #DC2626;
     }
 
     /* Success Modal */
@@ -3993,16 +3992,6 @@ body.tab-done .add-order-btn {
     cursor: pointer;
     transition: all 0.3s ease;
     min-width: 100px;
-}
-
-.view-modal .modal-btn-cancel {
-    background-color: #E0E0E0;
-}
-
-.view-modal .modal-btn-cancel:hover {
-    background-color: #D0D0D0;
-    transform: scale(1.02);
-    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
 }
 
 .view-modal .modal-btn:not(.modal-btn-cancel) {
