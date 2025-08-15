@@ -469,7 +469,7 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         "status": "receive",
         "created_at": new_order.created_at.isoformat(),
         "is_custom": True,
-        "total_items": len(req.orders),
+
         "orders": [
             {
                 "menu_name": item.menu_name,
