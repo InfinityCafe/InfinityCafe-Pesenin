@@ -577,7 +577,7 @@ app.get("/reportkitchen", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "report.html"));
 });
 
-app.get("/kelola-stok", (req, res) => {
+app.get("/stock-management", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "kelola-stok.html"));
 });
 

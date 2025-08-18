@@ -55,6 +55,7 @@ function setupNavigation() {
             const overrideRoutes = {
                 'nav-dashboard': '/dashboard',
                 'nav-menu': '/menu-management',
+                'nav-stok': '/stock-management',
                 // Tambahkan mapping khusus di sini jika perlu
             };
 
