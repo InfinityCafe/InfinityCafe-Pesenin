@@ -225,6 +225,11 @@ async def update_status(order_id: str, status: str, reason: str = "", db: Sessio
         order.time_done = timestamp
 
     if status in ["cancelled", "habis"]:
+        if not reason:
+            if status == "cancelled":
+                reason = "Dibatalkan"
+            else:
+                reason = "Bahan habis"
         order.cancel_reason = reason
 
     # Update status
