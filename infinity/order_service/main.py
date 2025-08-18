@@ -357,13 +357,13 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         logging.warning(f"⚠️ Gagal memproses outbox events: {e}")
 
     order_details = {
-        "order_id": order_id,
         "queue_number": new_queue_number,
         "customer_name": req.customer_name,
         "room_name": req.room_name,
         "status": "receive",
         "created_at": new_order.created_at.isoformat(),
         "is_custom": False,
+        "total_items": len(req.orders),
         "orders": [
             {
                 "menu_name": item.menu_name,
@@ -376,7 +376,7 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
 
     return JSONResponse(status_code=200, content={
         "status": "success",
-        "message": f"Pesanan kamu telah berhasil diproses dengan id order : {order_id} dan dengan no antrian : {new_queue_number} mohon ditunggu ya !",
+        "message": f"Pesanan kamu telah berhasil diproses dengan no antrian : {new_queue_number} mohon ditunggu ya !",
         "data": order_details
     })
 
@@ -463,13 +463,13 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         logging.warning(f"⚠️ Gagal memproses outbox events: {e}")
 
     order_details = {
-        "order_id": order_id,
         "queue_number": new_queue_number,
         "customer_name": req.customer_name,
         "room_name": req.room_name,
         "status": "receive",
         "created_at": new_order.created_at.isoformat(),
         "is_custom": True,
+
         "orders": [
             {
                 "menu_name": item.menu_name,
@@ -482,7 +482,7 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
 
     return JSONResponse(status_code=200, content={
         "status": "success",
-        "message": f"Pesanan custom kamu telah berhasil diproses dengan id order : {order_id}, mohon ditunggu ya !",
+        "message": f"Pesanan custom kamu telah berhasil diproses dengan no antrian : {new_queue_number}, mohon ditunggu ya !",
         "data": order_details
     })
 
@@ -497,6 +497,15 @@ def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
         return JSONResponse(status_code=200, content={"status": "error", "message": f"Maaf, pesanan dengan ID: {req.order_id} sudah dalam proses pembuatan dan tidak dapat dibatalkan.", "data": None})
 
     order_items = db.query(OrderItem).filter(OrderItem.order_id == req.order_id).all()
+    
+    # List nama menu untuk message
+    menu_names = [item.menu_name for item in order_items]
+    if len(menu_names) == 1:
+        menu_list = menu_names[0]
+    elif len(menu_names) == 2:
+        menu_list = " dan ".join(menu_names)
+    else:
+        menu_list = ", ".join(menu_names[:-1]) + f", dan {menu_names[-1]}"
     
     order.status = "cancelled"
     order.cancel_reason = req.reason
@@ -532,7 +541,7 @@ def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
     
     return JSONResponse(status_code=200, content={
         "status": "success", 
-        "message": f"Pesanan kamu dengan ID: {req.order_id} telah berhasil dibatalkan.", 
+        "message": f"Pesanan dengan menu {menu_list} telah berhasil dibatalkan.", 
         "data": cancelled_order_details
     })
 
