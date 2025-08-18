@@ -330,6 +330,86 @@ app.get("/report/suggested_menu", async (req, res) => {
   }
 });
 
+// Inventory endpoints
+app.get("/inventory/list", async (req, res) => {
+  try {
+    const resp = await fetch("http://inventory_service:8006/list_ingredients");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch inventory ", err);
+    res.status(500).json({ error: "Failed to fetch inventory" });
+  }
+});
+
+app.get("/inventory/summary", async (req, res) => {
+  try {
+    const resp = await fetch("http://inventory_service:8006/stock/summary");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch inventory summary ", err);
+    res.status(500).json({ error: "Failed to fetch inventory summary" });
+  }
+});
+
+app.get("/inventory/alerts", async (req, res) => {
+  try {
+    const resp = await fetch("http://inventory_service:8006/stock/alerts");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch inventory alerts ", err);
+    res.status(500).json({ error: "Failed to fetch inventory alerts" });
+  }
+});
+
+app.post("/inventory/add", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://inventory_service:8006/add_ingredient", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to add ingredient ", err);
+    res.status(500).json({ error: "Failed to add ingredient" });
+  }
+});
+
+app.put("/inventory/update", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://inventory_service:8006/update_ingredient", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to update ingredient ", err);
+    res.status(500).json({ error: "Failed to update ingredient" });
+  }
+});
+
+app.delete("/inventory/delete/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const resp = await fetch(`http://inventory_service:8006/delete_ingredient/${id}`, {
+      method: "DELETE"
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to delete ingredient ", err);
+    res.status(500).json({ error: "Failed to delete ingredient" });
+  }
+});
+
 // User endpoints
 app.post('/login', async (req, res) => {
   try {
@@ -360,6 +440,10 @@ app.get("/menu-management", (req, res) => {
 
 app.get("/reportkitchen", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "report.html"));
+});
+
+app.get("/kelola-stok", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "kelola-stok.html"));
 });
 
 app.get("/login", (req, res) => {
