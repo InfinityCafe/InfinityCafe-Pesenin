@@ -223,7 +223,7 @@ def process_outbox_events(db: Session):
             elif event.event_type == "order_cancelled":
                 response = requests.post(
                     f"http://kitchen_service:8003/kitchen/update_status/{event.order_id}",
-                    params={"status": "cancel", "reason": payload.get("reason", "")},
+                    params={"status": "cancelled", "reason": payload.get("reason", "")},
                     timeout=5
                 )
                 response.raise_for_status()
