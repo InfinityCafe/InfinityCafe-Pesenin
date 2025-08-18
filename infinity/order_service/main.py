@@ -507,7 +507,7 @@ def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
     else:
         menu_list = ", ".join(menu_names[:-1]) + f", dan {menu_names[-1]}"
     
-    order.status = "cancel"
+    order.status = "cancelled"
     order.cancel_reason = req.reason
     
     cancel_payload = { "order_id": req.order_id, "reason": req.reason, "cancelled_at": datetime.now(jakarta_tz).isoformat() }
