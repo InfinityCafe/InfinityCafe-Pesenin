@@ -71,7 +71,7 @@ app.post("/cancel_order", async (req, res) => {
       const { order_id = "", reason = "" } = body;
       const qs = new URLSearchParams({
         order_id: String(order_id),
-        status: "cancel", // status diset manual
+        status: "cancelled", // status diset manual
         reason: String(reason || "Cancelled by user")
       });
 
