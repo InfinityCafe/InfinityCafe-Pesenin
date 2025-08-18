@@ -25,7 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL_ORDER")
 MENU_SERVICE_URL = os.getenv("MENU_SERVICE_URL", "http://menu_service:8001")
-
+INVENTORY_SERVICE_URL = os.getenv("INVENTORY_SERVICE_URL", "http://inventory_service:8006")
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -277,7 +277,7 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     validation_error = validate_order_items(req.orders)
     if validation_error:
         return JSONResponse(status_code=200, content={"status": "error", "message": validation_error, "data": None})
-
+    
     flavor_required_menus = ["Caffe Latte", "Cappuccino", "Milkshake", "Squash"]
     temp_order_id = req.order_id if req.order_id else generate_order_id()
 
@@ -329,7 +329,50 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     order_id = temp_order_id
     if db.query(Order).filter(Order.order_id == order_id).first():
         return JSONResponse(status_code=200, content={"status": "error", "message": f"Pesanan dengan ID {order_id} sudah dalam proses.", "data": None})
-
+    
+    # Cek stok 
+    try:
+        inventory_payload = {
+            "order_id": temp_order_id,
+            "items": [
+                {"menu_name": item.menu_name, "quantity": item.quantity, "preference": item.preference}
+                for item in req.orders
+            ]
+        }
+        print(f"🔍 DEBUG ORDER SERVICE: Sending to inventory: {inventory_payload}")
+        
+        stock_resp = requests.post(
+            f"{INVENTORY_SERVICE_URL}/stock/check_and_consume",
+            json=inventory_payload,
+            timeout=7
+        )
+        stock_data = stock_resp.json()
+        if not stock_data.get("can_fulfill", False):
+            # Bentuk pesan informatif
+            msg = "Stok belum mencukupi."
+            shortages = stock_data.get("shortages") or []
+            if shortages:
+                detail_parts = []
+                for s in shortages[:5]:
+                    detail_parts.append(f"ID {s.get('ingredient_id')} perlu {s.get('required')} (ada {s.get('available')})")
+                msg += " Kekurangan: " + "; ".join(detail_parts)
+            partial = stock_data.get("partial_suggestions")
+            if partial:
+                sug_parts = [f"{p['menu_name']} bisa {p['can_make']}/{p['requested']}" for p in partial]
+                msg += " | Saran partial: " + ", ".join(sug_parts)
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": msg,
+                "data": stock_data
+            })
+    except Exception as e:
+        logging.error(f"Gagal cek stok batch: {e}")
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": "Tidak dapat memvalidasi stok saat ini.",
+            "data": None
+        })
+        
     try:
         new_queue_number = get_next_queue_number(db)
         new_order = Order(
@@ -435,7 +478,45 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     order_id = temp_order_id
     if db.query(Order).filter(Order.order_id == order_id).first():
         return JSONResponse(status_code=200, content={"status": "error", "message": f"Pesanan dengan ID {order_id} sudah dalam proses.", "data": None})
-
+    
+    # Pengecekan stock
+    try:
+        inventory_payload = {
+            "order_id": temp_order_id,
+            "items": [
+                {"menu_name": item.menu_name, "quantity": item.quantity, "preference": item.preference}
+                for item in req.orders
+            ]
+        }
+        print(f"🔍 DEBUG ORDER SERVICE: Sending to inventory: {inventory_payload}")
+        
+        stock_resp = requests.post(
+            f"{INVENTORY_SERVICE_URL}/stock/check_and_consume",
+            json=inventory_payload,
+            timeout=7
+        )
+        stock_data = stock_resp.json()
+        if not stock_data.get("can_fulfill", False):
+            msg = "Stok belum mencukupi."
+            shortages = stock_data.get("shortages") or []
+            if shortages:
+                detail_parts = []
+                for s in shortages[:5]:
+                    detail_parts.append(f"ID {s.get('ingredient_id')} perlu {s.get('required')} (ada {s.get('available')})")
+                msg += " Kekurangan: " + "; ".join(detail_parts)
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": msg,
+                "data": stock_data
+            })
+    except Exception as e:
+        logging.error(f"Gagal cek stok batch (custom): {e}")
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": "Tidak dapat memvalidasi stok saat ini.",
+            "data": None
+        })
+        
     try:
         new_queue_number = get_next_queue_number(db)
         new_order = Order(
@@ -513,6 +594,17 @@ def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
     cancel_payload = { "order_id": req.order_id, "reason": req.reason, "cancelled_at": datetime.now(jakarta_tz).isoformat() }
     create_outbox_event(db, req.order_id, "order_cancelled", cancel_payload)
     db.commit()
+    
+    # Rollback inventory untuk pesanan yang dibatalkan
+    try:
+        rollback_response = requests.post(f"{INVENTORY_SERVICE_URL}/stock/rollback/{req.order_id}")
+        if rollback_response.status_code == 200:
+            rollback_data = rollback_response.json()
+            logging.info(f"✅ Inventory rollback berhasil untuk order {req.order_id}: {rollback_data}")
+        else:
+            logging.warning(f"⚠️ Inventory rollback gagal untuk order {req.order_id}: {rollback_response.text}")
+    except Exception as e:
+        logging.error(f"❌ Error saat rollback inventory untuk order {req.order_id}: {e}")
     
     try:
         process_outbox_events(db)

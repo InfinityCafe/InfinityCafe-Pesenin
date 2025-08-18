@@ -9,8 +9,16 @@ CREATE TABLE IF NOT EXISTS embeddings (
     created_at timestamptz DEFAULT now()
 );
 
--- Membersihkan data lama (opsional)
--- TRUNCATE TABLE menus, orders, order_items, kitchen_orders, menu_suggestions RESTART IDENTITY CASCADE;
+-- Membersihkan data lama sebelum insert (jika tabel sudah ada)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'order_items') THEN
+        TRUNCATE TABLE order_items CASCADE;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'orders') THEN
+        TRUNCATE TABLE orders RESTART IDENTITY CASCADE;
+    END IF;
+END $$;
 
 -- === Pesanan 1: Selesai (Done) ===
 INSERT INTO orders (order_id, queue_number, customer_name, room_name, status, created_at, is_custom) VALUES

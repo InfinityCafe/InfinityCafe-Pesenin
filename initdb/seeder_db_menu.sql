@@ -1,42 +1,24 @@
 -- Mengatur zona waktu sesi ke Asia/Jakarta
-SET TIME ZONE 'Asia/Jakarta';
+SET TIMEZONE = 'Asia/Jakarta';
 
--- Membuat ekstensi 'vector' jika belum ada (berguna untuk AI/embedding)
-CREATE EXTENSION IF NOT EXISTS vector;
+-- SQL Server tidak memerlukan ekstensi vector
 
--- DDL (Data Definition Language) - Definisi Tabel (Opsional, untuk referensi)
--- DROP TABLE IF EXISTS menu_item_flavor_association, flavors, menu_items, menu_suggestions CASCADE;
-/*
-CREATE TABLE flavors (
-    id VARCHAR PRIMARY KEY,
-    flavor_name VARCHAR UNIQUE,
-    additional_price INTEGER,
-    "isAvail" BOOLEAN DEFAULT TRUE -- Kolom status ketersediaan
-);
-
-CREATE TABLE menu_items (
-    id VARCHAR PRIMARY KEY,
-    base_name VARCHAR UNIQUE,
-    base_price INTEGER,
-    "isAvail" BOOLEAN DEFAULT TRUE
-);
-
-CREATE TABLE menu_item_flavor_association (
-    menu_item_id VARCHAR REFERENCES menu_items(id) ON DELETE CASCADE,
-    flavor_id VARCHAR REFERENCES flavors(id) ON DELETE CASCADE,
-    PRIMARY KEY (menu_item_id, flavor_id)
-);
-
-CREATE TABLE menu_suggestions (
-    usulan_id VARCHAR PRIMARY KEY,
-    menu_name VARCHAR,
-    customer_name VARCHAR,
-    "timestamp" TIMESTAMPTZ DEFAULT NOW()
-);
-*/
-
--- Membersihkan data lama dari tabel-tabel terkait agar tidak ada duplikasi
-TRUNCATE TABLE menu_items, flavors, menu_item_flavor_association, menu_suggestions RESTART IDENTITY CASCADE;
+-- Membersihkan data lama dari tabel-tabel terkait agar tidak ada duplikasi (jika tabel sudah ada)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'menu_items') THEN
+        TRUNCATE TABLE menu_items RESTART IDENTITY CASCADE;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'flavors') THEN
+        TRUNCATE TABLE flavors RESTART IDENTITY CASCADE;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'menu_item_flavor_association') THEN
+        TRUNCATE TABLE menu_item_flavor_association RESTART IDENTITY CASCADE;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'menu_suggestions') THEN
+        TRUNCATE TABLE menu_suggestions RESTART IDENTITY CASCADE;
+    END IF;
+END $$;
 
 -- LANGKAH 1: ISI TABEL MASTER 'flavors'
 INSERT INTO flavors (id, flavor_name, additional_price, "isAvail") VALUES
