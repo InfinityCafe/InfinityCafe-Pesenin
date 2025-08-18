@@ -67,6 +67,70 @@ class InventoryManager {
         this.handleKitchenToggle(e.target.checked);
       });
     }
+
+    // Add stock button
+    document.getElementById('add-stock-btn').addEventListener('click', () => {
+      this.openAddStockModal();
+    });
+
+    // Bulk stock button
+    document.getElementById('bulk-stock-btn').addEventListener('click', () => {
+      this.openBulkStockModal();
+    });
+
+    // Consumption log button
+    document.getElementById('consumption-log-btn').addEventListener('click', () => {
+      this.openConsumptionLogModal();
+    });
+
+    // Add stock form
+    document.getElementById('add-stock-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      this.handleAddStockSubmit();
+    });
+
+    // Bulk stock form
+    document.getElementById('bulk-stock-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      this.handleBulkStockSubmit();
+    });
+
+    // Modal close buttons
+    document.getElementById('close-add-stock-modal').addEventListener('click', () => {
+      this.closeModal('add-stock-modal');
+    });
+
+    document.getElementById('close-bulk-stock-modal').addEventListener('click', () => {
+      this.closeModal('bulk-stock-modal');
+    });
+
+    document.getElementById('close-consumption-log-modal').addEventListener('click', () => {
+      this.closeModal('consumption-log-modal');
+    });
+
+    // Cancel buttons
+    document.getElementById('cancel-add-stock-btn').addEventListener('click', () => {
+      this.closeModal('add-stock-modal');
+    });
+
+    document.getElementById('cancel-bulk-stock-btn').addEventListener('click', () => {
+      this.closeModal('bulk-stock-modal');
+    });
+
+    // Add bulk item button
+    document.getElementById('add-bulk-item-btn').addEventListener('click', () => {
+      this.addBulkItem();
+    });
+
+    // Refresh logs button
+    document.getElementById('refresh-logs-btn').addEventListener('click', () => {
+      this.loadConsumptionLogs();
+    });
+
+    // Log search
+    document.getElementById('log-search').addEventListener('input', (e) => {
+      this.filterConsumptionLogs(e.target.value);
+    });
   }
 
   updateGreetingDate() {
@@ -530,7 +594,229 @@ class InventoryManager {
     console.log('Kitchen status:', isOpen ? 'OPEN' : 'CLOSED');
     // You can add API call here to update kitchen status
   }
+
+  // Add Stock Modal Methods
+  openAddStockModal() {
+    this.populateIngredientSelect();
+    this.showModal('add-stock-modal');
+  }
+
+  populateIngredientSelect() {
+    const select = document.getElementById('stock-ingredient');
+    select.innerHTML = '<option value="">Select Ingredient</option>';
+    
+    this.inventory.forEach(item => {
+      const option = document.createElement('option');
+      option.value = item.id;
+      option.textContent = `${item.name} (${item.current_quantity} ${item.unit})`;
+      select.appendChild(option);
+    });
+  }
+
+  async handleAddStockSubmit() {
+    const formData = new FormData(document.getElementById('add-stock-form'));
+    const stockData = {
+      ingredient_id: parseInt(formData.get('ingredient_id')),
+      quantity: parseFloat(formData.get('quantity')),
+      notes: formData.get('notes') || ''
+    };
+
+    try {
+      const response = await fetch('/inventory/stock/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(stockData)
+      });
+
+      if (response.ok) {
+        this.showSuccess('Stock added successfully');
+        this.closeModal('add-stock-modal');
+        this.loadInventoryData();
+        document.getElementById('add-stock-form').reset();
+      } else {
+        const errorData = await response.json();
+        this.showError(errorData.error || 'Failed to add stock');
+      }
+    } catch (error) {
+      console.error('Error adding stock:', error);
+      this.showError('Failed to add stock');
+    }
+  }
+
+  // Bulk Stock Modal Methods
+  openBulkStockModal() {
+    this.populateBulkIngredientSelect();
+    this.showModal('bulk-stock-modal');
+  }
+
+  populateBulkIngredientSelect() {
+    const selects = document.querySelectorAll('#bulk-stock-items select[name="ingredient_id[]"]');
+    selects.forEach(select => {
+      select.innerHTML = '<option value="">Select Ingredient</option>';
+      this.inventory.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.id;
+        option.textContent = `${item.name} (${item.current_quantity} ${item.unit})`;
+        select.appendChild(option);
+      });
+    });
+  }
+
+  addBulkItem() {
+    const container = document.getElementById('bulk-stock-items');
+    const newItem = document.createElement('div');
+    newItem.className = 'bulk-stock-item';
+    newItem.innerHTML = `
+      <select name="ingredient_id[]" required>
+        <option value="">Select Ingredient</option>
+      </select>
+      <input type="number" name="quantity[]" placeholder="Qty" min="0" step="0.01" required>
+      <button type="button" class="remove-bulk-item-btn" onclick="inventoryManager.removeBulkItem(this)">
+        <i class="fas fa-minus"></i>
+      </button>
+    `;
+    
+    container.appendChild(newItem);
+    this.populateBulkIngredientSelect();
+  }
+
+  removeBulkItem(button) {
+    button.parentElement.remove();
+  }
+
+  async handleBulkStockSubmit() {
+    const formData = new FormData(document.getElementById('bulk-stock-form'));
+    const ingredientIds = formData.getAll('ingredient_id[]');
+    const quantities = formData.getAll('quantity[]');
+    const notes = formData.get('notes') || '';
+
+    const stockItems = ingredientIds.map((id, index) => ({
+      ingredient_id: parseInt(id),
+      quantity: parseFloat(quantities[index])
+    }));
+
+    const bulkData = {
+      stock_items: stockItems,
+      notes: notes
+    };
+
+    try {
+      const response = await fetch('/inventory/stock/bulk_add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bulkData)
+      });
+
+      if (response.ok) {
+        this.showSuccess('Bulk stock added successfully');
+        this.closeModal('bulk-stock-modal');
+        this.loadInventoryData();
+        document.getElementById('bulk-stock-form').reset();
+        // Reset bulk items to single item
+        document.getElementById('bulk-stock-items').innerHTML = `
+          <div class="bulk-stock-item">
+            <select name="ingredient_id[]" required>
+              <option value="">Select Ingredient</option>
+            </select>
+            <input type="number" name="quantity[]" placeholder="Qty" min="0" step="0.01" required>
+            <button type="button" class="remove-bulk-item-btn" onclick="inventoryManager.removeBulkItem(this)">
+              <i class="fas fa-minus"></i>
+            </button>
+          </div>
+        `;
+      } else {
+        const errorData = await response.json();
+        this.showError(errorData.error || 'Failed to add bulk stock');
+      }
+    } catch (error) {
+      console.error('Error adding bulk stock:', error);
+      this.showError('Failed to add bulk stock');
+    }
+  }
+
+  // Consumption Log Modal Methods
+  openConsumptionLogModal() {
+    this.showModal('consumption-log-modal');
+    this.loadConsumptionLogs();
+  }
+
+  async loadConsumptionLogs() {
+    try {
+      const response = await fetch('/inventory/consumption_log');
+      if (response.ok) {
+        const logs = await response.json();
+        this.renderConsumptionLogs(logs);
+      } else {
+        this.showError('Failed to load consumption logs');
+      }
+    } catch (error) {
+      console.error('Error loading consumption logs:', error);
+      this.showError('Failed to load consumption logs');
+    }
+  }
+
+  renderConsumptionLogs(logs) {
+    const tbody = document.getElementById('consumption-log-tbody');
+    tbody.innerHTML = '';
+
+    if (!logs || logs.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="5" style="text-align: center; padding: 2rem;">
+            No consumption logs found
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    logs.forEach(log => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${log.order_id || 'N/A'}</td>
+        <td>${this.formatMenuPayload(log.per_menu_payload)}</td>
+        <td>${log.consumed ? 'Yes' : 'No'}</td>
+        <td>${log.rolled_back ? 'Yes' : 'No'}</td>
+        <td>${new Date(log.created_at).toLocaleString()}</td>
+      `;
+      tbody.appendChild(row);
+    });
+  }
+
+  formatMenuPayload(payload) {
+    if (!payload) return 'N/A';
+    try {
+      const data = JSON.parse(payload);
+      if (Array.isArray(data)) {
+        return data.map(item => `${item.name} x${item.quantity}`).join(', ');
+      }
+      return 'Custom order';
+    } catch (e) {
+      return 'Invalid data';
+    }
+  }
+
+  filterConsumptionLogs(searchTerm) {
+    const tbody = document.getElementById('consumption-log-tbody');
+    const rows = tbody.querySelectorAll('tr');
+    
+    rows.forEach(row => {
+      const orderId = row.cells[0].textContent.toLowerCase();
+      if (orderId.includes(searchTerm.toLowerCase())) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  }
 }
+
+// Global functions for onclick handlers
+window.removeBulkItem = function(button) {
+  if (window.inventoryManager) {
+    window.inventoryManager.removeBulkItem(button);
+  }
+};
 
 // Initialize the inventory manager when the page loads
 let inventoryManager;

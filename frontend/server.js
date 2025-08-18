@@ -410,6 +410,141 @@ app.delete("/inventory/delete/:id", async (req, res) => {
   }
 });
 
+// Stock Management endpoints
+app.post("/inventory/stock/add", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://inventory_service:8006/stock/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to add stock ", err);
+    res.status(500).json({ error: "Failed to add stock" });
+  }
+});
+
+app.post("/inventory/stock/bulk_add", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://inventory_service:8006/stock/bulk_add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to bulk add stock ", err);
+    res.status(500).json({ error: "Failed to bulk add stock" });
+  }
+});
+
+app.put("/inventory/stock/minimum", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://inventory_service:8006/stock/minimum", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to update minimum stock ", err);
+    res.status(500).json({ error: "Failed to update minimum stock" });
+  }
+});
+
+app.get("/inventory/stock/out_of_stock", async (req, res) => {
+  try {
+    const resp = await fetch("http://inventory_service:8006/stock/out_of_stock");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch out of stock items ", err);
+    res.status(500).json({ error: "Failed to fetch out of stock items" });
+  }
+});
+
+app.get("/inventory/stock/critical_status", async (req, res) => {
+  try {
+    const resp = await fetch("http://inventory_service:8006/stock/critical_status");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch critical status ", err);
+    res.status(500).json({ error: "Failed to fetch critical status" });
+  }
+});
+
+app.post("/inventory/stock/check_and_consume", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://inventory_service:8006/stock/check_and_consume", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to check and consume stock ", err);
+    res.status(500).json({ error: "Failed to check and consume stock" });
+  }
+});
+
+app.post("/inventory/stock/rollback/:order_id", async (req, res) => {
+  try {
+    const { order_id } = req.params;
+    const resp = await fetch(`http://inventory_service:8006/stock/rollback/${order_id}`, {
+      method: "POST"
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to rollback stock consumption ", err);
+    res.status(500).json({ error: "Failed to rollback stock consumption" });
+  }
+});
+
+app.get("/inventory/consumption_log", async (req, res) => {
+  try {
+    const resp = await fetch("http://inventory_service:8006/consumption_log");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch consumption logs ", err);
+    res.status(500).json({ error: "Failed to fetch consumption logs" });
+  }
+});
+
+app.get("/inventory/consumption_log/:order_id", async (req, res) => {
+  try {
+    const { order_id } = req.params;
+    const resp = await fetch(`http://inventory_service:8006/consumption_log/${order_id}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch consumption log for order ", err);
+    res.status(500).json({ error: "Failed to fetch consumption log for order" });
+  }
+});
+
+app.get("/inventory/flavor_mapping", async (req, res) => {
+  try {
+    const resp = await fetch("http://inventory_service:8006/flavor_mapping");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch flavor mapping ", err);
+    res.status(500).json({ error: "Failed to fetch flavor mapping" });
+  }
+});
+
 // User endpoints
 app.post('/login', async (req, res) => {
   try {
