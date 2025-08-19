@@ -10,64 +10,74 @@ class InventoryManager {
     
     this.initializeEventListeners();
     this.loadInventoryData();
-    this.updateGreetingDate();
+    // this.updateGreetingDate();
   }
 
   initializeEventListeners() {
+    // Helper function to safely bind event listeners
+    const safeAddEventListener = (id, event, callback) => {
+      const element = document.getElementById(id);
+      if (element) {
+        element.addEventListener(event, callback);
+      } else {
+        console.warn(`Element with ID '${id}' not found in DOM`);
+      }
+    };
+
     // Add item button
-    document.getElementById('add-item-btn').addEventListener('click', () => {
+    safeAddEventListener('add-item-btn', 'click', () => {
       this.openAddItemModal();
     });
 
     // Modal close buttons
-    document.getElementById('close-modal').addEventListener('click', () => {
+    safeAddEventListener('close-modal', 'click', () => {
       this.closeModal('item-modal');
     });
 
-    document.getElementById('close-delete-modal').addEventListener('click', () => {
+    safeAddEventListener('close-delete-modal', 'click', () => {
       this.closeModal('delete-modal');
     });
 
     // Form submission
-    document.getElementById('item-form').addEventListener('submit', (e) => {
+    safeAddEventListener('item-form', 'submit', (e) => {
       e.preventDefault();
       this.handleFormSubmit();
     });
 
     // Cancel buttons
-    document.getElementById('cancel-btn').addEventListener('click', () => {
+    safeAddEventListener('cancel-btn', 'click', () => {
       this.closeModal('item-modal');
     });
 
-    document.getElementById('cancel-delete-btn').addEventListener('click', () => {
+    safeAddEventListener('cancel-delete-btn', 'click', () => {
       this.closeModal('delete-modal');
     });
 
     // Search functionality
-    document.getElementById('search-input').addEventListener('input', (e) => {
+    safeAddEventListener('search-input', 'input', (e) => {
       this.handleSearch(e.target.value);
     });
 
-    document.getElementById('table-search').addEventListener('input', (e) => {
+    safeAddEventListener('table-search', 'input', (e) => {
       this.handleSearch(e.target.value);
     });
 
     // Entries per page
-    document.getElementById('entries-per-page').addEventListener('change', () => {
+    safeAddEventListener('entries-per-page', 'change', () => {
       this.changeMenuPageSize();
     });
 
     // Pagination buttons
-    document.getElementById('prev-btn').addEventListener('click', () => {
+    safeAddEventListener('prev-btn', 'click', () => {
       this.changeMenuPage(-1);
     });
 
-    document.getElementById('next-btn').addEventListener('click', () => {
+    safeAddEventListener('next-btn', 'click', () => {
       this.changeMenuPage(1);
     });
 
     // Delete confirmation
-    document.getElementById('confirm-delete-btn').addEventListener('click', () => {
+    safeAddEventListener('confirm-delete-btn', 'click', () => {
       this.confirmDelete();
     });
 
@@ -77,94 +87,87 @@ class InventoryManager {
       kitchenToggle.addEventListener('change', (e) => {
         this.handleKitchenToggle(e.target.checked);
       });
+    } else {
+      console.warn("Kitchen toggle not found in DOM");
     }
 
     // Add stock button
-    document.getElementById('add-stock-btn').addEventListener('click', () => {
+    safeAddEventListener('add-stock-btn', 'click', () => {
       this.openAddStockModal();
     });
 
     // Bulk stock button
-    document.getElementById('bulk-stock-btn').addEventListener('click', () => {
+    safeAddEventListener('bulk-stock-btn', 'click', () => {
       this.openBulkStockModal();
     });
 
     // Consumption log button
-    document.getElementById('consumption-log-btn').addEventListener('click', () => {
+    safeAddEventListener('consumption-log-btn', 'click', () => {
       this.openConsumptionLogModal();
     });
 
     // Add stock form
-    document.getElementById('add-stock-form').addEventListener('submit', (e) => {
+    safeAddEventListener('add-stock-form', 'submit', (e) => {
       e.preventDefault();
       this.handleAddStockSubmit();
     });
 
     // Bulk stock form
-    document.getElementById('bulk-stock-form').addEventListener('submit', (e) => {
+    safeAddEventListener('bulk-stock-form', 'submit', (e) => {
       e.preventDefault();
       this.handleBulkStockSubmit();
     });
 
     // Modal close buttons
-    document.getElementById('close-add-stock-modal').addEventListener('click', () => {
+    safeAddEventListener('close-add-stock-modal', 'click', () => {
       this.closeModal('add-stock-modal');
     });
 
-    document.getElementById('close-bulk-stock-modal').addEventListener('click', () => {
+    safeAddEventListener('close-bulk-stock-modal', 'click', () => {
       this.closeModal('bulk-stock-modal');
     });
 
-    document.getElementById('close-consumption-log-modal').addEventListener('click', () => {
+    safeAddEventListener('close-consumption-log-modal', 'click', () => {
       this.closeModal('consumption-log-modal');
     });
 
     // Cancel buttons
-    document.getElementById('cancel-add-stock-btn').addEventListener('click', () => {
+    safeAddEventListener('cancel-add-stock-btn', 'click', () => {
       this.closeModal('add-stock-modal');
     });
 
-    document.getElementById('cancel-bulk-stock-btn').addEventListener('click', () => {
+    safeAddEventListener('cancel-bulk-stock-btn', 'click', () => {
       this.closeModal('bulk-stock-modal');
     });
 
     // Add bulk item button
-    document.getElementById('add-bulk-item-btn').addEventListener('click', () => {
+    safeAddEventListener('add-bulk-item-btn', 'click', () => {
       this.addBulkItem();
     });
 
     // Refresh logs button
-    document.getElementById('refresh-logs-btn').addEventListener('click', () => {
+    safeAddEventListener('refresh-logs-btn', 'click', () => {
       this.loadConsumptionLogs();
     });
 
     // Log search
-    document.getElementById('log-search').addEventListener('input', (e) => {
+    safeAddEventListener('log-search', 'input', (e) => {
       this.filterConsumptionLogs(e.target.value);
     });
   }
 
-  updateGreetingDate() {
-    const now = new Date();
-    const options = { 
-      weekday: 'long', 
-      day: 'numeric', 
-      month: 'long', 
-      year: 'numeric' 
-    };
-    const formattedDate = now.toLocaleDateString('en-US', options);
-    document.getElementById('greeting-date').textContent = formattedDate;
-  }
-
   async loadInventoryData() {
     try {
+      console.log('Attempting to load inventory data...');
       // Load inventory summary
       const summaryResponse = await fetch('/inventory/summary');
       const summaryData = await summaryResponse.json();
       
       if (summaryResponse.ok) {
+        console.log('Summary data loaded:', summaryData);
         this.updateOverviewCards(summaryData);
       } else {
+        console.log('Summary API failed, loading sample data...');
         this.loadSampleData();
       }
 
@@ -173,6 +176,7 @@ class InventoryManager {
       const listData = await listResponse.json();
       
       if (listResponse.ok) {
+        console.log('Inventory list loaded:', listData);
         this.inventory = listData.data || listData;
         this.filteredInventory = [...this.inventory];
         this.renderInventoryTable();
@@ -244,6 +248,7 @@ class InventoryManager {
     });
 
     this.renderInventoryTable();
+    console.log('Sample data loaded and table rendered');
   }
 
   updateOverviewCards(summaryData) {
@@ -277,6 +282,11 @@ class InventoryManager {
 
   renderInventoryTable() {
     const tbody = document.getElementById('inventory-tbody');
+    if (!tbody) {
+      console.warn("Inventory table body not found in DOM");
+      return;
+    }
+
     const startIndex = (this.currentPage - 1) * this.itemsPerPage;
     const endIndex = startIndex + this.itemsPerPage;
     const pageData = this.filteredInventory.slice(startIndex, endIndex);
@@ -291,13 +301,19 @@ class InventoryManager {
           </td>
         </tr>
       `;
-      document.getElementById('table-info').textContent = 'Showing 0 of 0 entries';
+      const tableInfo = document.getElementById('table-info');
+      if (tableInfo) {
+        tableInfo.textContent = 'Showing 0 of 0 entries';
+      }
     } else {
       pageData.forEach((item, index) => {
         const row = this.createTableRow(item, startIndex + index + 1);
         tbody.appendChild(row);
       });
-      document.getElementById('table-info').textContent = `Showing ${startIndex + 1} to ${Math.min(endIndex, this.filteredInventory.length)} of ${this.filteredInventory.length} entries`;
+      const tableInfo = document.getElementById('table-info');
+      if (tableInfo) {
+        tableInfo.textContent = `Showing ${startIndex + 1} to ${Math.min(endIndex, this.filteredInventory.length)} of ${this.filteredInventory.length} entries`;
+      }
     }
 
     this.updatePagination();
@@ -306,7 +322,7 @@ class InventoryManager {
   createTableRow(item, rowNumber) {
     const row = document.createElement('tr');
     const status = this.getStockStatus(item);
-    
+
     row.innerHTML = `
       <td>${rowNumber}</td>
       <td>${item.name}</td>
@@ -350,15 +366,17 @@ class InventoryManager {
 
   updatePagination() {
     const totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
-    const startItem = (this.currentPage - 1) * this.itemsPerPage + 1;
-    const endItem = Math.min(this.currentPage * this.itemsPerPage, this.filteredInventory.length);
-    
-    // Update pagination info
     const paginationInfo = document.getElementById('pagination-info');
-    paginationInfo.textContent = `Page ${this.currentPage} of ${totalPages}`;
+    if (paginationInfo) {
+      paginationInfo.textContent = `Page ${this.currentPage} of ${totalPages}`;
+    }
 
     // Update page numbers
     const pageNumbers = document.getElementById('page-numbers');
+    if (!pageNumbers) {
+      console.warn("Page numbers element not found in DOM");
+      return;
+    }
     pageNumbers.innerHTML = '';
 
     // Previous button
@@ -402,40 +420,49 @@ class InventoryManager {
     this.renderInventoryTable();
   }
 
-  toggleFilterMenu() {
-    const dropdown = document.getElementById('filter-dropdown');
-    dropdown.classList.toggle('hidden');
-  }
+  applyStockFilter() {
+    const statusFilter = document.getElementById('status-filter');
+    const quantityMin = document.getElementById('quantity-min');
+    const quantityMax = document.getElementById('quantity-max');
 
-  applyMenuFilter() {
-    const statusFilter = document.getElementById('status-filter').value;
-    const quantityMin = parseFloat(document.getElementById('quantity-min').value) || 0;
-    const quantityMax = parseFloat(document.getElementById('quantity-max').value) || Infinity;
+    if (!statusFilter || !quantityMin || !quantityMax) {
+      console.warn("Filter elements not found in DOM");
+      return;
+    }
+
+    const statusValue = statusFilter.value;
+    const minValue = parseFloat(quantityMin.value) || 0;
+    const maxValue = parseFloat(quantityMax.value) || Infinity;
 
     this.filteredInventory = this.inventory.filter(item => {
-      const statusMatch = !statusFilter ||
-        (statusFilter === 'Yes' && item.current_quantity > item.minimum_quantity) ||
-        (statusFilter === 'No' && item.current_quantity <= item.minimum_quantity);
-      const quantityMatch = item.current_quantity >= quantityMin && item.current_quantity <= quantityMax;
+      const statusMatch = !statusValue ||
+        (statusValue === 'Yes' && item.current_quantity > item.minimum_quantity) ||
+        (statusValue === 'No' && item.current_quantity <= item.minimum_quantity);
+      const quantityMatch = item.current_quantity >= minValue && item.current_quantity <= maxValue;
       return statusMatch && quantityMatch;
     });
 
     this.currentPage = 1;
     this.renderInventoryTable();
-    this.toggleFilterMenu();
+    this.toggleFilterStock();
   }
 
-  clearMenuFilter() {
-    document.getElementById('status-filter').value = '';
-    document.getElementById('quantity-min').value = '';
-    document.getElementById('quantity-max').value = '';
+  clearStockFilter() {
+    const statusFilter = document.getElementById('status-filter');
+    const quantityMin = document.getElementById('quantity-min');
+    const quantityMax = document.getElementById('quantity-max');
+
+    if (statusFilter) statusFilter.value = '';
+    if (quantityMin) quantityMin.value = '';
+    if (quantityMax) quantityMax.value = '';
+
     this.filteredInventory = [...this.inventory];
     this.currentPage = 1;
     this.renderInventoryTable();
-    this.toggleFilterMenu();
+    this.toggleFilterStock();
   }
 
-  changeMenuPage(direction) {
+  changeStockPage(direction) {
     const totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
     this.currentPage += direction;
     if (this.currentPage < 1) this.currentPage = 1;
@@ -443,16 +470,23 @@ class InventoryManager {
     this.renderInventoryTable();
   }
 
-  changeMenuPageSize() {
-    this.itemsPerPage = parseInt(document.getElementById('entries-per-page').value);
-    this.currentPage = 1;
-    this.renderInventoryTable();
+  changeStockPageSize() {
+    const entriesPerPage = document.getElementById('entries-per-page');
+    if (entriesPerPage) {
+      this.itemsPerPage = parseInt(entriesPerPage.value);
+      this.currentPage = 1;
+      this.renderInventoryTable();
+    } else {
+      console.warn("Entries per page element not found in DOM");
+    }
   }
 
   openAddItemModal() {
     this.editingItem = null;
-    document.getElementById('modal-title').textContent = 'Add New Item';
-    document.getElementById('item-form').reset();
+    const modalTitle = document.getElementById('modal-title');
+    const itemForm = document.getElementById('item-form');
+    if (modalTitle) modalTitle.textContent = 'Add New Item';
+    if (itemForm) itemForm.reset();
     this.showModal('item-modal');
   }
 
@@ -461,26 +495,40 @@ class InventoryManager {
     if (!item) return;
 
     this.editingItem = item;
-    document.getElementById('modal-title').textContent = 'Edit Item';
-    
-    // Populate form fields
-    document.getElementById('item-name').value = item.name;
-    document.getElementById('item-category').value = item.category;
-    document.getElementById('item-unit').value = item.unit;
-    document.getElementById('item-current').value = item.current_quantity;
-    document.getElementById('item-minimum').value = item.minimum_quantity;
-    
+    const modalTitle = document.getElementById('modal-title');
+    if (modalTitle) modalTitle.textContent = 'Edit Item';
+
+    const fields = {
+      'item-name': item.name,
+      'item-category': item.category,
+      'item-unit': item.unit,
+      'item-current': item.current_quantity,
+      'item-minimum': item.minimum_quantity
+    };
+
+    Object.keys(fields).forEach(id => {
+      const element = document.getElementById(id);
+      if (element) element.value = fields[id];
+    });
+
     this.showModal('item-modal');
   }
 
   deleteItem(itemId, itemName) {
     this.editingItem = { id: itemId, name: itemName };
-    document.getElementById('delete-item-name').textContent = itemName;
+    const deleteItemName = document.getElementById('delete-item-name');
+    if (deleteItemName) deleteItemName.textContent = itemName;
     this.showModal('delete-modal');
   }
 
   async handleFormSubmit() {
-    const formData = new FormData(document.getElementById('item-form'));
+    const itemForm = document.getElementById('item-form');
+    if (!itemForm) {
+      console.warn("Item form not found in DOM");
+      return;
+    }
+
+    const formData = new FormData(itemForm);
     const itemData = {
       name: formData.get('name'),
       category: formData.get('category'),
@@ -579,7 +627,7 @@ class InventoryManager {
       this.inventory.splice(index, 1);
       this.showSuccess('Item deleted successfully (local demo)');
       this.closeModal('delete-modal');
-      
+
       this.filteredInventory = [...this.inventory];
       this.renderInventoryTable();
       this.updateOverviewCards({
@@ -592,11 +640,19 @@ class InventoryManager {
   }
 
   showModal(modalId) {
-    document.getElementById(modalId).classList.remove('hidden');
+    const modal = document.getElementById(modalId);
+    if (modal) {
+      modal.classList.remove('hidden');
+    } else {
+      console.warn(`Modal with ID '${modalId}' not found in DOM`);
+    }
   }
 
   closeModal(modalId) {
-    document.getElementById(modalId).classList.add('hidden');
+    const modal = document.getElementById(modalId);
+    if (modal) {
+      modal.classList.add('hidden');
+    }
     this.editingItem = null;
   }
 
@@ -658,6 +714,10 @@ class InventoryManager {
 
   populateIngredientSelect() {
     const select = document.getElementById('stock-ingredient');
+    if (!select) {
+      console.warn("Stock ingredient select not found in DOM");
+      return;
+    }
     select.innerHTML = '<option value="">Select Ingredient</option>';
     
     this.inventory.forEach(item => {
@@ -669,7 +729,13 @@ class InventoryManager {
   }
 
   async handleAddStockSubmit() {
-    const formData = new FormData(document.getElementById('add-stock-form'));
+    // const formData = new FormData(document.getElementById('add-stock-form'));const addStockForm = document.getElementById('add-stock-form');
+    if (!addStockForm) {
+      console.warn("Add stock form not found in DOM");
+      return;
+    }
+
+    const formData = new FormData(addStockForm);
     const stockData = {
       ingredient_id: parseInt(formData.get('ingredient_id')),
       quantity: parseFloat(formData.get('quantity')),
@@ -706,6 +772,9 @@ class InventoryManager {
 
   populateBulkIngredientSelect() {
     const selects = document.querySelectorAll('#bulk-stock-items select[name="ingredient_id[]"]');
+    if (selects.length === 0) {
+      console.warn("Bulk stock select elements not found in DOM");
+    }
     selects.forEach(select => {
       select.innerHTML = '<option value="">Select Ingredient</option>';
       this.inventory.forEach(item => {
@@ -719,6 +788,11 @@ class InventoryManager {
 
   addBulkItem() {
     const container = document.getElementById('bulk-stock-items');
+    // if (!container) {
+    //   console.warn("Bulk stock items container not found in DOM");
+    //   return;
+    // }
+    addStockForm.reset();
     const newItem = document.createElement('div');
     newItem.className = 'bulk-stock-item';
     newItem.innerHTML = `
@@ -740,7 +814,14 @@ class InventoryManager {
   }
 
   async handleBulkStockSubmit() {
-    const formData = new FormData(document.getElementById('bulk-stock-form'));
+    // const formData = new FormData(document.getElementById('bulk-stock-form'));
+    const bulkStockForm = document.getElementById('bulk-stock-form');
+    if (!bulkStockForm) {
+      console.warn("Bulk stock form not found in DOM");
+      return;
+    }
+
+    const formData = new FormData(bulkStockForm);
     const ingredientIds = formData.getAll('ingredient_id[]');
     const quantities = formData.getAll('quantity[]');
     const notes = formData.get('notes') || '';
@@ -766,8 +847,9 @@ class InventoryManager {
         this.showSuccess('Bulk stock added successfully');
         this.closeModal('bulk-stock-modal');
         this.loadInventoryData();
-        document.getElementById('bulk-stock-form').reset();
+        // document.getElementById('bulk-stock-form').reset();
         // Reset bulk items to single item
+        bulkStockForm.reset();
         document.getElementById('bulk-stock-items').innerHTML = `
           <div class="bulk-stock-item">
             <select name="ingredient_id[]" required>
@@ -803,15 +885,23 @@ class InventoryManager {
         this.renderConsumptionLogs(logs);
       } else {
         this.showError('Failed to load consumption logs');
+        const offlineBanner = document.getElementById('offline-banner');
+        if (offlineBanner) offlineBanner.classList.remove('hidden');
       }
     } catch (error) {
       console.error('Error loading consumption logs:', error);
       this.showError('Failed to load consumption logs');
+      const offlineBanner = document.getElementById('offline-banner');
+      if (offlineBanner) offlineBanner.classList.remove('hidden');
     }
   }
 
   renderConsumptionLogs(logs) {
     const tbody = document.getElementById('consumption-log-tbody');
+    if (!tbody) {
+      console.warn("Consumption log table body not found in DOM");
+      return;
+    }
     tbody.innerHTML = '';
 
     if (!logs || logs.length === 0) {
@@ -860,6 +950,10 @@ class InventoryManager {
 
   filterConsumptionLogs(searchTerm) {
     const tbody = document.getElementById('consumption-log-tbody');
+    if (!tbody) {
+      console.warn("Consumption log table body not found in DOM");
+      return;
+    }
     const rows = tbody.querySelectorAll('tr');
 
     rows.forEach(row => {
@@ -882,5 +976,6 @@ window.removeBulkItem = function(button) {
 
 // Initialize the inventory manager when the page loads
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('Initializing InventoryManager...');
   window.inventoryManager = new InventoryManager();
 });

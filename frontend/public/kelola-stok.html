@@ -9,7 +9,7 @@
   <!-- <link rel="stylesheet" href="css/kelola-stok.css"> -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 </head>
-<body data-page="kelola-stok">
+<body data-page="inventory">
   <!-- Header -->
   <nav class="header">
     <div class="header-brand">
@@ -139,7 +139,7 @@
                 <input type="text" id="table-search" placeholder="Search menu..." class="search-input">
               </div>
               <div class="filter-container">
-                <button class="filter-btn" onclick="inventoryManager.toggleFilterMenu()">
+                <button class="filter-btn" onclick="inventoryManager.toggleFilterStock()">
                   <i class="fas fa-filter"></i>
                   Filter
                 </button>
@@ -161,8 +161,8 @@
                     </div>
                   </div>
                   <div class="filter-actions">
-                    <button class="apply-filter-btn" onclick="inventoryManager.applyMenuFilter()">Apply</button>
-                    <button class="clear-filter-btn" onclick="inventoryManager.clearMenuFilter()">Clear</button>
+                    <button class="apply-filter-btn" onclick="inventoryManager.applyStockFilter()">Apply</button>
+                    <button class="clear-filter-btn" onclick="inventoryManager.clearStockFilter()">Clear</button>
                   </div>
                 </div>
               </div>
@@ -198,19 +198,19 @@
                 <span id="pagination-info">Page 1 of 1</span>
               </div>
               <div class="pagination-controls">
-                <button class="pagination-btn" id="prev-btn" onclick="inventoryManager.changeMenuPage(-1)">
+                <button class="pagination-btn" id="prev-btn" onclick="inventoryManager.changeStockPage(-1)">
                   <i class="fas fa-chevron-left"></i>
                 </button>
                 <div class="page-numbers" id="page-numbers">
                   <!-- Page numbers will be generated here -->
                 </div>
-                <button class="pagination-btn" id="next-btn" onclick="inventoryManager.changeMenuPage(1)">
+                <button class="pagination-btn" id="next-btn" onclick="inventoryManager.changeStockPage(1)">
                   <i class="fas fa-chevron-right"></i>
                 </button>
               </div>
               <div class="pagination-size">
                 <label>Show:</label>
-                <select id="entries-per-page" onchange="inventoryManager.changeMenuPageSize()">
+                <select id="entries-per-page" onchange="inventoryManager.changeStockPageSize()">
                   <option value="5">5</option>
                   <option value="10" selected>10</option>
                   <option value="25">25</option>

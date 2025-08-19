@@ -4,7 +4,10 @@
 // Fungsi untuk menampilkan tanggal
 function updateGreetingDate(format = 'en') {
     const dateElement = document.getElementById('greeting-date');
-    if (!dateElement) return; // Pemeriksaan keamanan
+    if (!dateElement) {
+        console.warn("Greeting date element not found in DOM");
+        return;
+    }
 
     const today = new Date();
 
@@ -26,8 +29,12 @@ function updateGreetingDate(format = 'en') {
 
 // Fungsi navigasi navbar
 function setupNavigation() {
+    console.log('Setting up navigation...');
     const navButtons = document.querySelectorAll('.nav-btn');
-    if (navButtons.length === 0) return;
+    if (navButtons.length === 0) {
+        console.warn("No navigation buttons found in DOM");
+        return;
+    }
 
     const currentPage = document.body.dataset.page;
 
@@ -63,6 +70,7 @@ function setupNavigation() {
             const route = overrideRoutes[this.id] || (targetUrl ? `/${targetUrl}.html` : null);
 
             if (route) {
+                console.log('Navigating to:', route);
                 window.location.href = route;
             }
         });
@@ -78,13 +86,16 @@ function setupNavigation() {
 
 // Fungsi status dapur
 function initializeKitchenToggle() {
+    console.log('Initializing kitchen toggle...');
     const toggle = document.getElementById('kitchen-toggle');
-    if (!toggle) return;
-
-    // const statusText = document.getElementById('kitchen-status-text');
+    if (!toggle) {
+        console.warn("Kitchen toggle not found in DOM");
+        return;
+    }
 
     toggle.addEventListener('change', function() {
         const isOpen = this.checked;
+        console.log('Kitchen toggle changed to:', isOpen);
         setKitchenStatus(isOpen);
         // statusText.textContent = isOpen ? 'BUKA' : 'TUTUP';
     });
@@ -94,11 +105,13 @@ function initializeKitchenToggle() {
 
 async function fetchKitchenStatus() {
     try {
+        console.log('Fetching kitchen status...');
         const res = await fetch("/kitchen/status/now");
         if (!res.ok) {
         throw new Error('Failed to fetch kitchen status');
         }
         const data = await res.json();
+        console.log('Kitchen status fetched:', data);
         updateKitchenStatusUI(data.is_open);
     } catch (error) {
         console.error('Error fetching kitchen status:', error);
@@ -108,6 +121,7 @@ async function fetchKitchenStatus() {
 
 async function setKitchenStatus(isOpen) {
     try {
+        console.log('Setting kitchen status to:', isOpen);
         const res = await fetch("/kitchen/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -130,34 +144,25 @@ async function setKitchenStatus(isOpen) {
 function updateKitchenStatusUI(isOpen) {
     const toggle = document.getElementById('kitchen-toggle');
     const offBanner = document.getElementById('kitchen-off-banner');
-    
-    // Update toggle state
-    toggle.checked = isOpen;
-    
-    // Show/hide banner
-    if (!isOpen) {
-        offBanner.classList.remove('hidden');
-        // Disable all action buttons when kitchen is closed
-        document.querySelectorAll('.action-btn').forEach(btn => {
-        btn.disabled = true;
-        });
-    } else {
-        offBanner.classList.add('hidden');
-        // Enable all action buttons when kitchen is open
-        document.querySelectorAll('.action-btn').forEach(btn => {
-        btn.disabled = false;
-        });
-    }
+
+    if (toggle) toggle.checked = isOpen;
+    if (offBanner) offBanner.classList.toggle('hidden', isOpen);
+
+    document.querySelectorAll('.action-btn').forEach(btn => {
+        btn.disabled = !isOpen;
+    });
 }
 
 // Fungsi logout
 function logout() {
+    console.log('Logging out...');
     localStorage.removeItem('access_token');
     window.location.href = '/login';
 }
 
 // Fungsi untuk menambahkan tombol logout ke header
 function setupLogoutButton() {
+    console.log('Setting up logout button...');
     const headerRight = document.querySelector('.header-right');
     if (headerRight && !document.getElementById('logout-btn')) {
         const logoutBtn = document.createElement('button');
@@ -172,11 +177,15 @@ function setupLogoutButton() {
 
 // Login guard
 function checkAuth() {
+    console.log('Checking auth...');
     const publicPages = ['login'];
     const currentPage = document.body.dataset.page || window.location.pathname.split('/').pop().replace('.html', '');
     
     if (!publicPages.includes(currentPage) && !localStorage.getItem('access_token')) {
+        console.log('No access token, redirecting to /login');
         window.location.href = '/login';
+    } else {
+        console.log('Auth passed, current page:', currentPage);
     }
 }
 
@@ -232,6 +241,7 @@ function displayUserInfo() {
 
 // Inisialisasi kode bersama saat DOM dimuat
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOMContentLoaded event triggered in script.js');
     checkAuth();
     updateGreetingDate();
     setupNavigation();
