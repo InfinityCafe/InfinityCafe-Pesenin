@@ -48,11 +48,22 @@ class InventoryManager {
       this.handleSearch(e.target.value);
     });
 
+    document.getElementById('table-search').addEventListener('input', (e) => {
+      this.handleSearch(e.target.value);
+    });
+
     // Entries per page
-    document.getElementById('entries-per-page').addEventListener('change', (e) => {
-      this.itemsPerPage = parseInt(e.target.value);
-      this.currentPage = 1;
-      this.renderInventoryTable();
+    document.getElementById('entries-per-page').addEventListener('change', () => {
+      this.changeMenuPageSize();
+    });
+
+    // Pagination buttons
+    document.getElementById('prev-btn').addEventListener('click', () => {
+      this.changeMenuPage(-1);
+    });
+
+    document.getElementById('next-btn').addEventListener('click', () => {
+      this.changeMenuPage(1);
     });
 
     // Delete confirmation
@@ -154,7 +165,6 @@ class InventoryManager {
       if (summaryResponse.ok) {
         this.updateOverviewCards(summaryData);
       } else {
-        // Fallback to sample data if API fails
         this.loadSampleData();
       }
 
@@ -281,13 +291,14 @@ class InventoryManager {
           </td>
         </tr>
       `;
-      return;
+      document.getElementById('table-info').textContent = 'Showing 0 of 0 entries';
+    } else {
+      pageData.forEach((item, index) => {
+        const row = this.createTableRow(item, startIndex + index + 1);
+        tbody.appendChild(row);
+      });
+      document.getElementById('table-info').textContent = `Showing ${startIndex + 1} to ${Math.min(endIndex, this.filteredInventory.length)} of ${this.filteredInventory.length} entries`;
     }
-
-    pageData.forEach((item, index) => {
-      const row = this.createTableRow(item, startIndex + index + 1);
-      tbody.appendChild(row);
-    });
 
     this.updatePagination();
   }
@@ -300,9 +311,9 @@ class InventoryManager {
       <td>${rowNumber}</td>
       <td>${item.name}</td>
       <td>${this.capitalizeFirst(item.category)}</td>
-      <td>${item.current_quantity}</td>
-      <td>${item.minimum_quantity}</td>
+      <td>${item.current_quantity.toFixed(2)}</td>
       <td>${this.capitalizeFirst(item.unit)}</td>
+      <td>${item.minimum_quantity.toFixed(2)}</td>
       <td>
         <span class="status-label ${status.class}">${status.text}</span>
       </td>
@@ -323,13 +334,13 @@ class InventoryManager {
 
   getStockStatus(item) {
     if (item.current_quantity <= 0) {
-      return { class: 'status-out-of-stock', text: 'Out of Stock' };
+      return { class: 'status-badge status-out-of-stock', text: 'Out of Stock' };
     } else if (item.current_quantity <= item.minimum_quantity) {
-      return { class: 'status-low-stock', text: 'Low Stock' };
+      return { class: 'status-badge status-low-stock', text: 'Low Stock' };
     } else if (item.current_quantity <= item.minimum_quantity * 1.5) {
-      return { class: 'status-warning', text: 'Warning' };
+      return { class: 'status-badge status-warning', text: 'Warning' };
     } else {
-      return { class: 'status-in-stock', text: 'In Stock' };
+      return { class: 'status-badge status-in-stock', text: 'In Stock' };
     }
   }
 
@@ -343,22 +354,19 @@ class InventoryManager {
     const endItem = Math.min(this.currentPage * this.itemsPerPage, this.filteredInventory.length);
     
     // Update pagination info
-    const paginationInfo = document.querySelector('.pagination-info');
-    paginationInfo.innerHTML = `
-      <span>Showing ${startItem} to ${endItem} of ${this.filteredInventory.length} entries</span>
-      <span>Page ${this.currentPage} of ${totalPages}</span>
-    `;
+    const paginationInfo = document.getElementById('pagination-info');
+    paginationInfo.textContent = `Page ${this.currentPage} of ${totalPages}`;
 
     // Update page numbers
-    const pageNumbers = document.querySelector('.page-numbers');
+    const pageNumbers = document.getElementById('page-numbers');
     pageNumbers.innerHTML = '';
 
     // Previous button
     if (this.currentPage > 1) {
       const prevBtn = document.createElement('button');
-      prevBtn.className = 'page-btn';
+      prevBtn.className = 'pagination-btn';
       prevBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
-      prevBtn.onclick = () => this.goToPage(this.currentPage - 1);
+      prevBtn.onclick = () => this.changeMenuPage(-1);
       pageNumbers.appendChild(prevBtn);
     }
 
@@ -366,7 +374,7 @@ class InventoryManager {
     for (let i = 1; i <= totalPages; i++) {
       if (i === 1 || i === totalPages || (i >= this.currentPage - 1 && i <= this.currentPage + 1)) {
         const pageBtn = document.createElement('button');
-        pageBtn.className = `page-btn ${i === this.currentPage ? 'active' : ''}`;
+        pageBtn.className = `pagination-btn ${i === this.currentPage ? 'active' : ''}`;
         pageBtn.textContent = i;
         pageBtn.onclick = () => this.goToPage(i);
         pageNumbers.appendChild(pageBtn);
@@ -382,15 +390,62 @@ class InventoryManager {
     // Next button
     if (this.currentPage < totalPages) {
       const nextBtn = document.createElement('button');
-      nextBtn.className = 'page-btn next-page';
+      nextBtn.className = 'pagination-btn';
       nextBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
-      nextBtn.onclick = () => this.goToPage(this.currentPage + 1);
+      nextBtn.onclick = () => this.changeMenuPage(1);
       pageNumbers.appendChild(nextBtn);
     }
   }
 
   goToPage(page) {
     this.currentPage = page;
+    this.renderInventoryTable();
+  }
+
+  toggleFilterMenu() {
+    const dropdown = document.getElementById('filter-dropdown');
+    dropdown.classList.toggle('hidden');
+  }
+
+  applyMenuFilter() {
+    const statusFilter = document.getElementById('status-filter').value;
+    const quantityMin = parseFloat(document.getElementById('quantity-min').value) || 0;
+    const quantityMax = parseFloat(document.getElementById('quantity-max').value) || Infinity;
+
+    this.filteredInventory = this.inventory.filter(item => {
+      const statusMatch = !statusFilter ||
+        (statusFilter === 'Yes' && item.current_quantity > item.minimum_quantity) ||
+        (statusFilter === 'No' && item.current_quantity <= item.minimum_quantity);
+      const quantityMatch = item.current_quantity >= quantityMin && item.current_quantity <= quantityMax;
+      return statusMatch && quantityMatch;
+    });
+
+    this.currentPage = 1;
+    this.renderInventoryTable();
+    this.toggleFilterMenu();
+  }
+
+  clearMenuFilter() {
+    document.getElementById('status-filter').value = '';
+    document.getElementById('quantity-min').value = '';
+    document.getElementById('quantity-max').value = '';
+    this.filteredInventory = [...this.inventory];
+    this.currentPage = 1;
+    this.renderInventoryTable();
+    this.toggleFilterMenu();
+  }
+
+  changeMenuPage(direction) {
+    const totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
+    this.currentPage += direction;
+    if (this.currentPage < 1) this.currentPage = 1;
+    if (this.currentPage > totalPages) this.currentPage = totalPages;
+    this.renderInventoryTable();
+  }
+
+  changeMenuPageSize() {
+    this.itemsPerPage = parseInt(document.getElementById('entries-per-page').value);
+    this.currentPage = 1;
     this.renderInventoryTable();
   }
 
@@ -608,7 +663,7 @@ class InventoryManager {
     this.inventory.forEach(item => {
       const option = document.createElement('option');
       option.value = item.id;
-      option.textContent = `${item.name} (${item.current_quantity} ${item.unit})`;
+      option.textContent = `${item.name} (${item.current_quantity.toFixed(2)} ${item.unit})`;
       select.appendChild(option);
     });
   }
@@ -656,7 +711,7 @@ class InventoryManager {
       this.inventory.forEach(item => {
         const option = document.createElement('option');
         option.value = item.id;
-        option.textContent = `${item.name} (${item.current_quantity} ${item.unit})`;
+        option.textContent = `${item.name} (${item.current_quantity.toFixed(2)} ${item.unit})`;
         select.appendChild(option);
       });
     });
@@ -777,7 +832,14 @@ class InventoryManager {
         <td>${this.formatMenuPayload(log.per_menu_payload)}</td>
         <td>${log.consumed ? 'Yes' : 'No'}</td>
         <td>${log.rolled_back ? 'Yes' : 'No'}</td>
-        <td>${new Date(log.created_at).toLocaleString()}</td>
+        <td>${new Date(log.created_at).toLocaleString('en-US', {
+          weekday: 'short',
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })}</td>
       `;
       tbody.appendChild(row);
     });
@@ -799,7 +861,7 @@ class InventoryManager {
   filterConsumptionLogs(searchTerm) {
     const tbody = document.getElementById('consumption-log-tbody');
     const rows = tbody.querySelectorAll('tr');
-    
+
     rows.forEach(row => {
       const orderId = row.cells[0].textContent.toLowerCase();
       if (orderId.includes(searchTerm.toLowerCase())) {
@@ -819,13 +881,6 @@ window.removeBulkItem = function(button) {
 };
 
 // Initialize the inventory manager when the page loads
-let inventoryManager;
 document.addEventListener('DOMContentLoaded', () => {
-  inventoryManager = new InventoryManager();
-});
-
-// Global functions for onclick handlers
-window.inventoryManager = null;
-document.addEventListener('DOMContentLoaded', () => {
-  window.inventoryManager = inventoryManager;
+  window.inventoryManager = new InventoryManager();
 });

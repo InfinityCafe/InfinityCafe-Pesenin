@@ -5,15 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kelola Stok - Infinity Cafe</title>
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="css/navbar.css">
-  <link rel="stylesheet" href="css/kelola-stok.css">
+  <!-- <link rel="stylesheet" href="css/navbar.css"> -->
+  <!-- <link rel="stylesheet" href="css/kelola-stok.css"> -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 </head>
 <body data-page="kelola-stok">
   <!-- Header -->
   <nav class="header">
     <div class="header-brand">
-      <h1 class="header-title" id="navbar-title">Management Menu</h1>
+      <h1 class="header-title" id="navbar-title">Stock Management</h1>
       <p class="header-subtitle">Stephany | Barista</p>
     </div>
     <div class="header-menu">
@@ -35,6 +35,16 @@
     </div>
   </nav>
 
+  <!-- Kitchen Off Banner -->
+  <div id="kitchen-off-banner" class="kitchen-off-banner hidden">
+      🚫 Dapur sedang OFF. Tidak dapat menerima/memproses pesanan.
+  </div>
+
+  <!-- Offline Banner -->
+  <div id="offline-banner" class="offline-banner hidden">
+      🔌 Gagal ambil data. Cek koneksi.
+  </div>
+
   <!-- Main Content -->
   <div class="main-container">
     <div class="content-area">
@@ -44,11 +54,16 @@
         <p class="greeting-date" id="greeting-date">Monday, 14th July 2025</p>
       </div>
 
+      <!-- Tab Navigation -->
+      <div class="tab-navigation">
+        <button class="add-order-btn" id="add-item-btn">ADD NEW ITEM</button>
+      </div>
+
       <!-- Inventory Overview Cards -->
       <div class="inventory-overview">
         <div class="overview-card total-items">
-          <div class="card-icon">
-            <i class="fas fa-boxes"></i>
+          <div class="card-icon total-items">
+            <i class="fas fa-boxes icons-total-items"></i>
           </div>
           <div class="card-content">
             <h3>Total Items</h3>
@@ -57,20 +72,9 @@
           </div>
         </div>
 
-        <div class="overview-card critical">
-          <div class="card-icon">
-            <i class="fas fa-exclamation-triangle"></i>
-          </div>
-          <div class="card-content">
-            <h3>Critical</h3>
-            <p>Out of stock</p>
-            <span class="card-number" id="critical-items">15</span>
-          </div>
-        </div>
-
         <div class="overview-card low-stock">
-          <div class="card-icon">
-            <i class="fas fa-exclamation-circle"></i>
+          <div class="card-icon low-stock">
+            <i class="fas fa-exclamation-circle icons-low-stock"></i>
           </div>
           <div class="card-content">
             <h3>Low Stock</h3>
@@ -80,8 +84,8 @@
         </div>
 
         <div class="overview-card warning">
-          <div class="card-icon">
-            <i class="fas fa-exclamation"></i>
+          <div class="card-icon warning">
+            <i class="fas fa-exclamation icons-warning"></i>
           </div>
           <div class="card-content">
             <h3>Warning</h3>
@@ -89,92 +93,131 @@
             <span class="card-number" id="warning-items">15</span>
           </div>
         </div>
+
+        <div class="overview-card critical">
+          <div class="card-icon critical">
+            <i class="fas fa-exclamation icons-critical"></i>
+          </div>
+          <div class="card-content">
+            <h3>Critical</h3>
+            <p>Out of stock</p>
+            <span class="card-number" id="critical-items">15</span>
+          </div>
+        </div>
+
+        <!-- Quick Action Section -->
+        <div class="quick-action-section">
+          <div class="quick-action-header">
+            <h3>Quick Action</h3>
+          </div>
+          <div class="quick-action-buttons">
+            <button class="add-stock-btn" id="add-stock-btn">
+              <i class="fas fa-boxes"></i>
+              RESTOCK
+            </button>
+            <button class="bulk-stock-btn" id="bulk-stock-btn">
+              <i class="fas fa-truck"></i>
+              UNIT CONVERTER
+            </button>
+            <button class="consumption-log-btn" id="consumption-log-btn">
+              <i class="fas fa-history"></i>
+              CONSUMPTION LOG
+            </button>
+          </div>
+        </div>
       </div>
 
-             <!-- Quick Action Section -->
-       <div class="quick-action-section">
-         <div class="quick-action-header">
-           <h3>Quick Action</h3>
-         </div>
-         <div class="quick-action-buttons">
-           <button class="add-item-btn" id="add-item-btn">
-             <i class="fas fa-plus"></i>
-             ADD NEW ITEM
-           </button>
-           <button class="add-stock-btn" id="add-stock-btn">
-             <i class="fas fa-boxes"></i>
-             ADD STOCK
-           </button>
-           <button class="bulk-stock-btn" id="bulk-stock-btn">
-             <i class="fas fa-truck"></i>
-             BULK STOCK
-           </button>
-           <button class="consumption-log-btn" id="consumption-log-btn">
-             <i class="fas fa-history"></i>
-             CONSUMPTION LOG
-           </button>
-         </div>
-       </div>
-
       <!-- Main Content Area -->
-      <div class="main-content-area">
-        <!-- Search and Filter Section -->
-        <div class="search-filter-section">
-          <div class="search-box">
-            <i class="fas fa-search"></i>
-            <input type="text" placeholder="Search" id="search-input">
-          </div>
-          <div class="filter-box">
-            <i class="fas fa-filter"></i>
-            <span>FILTER</span>
-          </div>
-        </div>
-
-        <!-- Inventory Table -->
-        <div class="inventory-table-container">
-          <table class="inventory-table">
-            <thead>
-              <tr>
-                <th>No</th>
-                <th>Item Name</th>
-                <th>Category</th>
-                <th>Current Stock</th>
-                <th>Threshold</th>
-                <th>Unit</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody id="inventory-tbody">
-              <!-- Table rows will be populated by JavaScript -->
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Pagination -->
-        <div class="pagination-section">
-          <div class="pagination-info">
-            <span>Showing 1 to 8 of 8 entries</span>
-            <span>Page 1 of 1</span>
-          </div>
-          <div class="pagination-controls">
-            <div class="entries-per-page">
-              <span>Show</span>
-              <select id="entries-per-page">
-                <option value="10">10</option>
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
-              <span>entries</span>
+      <div id="tab-content">
+        <!-- Menu Tab (Default) -->
+        <div id="tab-menu-content">
+          <div class="table-container">
+            <!-- Search and Filter Section -->
+            <div class="search-filter-section">
+              <div class="search-container">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="table-search" placeholder="Search menu..." class="search-input">
+              </div>
+              <div class="filter-container">
+                <button class="filter-btn" onclick="inventoryManager.toggleFilterMenu()">
+                  <i class="fas fa-filter"></i>
+                  Filter
+                </button>
+                <div class="filter-dropdown" id="filter-dropdown">
+                  <div class="filter-group">
+                    <label>Status:</label>
+                    <select id="status-filter">
+                      <option value="">All</option>
+                      <option value="Yes">Available</option>
+                      <option value="No">Unavailable</option>
+                    </select>
+                  </div>
+                  <div class="filter-group">
+                    <label>Quantity Range:</label>
+                    <div class="price-range">
+                      <input type="number" id="quantity-min" placeholder="Min" class="price-input">
+                      <span>-</span>
+                      <input type="number" id="quantity-max" placeholder="Max" class="price-input">
+                    </div>
+                  </div>
+                  <div class="filter-actions">
+                    <button class="apply-filter-btn" onclick="inventoryManager.applyMenuFilter()">Apply</button>
+                    <button class="clear-filter-btn" onclick="inventoryManager.clearMenuFilter()">Clear</button>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="page-numbers">
-              <button class="page-btn" data-page="1">1</button>
-              <button class="page-btn" data-page="2">2</button>
-              <button class="page-btn" data-page="3">3</button>
-              <button class="page-btn next-page">
-                <i class="fas fa-chevron-right"></i>
-              </button>
+
+            <!-- Table Info -->
+            <div class="table-info">
+              <span id="table-info">Showing 0 of 0 entries</span>
+            </div>
+
+            <!-- Inventory Table -->
+            <table id="inventory-table">
+              <thead>
+                <tr>
+                  <th>NO</th>
+                  <th>ITEM NAME</th>
+                  <th>CATEGORY</th>
+                  <th>CURRENT STOCK</th>
+                  <th>UNIT</th>
+                  <th>THRESHOLD</th>
+                  <th>STATUS</th>
+                  <th class="action-header">ACTION</th>
+                </tr>
+              </thead>
+              <tbody id="inventory-tbody">
+                <!-- Rows will be populated by kelola-stok.js -->
+              </tbody>
+            </table>
+
+            <!-- Pagination -->
+            <div class="pagination-container" id="pagination">
+              <div class="pagination-info">
+                <span id="pagination-info">Page 1 of 1</span>
+              </div>
+              <div class="pagination-controls">
+                <button class="pagination-btn" id="prev-btn" onclick="inventoryManager.changeMenuPage(-1)">
+                  <i class="fas fa-chevron-left"></i>
+                </button>
+                <div class="page-numbers" id="page-numbers">
+                  <!-- Page numbers will be generated here -->
+                </div>
+                <button class="pagination-btn" id="next-btn" onclick="inventoryManager.changeMenuPage(1)">
+                  <i class="fas fa-chevron-right"></i>
+                </button>
+              </div>
+              <div class="pagination-size">
+                <label>Show:</label>
+                <select id="entries-per-page" onchange="inventoryManager.changeMenuPageSize()">
+                  <option value="5">5</option>
+                  <option value="10" selected>10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                </select>
+                <span>entries</span>
+              </div>
             </div>
           </div>
         </div>
@@ -186,9 +229,8 @@
   <div id="item-modal" class="modal hidden">
     <div class="modal-content">
       <div class="modal-header">
-        <h3 id="modal-title">Add New Item</h3>
-        <button class="close-btn" id="close-modal">
-          <i class="fas fa-times"></i>
+        <h3 class="modal-title" id="modal-title">Add New Item</h3>
+        <button class="modal-close" id="close-modal">&times;
         </button>
       </div>
       <form id="item-form">
@@ -222,139 +264,138 @@
           <input type="number" id="item-minimum" name="minimum_quantity" min="0" step="0.01" required>
         </div>
         <div class="form-actions">
-          <button type="button" class="btn-secondary" id="cancel-btn">Cancel</button>
-          <button type="submit" class="btn-primary">Save</button>
+          <button type="submit" class="save-button">Save</button>
         </div>
       </form>
     </div>
   </div>
 
-     <!-- Delete Confirmation Modal -->
-   <div id="delete-modal" class="modal hidden">
-     <div class="modal-content delete-modal">
-       <div class="modal-header">
-         <h3>Delete Item</h3>
-         <button class="close-btn" id="close-delete-modal">
-           <i class="fas fa-times"></i>
-         </button>
-       </div>
-       <div class="modal-body">
-         <p>Are you sure you want to delete this item?</p>
-         <p class="item-name" id="delete-item-name"></p>
-       </div>
-       <div class="form-actions">
-         <button type="button" class="btn-secondary" id="cancel-delete-btn">Cancel</button>
-         <button type="button" class="btn-danger" id="confirm-delete-btn">Delete</button>
-       </div>
-     </div>
-   </div>
+  <!-- Delete Confirmation Modal -->
+  <div id="delete-modal" class="modal hidden">
+    <div class="modal-content delete-modal">
+      <div class="modal-header">
+        <h3>Delete Item</h3>
+        <button class="close-btn" id="close-delete-modal">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to delete this item?</p>
+        <p class="item-name" id="delete-item-name"></p>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn-secondary" id="cancel-delete-btn">Cancel</button>
+        <button type="button" class="btn-danger" id="confirm-delete-btn">Delete</button>
+      </div>
+    </div>
+  </div>
 
-   <!-- Add Stock Modal -->
-   <div id="add-stock-modal" class="modal hidden">
-     <div class="modal-content">
-       <div class="modal-header">
-         <h3>Add Stock</h3>
-         <button class="close-btn" id="close-add-stock-modal">
-           <i class="fas fa-times"></i>
-         </button>
-       </div>
-       <form id="add-stock-form">
-         <div class="form-group">
-           <label for="stock-ingredient">Select Ingredient</label>
-           <select id="stock-ingredient" name="ingredient_id" required>
-             <option value="">Select Ingredient</option>
-           </select>
-         </div>
-         <div class="form-group">
-           <label for="stock-quantity">Quantity to Add</label>
-           <input type="number" id="stock-quantity" name="quantity" min="0" step="0.01" required>
-         </div>
-         <div class="form-group">
-           <label for="stock-notes">Notes (Optional)</label>
-           <textarea id="stock-notes" name="notes" rows="3" placeholder="Add any notes about this stock addition..."></textarea>
-         </div>
-         <div class="form-actions">
-           <button type="button" class="btn-secondary" id="cancel-add-stock-btn">Cancel</button>
-           <button type="submit" class="btn-primary">Add Stock</button>
-         </div>
-       </form>
-     </div>
-   </div>
+  <!-- Add Stock Modal -->
+  <div id="add-stock-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add Stock</h3>
+        <button class="close-btn" id="close-add-stock-modal">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form id="add-stock-form">
+        <div class="form-group">
+          <label for="stock-ingredient">Select Ingredient</label>
+          <select id="stock-ingredient" name="ingredient_id" required>
+            <option value="">Select Ingredient</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="stock-quantity">Quantity to Add</label>
+          <input type="number" id="stock-quantity" name="quantity" min="0" step="0.01" required>
+        </div>
+        <div class="form-group">
+          <label for="stock-notes">Notes (Optional)</label>
+          <textarea id="stock-notes" name="notes" rows="3" placeholder="Add any notes about this stock addition..."></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" id="cancel-add-stock-btn">Cancel</button>
+          <button type="submit" class="btn-primary">Add Stock</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-   <!-- Bulk Stock Modal -->
-   <div id="bulk-stock-modal" class="modal hidden">
-     <div class="modal-content">
-       <div class="modal-header">
-         <h3>Bulk Add Stock</h3>
-         <button class="close-btn" id="close-bulk-stock-modal">
-           <i class="fas fa-times"></i>
-         </button>
-       </div>
-       <form id="bulk-stock-form">
-         <div class="form-group">
-           <label>Stock Items</label>
-           <div id="bulk-stock-items">
-             <div class="bulk-stock-item">
-               <select name="ingredient_id[]" required>
-                 <option value="">Select Ingredient</option>
-               </select>
-               <input type="number" name="quantity[]" placeholder="Qty" min="0" step="0.01" required>
-               <button type="button" class="remove-bulk-item-btn" onclick="removeBulkItem(this)">
-                 <i class="fas fa-minus"></i>
-               </button>
-             </div>
-           </div>
-           <button type="button" class="btn-secondary" id="add-bulk-item-btn">
-             <i class="fas fa-plus"></i> Add Another Item
-           </button>
-         </div>
-         <div class="form-group">
-           <label for="bulk-stock-notes">Notes (Optional)</label>
-           <textarea id="bulk-stock-notes" name="notes" rows="3" placeholder="Add any notes about this bulk stock addition..."></textarea>
-         </div>
-         <div class="form-actions">
-           <button type="button" class="btn-secondary" id="cancel-bulk-stock-btn">Cancel</button>
-           <button type="submit" class="btn-primary">Add Bulk Stock</button>
-         </div>
-       </form>
-     </div>
-   </div>
+  <!-- Bulk Stock Modal -->
+  <div id="bulk-stock-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Bulk Add Stock</h3>
+        <button class="close-btn" id="close-bulk-stock-modal">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <form id="bulk-stock-form">
+        <div class="form-group">
+          <label>Stock Items</label>
+          <div id="bulk-stock-items">
+            <div class="bulk-stock-item">
+              <select name="ingredient_id[]" required>
+                <option value="">Select Ingredient</option>
+              </select>
+              <input type="number" name="quantity[]" placeholder="Qty" min="0" step="0.01" required>
+              <button type="button" class="remove-bulk-item-btn" onclick="inventoryManager.removeBulkItem(this)">
+                <i class="fas fa-minus"></i>
+              </button>
+            </div>
+          </div>
+          <button type="button" class="btn-secondary" id="add-bulk-item-btn">
+            <i class="fas fa-plus"></i> Add Another Item
+          </button>
+        </div>
+        <div class="form-group">
+          <label for="bulk-stock-notes">Notes (Optional)</label>
+          <textarea id="bulk-stock-notes" name="notes" rows="3" placeholder="Add any notes about this bulk stock addition..."></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" id="cancel-bulk-stock-btn">Cancel</button>
+          <button type="submit" class="btn-primary">Add Bulk Stock</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-   <!-- Consumption Log Modal -->
-   <div id="consumption-log-modal" class="modal hidden">
-     <div class="modal-content">
-       <div class="modal-header">
-         <h3>Consumption Log</h3>
-         <button class="close-btn" id="close-consumption-log-modal">
-           <i class="fas fa-times"></i>
-         </button>
-       </div>
-       <div class="consumption-log-content">
-         <div class="log-filters">
-           <input type="text" id="log-search" placeholder="Search by order ID...">
-           <button class="btn-secondary" id="refresh-logs-btn">Refresh</button>
-         </div>
-         <div class="log-table-container">
-           <table class="log-table">
-             <thead>
-               <tr>
-                 <th>Order ID</th>
-                 <th>Menu Items</th>
-                 <th>Consumed</th>
-                 <th>Rolled Back</th>
-                 <th>Date</th>
-               </tr>
-             </thead>
-             <tbody id="consumption-log-tbody">
-               <!-- Log entries will be populated here -->
-             </tbody>
-           </table>
-         </div>
-       </div>
-     </div>
-   </div>
+  <!-- Consumption Log Modal -->
+  <div id="consumption-log-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Consumption Log</h3>
+        <button class="close-btn" id="close-consumption-log-modal">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="consumption-log-content">
+        <div class="log-filters">
+          <input type="text" id="log-search" placeholder="Search by order ID...">
+          <button class="btn-secondary" id="refresh-logs-btn">Refresh</button>
+        </div>
+        <div class="log-table-container">
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Menu Items</th>
+                <th>Consumed</th>
+                <th>Rolled Back</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody id="consumption-log-tbody">
+              <!-- Log entries will be populated here -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
 
-   <script src="js/kelola-stok.js"></script>
-   <script src="js/script.js"></script>
- </body>
- </html>
+  <script src="script.js"></script>
+  <script src="js/kelola-stok.js"></script>
+</body>
+</html>

@@ -36,6 +36,7 @@ function setupNavigation() {
         dashboard: "Dashboard Kitchen",
         menu: "Menu Management",
         pesanan: "Daftar Pesanan",
+        // kelola-stok : "Stock Management",
         // Tambah halaman lain di sini
     };
 
@@ -217,6 +218,8 @@ function displayUserInfo() {
                     greetingMessage.textContent = `Hi, ${username}, here's list menu!`;
                 } else if (currentPage === 'dashboard') {
                     greetingMessage.textContent = `Hi, ${username}, here's today's orders!`;
+                } else if (currentPage === 'kelola-stok') {
+                    greetingMessage.textContent = `Hi, ${username}, here's today's stock overview!`;
                 } else {
                     greetingMessage.textContent = `Hi, ${username}!`;
                 }
