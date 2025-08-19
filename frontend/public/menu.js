@@ -953,30 +953,7 @@ document.getElementById('add-flavour-form').addEventListener('submit', async (e)
     await saveFlavour();
 });
 
-// Setup navigation
-function setupNavigation() {
-    const navButtons = document.querySelectorAll('.nav-btn');
-    
-    // Remove active class from all nav buttons first
-    navButtons.forEach(btn => {
-    btn.classList.remove('active');
-    });
-    
-    // Add active class to current page
-    const currentPath = window.location.pathname;
-    navButtons.forEach(btn => {
-    const url = btn.getAttribute('data-url');
-    if (url && (currentPath === `/${url}` || (currentPath === '/' && url === 'dashboard'))) {
-        btn.classList.add('active');
-    }
-    
-    btn.addEventListener('click', () => {
-        if (url) {
-        window.location.href = `/${url}`;
-        }
-    });
-    });
-}
+// setupNavigation is provided globally by script.js; remove page-specific duplicate
 
 // Flavor Selector Functions
 function populateFlavorCheckboxes() {

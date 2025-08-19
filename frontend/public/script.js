@@ -43,15 +43,20 @@ function setupNavigation() {
         dashboard: "Dashboard Kitchen",
         menu: "Menu Management",
         pesanan: "Daftar Pesanan",
-        // kelola-stok : "Stock Management",
+        inventory: "Stock Management",
         // Tambah halaman lain di sini
     };
 
     // Highlight tombol nav yang aktif
+    const pageToNavId = {
+        dashboard: 'nav-dashboard',
+        menu: 'nav-menu',
+        inventory: 'nav-stok',
+    };
+    const activeNavId = pageToNavId[currentPage];
     navButtons.forEach(btn => {
-        const btnPage = btn.id.replace('nav-', '');
         btn.classList.remove('active');
-        if (btnPage === currentPage) {
+        if (activeNavId && btn.id === activeNavId) {
             btn.classList.add('active');
         }
     });
@@ -227,7 +232,7 @@ function displayUserInfo() {
                     greetingMessage.textContent = `Hi, ${username}, here's list menu!`;
                 } else if (currentPage === 'dashboard') {
                     greetingMessage.textContent = `Hi, ${username}, here's today's orders!`;
-                } else if (currentPage === 'kelola-stok') {
+                } else if (currentPage === 'inventory') {
                     greetingMessage.textContent = `Hi, ${username}, here's today's stock overview!`;
                 } else {
                     greetingMessage.textContent = `Hi, ${username}!`;
