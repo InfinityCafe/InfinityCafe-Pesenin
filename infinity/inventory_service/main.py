@@ -14,6 +14,34 @@ last_debug_info = []
 from datetime import datetime
 import enum, os, json, logging, requests, math, socket, threading, time
 
+jakarta_tz = pytz_timezone('Asia/Jakarta')
+
+def format_jakarta_time(dt):
+    """Format datetime to Jakarta timezone string"""
+    if dt is None:
+        return "Unknown"
+    
+    if dt.tzinfo is not None:
+        jakarta_dt = dt.astimezone(jakarta_tz)
+    else:
+        utc_dt = pytz_timezone('UTC').localize(dt)
+        jakarta_dt = utc_dt.astimezone(jakarta_tz)
+    
+    return jakarta_dt.strftime("%d/%m/%Y %H:%M:%S")
+
+def get_jakarta_isoformat(dt):
+    """Get datetime in Jakarta timezone ISO format"""
+    if dt is None:
+        return None
+    
+    if dt.tzinfo is not None:
+        jakarta_dt = dt.astimezone(jakarta_tz)
+    else:
+        utc_dt = pytz_timezone('UTC').localize(dt)
+        jakarta_dt = utc_dt.astimezone(jakarta_tz)
+    
+    return jakarta_dt.isoformat()
+
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL_INVENTORY")
 MENU_SERVICE_URL = os.getenv("MENU_SERVICE_URL", "http://menu_service:8003")
@@ -91,7 +119,7 @@ class ConsumptionLog(Base):
     per_ingredient_payload = Column(Text, nullable=True)  
     consumed = Column(Boolean, default=False)
     rolled_back = Column(Boolean, default=False)    
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
 
 class FlavorMapping(Base):
     __tablename__ = "flavor_mapping"
@@ -100,7 +128,7 @@ class FlavorMapping(Base):
     ingredient_id = Column(Integer, ForeignKey('inventories.id'))  
     quantity_per_serving = Column(Float, default=25)  
     unit = Column(SQLEnum(UnitType), default=UnitType.milliliter) 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
     
     ingredient = relationship("Inventory", backref="flavor_mappings")
 
@@ -265,7 +293,6 @@ def outbox_status(db: Session = Depends(get_db)):
 @app.get("/list_ingredients", summary="Daftar bahan", tags=["Inventory"], operation_id="list ingredients")
 def list_ingredients(db: Session = Depends(get_db)):
     try:
-        # Explicit ordering by ID ascending  
         rows = db.query(Inventory).order_by(Inventory.id.asc()).all()
         ingredients_data = [
             {
@@ -414,7 +441,7 @@ def add_flavor_mapping(req: FlavorMappingRequest, db: Session = Depends(get_db))
                 "ingredient_name": ingredient.name,
                 "quantity_per_serving": mapping.quantity_per_serving,
                 "unit": mapping.unit.value,
-                "created_at": mapping.created_at.isoformat()
+                "created_at": get_jakarta_isoformat(mapping.created_at)
             }
         }
         
@@ -1112,18 +1139,111 @@ def rollback_stock(order_id: str, db: Session = Depends(get_db)):
         return {"success": False, "message": f"Error rollback: {str(e)}"}
 
 @app.get("/flavors", summary="Daftar flavor yang tersedia", tags=["Utility"])
-def get_available_flavors():
-    """Daftar flavor yang bisa digunakan untuk pesanan"""
-    return {
-        "success": True,
-        "flavors": [
-            "Butterscotch", "French Mocha", "Roasted Almond", "Creme Brulee",
-            "Irish", "Havana", "Salted Caramel", "Mangga", "Permenkaret",
-            "Tiramisu", "Redvelvet", "Strawberry", "Vanilla", "Chocolate",
-            "Taro", "Milktea", "Banana", "Alpukat", "Green Tea", "Markisa",
-            "Melon", "Nanas"
-        ]
-    }
+def get_available_flavors(db: Session = Depends(get_db)):
+    """Daftar flavor yang bisa digunakan untuk pesanan - diambil dinamis dari database"""
+    try:
+        flavors = db.query(FlavorMapping.flavor_name).distinct().all()
+        flavor_list = [flavor[0] for flavor in flavors]
+        flavor_list.sort()
+        
+        return {
+            "success": True,
+            "total_flavors": len(flavor_list),
+            "flavors": flavor_list
+        }
+    except Exception as e:
+        logging.error(f"Error getting flavors from database: {e}")
+        return {
+            "success": True,
+            "total_flavors": 22,
+            "flavors": [
+                "Butterscotch", "French Mocha", "Roasted Almond", "Creme Brulee",
+                "Irish", "Havana", "Salted Caramel", "Mangga", "Permenkaret",
+                "Tiramisu", "Redvelvet", "Strawberry", "Vanilla", "Chocolate",
+                "Taro", "Milktea", "Banana", "Alpukat", "Green Tea", "Markisa",
+                "Melon", "Nanas"
+            ],
+            "note": "Fallback data - database error occurred"
+        }
+
+@app.get("/flavors/detailed", summary="Daftar flavor dengan detail ingredient", tags=["Utility"])
+def get_detailed_flavors(db: Session = Depends(get_db)):
+    """Daftar flavor lengkap dengan detail ingredient yang digunakan"""
+    try:
+        flavor_details = db.query(
+            FlavorMapping.flavor_name,
+            FlavorMapping.ingredient_id,
+            FlavorMapping.quantity_per_serving,
+            FlavorMapping.unit,
+            Inventory.name.label('ingredient_name'),
+            Inventory.category
+        ).join(
+            Inventory, FlavorMapping.ingredient_id == Inventory.id
+        ).all()
+        
+        flavors_list = []
+        for detail in flavor_details:
+            flavors_list.append({
+                "flavor_name": detail.flavor_name,
+                "ingredient_info": {
+                    "ingredient_id": detail.ingredient_id,
+                    "ingredient_name": detail.ingredient_name,
+                    "quantity_per_serving": detail.quantity_per_serving,
+                    "unit": detail.unit.value,
+                    "category": detail.category.value
+                }
+            })
+        
+        flavors_list.sort(key=lambda x: x['flavor_name'])
+        
+        return {
+            "success": True,
+            "total_flavors": len(flavors_list),
+            "flavors": flavors_list
+        }
+        
+    except Exception as e:
+        logging.error(f"Error getting detailed flavors: {e}")
+        return {
+            "success": False,
+            "message": f"Error retrieving flavor details: {str(e)}",
+            "flavors": []
+        }
+
+@app.get("/flavors/ingredient/{ingredient_id}", summary="Daftar flavor untuk ingredient tertentu", tags=["Utility"])
+def get_flavors_for_ingredient(ingredient_id: int, db: Session = Depends(get_db)):
+    """Daftar flavor yang menggunakan ingredient tertentu"""
+    try:
+        flavors = db.query(FlavorMapping.flavor_name).filter(
+            FlavorMapping.ingredient_id == ingredient_id
+        ).distinct().all()
+        
+        ingredient = db.query(Inventory).filter(Inventory.id == ingredient_id).first()
+        if not ingredient:
+            return {
+                "success": False,
+                "message": f"Ingredient ID {ingredient_id} tidak ditemukan",
+                "available_flavors": []
+            }
+        
+        flavor_list = [flavor[0] for flavor in flavors]
+        flavor_list.sort()
+        
+        return {
+            "success": True,
+            "ingredient_id": ingredient_id,
+            "ingredient_name": ingredient.name,
+            "total_flavors": len(flavor_list),
+            "available_flavors": flavor_list
+        }
+        
+    except Exception as e:
+        logging.error(f"Error getting flavors for ingredient {ingredient_id}: {e}")
+        return {
+            "success": False,
+            "message": f"Error retrieving flavors for ingredient {ingredient_id}: {str(e)}",
+            "available_flavors": []
+        }
 
 @app.get("/history", summary="History penggunaan stok", tags=["Stock Management"])
 def get_stock_history(
@@ -1151,7 +1271,7 @@ def get_stock_history(
         
         result.append({
             "order_id": log.order_id,
-            "date": log.created_at.strftime("%d/%m/%Y %H:%M") if log.created_at else "Unknown",
+            "date": format_jakarta_time(log.created_at).replace("/", "/").replace(" ", " ")[:16],
             "consumed": log.consumed,
             "rolled_back": log.rolled_back,
             "ingredients_affected": ingredient_count,
@@ -1164,6 +1284,141 @@ def get_stock_history(
         "filter_applied": order_id if order_id else "None",
         "history": result
     }
+
+@app.get("/order/{order_id}/ingredients", summary="Detail konsumsi bahan untuk order tertentu", tags=["Order Analysis"])
+def get_order_ingredients_detail(order_id: str, db: Session = Depends(get_db)):
+    """
+    Menampilkan detail bahan-bahan yang digunakan untuk membuat pesanan tertentu
+    termasuk jumlah yang dikonsumsi per bahan
+    """
+    try:
+        logging.info(f"🔍 DEBUG: Starting get_order_ingredients_detail for {order_id}")
+        
+        log = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
+        
+        if not log:
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": f"Order ID '{order_id}' tidak ditemukan dalam log konsumsi",
+                "data": None
+            })
+        
+        logging.info(f"🔍 DEBUG: Found log for {order_id}")
+        
+        menu_info = []
+        if log.per_menu_payload:
+            try:
+                menu_data = json.loads(log.per_menu_payload)
+                menu_info = menu_data if isinstance(menu_data, list) else []
+            except:
+                menu_info = []
+        
+        ingredients_detail = []
+        total_ingredients_used = 0
+        debug_info = {
+            "per_ingredient_payload_exists": log.per_ingredient_payload is not None,
+            "per_ingredient_payload_length": len(log.per_ingredient_payload) if log.per_ingredient_payload else 0,
+            "per_ingredient_payload_preview": log.per_ingredient_payload[:100] + "..." if log.per_ingredient_payload and len(log.per_ingredient_payload) > 100 else log.per_ingredient_payload
+        }
+        
+        if log.per_ingredient_payload:
+            try:
+                logging.info(f"🔍 DEBUG: Starting to parse per_ingredient_payload for {order_id}")
+                logging.info(f"🔍 DEBUG: Raw per_ingredient_payload: {log.per_ingredient_payload}")
+                
+                ingredients_data = json.loads(log.per_ingredient_payload)
+                logging.info(f"🔍 DEBUG: Raw ingredients_data type: {type(ingredients_data)}")
+                logging.info(f"🔍 DEBUG: Raw ingredients_data: {ingredients_data}")
+                
+                if isinstance(ingredients_data, list):
+                    for ingredient_info in ingredients_data:
+                        ingredient = db.query(Inventory).filter(
+                            Inventory.id == ingredient_info.get('ingredient_id')
+                        ).first()
+                        
+                        if ingredient:
+                            ingredients_detail.append({
+                                "ingredient_id": ingredient_info.get('ingredient_id'),
+                                "ingredient_name": ingredient_info.get('ingredient_name', ingredient.name),
+                                "consumed_quantity": ingredient_info.get('deducted', 0),
+                                "unit": ingredient_info.get('unit', ingredient.unit.value),
+                                "category": ingredient.category.value,
+                                "current_stock": ingredient.current_quantity,
+                                "stock_before_consumption": ingredient_info.get('before', 0),
+                                "stock_after_consumption": ingredient_info.get('after', 0)
+                            })
+                            total_ingredients_used += 1
+                            
+                ingredients_detail.sort(key=lambda x: x['ingredient_name'])
+                
+            except Exception as e:
+                import traceback
+                logging.warning(f"Failed to parse ingredient payload for {order_id}: {e}")
+                logging.warning(f"Raw payload: {log.per_ingredient_payload}")
+                logging.warning(f"Traceback: {traceback.format_exc()}")
+        
+        ingredients_detail = []
+        total_ingredients_used = 0
+        
+        if log.per_ingredient_payload:
+            try:
+                ingredients_data = json.loads(log.per_ingredient_payload)
+                
+                if isinstance(ingredients_data, list):
+                    for ingredient_info in ingredients_data:
+                        ingredient = db.query(Inventory).filter(
+                            Inventory.id == ingredient_info.get('ingredient_id')
+                        ).first()
+                        
+                        if ingredient:
+                            ingredients_detail.append({
+                                "ingredient_id": ingredient_info.get('ingredient_id'),
+                                "ingredient_name": ingredient_info.get('ingredient_name', ingredient.name),
+                                "consumed_quantity": ingredient_info.get('deducted', 0),
+                                "unit": ingredient_info.get('unit', ingredient.unit.value),
+                                "category": ingredient.category.value,
+                                "current_stock": ingredient.current_quantity,
+                                "stock_before_consumption": ingredient_info.get('before', 0),
+                                "stock_after_consumption": ingredient_info.get('after', 0)
+                            })
+                            total_ingredients_used += 1
+                            
+                ingredients_detail.sort(key=lambda x: x['ingredient_name'])
+                
+            except Exception as e:
+                ingredients_detail = []
+                total_ingredients_used = 0
+
+        return JSONResponse(status_code=200, content={
+            "status": "success",
+            "message": f"Detail konsumsi bahan untuk order {order_id}",
+            "data": {
+                "order_id": order_id,
+                "order_date": format_jakarta_time(log.created_at),
+                "consumption_status": {
+                    "consumed": log.consumed,
+                    "rolled_back": log.rolled_back,
+                    "status_text": "BERHASIL DIKONSUMSI" if log.consumed and not log.rolled_back else 
+                                  "DIBATALKAN" if log.rolled_back else "PENDING"
+                },
+                "ingredients_breakdown": {
+                    "total_ingredients_used": total_ingredients_used,
+                    "details": ingredients_detail
+                },
+                "summary": {
+                    "total_ingredients": total_ingredients_used,
+                    "consumption_date": format_jakarta_time(log.created_at)
+                }
+            }
+        })
+        
+    except Exception as e:
+        logging.error(f"Error getting order ingredients detail for {order_id}: {e}")
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": f"Gagal mengambil detail konsumsi: {str(e)}",
+            "data": None
+        })
 
 def init_db():
     try:
