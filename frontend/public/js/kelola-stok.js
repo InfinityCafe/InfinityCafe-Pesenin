@@ -6,6 +6,7 @@ class InventoryManager {
     this.filteredInventory = [];
     this.currentPage = 1;
     this.itemsPerPage = 10;
+    this.totalPages = 1;
     this.editingItem = null;
     
     this.initializeEventListeners();
@@ -365,53 +366,49 @@ class InventoryManager {
   }
 
   updatePagination() {
-    const totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
-    const paginationInfo = document.getElementById('pagination-info');
-    if (paginationInfo) {
-      paginationInfo.textContent = `Page ${this.currentPage} of ${totalPages}`;
+    this.totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
+    if (this.totalPages === 0) this.totalPages = 1;
+    if (this.currentPage > this.totalPages) {
+      this.currentPage = this.totalPages;
     }
+    this.renderPagination();
+  }
 
-    // Update page numbers
+  renderPagination() {
     const pageNumbers = document.getElementById('page-numbers');
-    if (!pageNumbers) {
-      console.warn("Page numbers element not found in DOM");
-      return;
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const paginationInfo = document.getElementById('pagination-info');
+
+    // Update pagination info
+    if (paginationInfo) {
+      paginationInfo.textContent = `Page ${this.currentPage} of ${this.totalPages}`;
     }
+
+    // Update prev/next buttons
+    if (prevBtn) prevBtn.disabled = this.currentPage === 1;
+    if (nextBtn) nextBtn.disabled = this.currentPage === this.totalPages;
+
+    // Generate page numbers
+    if (!pageNumbers) return;
     pageNumbers.innerHTML = '';
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, this.currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(this.totalPages, startPage + maxVisiblePages - 1);
 
-    // Previous button
-    if (this.currentPage > 1) {
-      const prevBtn = document.createElement('button');
-      prevBtn.className = 'pagination-btn';
-      prevBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
-      prevBtn.onclick = () => this.changeMenuPage(-1);
-      pageNumbers.appendChild(prevBtn);
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
     }
 
-    // Page numbers
-    for (let i = 1; i <= totalPages; i++) {
-      if (i === 1 || i === totalPages || (i >= this.currentPage - 1 && i <= this.currentPage + 1)) {
-        const pageBtn = document.createElement('button');
-        pageBtn.className = `pagination-btn ${i === this.currentPage ? 'active' : ''}`;
-        pageBtn.textContent = i;
-        pageBtn.onclick = () => this.goToPage(i);
-        pageNumbers.appendChild(pageBtn);
-      } else if (i === this.currentPage - 2 || i === this.currentPage + 2) {
-        const ellipsis = document.createElement('span');
-        ellipsis.textContent = '...';
-        ellipsis.style.padding = '0.5rem';
-        ellipsis.style.color = '#8D7272';
-        pageNumbers.appendChild(ellipsis);
-      }
-    }
-
-    // Next button
-    if (this.currentPage < totalPages) {
-      const nextBtn = document.createElement('button');
-      nextBtn.className = 'pagination-btn';
-      nextBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
-      nextBtn.onclick = () => this.changeMenuPage(1);
-      pageNumbers.appendChild(nextBtn);
+    for (let i = startPage; i <= endPage; i++) {
+      const pageBtn = document.createElement('button');
+      pageBtn.className = `page-number ${i === this.currentPage ? 'active' : ''}`;
+      pageBtn.textContent = i;
+      pageBtn.onclick = () => {
+        this.currentPage = i;
+        this.renderInventoryTable();
+      };
+      pageNumbers.appendChild(pageBtn);
     }
   }
 
@@ -463,10 +460,9 @@ class InventoryManager {
   }
 
   changeStockPage(direction) {
-    const totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
     this.currentPage += direction;
     if (this.currentPage < 1) this.currentPage = 1;
-    if (this.currentPage > totalPages) this.currentPage = totalPages;
+    if (this.currentPage > this.totalPages) this.currentPage = this.totalPages;
     this.renderInventoryTable();
   }
 
