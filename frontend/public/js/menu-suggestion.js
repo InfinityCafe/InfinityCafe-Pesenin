@@ -90,20 +90,22 @@ function renderSuggestions() {
       minute: '2-digit'
     });
     
+    const rowNumber = index + 1; // Nomor berurutan
+    
     return `
       <tr data-index="${index}">
-        <td>${suggestion.usulan_id}</td>
+        <td>${rowNumber}</td>
         <td>${suggestion.menu_name}</td>
         <td>${suggestion.customer_name}</td>
         <td>${formattedDate}</td>
         <td>
-          <button class="suggestion-action-btn view" onclick="viewSuggestionDetail(${index})" title="Lihat Detail">
+          <button class="table-action-btn" onclick="viewSuggestionDetail(${index})" title="Lihat Detail">
             <i class="fas fa-eye"></i>
           </button>
-          <button class="btn btn-sm btn-outline-success" onclick="approveSuggestion('${suggestion.usulan_id}')" title="Setujui">
+          <button class="table-action-btn" onclick="approveSuggestion('${suggestion.usulan_id}')" title="Setujui">
             <i class="fas fa-check"></i>
           </button>
-          <button class="btn btn-sm btn-outline-danger" onclick="rejectSuggestion('${suggestion.usulan_id}')" title="Tolak">
+          <button class="table-action-btn" onclick="rejectSuggestion('${suggestion.usulan_id}')" title="Tolak">
             <i class="fas fa-times"></i>
           </button>
         </td>
@@ -212,6 +214,7 @@ async function submitSuggestion() {
   
   const menuName = formData.get('menu_name')?.trim();
   const customerName = formData.get('customer_name')?.trim();
+  const description = formData.get('description')?.trim();
   
   if (!menuName || !customerName) {
     showError('Nama menu dan nama customer harus diisi');
@@ -226,7 +229,8 @@ async function submitSuggestion() {
       },
       body: JSON.stringify({
         menu_name: menuName,
-        customer_name: customerName
+        customer_name: customerName,
+        description: description || null
       })
     });
     
@@ -252,10 +256,8 @@ async function submitSuggestion() {
 function viewSuggestionDetail(index) {
   const suggestion = filteredSuggestions[index];
   if (!suggestion) return;
-  
-  // For now, just show an alert with details
-  // In the future, this could open a detailed modal
-  const timestamp = new Date(suggestion.timestamp);
+
+  const timestamp = new Date(suggestion.timestamp || Date.now());
   const formattedDate = timestamp.toLocaleDateString('id-ID', {
     year: 'numeric',
     month: 'long',
@@ -263,14 +265,34 @@ function viewSuggestionDetail(index) {
     hour: '2-digit',
     minute: '2-digit'
   });
-  
-  alert(`
-Detail Usulan Menu:
-Nama Menu: ${suggestion.menu_name}
-Oleh: ${suggestion.customer_name}
-Tanggal: ${formattedDate}
-ID Usulan: ${suggestion.usulan_id}
-  `);
+
+  const modal = document.getElementById('view-suggestion-modal');
+  if (!modal) return;
+
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value || '-';
+  };
+
+  setText('view-menu-name', suggestion.menu_name);
+  setText('view-customer-name', suggestion.customer_name);
+  setText('view-timestamp', formattedDate);
+  setText('view-usulan-id', suggestion.usulan_id);
+  const descEl = document.getElementById('view-description');
+  if (descEl) descEl.textContent = suggestion.description || 'Tidak ada deskripsi';
+
+  modal.classList.remove('hidden');
+}
+
+function closeViewSuggestionModal() {
+  const modal = document.getElementById('view-suggestion-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function approveSuggestionFromView() {
+  const idEl = document.getElementById('view-usulan-id');
+  if (!idEl) return;
+  approveSuggestion(idEl.textContent);
 }
 
 // Approve suggestion (placeholder function)
@@ -426,20 +448,22 @@ function renderCurrentPage() {
       minute: '2-digit'
     });
     
+    const rowNumber = startIndex + index + 1; // Nomor berurutan
+    
     return `
       <tr data-index="${startIndex + index}">
-        <td>${suggestion.usulan_id}</td>
+        <td>${rowNumber}</td>
         <td>${suggestion.menu_name}</td>
         <td>${suggestion.customer_name}</td>
         <td>${formattedDate}</td>
         <td>
-          <button class="suggestion-action-btn view" onclick="viewSuggestionDetail(${startIndex + index})" title="Lihat Detail">
+          <button class="table-action-btn" onclick="viewSuggestionDetail(${startIndex + index})" title="Lihat Detail">
             <i class="fas fa-eye"></i>
           </button>
-          <button class="btn btn-sm btn-outline-success" onclick="approveSuggestion('${suggestion.usulan_id}')" title="Setujui">
+          <button class="table-action-btn" onclick="approveSuggestion('${suggestion.usulan_id}')" title="Setujui">
             <i class="fas fa-check"></i>
           </button>
-          <button class="btn btn-sm btn-outline-danger" onclick="rejectSuggestion('${suggestion.usulan_id}')" title="Tolak">
+          <button class="table-action-btn" onclick="rejectSuggestion('${suggestion.usulan_id}')" title="Tolak">
             <i class="fas fa-times"></i>
           </button>
         </td>

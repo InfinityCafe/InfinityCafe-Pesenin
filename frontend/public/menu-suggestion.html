@@ -20,12 +20,9 @@
       <button class="nav-btn active" id="nav-suggestion" onclick="window.location.href = '/menu-suggestion';">Usulan Menu</button>
       <button class="nav-btn" id="nav-stok" onclick="window.location.href = '/stock-management';">Stock Management</button>
     </div>
-    <div class="header-right">
-      <div class="search-container">
-        <i class="fa-solid fa-magnifying-glass search-icon"></i>
-        <input type="text" placeholder="Search usulan menu" class="search-input" id="search-suggestions">
-      </div>
-    </div>
+         <div class="header-right">
+       <!-- Search moved to table area -->
+     </div>
   </nav>
 
   <!-- Main Content -->
@@ -78,34 +75,43 @@
         </div>
       </div>
 
-      <!-- Suggestions List -->
-      <div class="suggestions-container">
-        <div class="section-header">
-          <h3>Daftar Usulan Menu</h3>
-          <div class="filter-controls">
-            <select id="sort-filter" class="form-select">
-              <option value="newest">Terbaru</option>
-              <option value="oldest">Terlama</option>
-              <option value="popular">Terpopuler</option>
-            </select>
-          </div>
-        </div>
-        
-                    <div class="table-container">
-              <table id="suggestions-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Nama Menu</th>
-                    <th>Customer</th>
-                    <th>Tanggal</th>
-                    <th>Aksi</th>
-                  </tr>
-                </thead>
-                <tbody id="suggestions-tbody">
-                  <!-- Suggestions will be loaded here -->
-                </tbody>
-              </table>
+             <!-- Suggestions List -->
+       <div class="suggestions-container">
+         <div class="table-container">
+           <!-- Table Header with Search and Filter -->
+           <div class="table-header">
+             <div class="table-title">
+               <h3>Daftar Usulan Menu</h3>
+             </div>
+             <div class="table-controls">
+               <div class="search-container">
+                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                 <input type="text" placeholder="Search usulan menu..." class="search-input" id="search-suggestions">
+               </div>
+               <div class="filter-controls">
+                 <select id="sort-filter" class="form-select">
+                   <option value="newest">Terbaru</option>
+                   <option value="oldest">Terlama</option>
+                   <option value="popular">Terpopuler</option>
+                 </select>
+               </div>
+             </div>
+           </div>
+           
+           <table id="suggestions-table">
+             <thead>
+               <tr>
+                 <th>No</th>
+                 <th>Nama Menu</th>
+                 <th>Customer</th>
+                 <th>Tanggal</th>
+                 <th class="action-header">Aksi</th>
+               </tr>
+             </thead>
+             <tbody id="suggestions-tbody">
+               <!-- Suggestions will be loaded here -->
+             </tbody>
+           </table>
               
               <div id="loading-suggestions" class="loading-spinner hidden">
                 <i class="fas fa-spinner fa-spin"></i>
@@ -216,6 +222,42 @@
         <h3>Oops! Terjadi Kesalahan</h3>
         <p id="error-message">Gagal mengirim usulan menu. Silakan coba lagi.</p>
         <button class="btn btn-secondary" onclick="closeErrorModal()">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Suggestion Detail Modal -->
+  <div id="view-suggestion-modal" class="modal hidden">
+    <div class="modal-content view-modal">
+      <button class="modal-close" onclick="closeViewSuggestionModal()">
+        <i class="fas fa-times"></i>
+      </button>
+      <h2 class="modal-title">Detail Usulan Menu</h2>
+      <div class="view-content">
+        <div class="view-item">
+          <label>Nama Menu</label>
+          <span id="view-menu-name">-</span>
+        </div>
+        <div class="view-item">
+          <label>Customer</label>
+          <span id="view-customer-name">-</span>
+        </div>
+        <div class="view-item">
+          <label>Tanggal</label>
+          <span id="view-timestamp">-</span>
+        </div>
+        <div class="view-item">
+          <label>ID Usulan</label>
+          <span id="view-usulan-id">-</span>
+        </div>
+        <div class="view-item">
+          <label>Deskripsi</label>
+          <span id="view-description" class="flavor-display"></span>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn-cancel" onclick="closeViewSuggestionModal()">Tutup</button>
+        <button class="modal-btn" onclick="approveSuggestionFromView()">Setujui</button>
       </div>
     </div>
   </div>

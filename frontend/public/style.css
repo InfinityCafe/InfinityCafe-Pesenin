@@ -2938,6 +2938,8 @@ body.tab-done .add-order-btn {
 #suggestions-table td:last-child {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
+    background-color: #F4F1E8;
+    padding: 0.5rem;
 }
 
 #suggestions-table td:not(:first-child):not(:last-child)::before {
@@ -2953,15 +2955,16 @@ body.tab-done .add-order-btn {
 /* Style untuk kolom ID */
 #suggestions-table th:first-child,
 #suggestions-table td:first-child {
-    width: 120px;
-    font-family: 'Courier New', monospace;
-    font-size: 14px;
+    width: 100px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    color: #8D7272;
 }
 
 /* Style untuk kolom Nama Menu */
 #suggestions-table th:nth-child(2),
 #suggestions-table td:nth-child(2) {
-    width: 250px;
+    width: 280px;
     text-align: left;
     padding-left: 1.5rem;
 }
@@ -3079,6 +3082,50 @@ body.tab-done .add-order-btn {
         min-width: 32px;
         height: 32px;
         font-size: 11px;
+    }
+    
+    /* Mobile Table Header */
+    .table-header {
+        gap: 0.75rem;
+    }
+    
+    .table-title h3 {
+        font-size: 1.25rem;
+    }
+    
+    .table-controls .search-input {
+        font-size: 0.85rem;
+        padding: 0.625rem 0.625rem 0.625rem 2.25rem;
+    }
+    
+    .table-controls .form-select {
+        font-size: 0.85rem;
+        padding: 0.625rem 0.75rem;
+    }
+    
+    /* Mobile Suggestion Modal */
+    #suggestion-modal .modal-content {
+        max-width: 98%;
+        margin: 0.5rem;
+        padding: 1rem;
+    }
+    
+    #suggestion-modal .modal-header h3 {
+        font-size: 1.1rem;
+    }
+    
+    #suggestion-modal .form-group label {
+        font-size: 0.9rem;
+    }
+    
+    #suggestion-modal .form-input,
+    #suggestion-modal .form-textarea {
+        padding: 0.75rem;
+        font-size: 0.9rem;
+    }
+    
+    #suggestion-modal .form-help {
+        font-size: 0.75rem;
     }
 }
 
@@ -5265,6 +5312,171 @@ body[data-page="login"] {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+/* Table Header Styles */
+.table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #DCD0A8;
+}
+
+.table-title h3 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #8D7272;
+    font-family: 'Inter', sans-serif;
+}
+
+.table-controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+/* Search Container in Table */
+.table-controls .search-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.table-controls .search-icon {
+    position: absolute;
+    left: 0.75rem;
+    color: #8D7272;
+    font-size: 0.9rem;
+}
+
+.table-controls .search-input {
+    padding: 0.75rem 0.75rem 0.75rem 2.5rem;
+    border: 2px solid #DCD0A8;
+    border-radius: 0.5rem;
+    font-size: 0.9rem;
+    color: #685454;
+    background: #F4F1E8;
+    transition: all 0.3s ease;
+    min-width: 250px;
+    font-family: 'Inter', sans-serif;
+}
+
+.table-controls .search-input:focus {
+    outline: none;
+    border-color: #8D7272;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(141, 114, 114, 0.1);
+}
+
+.table-controls .search-input::placeholder {
+    color: #A8A8A8;
+    font-style: italic;
+}
+
+/* Filter Controls in Table */
+.table-controls .filter-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.table-controls .form-select {
+    padding: 0.75rem 1rem;
+    border: 2px solid #DCD0A8;
+    border-radius: 0.5rem;
+    background: #F4F1E8;
+    font-size: 0.9rem;
+    color: #685454;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    min-width: 140px;
+}
+
+.table-controls .form-select:focus {
+    outline: none;
+    border-color: #8D7272;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(141, 114, 114, 0.1);
+}
+
+/* Suggestions Table Styles */
+#suggestions-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0.75rem;
+    text-align: center;
+}
+
+#suggestions-table th {
+    padding: 0.75rem 1rem;
+    text-align: center;
+    font-weight: bold;
+    color: #312929;
+    text-transform: uppercase;
+    font-size: 16px;
+    background-color: #CAB99D;
+    position: relative;
+}
+
+#suggestions-table th:first-child {
+    border-top-left-radius: 0.5rem;
+    border-bottom-left-radius: 0.5rem;
+    width: 80px;
+}
+
+#suggestions-table th:last-child {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+    width: 150px;
+}
+
+#suggestions-table th:not(:first-child):not(:last-child)::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -0.75rem;
+    width: 0.75rem;
+    height: 100%;
+    background-color: #CAB99D;
+}
+
+#suggestions-table td {
+    padding: 1rem;
+    vertical-align: middle;
+    background-color: #F4F1E8;
+    font-weight: 500;
+    color: #312929;
+}
+
+#suggestions-table td:first-child {
+    font-weight: 700;
+    color: #8D7272;
+    background-color: #F4F1E8;
+}
+
+#suggestions-table td:nth-child(2) {
+    font-weight: 600;
+    color: #685454;
+}
+
+#suggestions-table td:nth-child(3) {
+    font-weight: 500;
+    color: #8D7272;
+}
+
+#suggestions-table td:nth-child(4) {
+    font-weight: 500;
+    color: #685454;
+}
+
+#suggestions-table td:last-child {
+    background-color: #F4F1E8;
+    padding: 0.5rem;
+}
+
 /* Suggestions table styles are now handled by the table-specific CSS above */
 
 /* Loading and No Data States */
@@ -5363,6 +5575,162 @@ body[data-page="login"] {
     text-align: center;
 }
 
+/* Suggestion Modal Styles */
+#suggestion-modal .modal-content {
+    max-width: 600px;
+    width: 90%;
+    padding: 2rem;
+}
+
+#suggestion-modal .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #DCD0A8;
+}
+
+#suggestion-modal .modal-header h3 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #8D7272;
+    font-family: 'Inter', sans-serif;
+}
+
+#suggestion-modal .modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: #F4F1E8;
+    border: 2px solid #DCD0A8;
+    border-radius: 50%;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 1.25rem;
+    color: #8D7272;
+}
+
+#suggestion-modal .modal-close:hover {
+    background: #8D7272;
+    color: white;
+    border-color: #8D7272;
+    transform: scale(1.1);
+}
+
+#suggestion-modal .modal-body {
+    margin-bottom: 1.5rem;
+}
+
+#suggestion-modal .form-group {
+    margin-bottom: 1.5rem;
+}
+
+#suggestion-modal .form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #8D7272;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+}
+
+#suggestion-modal .form-input,
+#suggestion-modal .form-textarea {
+    width: 100%;
+    padding: 0.875rem;
+    border: 2px solid #DCD0A8;
+    border-radius: 0.5rem;
+    font-size: 0.95rem;
+    font-family: 'Inter', sans-serif;
+    color: #685454;
+    background: #F4F1E8;
+    transition: all 0.3s ease;
+}
+
+#suggestion-modal .form-input:focus,
+#suggestion-modal .form-textarea:focus {
+    outline: none;
+    border-color: #8D7272;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(141, 114, 114, 0.1);
+    transform: translateY(-1px);
+}
+
+#suggestion-modal .form-input::placeholder,
+#suggestion-modal .form-textarea::placeholder {
+    color: #A8A8A8;
+    font-style: italic;
+}
+
+#suggestion-modal .form-textarea {
+    resize: vertical;
+    min-height: 120px;
+    line-height: 1.5;
+}
+
+#suggestion-modal .form-help {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: #8D7272;
+    font-family: 'Inter', sans-serif;
+    font-style: italic;
+    line-height: 1.4;
+}
+
+#suggestion-modal .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid #DCD0A8;
+}
+
+#suggestion-modal .modal-footer .btn {
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border: none;
+    min-width: 120px;
+}
+
+#suggestion-modal .modal-footer .btn-secondary {
+    background: #F4F1E8;
+    color: #8D7272;
+    border: 2px solid #DCD0A8;
+}
+
+#suggestion-modal .modal-footer .btn-secondary:hover {
+    background: #DCD0A8;
+    color: #685454;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+#suggestion-modal .modal-footer .btn-primary {
+    background: linear-gradient(135deg, #8D7272 0%, #A8A8A8 100%);
+    color: white;
+    border: 2px solid #8D7272;
+}
+
+#suggestion-modal .modal-footer .btn-primary:hover {
+    background: linear-gradient(135deg, #685454 0%, #8D7272 100%);
+    border-color: #685454;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(141, 114, 114, 0.3);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .action-buttons {
@@ -5394,6 +5762,56 @@ body[data-page="login"] {
     
     .suggestions-container {
         padding: 1.5rem;
+    }
+    
+    /* Responsive Table Header */
+    .table-header {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+    
+    .table-controls {
+        flex-direction: column;
+        gap: 0.75rem;
+        width: 100%;
+    }
+    
+    .table-controls .search-input {
+        min-width: auto;
+        width: 100%;
+    }
+    
+    .table-controls .form-select {
+        min-width: auto;
+        width: 100%;
+    }
+    
+    /* Responsive Suggestion Modal */
+    #suggestion-modal .modal-content {
+        max-width: 95%;
+        margin: 1rem;
+        padding: 1.5rem;
+    }
+    
+    #suggestion-modal .modal-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 1rem;
+    }
+    
+    #suggestion-modal .modal-header h3 {
+        font-size: 1.25rem;
+    }
+    
+    #suggestion-modal .modal-footer {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    #suggestion-modal .modal-footer .btn {
+        width: 100%;
+        min-width: auto;
     }
     
     .stat-card {
