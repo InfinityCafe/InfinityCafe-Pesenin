@@ -151,12 +151,16 @@ function openDetailModal(order) {
   const itemsHtml = items.map(item => {
     return `<div style='margin-bottom:4px;'><b>${item.menu_name}</b>${item.preference ? ' <span style=\"color:#888;font-size:13px;\">(' + item.preference + ')</span>' : ''} - ${item.quantity}${item.notes ? `<div style='font-size:12px;color:#888;margin-top:2px;'><b>Notes:</b> ${item.notes}</div>` : ''}</div>`;
   }).join('');
+  // Add cancel reason if order is cancelled
+  const cancelReasonHtml = order.cancel_reason ? `<p><strong>Alasan Pembatalan:</strong> <span style="color: #dc3545; font-style: italic;">${order.cancel_reason}</span></p>` : '';
+  
   box.innerHTML = `
     <p><strong>Order ID:</strong> ${order.order_id}</p>
     <p><strong>Nama:</strong> ${order.customer_name}</p>
     <p><strong>Ruangan:</strong> ${order.room_name}</p>
     <p><strong>Status:</strong> ${formatStatusDisplay(order.status)}</p>
     <p><strong>Waktu:</strong> ${new Date(order.time_receive).toLocaleString("id-ID")}</p>
+    ${cancelReasonHtml}
     <div style='margin-top:10px;'><strong>Detail:</strong><br>${itemsHtml}</div>
   `;
   document.getElementById("detail-modal").classList.remove("hidden");

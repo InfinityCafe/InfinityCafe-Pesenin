@@ -595,15 +595,20 @@ def get_suggestions(db: Session = Depends(get_db)):
             "data": []
         }
     
-    # Format data hanya nama menu saja
-    menu_names = []
+    # Return complete suggestion data
+    suggestion_data = []
     for suggestion in suggestions:
-        menu_names.append(suggestion.menu_name)
+        suggestion_data.append({
+            "usulan_id": suggestion.usulan_id,
+            "menu_name": suggestion.menu_name,
+            "customer_name": suggestion.customer_name,
+            "timestamp": suggestion.timestamp.isoformat()
+        })
     
     return {
         "status": "success", 
-        "message": f" Hallo! Kami punya beberapa usulan menu yang baru nih dari pelanggan lain, coba cek siapa tahu ada yang cocok dengan anda:",
-        "data": menu_names
+        "message": f"Hallo! Kami punya beberapa usulan menu yang baru nih dari pelanggan lain, coba cek siapa tahu ada yang cocok dengan anda:",
+        "data": suggestion_data
     }
 
 @app.get("/health", summary="Health Check", tags=["Utility"])
