@@ -265,7 +265,8 @@ def outbox_status(db: Session = Depends(get_db)):
 @app.get("/list_ingredients", summary="Daftar bahan", tags=["Inventory"], operation_id="list ingredients")
 def list_ingredients(db: Session = Depends(get_db)):
     try:
-        rows = db.query(Inventory).all()
+        # Explicit ordering by ID ascending  
+        rows = db.query(Inventory).order_by(Inventory.id.asc()).all()
         ingredients_data = [
             {
                 "id": r.id,
