@@ -339,10 +339,10 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
                 for item in req.orders
             ]
         }
-        print(f"🔍 DEBUG ORDER SERVICE: Sending to inventory: {inventory_payload}")
+        print(f"🔍 DEBUG ORDER SERVICE: Checking stock availability: {inventory_payload}")
         
         stock_resp = requests.post(
-            f"{INVENTORY_SERVICE_URL}/stock/check_and_consume",
+            f"{INVENTORY_SERVICE_URL}/stock/check_availability",
             json=inventory_payload,
             timeout=7
         )
@@ -398,6 +398,22 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         process_outbox_events(db)
     except Exception as e:
         logging.warning(f"⚠️ Gagal memproses outbox events: {e}")
+
+    # Konsumsi stok setelah order berhasil disimpan
+    try:
+        print(f"🔥 ORDER SERVICE: Mengkonsumsi stok untuk order {order_id}")
+        consume_resp = requests.post(
+            f"{INVENTORY_SERVICE_URL}/stock/consume",
+            json=inventory_payload,
+            timeout=7
+        )
+        consume_data = consume_resp.json()
+        if not consume_data.get("success", False):
+            logging.error(f"❌ Gagal konsumsi stok untuk order {order_id}: {consume_data.get('message')}")
+        else:
+            logging.info(f"✅ Berhasil konsumsi stok untuk order {order_id}")
+    except Exception as e:
+        logging.error(f"❌ Error saat konsumsi stok untuk order {order_id}: {e}")
 
     order_details = {
         "order_id": order_id,
@@ -488,10 +504,10 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
                 for item in req.orders
             ]
         }
-        print(f"🔍 DEBUG ORDER SERVICE: Sending to inventory: {inventory_payload}")
+        print(f"🔍 DEBUG ORDER SERVICE: Checking stock availability: {inventory_payload}")
         
         stock_resp = requests.post(
-            f"{INVENTORY_SERVICE_URL}/stock/check_and_consume",
+            f"{INVENTORY_SERVICE_URL}/stock/check_availability",
             json=inventory_payload,
             timeout=7
         )
@@ -542,6 +558,22 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         process_outbox_events(db)
     except Exception as e:
         logging.warning(f"⚠️ Gagal memproses outbox events: {e}")
+
+    # Konsumsi stok setelah custom order berhasil disimpan
+    try:
+        print(f"🔥 ORDER SERVICE: Mengkonsumsi stok untuk custom order {order_id}")
+        consume_resp = requests.post(
+            f"{INVENTORY_SERVICE_URL}/stock/consume",
+            json=inventory_payload,
+            timeout=7
+        )
+        consume_data = consume_resp.json()
+        if not consume_data.get("success", False):
+            logging.error(f"❌ Gagal konsumsi stok untuk custom order {order_id}: {consume_data.get('message')}")
+        else:
+            logging.info(f"✅ Berhasil konsumsi stok untuk custom order {order_id}")
+    except Exception as e:
+        logging.error(f"❌ Error saat konsumsi stok untuk custom order {order_id}: {e}")
 
     order_details = {
         "order_id": order_id,

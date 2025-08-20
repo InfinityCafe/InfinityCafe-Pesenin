@@ -5,8 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi_mcp import FastApiMCP
 from pydantic import BaseModel, Field, model_validator, field_validator
 from typing import Optional
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, Enum as SQLEnum
-from sqlalchemy.orm import sessionmaker, declarative_base, Session
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, Enum as SQLEnum, ForeignKey
+from sqlalchemy.orm import sessionmaker, declarative_base, Session, relationship
 from sqlalchemy.exc import SQLAlchemyError
 from pytz import timezone as pytz_timezone
 
@@ -93,6 +93,17 @@ class ConsumptionLog(Base):
     rolled_back = Column(Boolean, default=False)    
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class FlavorMapping(Base):
+    __tablename__ = "flavor_mapping"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    flavor_name = Column(String, index=True, unique=True)  
+    ingredient_id = Column(Integer, ForeignKey('inventories.id'))  
+    quantity_per_serving = Column(Float, default=25)  
+    unit = Column(SQLEnum(UnitType), default=UnitType.milliliter) 
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    ingredient = relationship("Inventory", backref="flavor_mappings")
+
 class ValidateIngredientRequest(BaseModel):
     name: str
     current_quantity: float
@@ -136,6 +147,28 @@ class BatchStockItem(BaseModel):
     menu_name: str
     quantity: int = Field(gt=0)
     preference: Optional[str] = ""
+
+class FlavorMappingRequest(BaseModel):
+    flavor_name: str = Field(..., description="Nama flavor (e.g., 'Irish Max')")
+    ingredient_id: int = Field(..., description="ID ingredient yang akan digunakan")
+    quantity_per_serving: float = Field(25, description="Jumlah per porsi (25ml syrup atau 30g powder)")
+    unit: UnitType = Field(UnitType.milliliter, description="Unit: milliliter, gram, atau piece")
+    
+    @field_validator('flavor_name')
+    @classmethod
+    def name_not_blank(cls, v: str):
+        if not v or not v.strip():
+            raise ValueError("Nama flavor tidak boleh kosong")
+        return v.strip()
+
+class FlavorMappingResponse(BaseModel):
+    id: int
+    flavor_name: str
+    ingredient_id: int
+    ingredient_name: str
+    quantity_per_serving: float
+    unit: str
+    created_at: str
 
 class BatchStockRequest(BaseModel):
     order_id: str
@@ -259,6 +292,8 @@ def list_ingredients(db: Session = Depends(get_db)):
 
 @app.post("/add_ingredient", summary="Tambah bahan baru", tags=["Inventory"], operation_id="add ingredient")
 def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)):
+    print(f"🚀 DEBUG: Starting add_ingredient for: {req.name}")
+    logging.info(f"🚀 DEBUG: Starting add_ingredient for: {req.name}")
     try:
         ing = Inventory(
             name=req.name,
@@ -267,9 +302,13 @@ def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)
             category=req.category,
             unit=req.unit
         )
+        print(f"📝 DEBUG: Created inventory object: {ing.name} - {ing.category} - {ing.unit}")
+        logging.info(f"📝 DEBUG: Created inventory object: {ing.name} - {ing.category} - {ing.unit}")
         db.add(ing)
         db.commit()
         db.refresh(ing)
+        print(f"💾 DEBUG: Saved to database with ID: {ing.id}")
+        logging.info(f"💾 DEBUG: Saved to database with ID: {ing.id}")
         
         create_outbox_event(db, "ingredient_added", {
             "id": ing.id,
@@ -279,6 +318,37 @@ def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)
             "category": ing.category.value,
             "unit": ing.unit.value
         })
+        
+        print(f"🔍 DEBUG: Checking auto-flavor-mapping for {ing.name}: category={ing.category}, unit={ing.unit}")
+        logging.info(f"🔍 DEBUG: Checking auto-flavor-mapping for {ing.name}: category={ing.category}, unit={ing.unit}")
+        
+        if (ing.category == StockCategory.ingredient and 
+            ing.unit in [UnitType.milliliter, UnitType.gram]):
+            
+            print(f"🎯 DEBUG: Conditions met for auto-flavor-mapping: {ing.name}")
+            logging.info(f"🎯 DEBUG: Conditions met for auto-flavor-mapping: {ing.name}")
+            
+            try:
+                existing_flavor = db.query(FlavorMapping).filter(FlavorMapping.flavor_name == ing.name).first()
+                if existing_flavor:
+                    logging.info(f"⚠️ DEBUG: Flavor mapping for '{ing.name}' already exists, skipping")
+                else:
+                    default_quantity = 25 if ing.unit == UnitType.milliliter else 30
+                    
+                    flavor_mapping = FlavorMapping(
+                        flavor_name=ing.name,
+                        ingredient_id=ing.id,
+                        quantity_per_serving=default_quantity,
+                        unit=ing.unit
+                    )
+                    db.add(flavor_mapping)
+                    logging.info(f"✅ Auto-created flavor mapping: {ing.name} -> ID {ing.id} ({default_quantity}{ing.unit.value})")
+                
+            except Exception as flavor_error:
+                logging.warning(f"⚠️ Failed to auto-create flavor mapping for {ing.name}: {flavor_error}")
+        else:
+            logging.info(f"⏭️ DEBUG: Skipping auto-flavor-mapping for {ing.name} - conditions not met")
+        
         db.commit()
         process_outbox_events(db)
         
@@ -300,6 +370,180 @@ def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)
         return JSONResponse(status_code=200, content={
             "status": "error", 
             "message": f"Gagal menambahkan bahan: {str(e)}", 
+            "data": None
+        })
+
+@app.post("/add_flavor_mapping", summary="Tambah mapping flavor ke ingredient", tags=["Flavor Management"])
+def add_flavor_mapping(req: FlavorMappingRequest, db: Session = Depends(get_db)):
+    """Menambahkan mapping flavor baru ke ingredient yang sudah ada"""
+    try:
+        ingredient = db.query(Inventory).filter(Inventory.id == req.ingredient_id).first()
+        if not ingredient:
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": f"Ingredient dengan ID {req.ingredient_id} tidak ditemukan",
+                "data": None
+            })
+        
+        existing = db.query(FlavorMapping).filter(FlavorMapping.flavor_name == req.flavor_name).first()
+        if existing:
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": f"Flavor '{req.flavor_name}' sudah ada dalam mapping",
+                "data": None
+            })
+        
+        mapping = FlavorMapping(
+            flavor_name=req.flavor_name,
+            ingredient_id=req.ingredient_id,
+            quantity_per_serving=req.quantity_per_serving,
+            unit=req.unit
+        )
+        db.add(mapping)
+        db.commit()
+        db.refresh(mapping)
+        
+        return {
+            "status": "success",
+            "message": f"Flavor mapping '{req.flavor_name}' berhasil ditambahkan",
+            "data": {
+                "id": mapping.id,
+                "flavor_name": mapping.flavor_name,
+                "ingredient_id": mapping.ingredient_id,
+                "ingredient_name": ingredient.name,
+                "quantity_per_serving": mapping.quantity_per_serving,
+                "unit": mapping.unit.value,
+                "created_at": mapping.created_at.isoformat()
+            }
+        }
+        
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": f"Gagal menambahkan flavor mapping: {str(e)}",
+            "data": None
+        })
+
+@app.get("/list_flavor_mappings", summary="Daftar semua flavor mapping", tags=["Flavor Management"])
+def list_flavor_mappings(db: Session = Depends(get_db)):
+    """Menampilkan semua flavor mapping yang tersedia"""
+    try:
+        mappings = db.query(FlavorMapping).join(Inventory).all()
+        
+        data = []
+        for mapping in mappings:
+            data.append({
+                "id": mapping.id,
+                "flavor_name": mapping.flavor_name,
+                "ingredient_id": mapping.ingredient_id,
+                "ingredient_name": mapping.ingredient.name,
+                "quantity_per_serving": mapping.quantity_per_serving,
+                "unit": mapping.unit.value,
+                "created_at": mapping.created_at.isoformat()
+            })
+        
+        return {
+            "status": "success",
+            "message": f"Ditemukan {len(data)} flavor mapping",
+            "data": data
+        }
+        
+    except Exception as e:
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": f"Gagal mengambil flavor mapping: {str(e)}",
+            "data": []
+        })
+
+@app.delete("/delete_flavor_mapping/{mapping_id}", summary="Hapus flavor mapping", tags=["Flavor Management"])
+def delete_flavor_mapping(mapping_id: int, db: Session = Depends(get_db)):
+    """Menghapus flavor mapping berdasarkan ID"""
+    try:
+        mapping = db.query(FlavorMapping).filter(FlavorMapping.id == mapping_id).first()
+        if not mapping:
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": f"Flavor mapping dengan ID {mapping_id} tidak ditemukan",
+                "data": None
+            })
+        
+        flavor_name = mapping.flavor_name
+        db.delete(mapping)
+        db.commit()
+        
+        return {
+            "status": "success",
+            "message": f"Flavor mapping '{flavor_name}' berhasil dihapus",
+            "data": None
+        }
+        
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": f"Gagal menghapus flavor mapping: {str(e)}",
+            "data": None
+        })
+
+@app.put("/update_flavor_mapping/{mapping_id}", summary="Update flavor mapping", tags=["Flavor Management"])
+def update_flavor_mapping(mapping_id: int, req: FlavorMappingRequest, db: Session = Depends(get_db)):
+    """Mengupdate flavor mapping yang sudah ada"""
+    try:
+        mapping = db.query(FlavorMapping).filter(FlavorMapping.id == mapping_id).first()
+        if not mapping:
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": f"Flavor mapping dengan ID {mapping_id} tidak ditemukan",
+                "data": None
+            })
+        
+        ingredient = db.query(Inventory).filter(Inventory.id == req.ingredient_id).first()
+        if not ingredient:
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": f"Ingredient dengan ID {req.ingredient_id} tidak ditemukan",
+                "data": None
+            })
+        
+        existing = db.query(FlavorMapping).filter(
+            FlavorMapping.flavor_name == req.flavor_name,
+            FlavorMapping.id != mapping_id
+        ).first()
+        if existing:
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": f"Flavor '{req.flavor_name}' sudah digunakan oleh mapping lain",
+                "data": None
+            })
+        
+        mapping.flavor_name = req.flavor_name
+        mapping.ingredient_id = req.ingredient_id
+        mapping.quantity_per_serving = req.quantity_per_serving
+        mapping.unit = req.unit
+        
+        db.commit()
+        db.refresh(mapping)
+        
+        return {
+            "status": "success",
+            "message": f"Flavor mapping berhasil diupdate",
+            "data": {
+                "id": mapping.id,
+                "flavor_name": mapping.flavor_name,
+                "ingredient_id": mapping.ingredient_id,
+                "ingredient_name": ingredient.name,
+                "quantity_per_serving": mapping.quantity_per_serving,
+                "unit": mapping.unit.value,
+                "created_at": mapping.created_at.isoformat()
+            }
+        }
+        
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": f"Gagal mengupdate flavor mapping: {str(e)}",
             "data": None
         })
 
@@ -406,8 +650,6 @@ def health():
         }
     })
 
-
-# ===================== SIMPLE STOCK OPERATIONS =====================
 @app.post("/stock/check", summary="Cek ketersediaan stok", tags=["Stock Management"])
 def check_stock(req: BatchStockRequest, db: Session = Depends(get_db)):
     """Cek ketersediaan stok untuk pesanan (tanpa mengubah stok)"""
@@ -431,6 +673,46 @@ def check_stock(req: BatchStockRequest, db: Session = Depends(get_db)):
             }
     except Exception as e:
         return {"success": False, "message": f"Error: {str(e)}", "can_process": False}
+
+
+@app.post("/stock/check_availability", summary="Cek ketersediaan stok untuk order (format baru)", tags=["Stock Management"])
+def check_availability(req: BatchStockRequest, db: Session = Depends(get_db)):
+    """Cek ketersediaan stok untuk pesanan dengan format response yang sesuai order_service"""
+    try:
+        result = check_and_consume(req, db, consume=False)
+        
+        if result.can_fulfill:
+            return {
+                "can_fulfill": True,
+                "success": True,
+                "message": "Stok tersedia untuk semua pesanan",
+                "order_id": req.order_id
+            }
+        else:
+            formatted_shortages = []
+            for shortage in result.shortages:
+                formatted_shortages.append({
+                    "ingredient_id": shortage.get("ingredient_id", "unknown"),
+                    "required": shortage.get("required", 0),
+                    "available": shortage.get("available", 0),
+                    "ingredient_name": shortage.get("ingredient_name", "Unknown")
+                })
+            
+            return {
+                "can_fulfill": False,
+                "success": False,
+                "message": "Stok tidak mencukupi",
+                "order_id": req.order_id,
+                "shortages": formatted_shortages
+            }
+    except Exception as e:
+        logging.error(f"Error in check_availability: {e}")
+        return {
+            "can_fulfill": False,
+            "success": False, 
+            "message": f"Error checking availability: {str(e)}",
+            "order_id": req.order_id
+        }
 
 
 @app.post("/stock/consume", summary="Konsumsi stok untuk pesanan", tags=["Stock Management"])  
@@ -463,9 +745,9 @@ def get_stock_alerts(db: Session = Depends(get_db)):
     inventories = db.query(Inventory).all()
     
     alerts = {
-        "critical": [],  # Habis (qty <= 0)
-        "low": [],       # Dibawah minimum
-        "ok": []         # Stok aman
+        "critical": [],  
+        "low": [],       
+        "ok": []         
     }
     
     for inv in inventories:
@@ -568,20 +850,7 @@ def check_and_consume(
     db: Session = Depends(get_db),
     consume: bool = Query(True, description="DEPRECATED: Gunakan endpoint terpisah yang lebih jelas")
 ):
-    """
-    ⚠️ ENDPOINT INI DEPRECATED ⚠️
     
-    Endpoint ini terlalu kompleks dan akan dihapus di versi mendatang.
-    
-    Gunakan yang lebih jelas:
-    - POST /stock/check_availability - untuk cek ketersediaan tanpa konsumsi  
-    - POST /stock/consume - untuk konsumsi stok setelah dikonfirmasi
-    
-    Alasan deprecated:
-    - Parameter 'consume' membingungkan (dry-run vs actual consumption)
-    - Response format terlalu kompleks
-    - Gabungan 2 fungsi berbeda dalam 1 endpoint
-    """
     global last_debug_info 
     debug_info = []  
     
@@ -629,52 +898,24 @@ def check_and_consume(
         print(f"🔍 DEBUG: Checking preference for {it.menu_name}: '{preference}'")
         debug_info.append(f"Checking preference for {it.menu_name}: '{preference}'")
         if preference:
-            flavor_mapping = {
-                "Butterscotch": 12, "Butterscout": 12,
-                "French Mocca": 13, "French Mocha": 13,
-                "Roasted Almond": 14, "Rosted Almond": 14,
-                "Creme Brulee": 15,
-                "Irish": 16,
-                "Havana": 17,
-                "Salted Caramel": 18,
-                "Mangga": 19, "Mango": 19,
-                "Permenkaret": 20, "Bubble Gum": 20,
-                "Tiramisu": 21,
-                "Redvelvet": 22, "Red Velvet": 22,
-                "Strawberry": 23, "Stroberi": 23,
-                "Vanilla": 24,
-                "Macadamia Nut": 12,  
-                "Java Brown Sugar": 13, 
-                "Chocolate": 15,
-                "Taro": 21,
-                "Choco Malt": 22,
-                "Choco Hazelnut": 23,
-                "Choco Biscuit": 24,
-                "Milktea": 16,
-                "Banana": 19,
-                "Alpukat": 20,
-                "Green Tea": 21,
-                "Markisa": 22,
-                "Melon": 23,
-                "Nanas": 24
-            }
+            flavor_mapping = db.query(FlavorMapping).filter(
+                FlavorMapping.flavor_name == preference
+            ).first()
             
-            flavor_id = flavor_mapping.get(preference)
-            if flavor_id:
-                flavor_qty = 25 
-                flavor_unit = "milliliter"
+            if flavor_mapping:
+                flavor_id = flavor_mapping.ingredient_id
+                flavor_qty = flavor_mapping.quantity_per_serving  
+                flavor_unit = flavor_mapping.unit.value  
                 
                 if it.menu_name in ["Milkshake"] or "milkshake" in it.menu_name.lower():
-                    powder_flavors = ["Mangga", "Mango", "Permenkaret", "Bubble Gum", "Tiramisu", "Redvelvet", "Red Velvet", "Strawberry", "Stroberi", "Vanilla", "Chocolate", "Taro", "Banana", "Alpukat"]
-                    if preference in powder_flavors:
-                        flavor_qty = 30
-                        flavor_unit = "gram"
+                    if flavor_mapping.unit == UnitType.gram:
+                        flavor_qty = max(flavor_qty, 30)
                 elif "squash" in it.menu_name.lower():
-                    flavor_qty = 20
-                    flavor_unit = "milliliter"
+                    if flavor_mapping.unit == UnitType.milliliter:
+                        flavor_qty = min(flavor_qty, 20)
                 elif any(keyword in it.menu_name.lower() for keyword in ["custom", "special", "premium"]):
-                    flavor_qty = 35
-                    flavor_unit = "milliliter"
+                    if flavor_mapping.unit == UnitType.milliliter:
+                        flavor_qty = flavor_qty * 1.4  
                 
                 need_map.setdefault(flavor_id, {"needed": 0, "unit": flavor_unit, "menus": set()})
                 need_map[flavor_id]["needed"] += flavor_qty * it.quantity
@@ -835,7 +1076,6 @@ def check_and_consume(
         logging.error(f"❌ Gagal konsumsi stok untuk order {req.order_id}: {e}")
         return BatchStockResponse(can_fulfill=False, shortages=[{"error": f"Gagal konsumsi stok: {e}"}], partial_suggestions=[], details=[], debug_info=debug_info)
 
-
 @app.post("/stock/rollback/{order_id}", summary="Rollback stok yang sudah dikonsumsi", tags=["Stock Management"])
 def rollback_stock(order_id: str, db: Session = Depends(get_db)):
     """Mengembalikan stok yang sudah dikonsumsi untuk order yang dibatalkan"""
@@ -870,8 +1110,6 @@ def rollback_stock(order_id: str, db: Session = Depends(get_db)):
         db.rollback()
         return {"success": False, "message": f"Error rollback: {str(e)}"}
 
-# ===================== UTILITY ENDPOINTS =====================
-
 @app.get("/flavors", summary="Daftar flavor yang tersedia", tags=["Utility"])
 def get_available_flavors():
     """Daftar flavor yang bisa digunakan untuk pesanan"""
@@ -896,7 +1134,6 @@ def get_stock_history(
     
     query = db.query(ConsumptionLog)
     
-    # Filter by order_id jika ada
     if order_id:
         query = query.filter(ConsumptionLog.order_id == order_id)
     
@@ -904,7 +1141,6 @@ def get_stock_history(
     
     result = []
     for log in logs:
-        # Hitung ingredient count
         ingredient_count = 0
         if log.per_ingredient_payload:
             try:

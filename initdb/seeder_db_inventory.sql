@@ -190,5 +190,37 @@ SELECT setval(pg_get_serial_sequence('inventories','id'), (SELECT MAX(id) FROM i
 -- Verifikasi cepat
 -- SELECT id,name,current_quantity,minimum_quantity,category,unit FROM inventories ORDER BY id;
 
--- Selesai
-SELECT 'Seeder inventories selesai.' AS status;
+CREATE TABLE IF NOT EXISTS flavor_mapping (
+    id SERIAL PRIMARY KEY,
+    flavor_name VARCHAR UNIQUE NOT NULL,
+    ingredient_id INTEGER NOT NULL REFERENCES inventories(id) ON DELETE CASCADE,
+    quantity_per_serving FLOAT NOT NULL DEFAULT 25,
+    unit unittype NOT NULL DEFAULT 'milliliter',
+    created_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta')
+);
+
+-- Index untuk performa
+CREATE INDEX IF NOT EXISTS idx_flavor_mapping_flavor_name ON flavor_mapping(flavor_name);
+CREATE INDEX IF NOT EXISTS idx_flavor_mapping_ingredient_id ON flavor_mapping(ingredient_id);
+
+INSERT INTO flavor_mapping (flavor_name, ingredient_id, quantity_per_serving, unit) VALUES 
+    -- Map existing inventory ingredients to flavors
+    ('Irish', 16, 25, 'milliliter'),              -- Irish syrup
+    ('Havana', 17, 25, 'milliliter'),             -- Havana syrup
+    ('Salted Caramel', 18, 30, 'milliliter'),     -- Salted Caramel syrup
+    ('Mangga', 19, 30, 'gram'),                   -- Mango powder
+    ('Permenkaret', 20, 30, 'gram'),              -- Bubble gum powder
+    ('Tiramisu', 21, 30, 'gram'),                 -- Tiramisu powder
+    ('Redvelvet', 22, 30, 'gram'),                -- Red velvet powder
+    ('Strawberry', 23, 30, 'gram'),               -- Strawberry powder
+    ('Vanilla', 24, 30, 'gram'),                  -- Vanilla powder
+    ('Butterscotch', 12, 25, 'milliliter'),       -- Butterscotch syrup
+    ('French Mocca', 13, 25, 'milliliter'),       -- French Mocca syrup
+    ('Roasted Almond', 14, 25, 'milliliter'),     -- Roasted Almond syrup
+    ('Creme Brulee', 15, 25, 'milliliter')
+ON CONFLICT (flavor_name) DO UPDATE SET
+    ingredient_id = EXCLUDED.ingredient_id,
+    quantity_per_serving = EXCLUDED.quantity_per_serving,
+    unit = EXCLUDED.unit;
+
+SELECT 'Seeder inventories dan flavor mapping selesai.' AS status;
