@@ -91,20 +91,63 @@
           </div>
         </div>
         
-        <div id="suggestions-list" class="suggestions-list">
-          <!-- Suggestions will be loaded here -->
-        </div>
+                    <div class="table-container">
+              <table id="suggestions-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Nama Menu</th>
+                    <th>Customer</th>
+                    <th>Tanggal</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="suggestions-tbody">
+                  <!-- Suggestions will be loaded here -->
+                </tbody>
+              </table>
+              
+              <div id="loading-suggestions" class="loading-spinner hidden">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Memuat usulan menu...</p>
+              </div>
+              
+              <div id="no-suggestions" class="no-data hidden">
+                <i class="fas fa-inbox"></i>
+                <h3>Belum ada usulan menu</h3>
+                <p>Jadilah yang pertama memberikan usulan menu untuk Infinity Cafe!</p>
+              </div>
+              
+              <!-- Pagination -->
+              <div class="pagination-container" id="pagination-container">
+                <div class="pagination-info">
+                  <span id="pagination-info">Menampilkan 0 dari 0 usulan</span>
+                </div>
+                <div class="pagination-controls">
+                  <button class="pagination-btn" id="prev-page" onclick="changePage(-1)" disabled>
+                    <i class="fas fa-chevron-left"></i>
+                  </button>
+                  <div class="page-numbers" id="page-numbers">
+                    <!-- Page numbers will be generated here -->
+                  </div>
+                  <button class="pagination-btn" id="next-page" onclick="changePage(1)" disabled>
+                    <i class="fas fa-chevron-right"></i>
+                  </button>
+                </div>
+                <div class="pagination-size">
+                  <span>Tampilkan:</span>
+                  <select id="page-size" onchange="changePageSize()">
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                  </select>
+                  <span>per halaman</span>
+                </div>
+              </div>
+            </div>
         
-        <div id="loading-suggestions" class="loading-spinner hidden">
-          <i class="fas fa-spinner fa-spin"></i>
-          <p>Memuat usulan menu...</p>
-        </div>
-        
-        <div id="no-suggestions" class="no-data hidden">
-          <i class="fas fa-inbox"></i>
-          <h3>Belum ada usulan menu</h3>
-          <p>Jadilah yang pertama memberikan usulan menu untuk Infinity Cafe!</p>
-        </div>
+
       </div>
     </div>
   </div>

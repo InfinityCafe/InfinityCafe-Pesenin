@@ -2871,6 +2871,217 @@ body.tab-done .add-order-btn {
 }
 
 
+/* --- STYLE TABEL USULAN MENU --- */
+#suggestions-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0.75rem;
+    text-align: center;
+}
+
+#suggestions-table th, #suggestions-table td {
+    position: relative;
+}
+
+#suggestions-table thead tr {
+    background-color: transparent;
+}
+
+#suggestions-table th {
+    padding: 0.75rem 1rem;
+    text-align: center;
+    font-weight: bold;
+    color: #312929;
+    text-transform: uppercase;
+    font-size: 16px;
+    background-color: #CAB99D;
+}
+
+/* Sudut untuk blok header */
+#suggestions-table th:first-child {
+    border-top-left-radius: 0.5rem;
+    border-bottom-left-radius: 0.5rem;
+}
+
+#suggestions-table th:last-child {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
+#suggestions-table th:not(:first-child):not(:last-child)::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -0.75rem;
+    width: 0.75rem;
+    height: 100%;
+    background-color: #CAB99D;
+}
+
+#suggestions-table tbody tr {
+    background-color: transparent;
+}
+
+#suggestions-table td {
+    padding: 1rem;
+    vertical-align: middle;
+    background-color: #F4F1E8;
+    font-weight: medium;
+    color: #312929;
+}
+
+#suggestions-table td:first-child {
+    border-top-left-radius: 0.5rem;
+    border-bottom-left-radius: 0.5rem;
+}
+
+#suggestions-table td:last-child {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
+#suggestions-table td:not(:first-child):not(:last-child)::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -0.75rem;
+    width: 0.75rem;
+    height: 100%;
+    background-color: #F4F1E8;
+}
+
+/* Style untuk kolom ID */
+#suggestions-table th:first-child,
+#suggestions-table td:first-child {
+    width: 120px;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+}
+
+/* Style untuk kolom Nama Menu */
+#suggestions-table th:nth-child(2),
+#suggestions-table td:nth-child(2) {
+    width: 250px;
+    text-align: left;
+    padding-left: 1.5rem;
+}
+
+/* Style untuk kolom Customer */
+#suggestions-table th:nth-child(3),
+#suggestions-table td:nth-child(3) {
+    width: 180px;
+}
+
+/* Style untuk kolom Tanggal */
+#suggestions-table th:nth-child(4),
+#suggestions-table td:nth-child(4) {
+    width: 180px;
+    font-size: 14px;
+}
+
+/* Style untuk kolom Aksi */
+#suggestions-table th:last-child,
+#suggestions-table td:last-child {
+    width: 150px;
+}
+
+/* Style untuk action buttons dalam tabel */
+.suggestion-action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    color: #685454;
+    transition: color 0.2s ease;
+    padding: 0.25rem;
+    margin: 0 0.25rem;
+}
+
+.suggestion-action-btn:hover {
+    color: #312929;
+}
+
+.suggestion-action-btn.approve {
+    color: #28a745;
+}
+
+.suggestion-action-btn.reject {
+    color: #dc3545;
+}
+
+.suggestion-action-btn.view {
+    color: #007bff;
+}
+
+/* Responsive design untuk tabel usulan menu */
+@media (max-width: 768px) {
+    .table-container {
+        overflow-x: auto;
+    }
+    
+    #suggestions-table {
+        min-width: 700px;
+    }
+    
+    #suggestions-table th, #suggestions-table td {
+        white-space: nowrap;
+        min-width: 120px;
+    }
+    
+    #suggestions-table th:first-child, #suggestions-table td:first-child {
+        min-width: 100px;
+    }
+    
+    #suggestions-table th:last-child, #suggestions-table td:last-child {
+        min-width: 120px;
+    }
+    
+    /* Responsive pagination untuk mobile */
+    .pagination-container {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+    
+    .pagination-controls {
+        justify-content: center;
+    }
+    
+    .page-numbers {
+        gap: 2px;
+    }
+    
+    .page-number, .pagination-btn {
+        min-width: 36px;
+        height: 36px;
+        font-size: 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    #suggestions-table {
+        min-width: 600px;
+    }
+    
+    .pagination-container {
+        padding: 0.75rem;
+    }
+    
+    .pagination-info, .pagination-size {
+        font-size: 12px;
+    }
+    
+    .page-numbers {
+        gap: 1px;
+    }
+    
+    .page-number, .pagination-btn {
+        min-width: 32px;
+        height: 32px;
+        font-size: 11px;
+    }
+}
+
 /* --- AKHIR STYLE TABEL --- */
 
 /* Add Menu Modal Specific Styles */
@@ -3752,6 +3963,19 @@ body.tab-done .add-order-btn {
     background: #8D7272;
     color: white;
     border-color: #8D7272;
+}
+
+.page-ellipsis {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 40px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: #8D7272;
+    user-select: none;
 }
 
 .pagination-size {
@@ -5041,60 +5265,7 @@ body[data-page="login"] {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.suggestions-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.suggestion-card {
-    background: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 0.75rem;
-    padding: 1.5rem;
-    transition: all 0.2s ease;
-}
-
-.suggestion-card:hover {
-    border-color: #DCD0A8;
-    box-shadow: 0 2px 8px rgba(220, 208, 168, 0.2);
-}
-
-.suggestion-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 1rem;
-    gap: 1rem;
-}
-
-.suggestion-title h4 {
-    font-size: 1.125rem;
-    color: #685454;
-    margin: 0 0 0.25rem 0;
-    font-weight: 600;
-}
-
-.suggestion-author {
-    color: #6c757d;
-    font-size: 0.875rem;
-    font-style: italic;
-}
-
-.suggestion-date {
-    color: #6c757d;
-    font-size: 0.875rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    white-space: nowrap;
-}
-
-.suggestion-actions {
-    display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-}
+/* Suggestions table styles are now handled by the table-specific CSS above */
 
 /* Loading and No Data States */
 .loading-spinner {

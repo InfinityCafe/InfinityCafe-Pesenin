@@ -6,6 +6,9 @@ if (!localStorage.getItem('access_token')) {
 // Global variables
 let suggestions = [];
 let filteredSuggestions = [];
+let currentPage = 1;
+let pageSize = 10;
+let totalPages = 1;
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
@@ -64,13 +67,13 @@ async function loadSuggestions() {
 
 // Render suggestions list
 function renderSuggestions() {
-  const container = document.getElementById('suggestions-list');
+  const tbody = document.getElementById('suggestions-tbody');
   const noData = document.getElementById('no-suggestions');
   
-  if (!container) return;
+  if (!tbody) return;
   
   if (filteredSuggestions.length === 0) {
-    container.innerHTML = '';
+    tbody.innerHTML = '';
     if (noData) noData.classList.remove('hidden');
     return;
   }
@@ -88,33 +91,28 @@ function renderSuggestions() {
     });
     
     return `
-      <div class="suggestion-card" data-index="${index}">
-        <div class="suggestion-header">
-          <div class="suggestion-title">
-            <h4>${suggestion.menu_name}</h4>
-            <span class="suggestion-author">oleh ${suggestion.customer_name}</span>
-          </div>
-          <div class="suggestion-date">
-            <i class="fas fa-clock"></i>
-            ${formattedDate}
-          </div>
-        </div>
-        <div class="suggestion-actions">
-          <button class="btn btn-sm btn-outline-primary" onclick="viewSuggestionDetail(${index})">
-            <i class="fas fa-eye"></i> Detail
+      <tr data-index="${index}">
+        <td>${suggestion.usulan_id}</td>
+        <td>${suggestion.menu_name}</td>
+        <td>${suggestion.customer_name}</td>
+        <td>${formattedDate}</td>
+        <td>
+          <button class="suggestion-action-btn view" onclick="viewSuggestionDetail(${index})" title="Lihat Detail">
+            <i class="fas fa-eye"></i>
           </button>
-          <button class="btn btn-sm btn-outline-success" onclick="approveSuggestion('${suggestion.usulan_id}')">
-            <i class="fas fa-check"></i> Setujui
+          <button class="btn btn-sm btn-outline-success" onclick="approveSuggestion('${suggestion.usulan_id}')" title="Setujui">
+            <i class="fas fa-check"></i>
           </button>
-          <button class="btn btn-sm btn-outline-danger" onclick="rejectSuggestion('${suggestion.usulan_id}')">
-            <i class="fas fa-times"></i> Tolak
+          <button class="btn btn-sm btn-outline-danger" onclick="rejectSuggestion('${suggestion.usulan_id}')" title="Tolak">
+            <i class="fas fa-times"></i>
           </button>
-        </div>
-      </div>
+        </td>
+      </tr>
     `;
   }).join('');
   
-  container.innerHTML = suggestionsHtml;
+  tbody.innerHTML = suggestionsHtml;
+  updatePagination();
 }
 
 // Filter suggestions based on search query
@@ -339,4 +337,171 @@ document.addEventListener('keydown', function(event) {
   }
 });
 
+// Pagination functions
+function updatePagination() {
+  totalPages = Math.ceil(filteredSuggestions.length / pageSize);
+  currentPage = Math.min(currentPage, totalPages);
+  if (currentPage < 1) currentPage = 1;
+  
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, filteredSuggestions.length);
+  
+  // Update pagination info
+  const paginationInfo = document.getElementById('pagination-info');
+  if (paginationInfo) {
+    paginationInfo.textContent = `Menampilkan ${startIndex + 1}-${endIndex} dari ${filteredSuggestions.length} usulan`;
+  }
+  
+  // Update pagination controls
+  updatePaginationControls();
+  
+  // Render current page data
+  renderCurrentPage();
+}
 
+function updatePaginationControls() {
+  const prevBtn = document.getElementById('prev-page');
+  const nextBtn = document.getElementById('next-page');
+  const pageNumbers = document.getElementById('page-numbers');
+  
+  if (prevBtn) prevBtn.disabled = currentPage <= 1;
+  if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
+  
+  if (pageNumbers) {
+    pageNumbers.innerHTML = generatePageNumbers();
+  }
+}
+
+function generatePageNumbers() {
+  const pages = [];
+  const maxVisiblePages = 5;
+  
+  let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+  
+  if (endPage - startPage + 1 < maxVisiblePages) {
+    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+  }
+  
+  // Add first page if not visible
+  if (startPage > 1) {
+    pages.push(`<button class="page-number" onclick="goToPage(1)">1</button>`);
+    if (startPage > 2) {
+      pages.push(`<span class="page-ellipsis">...</span>`);
+    }
+  }
+  
+  // Add visible pages
+  for (let i = startPage; i <= endPage; i++) {
+    const activeClass = i === currentPage ? 'active' : '';
+    pages.push(`<button class="page-number ${activeClass}" onclick="goToPage(${i})">${i}</button>`);
+  }
+  
+  // Add last page if not visible
+  if (endPage < totalPages) {
+    if (endPage < totalPages - 1) {
+      pages.push(`<span class="page-ellipsis">...</span>`);
+    }
+    pages.push(`<button class="page-number" onclick="goToPage(${totalPages})">${totalPages}</button>`);
+  }
+  
+  return pages.join('');
+}
+
+function renderCurrentPage() {
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, filteredSuggestions.length);
+  const pageData = filteredSuggestions.slice(startIndex, endIndex);
+  
+  const tbody = document.getElementById('suggestions-tbody');
+  if (!tbody) return;
+  
+  const suggestionsHtml = pageData.map((suggestion, index) => {
+    const timestamp = new Date(suggestion.timestamp || Date.now());
+    const formattedDate = timestamp.toLocaleDateString('id-ID', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    
+    return `
+      <tr data-index="${startIndex + index}">
+        <td>${suggestion.usulan_id}</td>
+        <td>${suggestion.menu_name}</td>
+        <td>${suggestion.customer_name}</td>
+        <td>${formattedDate}</td>
+        <td>
+          <button class="suggestion-action-btn view" onclick="viewSuggestionDetail(${startIndex + index})" title="Lihat Detail">
+            <i class="fas fa-eye"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-success" onclick="approveSuggestion('${suggestion.usulan_id}')" title="Setujui">
+            <i class="fas fa-check"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-danger" onclick="rejectSuggestion('${suggestion.usulan_id}')" title="Tolak">
+            <i class="fas fa-times"></i>
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+  
+  tbody.innerHTML = suggestionsHtml;
+}
+
+function changePage(direction) {
+  const newPage = currentPage + direction;
+  if (newPage >= 1 && newPage <= totalPages) {
+    currentPage = newPage;
+    updatePagination();
+  }
+}
+
+function goToPage(page) {
+  if (page >= 1 && page <= totalPages) {
+    currentPage = page;
+    updatePagination();
+  }
+}
+
+function changePageSize() {
+  const pageSizeSelect = document.getElementById('page-size');
+  if (pageSizeSelect) {
+    pageSize = parseInt(pageSizeSelect.value);
+    currentPage = 1; // Reset to first page
+    updatePagination();
+  }
+}
+
+// Update filter and sort to reset pagination
+function filterSuggestions(query) {
+  if (!query.trim()) {
+    filteredSuggestions = [...suggestions];
+  } else {
+    const lowerQuery = query.toLowerCase();
+    filteredSuggestions = suggestions.filter(suggestion => 
+      suggestion.menu_name.toLowerCase().includes(lowerQuery) ||
+      suggestion.customer_name.toLowerCase().includes(lowerQuery)
+    );
+  }
+  currentPage = 1; // Reset to first page
+  renderSuggestions();
+}
+
+function sortSuggestions(sortType) {
+  switch (sortType) {
+    case 'newest':
+      filteredSuggestions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      break;
+    case 'oldest':
+      filteredSuggestions.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      break;
+    case 'popular':
+      // For now, sort by timestamp (newest first) since we don't have popularity data
+      filteredSuggestions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      break;
+  }
+  currentPage = 1; // Reset to first page
+  renderSuggestions();
+}
