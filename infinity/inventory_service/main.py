@@ -457,10 +457,8 @@ def add_flavor_mapping(req: FlavorMappingRequest, db: Session = Depends(get_db))
 def debug_flavor_mappings(db: Session = Depends(get_db)):
     """Debug endpoint untuk flavor mappings"""
     try:
-        # Check total count
         total_count = db.query(FlavorMapping).count()
         
-        # Get raw data
         mappings = db.query(FlavorMapping).all()
         
         debug_info = []
@@ -508,7 +506,6 @@ def list_flavor_mappings(db: Session = Depends(get_db)):
         
         data = []
         for mapping in mappings:
-            # Get ingredient separately to avoid JOIN issues
             ingredient = db.query(Inventory).filter(Inventory.id == mapping.ingredient_id).first()
             ingredient_name = ingredient.name if ingredient else "Unknown"
             
@@ -1577,7 +1574,7 @@ def get_daily_consumption_history(
             for item in ingredient_data:
                 ingredient_id = item.get('ingredient_id')
                 ingredient_name = item.get('ingredient_name', 'Unknown')
-                quantity_consumed = item.get('quantity_consumed', 0)
+                quantity_consumed = item.get('deducted', 0) 
                 unit = item.get('unit', '')
                 
                 if ingredient_id not in daily_consumption[date_str]["ingredients_consumed"]:
