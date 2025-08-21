@@ -1,8 +1,3 @@
-// Login guard
-if (!localStorage.getItem('access_token')) {
-  window.location.href = '/login';
-}
-
 // Global variables
 let suggestions = [];
 let filteredSuggestions = [];

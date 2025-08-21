@@ -44,6 +44,7 @@ function setupNavigation() {
         menu: "Menu Management",
         pesanan: "Daftar Pesanan",
         inventory: "Stock Management",
+        menu_suggestion: "Menu Suggestion",
         // Tambah halaman lain di sini
     };
 
@@ -52,6 +53,7 @@ function setupNavigation() {
         dashboard: 'nav-dashboard',
         menu: 'nav-menu',
         inventory: 'nav-stok',
+        menu_suggestion: 'nav-suggestion',
     };
     const activeNavId = pageToNavId[currentPage];
     navButtons.forEach(btn => {
@@ -69,6 +71,7 @@ function setupNavigation() {
                 'nav-dashboard': '/dashboard',
                 'nav-menu': '/menu-management',
                 'nav-stok': '/stock-management',
+                'nav-suggestion': '/menu-suggestion',
                 // Tambahkan mapping khusus di sini jika perlu
             };
 
@@ -234,7 +237,10 @@ function displayUserInfo() {
                     greetingMessage.textContent = `Hi, ${username}, here's today's orders!`;
                 } else if (currentPage === 'inventory') {
                     greetingMessage.textContent = `Hi, ${username}, here's today's stock overview!`;
-                } else {
+                } else if (currentPage === 'menu_suggestion') {
+                    greetingMessage.textContent = `Hi, ${username}, here's today's menu suggestions!`;
+                }
+                else {
                     greetingMessage.textContent = `Hi, ${username}!`;
                 }
             }

@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 </head>
-<body data-page="menu-suggestion">
+<body data-page="menu_suggestion">
   <!-- Header -->
   <nav class="header">
     <div class="header-brand">
@@ -22,8 +22,25 @@
     </div>
          <div class="header-right">
        <!-- Search moved to table area -->
+
+      <div class="kitchen-status-container">
+        <label class="switch">
+          <input type="checkbox" id="kitchen-toggle" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
      </div>
   </nav>
+
+    <!-- Kitchen Off Banner -->
+  <div id="kitchen-off-banner" class="kitchen-off-banner hidden">
+      🚫 Dapur sedang OFF. Tidak dapat menerima/memproses pesanan.
+  </div>
+
+  <!-- Offline Banner -->
+  <div id="offline-banner" class="offline-banner hidden">
+      🔌 Gagal ambil data. Cek koneksi.
+  </div>
 
   <!-- Main Content -->
   <div class="main-container">
@@ -31,7 +48,8 @@
       <!-- Greeting Message -->
       <div class="greeting-message">
         <h2>Usulan Menu dari Pelanggan</h2>
-        <p class="greeting-date">Kelola dan lihat usulan menu dari pelanggan setia kami</p>
+        <!-- <p class="greeting-date">Kelola dan lihat usulan menu dari pelanggan setia kami</p> -->
+        <p class="greeting-date" id="greeting-date">Monday, 14th July 2025</p>
       </div>
 
       <!-- Action Buttons -->
@@ -262,6 +280,7 @@
     </div>
   </div>
 
+  <script src="script.js"></script>
   <script src="js/menu-suggestion.js"></script>
 </body>
 </html>

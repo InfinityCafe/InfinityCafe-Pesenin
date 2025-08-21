@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kelola Stok - Infinity Cafe</title>
   <link rel="stylesheet" href="style.css">
-  <!-- <link rel="stylesheet" href="css/navbar.css"> -->
-  <!-- <link rel="stylesheet" href="css/kelola-stok.css"> -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 </head>
 <body data-page="inventory">
@@ -286,29 +284,9 @@
         <p class="item-name" id="delete-item-name"></p>
         <p class="delete-warning">Tindakan ini tidak dapat dibatalkan.</p>
       </div>
-      <div class="form-actions">
+      <div class="modal-actions">
         <button type="button" class="modal-btn modal-btn-cancel" id="cancel-delete-btn">Cancel</button>
         <button type="button" class="modal-btn modal-btn-danger" id="confirm-delete-btn">Delete</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="delete-confirm-modal" class="modal hidden">
-    <div class="modal-content delete-confirm-modal">
-      <button class="modal-close" onclick="closeDeleteConfirmModal()">
-        &times;
-      </button>
-      <div class="modal-header">
-        <i class="fas fa-exclamation-triangle warning-icon"></i>
-        <h3 class="modal-title">Konfirmasi Hapus</h3>
-      </div>
-      <div class="modal-body">
-        <p id="delete-confirm-message">Apakah Anda yakin ingin menghapus item ini?</p>
-        <p class="delete-warning">Tindakan ini tidak dapat dibatalkan.</p>
-      </div>
-      <div class="modal-actions">
-        <button class="modal-btn modal-btn-cancel" onclick="closeDeleteConfirmModal()">Batal</button>
-        <button class="modal-btn modal-btn-danger" id="delete-confirm-btn">Hapus</button>
       </div>
     </div>
   </div>
