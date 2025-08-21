@@ -2,101 +2,167 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>1 Laporan Penjualan - Infinity Cafe</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laporan Penjualan - Infinity Cafe</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <style>
-        .card-retro {@apply bg-white border-4 border-black p-4 shadow-[4px_4px_0_#000] font-mono uppercase text-sm;}
-        .table-retro {@apply border-collapse w-full mt-4 text-sm;}
-        .table-retro th, .table-retro td {@apply border-2 border-black px-2 py-1;}
-        .btn-retro {@apply bg-yellow-300 border-4 border-black px-4 py-2 font-extrabold shadow-[3px_3px_0_#000] hover:bg-black hover:text-yellow-300;}
-        .btn-close {@apply absolute top-2 right-2 text-red-600 font-bold text-lg bg-white border-2 border-black rounded-full w-6 h-6 flex items-center justify-center;}
-    </style>
 </head>
-<body class="bg-white p-6 font-mono">
-    <div id="loading-overlay" class="fixed inset-0 bg-white bg-opacity-70 z-50 hidden items-center justify-center">
-        <div class="text-black font-extrabold text-xl animate-pulse">⏳ Memuat data laporan...</div>
-    </div>
-
-    <h1 class="text-3xl font-extrabold uppercase mb-4 text-center bg-yellow-300 border-b-4 border-black shadow-[4px_4px_0_#000]">📊 Laporan Penjualan X</h1>
-
-    <div class="flex flex-wrap items-center gap-4 mb-4">
-        <label class="font-mono uppercase text-sm">Dari:
-            <input type="date" id="start_date" class="border-4 border-black p-1">
-        </label>
-        <label class="font-mono uppercase text-sm">Sampai:
-            <input type="date" id="end_date" class="border-4 border-black p-1">
-        </label>
-        <button onclick="loadReport()" class="btn-retro">Tampilkan</button>
-        <button onclick="exportCSV()" class="btn-retro">⬇️ CSV</button>
-        <button onclick="exportPDF()" class="btn-retro">📄 PDF</button>
-    </div>
-
-    <div id="summary" class="text-sm font-mono mb-2"></div>
-    <div id="insight-box" class="card-retro text-black bg-yellow-100 mb-4 hidden"></div>
-
-    <table class="table-retro">
-        <thead>
-            <tr>
-                <th>No</th><th>Menu</th><th>Qty</th><th>Harga</th><th>Total</th>
-            </tr>
-        </thead>
-        <tbody id="report-body"></tbody>
-    </table>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
-        <div class="card-retro">
-            <h3 class="text-lg mb-2">📊 Top Menu Terlaris</h3>
-            <canvas id="barChart"></canvas>
+<body data-page="report">
+    <!-- Header -->
+    <nav class="header">
+        <div class="header-brand">
+            <h1 class="header-title" id="navbar-title">Laporan Penjualan</h1>
+            <p class="header-subtitle">Stephany | Barista</p>
         </div>
-        <div class="card-retro">
-            <h3 class="text-lg mb-2">🥧 Komposisi Penjualan</h3>
-            <canvas id="pieChart"></canvas>
+        <div class="header-menu">
+            <button class="nav-btn" id="nav-dashboard" onclick="window.location.href = '/dashboard';">Dashboard</button>
+            <button class="nav-btn" id="nav-menu" onclick="window.location.href = '/menu-management';">Menu Management</button>
+            <button class="nav-btn" id="nav-suggestion" onclick="window.location.href = '/menu-suggestion';">Usulan Menu</button>
+            <button class="nav-btn" id="nav-stok" onclick="window.location.href = '/stock-management';">Stock Management</button>
+            <button class="nav-btn active" id="nav-report" onclick="window.location.href = '/report';">Laporan</button>
+        </div>
+        <div class="header-right">
+            <div class="kitchen-status-container">
+                <label class="switch">
+                    <input type="checkbox" id="kitchen-toggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="modal hidden">
+        <div class="modal-content" style="max-width: 400px; text-align: center; background: #F5EFE6;">
+            <div class="modal-title">⏳ Memuat Data Laporan</div>
+            <div class="modal-text">Mohon tunggu sebentar...</div>
         </div>
     </div>
 
-    <div class="card-retro mt-8">
-        <h3 class="text-lg mb-2">🏆 Top 5 Pembeli Loyal</h3>
-        <ul id="loyal-list" class="list-disc ml-5 text-sm"></ul>
+    <!-- Main Content -->
+    <div class="main-container">
+        <div class="content-area">
+            <!-- Greeting Message -->
+            <div class="greeting-message">
+                <h2>Hi, John Doe, here's your sales report!</h2>
+                <p class="greeting-date" id="greeting-date">Monday, 14th July 2025</p>
+            </div>
+
+            <!-- Date Filter Section -->
+            <div class="search-filter-section">
+                <div class="filter-container">
+                    <label class="filter-group">
+                        <span style="color: #312929; font-weight: 600; margin-right: 8px;">Dari:</span>
+                        <input type="date" id="start_date" class="price-input" style="width: 200px;">
+                    </label>
+                    <label class="filter-group">
+                        <span style="color: #312929; font-weight: 600; margin-right: 8px;">Sampai:</span>
+                        <input type="date" id="end_date" class="price-input" style="width: 200px;">
+                    </label>
+                    <button onclick="loadReport()" class="apply-filter-btn">Tampilkan</button>
+                    <button onclick="exportCSV()" class="btn-secondary">⬇️ CSV</button>
+                    <button onclick="exportPDF()" class="btn-secondary">📄 PDF</button>
+                </div>
+            </div>
+
+            <!-- Summary Section -->
+            <div id="summary" class="table-info"></div>
+            
+            <!-- Insight Box -->
+            <div id="insight-box" class="summary-item hidden">
+                <div class="summary-header">
+                    <span class="summary-name">💡 Insight Laporan</span>
+                    <span class="summary-close" onclick="document.getElementById('insight-box').classList.add('hidden')">×</span>
+                </div>
+                <div id="insight-content"></div>
+            </div>
+
+            <!-- Report Table -->
+            <div class="table-container">
+                <table id="report-table" class="flavour-table">
+                    <thead>
+                        <tr>
+                            <th>No</th>
+                            <th>Menu</th>
+                            <th>Qty</th>
+                            <th>Harga</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="report-body"></tbody>
+                </table>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="dashboard-layout" style="margin-top: 2rem;">
+                <div class="column" style="flex: 1;">
+                    <h3 class="column-title">📊 Top Menu Terlaris</h3>
+                    <div class="column-content">
+                        <canvas id="barChart"></canvas>
+                    </div>
+                </div>
+                <div class="column" style="flex: 1;">
+                    <h3 class="column-title">🥧 Komposisi Penjualan</h3>
+                    <div class="column-content">
+                        <canvas id="pieChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Info Section -->
+            <div class="dashboard-layout" style="margin-top: 2rem;">
+                <div class="column" style="flex: 1;">
+                    <h3 class="column-title">🏆 Top 5 Pembeli Loyal</h3>
+                    <div class="column-content">
+                        <ul id="loyal-list" class="summary-table" style="list-style: none; padding: 0;"></ul>
+                    </div>
+                </div>
+                <div class="column" style="flex: 1;">
+                    <h3 class="column-title">💡 Menu Usulan Pelanggan</h3>
+                    <div class="column-content">
+                        <ul id="usulan-list" class="summary-table" style="list-style: none; padding: 0;"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div class="card-retro mt-8">
-        <h3 class="text-lg mb-2">💡 Menu Usulan Pelanggan</h3>
-        <ul id="usulan-list" class="list-disc ml-5 text-sm"></ul>
-    </div>
-
-    <div id="pie-modal" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden items-center justify-center">
-        <div class="bg-white border-4 border-black p-6 rounded-lg shadow-[4px_4px_0_#000] max-w-sm w-full font-mono relative">
-            <button onclick="closePieModal()" class="btn-close">✖</button>
-            <h3 class="text-lg font-bold mb-2">📊 Detail Menu</h3>
-            <div id="pie-modal-content" class="text-sm"></div>
+    <!-- Pie Chart Modal -->
+    <div id="pie-modal" class="modal hidden">
+        <div class="modal-content view-modal">
+            <button onclick="closePieModal()" class="modal-close">×</button>
+            <div class="modal-title">📊 Detail Menu</div>
+            <div id="pie-modal-content" class="view-content"></div>
         </div>
     </div>
 
 <script>
 // Login guard
 if (!localStorage.getItem('access_token')) {
-  window.location.href = '/login';
+    window.location.href = '/login';
 }
+
 // Fungsi logout
 function logout() {
-  localStorage.removeItem('access_token');
-  window.location.href = '/login';
+    localStorage.removeItem('access_token');
+    window.location.href = '/login';
 }
+
 // Tambahkan tombol logout ke header setelah DOM siap
 window.addEventListener('DOMContentLoaded', function () {
-  const headerRight = document.querySelector('.header-right');
-  if (headerRight && !document.getElementById('logout-btn')) {
-    const logoutBtn = document.createElement('button');
-    logoutBtn.className = 'nav-btn';
-    logoutBtn.id = 'logout-btn';
-    logoutBtn.textContent = 'Logout';
-    logoutBtn.style.marginLeft = '1rem';
-    logoutBtn.onclick = logout;
-    headerRight.appendChild(logoutBtn);
-  }
+    const headerRight = document.querySelector('.header-right');
+    if (headerRight && !document.getElementById('logout-btn')) {
+        const logoutBtn = document.createElement('button');
+        logoutBtn.className = 'nav-btn';
+        logoutBtn.id = 'logout-btn';
+        logoutBtn.textContent = 'Logout';
+        logoutBtn.style.marginLeft = '1rem';
+        logoutBtn.onclick = logout;
+        headerRight.appendChild(logoutBtn);
+    }
 });
 
 let barChart, pieChart;
@@ -107,33 +173,93 @@ function closePieModal() {
 
 function showPieModal(label, value, percent) {
     document.getElementById("pie-modal-content").innerHTML = `
-        <p><strong>${label}</strong></p>
-        <p>Jumlah: ${value} item</p>
-        <p>Kontribusi: ${percent}%</p>`;
+        <div class="view-item">
+            <label>Menu:</label>
+            <span><strong>${label}</strong></span>
+        </div>
+        <div class="view-item">
+            <label>Jumlah:</label>
+            <span>${value} item</span>
+        </div>
+        <div class="view-item">
+            <label>Kontribusi:</label>
+            <span>${percent}%</span>
+        </div>`;
     document.getElementById("pie-modal").classList.remove("hidden");
 }
 
 function renderCharts(details) {
     const labels = details.map(d => d.menu_name);
     const quantities = details.map(d => d.quantity);
+    
     if (barChart) barChart.destroy();
     if (pieChart) pieChart.destroy();
 
+    // Bar Chart
     barChart = new Chart(document.getElementById("barChart"), {
         type: 'bar',
-        data: { labels, datasets: [{ label: "Jumlah Terjual", data: quantities, backgroundColor: "orange" }] },
-        options: { responsive: true }
+        data: { 
+            labels, 
+            datasets: [{ 
+                label: "Jumlah Terjual", 
+                data: quantities, 
+                backgroundColor: "#8D7272",
+                borderColor: "#503A3A",
+                borderWidth: 2
+            }] 
+        },
+        options: { 
+            responsive: true,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: '#312929',
+                        font: {
+                            family: 'Inter',
+                            size: 14
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#312929'
+                    }
+                },
+                x: {
+                    ticks: {
+                        color: '#312929'
+                    }
+                }
+            }
+        }
     });
 
+    // Pie Chart
     pieChart = new Chart(document.getElementById("pieChart"), {
         type: 'pie',
         data: {
             labels,
-            datasets: [{ data: quantities, backgroundColor: labels.map((_, i) => `hsl(${i * 40}, 70%, 60%)`) }]
+            datasets: [{ 
+                data: quantities, 
+                backgroundColor: [
+                    '#8D7272', '#DCD0A8', '#207156', '#B3261E', '#E09B20',
+                    '#503A3A', '#CAB99D', '#685454', '#60B7A6', '#F5EFE6'
+                ],
+                borderColor: '#FFFFFF',
+                borderWidth: 2
+            }]
         },
         options: {
             responsive: true,
-            animation: { animateRotate: true, animateScale: true, duration: 1000, easing: "easeOutBounce" },
+            animation: { 
+                animateRotate: true, 
+                animateScale: true, 
+                duration: 1000, 
+                easing: "easeOutBounce" 
+            },
             plugins: {
                 tooltip: {
                     callbacks: {
@@ -148,6 +274,13 @@ function renderCharts(details) {
                 },
                 legend: {
                     position: 'right',
+                    labels: {
+                        color: '#312929',
+                        font: {
+                            family: 'Inter',
+                            size: 12
+                        }
+                    },
                     onClick: (e, legendItem, legend) => {
                         const index = legendItem.index;
                         const ci = legend.chart;
@@ -172,19 +305,30 @@ function renderCharts(details) {
 
 function generateInsight(data, topMenu, loyalCustomer) {
     const box = document.getElementById("insight-box");
+    const content = document.getElementById("insight-content");
     const percent = ((topMenu.total / data.total_income) * 100).toFixed(1);
+    
     const rangkuman = `📅 Hari ini terjadi <strong>${data.total_order}</strong> transaksi dengan total pendapatan <strong>Rp ${data.total_income.toLocaleString()}</strong>.`;
     const menuTerlaris = `📌 Menu paling laris: <strong>${topMenu.menu_name}</strong> (${topMenu.quantity} terjual), menyumbang ${percent}% pendapatan.`;
     const loyal = loyalCustomer ? `🏆 Pelanggan loyal: <strong>${loyalCustomer.customer_name}</strong>, ${loyalCustomer.total_orders}x order, Rp ${loyalCustomer.total_spent.toLocaleString()}.` : "";
-    box.innerHTML = [rangkuman, menuTerlaris, loyal].filter(Boolean).join('<br>');
+    
+    content.innerHTML = [rangkuman, menuTerlaris, loyal].filter(Boolean).join('<br><br>');
     box.classList.remove("hidden");
 }
 
 async function loadReport() {
     const start = document.getElementById("start_date").value;
     const end = document.getElementById("end_date").value;
-    if (!start || !end) return alert("Tanggal belum diisi!");
-    if (new Date(start) > new Date(end)) return alert("Tanggal awal tidak boleh melebihi tanggal akhir!");
+    
+    if (!start || !end) {
+        alert("Tanggal belum diisi!");
+        return;
+    }
+    
+    if (new Date(start) > new Date(end)) {
+        alert("Tanggal awal tidak boleh melebihi tanggal akhir!");
+        return;
+    }
 
     document.getElementById("loading-overlay").classList.remove("hidden");
     const controller = new AbortController();
@@ -193,13 +337,16 @@ async function loadReport() {
     try {
         const res = await fetch(`/report?start_date=${start}&end_date=${end}`, { signal: controller.signal });
         clearTimeout(timeout);
+        
         if (!res.ok) throw new Error("Gagal mengambil data laporan");
         const data = await res.json();
 
+        // Update summary
         document.getElementById("summary").innerHTML = `
             <p><strong>Periode:</strong> ${data.start_date} s/d ${data.end_date}</p>
             <p><strong>Total Transaksi:</strong> ${data.total_order} | <strong>Pendapatan:</strong> Rp ${data.total_income.toLocaleString()}</p>`;
 
+        // Update table
         const tbody = document.getElementById("report-body");
         tbody.innerHTML = "";
         data.details.forEach((item, i) => {
@@ -232,14 +379,19 @@ async function loadTopCustomers(start, end, salesData, topMenu) {
         const timeout = setTimeout(() => controller.abort(), 10000);
         const res = await fetch(`/report/top_customers?start_date=${start}&end_date=${end}`, { signal: controller.signal });
         clearTimeout(timeout);
+        
         if (!res.ok) throw new Error("Gagal ambil data loyal customer");
         const data = await res.json();
 
         const ul = document.getElementById("loyal-list");
         ul.innerHTML = "";
         data.forEach((cust, i) => {
-            ul.innerHTML += `<li>${cust.customer_name} — ${cust.total_orders}x | Rp ${cust.total_spent.toLocaleString()}</li>`;
+            ul.innerHTML += `
+                <li style="padding: 8px 0; border-bottom: 1px solid #F3F4F6; color: #312929;">
+                    <strong>${cust.customer_name}</strong> — ${cust.total_orders}x | Rp ${cust.total_spent.toLocaleString()}
+                </li>`;
         });
+        
         generateInsight(salesData, topMenu, data[0]);
     } catch (err) {
         alert("⚠️ Gagal memuat data pelanggan loyal.");
@@ -250,17 +402,23 @@ async function loadTopCustomers(start, end, salesData, topMenu) {
 async function fetchSuggestedMenu() {
     const start = document.getElementById("start_date").value;
     const end = document.getElementById("end_date").value;
+    
     try {
         const res = await fetch(`/report/suggested_menu?start_date=${start}&end_date=${end}`);
         const data = await res.json();
+        
         const ul = document.getElementById("usulan-list");
         ul.innerHTML = "";
+        
         if (data.length === 0) {
-            ul.innerHTML = "<li class='text-gray-600'>Tidak ada usulan pada periode ini.</li>";
+            ul.innerHTML = "<li style='padding: 8px 0; color: #6B7280; font-style: italic;'>Tidak ada usulan pada periode ini.</li>";
         } else {
             data.forEach((item) => {
                 const date = new Date(item.last_suggested).toLocaleString("id-ID");
-                ul.innerHTML += `<li><strong>${item.menu_name}</strong> — ${item.usulan_count}x (terakhir: ${date})</li>`;
+                ul.innerHTML += `
+                    <li style="padding: 8px 0; border-bottom: 1px solid #F3F4F6; color: #312929;">
+                        <strong>${item.menu_name}</strong> — ${item.usulan_count}x (terakhir: ${date})
+                    </li>`;
             });
         }
     } catch (err) {
@@ -274,6 +432,7 @@ function exportCSV() {
         const cols = [...tr.children].map(td => td.innerText);
         rows.push([i + 1, ...cols.slice(1)]);
     });
+    
     const csv = rows.map(row => row.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -293,6 +452,7 @@ async function exportPDF() {
     pdf.save(`laporan_penjualan_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
+// Set default dates and load initial report
 window.onload = () => {
     const today = new Date().toISOString().split('T')[0];
     document.getElementById("start_date").value = today;
