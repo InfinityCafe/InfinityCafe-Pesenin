@@ -174,6 +174,34 @@ app.post("/menu", async (req, res) => {
   }
 });
 
+// Menu suggestion endpoints - MUST COME BEFORE /menu/:menu_id to avoid route conflict
+app.get("/menu_suggestion", async (req, res) => {
+  try {
+    const resp = await fetch("http://menu_service:8001/menu_suggestion");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch menu suggestions ", err);
+    res.status(500).json({ error: "Failed to fetch menu suggestions" });
+  }
+});
+
+app.post("/menu_suggestion", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://menu_service:8001/menu_suggestion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to create menu suggestion ", err);
+    res.status(500).json({ error: "Failed to create menu suggestion" });
+  }
+});
+
 app.get("/menu/:menu_id", async (req, res) => {
   try {
     const { menu_id } = req.params;
@@ -579,6 +607,10 @@ app.get("/reportkitchen", (req, res) => {
 
 app.get("/stock-management", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "kelola-stok.html"));
+});
+
+app.get("/menu-suggestion", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "menu-suggestion.html"));
 });
 
 app.get("/login", (req, res) => {
