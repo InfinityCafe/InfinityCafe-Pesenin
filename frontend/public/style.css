@@ -1910,9 +1910,15 @@ input:checked + .slider:before {
     }
 
 /* Modal Add Order Figma Style */
+/* .add-menu-modal, */
+#consumption-log-modal .modal-content,
+#bulk-stock-modal .modal-content,
+#add-stock-modal .modal-content,
 #add-order-modal .modal-content,
 #item-modal .modal-content {
+  /* min-width: 400px; */
   max-width: 400px;
+  /* max-width: 481px; */
   border-radius: 22px;
   background: #f5efe6;
   padding: 32px 28px 24px 28px;
@@ -1937,31 +1943,6 @@ input:checked + .slider:before {
   font-weight: 700;
   color: #312929;
   font-size: 15px;
-}
-#add-order-modal input[type="text"],
-#add-order-modal input[type="number"],
-#add-order-modal select,
-#add-order-modal textarea {
-  width: 100%;
-  height: 44px;
-  padding: 12px 18px;
-  background: #fff;
-  border: none;
-  border-radius: 10px;
-  font-size: 15px;
-  color: #312929;
-  font-family: 'Inter', sans-serif;
-  margin-bottom: 0;
-  box-shadow: 0 1px 2px #0000000a;
-}
-#add-order-modal input[type="text"]::placeholder,
-#add-order-modal textarea::placeholder {
-  color: #bdbdbd;
-  font-style: italic;
-}
-#add-order-modal textarea {
-  height: 60px;
-  resize: vertical;
 }
 #add-order-modal .modal-btn {
   position: relative;
@@ -2037,8 +2018,7 @@ input:checked + .slider:before {
 }
 #add-order-modal .quantity-row {
   display: flex;
-  align-items: center;
-  /* justify-content: center; */
+  justify-content: center;
   gap: 12px;
   margin-top: 2px;
 }
@@ -2905,7 +2885,6 @@ body.tab-done .add-order-btn {
     max-height: 120px;
 }
 
-.add-menu-modal .modal-title,
 .modal-title {
     font-family: 'Inter', sans-serif;
     font-weight: 700;
@@ -2945,7 +2924,7 @@ body.tab-done .add-order-btn {
     margin-bottom: 24px;
 }
 
-.add-flavour-modal .form-group label {
+/* .add-flavour-modal .form-group label {
     font-family: 'Inter', sans-serif;
     font-weight: 700;
     font-size: 16px;
@@ -2953,7 +2932,7 @@ body.tab-done .add-order-btn {
     color: #312929;
     display: block;
     margin-bottom: 8px;
-}
+} */
 
 /* Flavour status radio group - align with menu modal styling, responsive-safe */
 .add-flavour-modal .radio-group {
@@ -3009,6 +2988,7 @@ body.tab-done .add-order-btn {
 #add-order-modal textarea,
 .form-group textarea {
     padding: 12px 22px;
+    min-height: 80px;
     resize: vertical;
 }
 
@@ -3062,6 +3042,7 @@ body.tab-done .add-order-btn {
     margin-bottom: 0;
 }
 
+.add-flavour-modal .form-group label,
 .add-menu-modal .form-group label,
 .form-group label {
     font-family: 'Inter', sans-serif;
@@ -4417,9 +4398,7 @@ body[data-page="login"] {
   margin-top: 2rem;
 }
 
-.btn-primary,
-.btn-secondary,
-.btn-danger {
+.btn-secondary {
   padding: 0.75rem 1.5rem;
   border: none;
   border-radius: 5px;
@@ -4429,15 +4408,6 @@ body[data-page="login"] {
   transition: all 0.3s ease;
 }
 
-.btn-primary {
-  background: #379777;
-  color: #FFFFFF;
-}
-
-.btn-primary:hover {
-  background: #2d6b5a;
-}
-
 .btn-secondary {
   background: #8D7272;
   color: #FFFFFF;
@@ -4445,15 +4415,6 @@ body[data-page="login"] {
 
 .btn-secondary:hover {
   background: #6d5a5a;
-}
-
-.btn-danger {
-  background: #B3261E;
-  color: #FFFFFF;
-}
-
-.btn-danger:hover {
-  background: #8f1e18;
 }
 
 /* Delete Modal Specific */
@@ -4561,23 +4522,6 @@ body[data-page="login"] {
 
 .log-table tbody tr:hover {
   background: rgba(220, 208, 168, 0.1);
-}
-
-/* Form textarea styles */
-.form-group textarea {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #DCD0A8;
-  border-radius: 5px;
-  font-size: 1rem;
-  outline: none;
-  transition: border-color 0.3s ease;
-  resize: vertical;
-  min-height: 80px;
-}
-
-.form-group textarea:focus {
-  border-color: #8D7272;
 }
 
 /* Responsive adjustments for search and view modals */
@@ -4749,16 +4693,6 @@ body[data-page="login"] {
     cursor: pointer;
     transition: all 0.2s ease;
     white-space: nowrap;
-}
-
-.btn-primary {
-    background-color: #685454;
-    color: white;
-}
-
-.btn-primary:hover {
-    background-color: #5a4848;
-    transform: translateY(-1px);
 }
 
 .btn-secondary {
@@ -5108,12 +5042,12 @@ body[data-page="login"] {
     margin-bottom: 1.5rem;
 }
 
-.form-group label {
+/* .form-group label {
     display: block;
     margin-bottom: 0.5rem;
     font-weight: 500;
     color: #685454;
-}
+} */
 
 .form-input, .form-textarea {
     width: 100%;
