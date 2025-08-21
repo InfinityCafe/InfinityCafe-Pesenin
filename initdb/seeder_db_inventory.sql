@@ -149,40 +149,56 @@ BEGIN
 END $$;
 
 -- Gunakan ID eksplisit agar sinkron dengan menu_service.synced_inventory
--- BAHAN DASAR MINUMAN (stok diperbanyak)
+-- DATA INVENTORY BERDASARKAN SPREADSHEET TERBARU
 INSERT INTO inventories (id, name, current_quantity, minimum_quantity, category, unit) 
 VALUES
-(1,  'Creamer',               500,   500,  'ingredient'::stockcategory, 'gram'::unittype),
-(2,  'Kopi Robusta',         2000,  2000,  'ingredient'::stockcategory, 'gram'::unittype),
-(3,  'Susu Cair',            5000,  5000,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(4,  'SKM',                  1000,  1000,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(5,  'Gula Aren Cair',       1000,  1000,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(6,  'Gula Pasir',           1500,  1500,  'ingredient'::stockcategory, 'gram'::unittype),
-(7,  'Ice Batu',             5000,  5000,  'ingredient'::stockcategory, 'gram'::unittype),
-(8,  'Biji Selasih',          100,   100,  'ingredient'::stockcategory, 'gram'::unittype),
-(9,  'Soda',                 1000,  1000,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(10, 'Teh Celup',              50,    50,  'ingredient'::stockcategory, 'piece'::unittype),
-(11, 'Kopi Nescafe',            10,     10,  'ingredient'::stockcategory, 'piece'::unittype),
-(12, 'Butterscout',            356,   356,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(13, 'French Mocca',           560,   560,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(14, 'Rosted Almond',          231,   231,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(15, 'Creme Brulee',           358,   358,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(16, 'Irish',                  500,   500,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(17, 'Havana',                  82,    82,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(18, 'Salted Caramel',         600,   600,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(19, 'Mangga',                 183,   183,  'ingredient'::stockcategory, 'gram'::unittype),
-(20, 'Permenkaret',            398,   398,  'ingredient'::stockcategory, 'gram'::unittype),
-(21, 'Tiramisu',               484,   484,  'ingredient'::stockcategory, 'gram'::unittype),
-(22, 'Redvelvet',              863,   863,  'ingredient'::stockcategory, 'gram'::unittype),
-(23, 'Strawberry',             600,   600,  'ingredient'::stockcategory, 'gram'::unittype),
-(24, 'Vanilla',                318,   318,  'ingredient'::stockcategory, 'gram'::unittype);
+-- PACKAGING & PERLENGKAPAN
+(1,  'Cup',                   700,   100,  'packaging'::stockcategory, 'piece'::unittype),
+(2,  'Cup Hot',               550,   100,  'packaging'::stockcategory, 'piece'::unittype),
+(3,  'Sedotan',               173,    50,  'packaging'::stockcategory, 'piece'::unittype),
 
--- PACKAGING & PERLENGKAPAN (stok diperbanyak)
-INSERT INTO inventories (id, name, current_quantity, minimum_quantity, category, unit) 
-VALUES
-(25, 'Cup Plastik',           500,   500, 'packaging'::stockcategory, 'piece'::unittype),
-(26, 'Cup Kertas',            700,   700, 'packaging'::stockcategory, 'piece'::unittype),
-(27, 'Sedotan',               500,   500, 'packaging'::stockcategory, 'piece'::unittype);
+-- BAHAN DASAR MINUMAN
+(4,  'Kopi Robusta',         1800,   500,  'ingredient'::stockcategory, 'gram'::unittype),
+(5,  'Creamer',              1200,   500,  'ingredient'::stockcategory, 'gram'::unittype),
+(6,  'Susu Kental Manis',    1605,   540,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(7,  'Susu Diamond',         6000,  3000,  'ingredient'::stockcategory, 'milliliter'::unittype),
+
+-- SYRUP & FLAVOR LIQUID
+(8,  'Caramel',               435,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(9,  'Peach',                 600,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(10, 'Macadamia Nut',         460,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(11, 'French Moca',           400,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(12, 'Java Brown Sugar',      400,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(13, 'Chocolate',             470,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(14, 'Passion Fruit',         530,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(15, 'Roasted Almond',        585,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(16, 'Creme Brulee',          280,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(17, 'Butter Scotch',         500,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
+
+-- MARJAN SERIES
+(18, 'Marjan Vanilla',        230,   100,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(19, 'Marjan Grenadine',      367,   100,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(20, 'Marjan Markisa',        294,   100,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(21, 'Marjan Melon',          215,   100,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(22, 'Marjan Nanas',          460,   100,  'ingredient'::stockcategory, 'milliliter'::unittype),
+
+-- GULA & PEMANIS
+(23, 'Gula Pasir Cair',       300,   200,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(24, 'Gula Aren Cair',        337,   200,  'ingredient'::stockcategory, 'milliliter'::unittype),
+
+-- POWDER SERIES
+(25, 'Powder Keju Vanilla',   197,   300,  'ingredient'::stockcategory, 'gram'::unittype),
+(26, 'Powder Taro',           187,   300,  'ingredient'::stockcategory, 'gram'::unittype),
+(27, 'Powder Banana',         377,   300,  'ingredient'::stockcategory, 'gram'::unittype),
+(28, 'Powder Dark Chocolate', 882,   300,  'ingredient'::stockcategory, 'gram'::unittype),
+(29, 'Powder Chocolate Hazelnut', 413, 300, 'ingredient'::stockcategory, 'gram'::unittype),
+(30, 'Powder Chocolate Malt', 668,   300,  'ingredient'::stockcategory, 'gram'::unittype),
+(31, 'Powder Blackcurrant',  1000,   300,  'ingredient'::stockcategory, 'gram'::unittype),
+
+-- MINUMAN & BAHAN LAIN
+(32, 'Sanquik Lemon',          50,   100,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(33, 'Teh Celup',              22,    10,  'ingredient'::stockcategory, 'piece'::unittype),
+(34, 'Nescafe',                76,    20,  'ingredient'::stockcategory, 'gram'::unittype);
 
 -- Pastikan sequence lanjut setelah ID max
 SELECT setval(pg_get_serial_sequence('inventories','id'), (SELECT MAX(id) FROM inventories));
@@ -204,20 +220,36 @@ CREATE INDEX IF NOT EXISTS idx_flavor_mapping_flavor_name ON flavor_mapping(flav
 CREATE INDEX IF NOT EXISTS idx_flavor_mapping_ingredient_id ON flavor_mapping(ingredient_id);
 
 INSERT INTO flavor_mapping (flavor_name, ingredient_id, quantity_per_serving, unit) VALUES 
-    -- Map existing inventory ingredients to flavors
-    ('Irish', 16, 25, 'milliliter'),              -- Irish syrup
-    ('Havana', 17, 25, 'milliliter'),             -- Havana syrup
-    ('Salted Caramel', 18, 30, 'milliliter'),     -- Salted Caramel syrup
-    ('Mangga', 19, 30, 'gram'),                   -- Mango powder
-    ('Permenkaret', 20, 30, 'gram'),              -- Bubble gum powder
-    ('Tiramisu', 21, 30, 'gram'),                 -- Tiramisu powder
-    ('Redvelvet', 22, 30, 'gram'),                -- Red velvet powder
-    ('Strawberry', 23, 30, 'gram'),               -- Strawberry powder
-    ('Vanilla', 24, 30, 'gram'),                  -- Vanilla powder
-    ('Butterscotch', 12, 25, 'milliliter'),       -- Butterscotch syrup
-    ('French Mocca', 13, 25, 'milliliter'),       -- French Mocca syrup
-    ('Roasted Almond', 14, 25, 'milliliter'),     -- Roasted Almond syrup
-    ('Creme Brulee', 15, 25, 'milliliter')
+    -- SYRUP & LIQUID FLAVORS
+    ('Caramel', 8, 25, 'milliliter'),                    -- Caramel syrup
+    ('Peach', 9, 25, 'milliliter'),                      -- Peach syrup  
+    ('Macadamia Nut', 10, 25, 'milliliter'),             -- Macadamia Nut syrup
+    ('French Moca', 11, 25, 'milliliter'),               -- French Moca syrup
+    ('Java Brown Sugar', 12, 25, 'milliliter'),          -- Java Brown Sugar syrup
+    ('Chocolate', 13, 25, 'milliliter'),                 -- Chocolate syrup
+    ('Passion Fruit', 14, 25, 'milliliter'),             -- Passion Fruit syrup
+    ('Roasted Almond', 15, 25, 'milliliter'),            -- Roasted Almond syrup
+    ('Creme Brulee', 16, 25, 'milliliter'),              -- Creme Brulee syrup
+    ('Butter Scotch', 17, 25, 'milliliter'),             -- Butter Scotch syrup
+    
+    -- MARJAN SERIES
+    ('Marjan Vanilla', 18, 25, 'milliliter'),            -- Marjan Vanilla
+    ('Marjan Grenadine', 19, 25, 'milliliter'),          -- Marjan Grenadine
+    ('Marjan Markisa', 20, 25, 'milliliter'),            -- Marjan Markisa
+    ('Marjan Melon', 21, 25, 'milliliter'),              -- Marjan Melon
+    ('Marjan Nanas', 22, 25, 'milliliter'),              -- Marjan Nanas
+    
+    -- POWDER SERIES
+    ('Keju Vanilla', 25, 30, 'gram'),                    -- Powder Keju Vanilla
+    ('Taro', 26, 30, 'gram'),                            -- Powder Taro
+    ('Banana', 27, 30, 'gram'),                          -- Powder Banana
+    ('Dark Chocolate', 28, 30, 'gram'),                  -- Powder Dark Chocolate
+    ('Chocolate Hazelnut', 29, 30, 'gram'),              -- Powder Chocolate Hazelnut
+    ('Chocolate Malt', 30, 30, 'gram'),                  -- Powder Chocolate Malt
+    ('Blackcurrant', 31, 30, 'gram'),                    -- Powder Blackcurrant
+    
+    -- SPECIAL FLAVORS
+    ('Sanquik Lemon', 32, 25, 'milliliter')              -- Sanquik Lemon
 ON CONFLICT (flavor_name) DO UPDATE SET
     ingredient_id = EXCLUDED.ingredient_id,
     quantity_per_serving = EXCLUDED.quantity_per_serving,
