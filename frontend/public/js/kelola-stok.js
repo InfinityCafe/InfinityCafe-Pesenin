@@ -334,15 +334,10 @@ class InventoryManager {
       <td>
         <span class="status-label ${status.class}">${status.text}</span>
       </td>
-      <td>
-        <div class="action-buttons">
-          <button class="btn-edit" onclick="inventoryManager.editItem(${item.id})" title="Edit">
-            <i class="fas fa-edit"></i>
-          </button>
-          <button class="btn-delete" onclick="inventoryManager.deleteItem(${item.id}, '${item.name}')" title="Delete">
-            <i class="fas fa-trash"></i>
-          </button>
-        </div>
+      <td class="action-header">
+        <button class="table-action-btn" onclick="inventoryManager.viewItem(${item.id})"><i class="fas fa-eye"></i></button>
+        <button class="table-action-btn" onclick="inventoryManager.editItem(${item.id})"><i class="fas fa-edit"></i></button>
+        <button class="table-action-btn" onclick="inventoryManager.deleteItem(${item.id}, '${item.name}')"><i class="fas fa-trash"></i></button>
       </td>
     `;
     
