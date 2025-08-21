@@ -363,7 +363,6 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         logging.warning(f"⚠️ Gagal memproses outbox events: {e}")
 
     order_details = {
-        "order_id": order_id,
         "queue_number": new_queue_number,
         "customer_name": req.customer_name,
         "room_name": req.room_name,
@@ -470,7 +469,6 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         logging.warning(f"⚠️ Gagal memproses outbox events: {e}")
 
     order_details = {
-        "order_id": order_id,
         "queue_number": new_queue_number,
         "customer_name": req.customer_name,
         "room_name": req.room_name,
