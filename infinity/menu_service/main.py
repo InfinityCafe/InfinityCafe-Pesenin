@@ -575,6 +575,21 @@ def get_suggestions(db: Session = Depends(get_db)):
         "data": menu_names
     }
 
+@app.get("/menu_suggestion/raw", summary="Raw Usulan untuk Report", tags=["Usulan Menu"], operation_id="list raw usulan menu")
+def get_suggestions_raw(db: Session = Depends(get_db)):
+    """Mengambil data usulan dalam format raw untuk report service."""
+    suggestions = db.query(MenuSuggestion).order_by(MenuSuggestion.timestamp.desc()).all()
+    
+    return [
+        {
+            "usulan_id": suggestion.usulan_id,
+            "menu_name": suggestion.menu_name,
+            "customer_name": suggestion.customer_name,
+            "timestamp": suggestion.timestamp.isoformat()
+        }
+        for suggestion in suggestions
+    ]
+
 @app.get("/health", summary="Health Check", tags=["Utility"])
 def health_check():
     """Cek apakah service menu sedang berjalan."""
