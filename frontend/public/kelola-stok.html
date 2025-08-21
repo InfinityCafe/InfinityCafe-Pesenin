@@ -21,10 +21,6 @@
       <button class="nav-btn active" id="nav-stok" onclick="window.location.href = '/stock-management';">Stock Management</button>
     </div>
     <div class="header-right">
-      <!-- <div class="search-container">
-        <i class="fa-solid fa-magnifying-glass search-icon"></i>
-        <input type="text" placeholder="Search" class="search-input">
-      </div> -->
       <div class="kitchen-status-container">
         <label class="switch">
           <input type="checkbox" id="kitchen-toggle" checked>
@@ -73,7 +69,7 @@
 
         <div class="overview-card low-stock">
           <div class="card-icon low-stock">
-            <i class="fa-solid fa-arrow-trend-down icons-low-stock"></i>
+            <i class="fa-solid fa-triangle-exclamation icons-low-stock"></i>
           </div>
           <div class="card-content">
             <h3>Low Stock</h3>
@@ -82,7 +78,7 @@
           </div>
         </div>
 
-        <div class="overview-card warning">
+        <!-- <div class="overview-card warning">
           <div class="card-icon warning">
             <i class="fa-solid fa-triangle-exclamation icons-warning"></i>
           </div>
@@ -91,7 +87,7 @@
             <p>Need to restock</p>
             <span class="card-number" id="warning-items">15</span>
           </div>
-        </div>
+        </div> -->
 
         <div class="overview-card critical">
           <div class="card-icon critical">
@@ -107,7 +103,7 @@
         <!-- Quick Action Section -->
         <div class="quick-action-section">
           <div class="quick-action-header">
-            <h3>Quick Action</h3>
+            <h3>Quick<br>Action</h3>
           </div>
           <div class="quick-action-buttons">
             <button class="add-stock-btn" id="add-stock-btn">
@@ -118,10 +114,10 @@
               <i class="fas fa-truck"></i>
               UNIT CONVERTER
             </button>
-            <button class="consumption-log-btn" id="consumption-log-btn">
+            <!-- <button class="consumption-log-btn" id="consumption-log-btn">
               <i class="fas fa-history"></i>
               CONSUMPTION LOG
-            </button>
+            </button> -->
           </div>
         </div>
       </div>
