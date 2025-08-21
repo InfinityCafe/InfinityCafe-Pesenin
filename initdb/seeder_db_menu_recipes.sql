@@ -62,7 +62,7 @@ INSERT INTO synced_inventory (id, name, current_quantity, minimum_quantity, cate
 
 -- 1) Caffe Latte (MENU001) - Menggunakan perasa apa saja (20-30ml akan ditambah dinamis)
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES
-('MENU001', 1, 1, 'piece'),     -- Cup
+('MENU001', 1, 1, 'piece'),     -- Cup (default untuk semua menu)
 ('MENU001', 3, 1, 'piece'),     -- Sedotan
 ('MENU001', 5, 20, 'gram'),     -- Creamer 20gr
 ('MENU001', 4, 17, 'gram'),     -- Kopi robusta 17gr
@@ -91,7 +91,7 @@ INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VAL
 
 -- 4) Hot Cappucino (MENU004)
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES
-('MENU004', 2, 1, 'piece'),     -- Cup Hot
+('MENU004', 1, 1, 'piece'),     -- Cup (default untuk semua menu)
 ('MENU004', 5, 20, 'gram'),     -- Creamer 20gr
 ('MENU004', 4, 17, 'gram'),     -- Kopi robusta 17gr
 ('MENU004', 7, 200, 'milliliter'); -- Susu cair 200ml
@@ -127,18 +127,18 @@ INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VAL
 
 -- 9) americano (MENU009)
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES
-('MENU009', 2, 1, 'piece'),     -- Cup Hot
+('MENU009', 1, 1, 'piece'),     -- Cup (default untuk semua menu)
 ('MENU009', 4, 40, 'gram'),     -- Kopi robusta 40gr
 ('MENU009', 23, 30, 'milliliter'); -- Gula Pasir Cair 30ml
 
 -- 10) expreso single (MENU010)
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES
-('MENU010', 2, 1, 'piece'),     -- Cup Hot
+('MENU010', 1, 1, 'piece'),     -- Cup (default untuk semua menu)
 ('MENU010', 4, 11, 'gram');     -- Kopi robusta 10-12gr (rata2: 11gr)
 
 -- 11) expreso double (MENU011)
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES
-('MENU011', 2, 1, 'piece'),     -- Cup Hot  
+('MENU011', 1, 1, 'piece'),     -- Cup (default untuk semua menu)
 ('MENU011', 4, 22, 'gram');     -- Kopi robusta 20-24gr (rata2: 22gr)
 
 -- Set sequence recipe_ingredients ke max id
