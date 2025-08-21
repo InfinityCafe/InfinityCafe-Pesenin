@@ -7,8 +7,8 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body data-page="report">
     <!-- Header -->
@@ -51,26 +51,34 @@
                 <p class="greeting-date" id="greeting-date">Monday, 14th July 2025</p>
             </div>
 
-            <!-- Date Filter Section -->
+            <!-- Enhanced Filter Section -->
             <div class="search-filter-section">
+                <div class="search-container">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" id="menu-filter" placeholder="Filter berdasarkan nama menu..." class="search-input">
+                </div>
                 <div class="filter-container">
                     <label class="filter-group">
                         <span style="color: #312929; font-weight: 600; margin-right: 8px;">Dari:</span>
                         <input type="date" id="start_date" class="price-input" style="width: 200px;">
-                    </label>
+        </label>
                     <label class="filter-group">
                         <span style="color: #312929; font-weight: 600; margin-right: 8px;">Sampai:</span>
                         <input type="date" id="end_date" class="price-input" style="width: 200px;">
-                    </label>
-                    <button onclick="loadReport()" class="apply-filter-btn">Tampilkan</button>
+        </label>
                     <button onclick="exportCSV()" class="btn-secondary">⬇️ CSV</button>
                     <button onclick="exportPDF()" class="btn-secondary">📄 PDF</button>
                 </div>
-            </div>
+    </div>
 
             <!-- Summary Section -->
-            <div id="summary" class="table-info"></div>
-            
+            <div id="summary" class="summary-details" style="margin-bottom: 1rem;">
+                <span class="summary-detail--order">Periode: <strong id="summary-period">-</strong></span>
+                <span class="summary-detail--order">Pendapatan: <strong id="summary-income">-</strong></span>
+                <span class="summary-detail--order">Transaksi: <strong id="summary-orders">-</strong></span>
+                <span class="summary-detail--order">Mode Data: <span id="summary-status-badge" class="status-badge">-</span></span>
+            </div>
+
             <!-- Insight Box -->
             <div id="insight-box" class="summary-item hidden">
                 <div class="summary-header">
@@ -82,45 +90,110 @@
 
             <!-- Report Table -->
             <div class="table-container">
-                <table id="report-table" class="flavour-table">
-                    <thead>
-                        <tr>
-                            <th>No</th>
-                            <th>Menu</th>
-                            <th>Qty</th>
-                            <th>Harga</th>
-                            <th>Total</th>
-                        </tr>
-                    </thead>
-                    <tbody id="report-body"></tbody>
-                </table>
+                <div class="summary-item">
+                    <div class="summary-header">
+                        <span class="summary-name">📊 Data Laporan</span>
+                    </div>
+                    <div class="table-header">
+                        <div class="table-controls" style="width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                            <div class="search-container">
+                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                <input type="text" id="table-search-input" class="search-input" placeholder="Cari di tabel...">
+                            </div>
+                            <div class="filter-container">
+                                <button class="filter-btn" type="button" onclick="toggleReportFilter()">
+                                    <i class="fas fa-filter"></i>
+                                    Filter
+                                </button>
+                                <div class="filter-dropdown" id="report-filter-dropdown">
+                                    <div class="filter-group">
+                                        <label>Jenis Data:</label>
+                                        <select id="data-type-select" class="form-select">
+                                            <option value="sales" selected>Data Sales</option>
+                                            <option value="best">Best Seller</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-group">
+                                        <label>Urutkan:</label>
+                                        <select id="sort-select" class="form-select">
+                                            <option value="name" selected>Nama Menu</option>
+                                            <option value="qty">Quantity</option>
+                                            <option value="total">Total</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-actions">
+                                        <button class="apply-filter-btn" type="button" onclick="applyReportFilter()">Terapkan</button>
+                                        <button class="clear-filter-btn" type="button" onclick="clearReportFilter()">Reset</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <table id="report-table" class="flavour-table">
+        <thead>
+            <tr>
+                                <th>No</th>
+                                <th>Menu</th>
+                                <th>Qty</th>
+                                <th>Harga</th>
+                                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody id="report-body"></tbody>
+    </table>
+
+                    <!-- Pagination -->
+                    <div class="pagination-container">
+                        <div class="pagination-info">
+                            Menampilkan <span id="pagination-start">1</span> - <span id="pagination-end">10</span> dari <span id="pagination-total">0</span> data
+                        </div>
+                        <div class="pagination-controls">
+                            <button class="pagination-btn" id="prev-page" onclick="changePage(-1)">
+                                <i class="fas fa-chevron-left"></i>
+                            </button>
+                            <div class="page-numbers" id="page-numbers"></div>
+                            <button class="pagination-btn" id="next-page" onclick="changePage(1)">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                        <div class="entries-per-page">
+                            <span>Tampilkan</span>
+                            <select id="entries-per-page" class="form-select">
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                            </select>
+                            <span>entri</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Charts Section -->
-            <div class="dashboard-layout" style="margin-top: 2rem;">
-                <div class="column" style="flex: 1;">
+            <div class="dashboard-layout" style="margin-top: 2rem; flex-wrap: wrap;">
+                <div class="column" id="chart-bar-card" style="flex: 1 1 0; min-width: 320px;">
                     <h3 class="column-title">📊 Top Menu Terlaris</h3>
-                    <div class="column-content">
-                        <canvas id="barChart"></canvas>
-                    </div>
+                    <div class="column-content" style="height: 320px;">
+            <canvas id="barChart"></canvas>
+        </div>
                 </div>
-                <div class="column" style="flex: 1;">
+                <div class="column" id="chart-pie-card" style="flex: 1 1 0; min-width: 320px;">
                     <h3 class="column-title">🥧 Komposisi Penjualan</h3>
-                    <div class="column-content">
-                        <canvas id="pieChart"></canvas>
+                    <div class="column-content" style="height: 320px;">
+            <canvas id="pieChart"></canvas>
                     </div>
                 </div>
             </div>
 
             <!-- Additional Info Section -->
-            <div class="dashboard-layout" style="margin-top: 2rem;">
-                <div class="column" style="flex: 1;">
+            <div class="dashboard-layout" style="margin-top: 2rem; flex-wrap: wrap;">
+                <div class="column" id="loyal-card" style="flex: 1 1 0; min-width: 320px;">
                     <h3 class="column-title">🏆 Top 5 Pembeli Loyal</h3>
                     <div class="column-content">
                         <ul id="loyal-list" class="summary-table" style="list-style: none; padding: 0;"></ul>
                     </div>
                 </div>
-                <div class="column" style="flex: 1;">
+                <div class="column" id="usulan-card" style="flex: 1 1 0; min-width: 320px;">
                     <h3 class="column-title">💡 Menu Usulan Pelanggan</h3>
                     <div class="column-content">
                         <ul id="usulan-list" class="summary-table" style="list-style: none; padding: 0;"></ul>
@@ -130,11 +203,31 @@
         </div>
     </div>
 
+    <!-- Menu Suggestion Modal -->
+    <div id="suggestion-modal" class="modal hidden">
+        <div class="modal-content add-menu-modal">
+            <button onclick="closeSuggestionModal()" class="modal-close">×</button>
+            <div class="modal-title">💡 Usulkan Menu Baru</div>
+            <div class="form-group">
+                <label for="suggestion-menu-name">Nama Menu:</label>
+                <input type="text" id="suggestion-menu-name" placeholder="Masukkan nama menu yang diusulkan">
+            </div>
+            <div class="form-group">
+                <label for="suggestion-customer-name">Nama Customer (Opsional):</label>
+                <input type="text" id="suggestion-customer-name" placeholder="Nama customer yang mengusulkan">
+            </div>
+            <div class="modal-actions">
+                <button onclick="submitSuggestion()" class="save-button">Kirim Usulan</button>
+                <button onclick="closeSuggestionModal()" class="modal-btn-cancel">Batal</button>
+            </div>
+    </div>
+    </div>
+
     <!-- Pie Chart Modal -->
     <div id="pie-modal" class="modal hidden">
         <div class="modal-content view-modal">
             <button onclick="closePieModal()" class="modal-close">×</button>
-            <div class="modal-title">📊 Detail Menu</div>
+            <div class="modal-title">�� Detail Menu</div>
             <div id="pie-modal-content" class="view-content"></div>
         </div>
     </div>
@@ -142,35 +235,92 @@
 <script>
 // Login guard
 if (!localStorage.getItem('access_token')) {
-    window.location.href = '/login';
+  window.location.href = '/login';
 }
 
 // Fungsi logout
 function logout() {
-    localStorage.removeItem('access_token');
-    window.location.href = '/login';
+  localStorage.removeItem('access_token');
+  window.location.href = '/login';
 }
 
 // Tambahkan tombol logout ke header setelah DOM siap
 window.addEventListener('DOMContentLoaded', function () {
-    const headerRight = document.querySelector('.header-right');
-    if (headerRight && !document.getElementById('logout-btn')) {
-        const logoutBtn = document.createElement('button');
-        logoutBtn.className = 'nav-btn';
-        logoutBtn.id = 'logout-btn';
-        logoutBtn.textContent = 'Logout';
-        logoutBtn.style.marginLeft = '1rem';
-        logoutBtn.onclick = logout;
-        headerRight.appendChild(logoutBtn);
-    }
+  const headerRight = document.querySelector('.header-right');
+  if (headerRight && !document.getElementById('logout-btn')) {
+    const logoutBtn = document.createElement('button');
+    logoutBtn.className = 'nav-btn';
+    logoutBtn.id = 'logout-btn';
+    logoutBtn.textContent = 'Logout';
+    logoutBtn.style.marginLeft = '1rem';
+    logoutBtn.onclick = logout;
+    headerRight.appendChild(logoutBtn);
+  }
 });
 
 let barChart, pieChart;
+let currentReportData = null;
+let currentPage = 1;
+let itemsPerPage = 10;
+let filteredData = [];
+let baseData = [];
+let isRefreshing = false;
+let autoRefreshEnabled = false;
 
+// ========== MODAL FUNCTIONS ==========
 function closePieModal() {
     document.getElementById("pie-modal").classList.add("hidden");
 }
 
+function openSuggestionModal() {
+    document.getElementById("suggestion-modal").classList.remove("hidden");
+}
+
+function closeSuggestionModal() {
+    document.getElementById("suggestion-modal").classList.add("hidden");
+    document.getElementById("suggestion-menu-name").value = "";
+    document.getElementById("suggestion-customer-name").value = "";
+}
+
+async function submitSuggestion() {
+    const menuName = document.getElementById("suggestion-menu-name").value.trim();
+    const customerName = document.getElementById("suggestion-customer-name").value.trim();
+    
+    if (!menuName) {
+        alert("Nama menu harus diisi!");
+        return;
+    }
+
+    try {
+        const response = await fetch('/menu_suggestion', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                menu_name: menuName,
+                customer_name: customerName || null
+            })
+        });
+
+        if (response.ok) {
+            alert("✅ Usulan menu berhasil dikirim!");
+            closeSuggestionModal();
+            // Refresh suggested menu list if report is loaded
+            if (currentReportData) {
+                await fetchSuggestedMenu();
+            }
+        } else {
+            const error = await response.json();
+            alert(`❌ Gagal mengirim usulan: ${error.detail || 'Unknown error'}`);
+        }
+    } catch (err) {
+        console.error("Error submitting suggestion:", err);
+        alert("❌ Gagal mengirim usulan. Periksa koneksi.");
+    }
+}
+
+// ========== CHART FUNCTIONS ==========
 function showPieModal(label, value, percent) {
     document.getElementById("pie-modal-content").innerHTML = `
         <div class="view-item">
@@ -210,6 +360,7 @@ function renderCharts(details) {
         },
         options: { 
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
                 legend: {
                     labels: {
@@ -234,11 +385,22 @@ function renderCharts(details) {
                     }
                 }
             }
-        }
+        },
+        plugins: [
+            {
+                id: 'responsiveCanvasBar',
+                beforeInit(chart) {
+                    const canvas = chart.canvas;
+                    canvas.style.width = '100%';
+                    canvas.style.height = '100%';
+                }
+            }
+        ]
     });
 
     // Pie Chart
-    pieChart = new Chart(document.getElementById("pieChart"), {
+    const pieCanvas = document.getElementById("pieChart");
+    pieChart = new Chart(pieCanvas, {
         type: 'pie',
         data: {
             labels,
@@ -254,6 +416,7 @@ function renderCharts(details) {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             animation: { 
                 animateRotate: true, 
                 animateScale: true, 
@@ -273,7 +436,7 @@ function renderCharts(details) {
                     }
                 },
                 legend: {
-                    position: 'right',
+                    position: (pieCanvas && pieCanvas.parentElement && pieCanvas.parentElement.clientWidth < 640) ? 'bottom' : 'right',
                     labels: {
                         color: '#312929',
                         font: {
@@ -299,26 +462,57 @@ function renderCharts(details) {
                     showPieModal(label, value, percent);
                 }
             }
-        }
+        },
+        plugins: [
+            {
+                id: 'responsiveCanvasPie',
+                beforeInit(chart) {
+                    const canvas = chart.canvas;
+                    canvas.style.width = '100%';
+                    canvas.style.height = '100%';
+                }
+            }
+        ]
     });
 }
 
+// ========== REPORT FUNCTIONS ==========
 function generateInsight(data, topMenu, loyalCustomer) {
     const box = document.getElementById("insight-box");
     const content = document.getElementById("insight-content");
-    const percent = ((topMenu.total / data.total_income) * 100).toFixed(1);
+    const percent = topMenu && data.total_income ? ((topMenu.total || 0) / (data.total_income || 1) * 100).toFixed(1) : '0.0';
     
-    const rangkuman = `📅 Hari ini terjadi <strong>${data.total_order}</strong> transaksi dengan total pendapatan <strong>Rp ${data.total_income.toLocaleString()}</strong>.`;
-    const menuTerlaris = `📌 Menu paling laris: <strong>${topMenu.menu_name}</strong> (${topMenu.quantity} terjual), menyumbang ${percent}% pendapatan.`;
-    const loyal = loyalCustomer ? `🏆 Pelanggan loyal: <strong>${loyalCustomer.customer_name}</strong>, ${loyalCustomer.total_orders}x order, Rp ${loyalCustomer.total_spent.toLocaleString()}.` : "";
+    const rangkuman = `📅 Periode ${data.start_date || 'N/A'} s/d ${data.end_date || 'N/A'} terjadi <strong>${data.total_order || 0}</strong> transaksi dengan total pendapatan <strong>Rp ${(data.total_income || 0).toLocaleString()}</strong>.`;
+    const menuTerlaris = topMenu ? `📌 Menu paling laris: <strong>${topMenu.menu_name || 'N/A'}</strong> (${topMenu.quantity || 0} terjual), menyumbang ${percent}% pendapatan.` : "📌 Tidak ada data menu terlaris.";
+    const loyal = loyalCustomer ? `🏆 Pelanggan loyal: <strong>${loyalCustomer.customer_name || 'N/A'}</strong>, ${loyalCustomer.total_orders || 0}x order, Rp ${(loyalCustomer.total_spent || 0).toLocaleString()}.` : "";
     
     content.innerHTML = [rangkuman, menuTerlaris, loyal].filter(Boolean).join('<br><br>');
     box.classList.remove("hidden");
 }
 
+// Hash helpers to detect changes without re-rendering
+function computeDataHash(arr) {
+    try {
+        if (!Array.isArray(arr)) return '0';
+        // lightweight hash: join key fields to avoid heavy stringify
+        const key = arr.map(i => `${i.menu_name}|${i.quantity ?? i.total_quantity ?? 0}|${i.total ?? i.total_revenue ?? 0}`).join('#');
+        let hash = 0;
+        for (let i = 0; i < key.length; i++) hash = ((hash << 5) - hash) + key.charCodeAt(i) | 0;
+        return String(hash);
+    } catch {
+        return String(Math.random());
+    }
+}
+
+let lastReportHash = '';
+let lastBestHash = '';
+let currentDataType = 'sales';
+let lastUserInputAt = 0;
+
 async function loadReport() {
     const start = document.getElementById("start_date").value;
     const end = document.getElementById("end_date").value;
+    const menuFilter = document.getElementById("menu-filter").value.trim();
     
     if (!start || !end) {
         alert("Tanggal belum diisi!");
@@ -330,46 +524,165 @@ async function loadReport() {
         return;
     }
 
-    document.getElementById("loading-overlay").classList.remove("hidden");
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
 
     try {
-        const res = await fetch(`/report?start_date=${start}&end_date=${end}`, { signal: controller.signal });
+        // Build URL with optional menu filter
+        let url = `/report?start_date=${start}&end_date=${end}`;
+        if (menuFilter) {
+            url += `&menu_name=${encodeURIComponent(menuFilter)}`;
+        }
+
+        const res = await fetch(url, { signal: controller.signal });
         clearTimeout(timeout);
         
-        if (!res.ok) throw new Error("Gagal mengambil data laporan");
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.detail || "Gagal mengambil data laporan");
+        }
+        
         const data = await res.json();
+        currentReportData = data;
+        currentDataType = 'sales';
 
         // Update summary
-        document.getElementById("summary").innerHTML = `
-            <p><strong>Periode:</strong> ${data.start_date} s/d ${data.end_date}</p>
-            <p><strong>Total Transaksi:</strong> ${data.total_order} | <strong>Pendapatan:</strong> Rp ${data.total_income.toLocaleString()}</p>`;
+        document.getElementById("summary-period").textContent = `${data.start_date || 'N/A'} s/d ${data.end_date || 'N/A'}`;
+        document.getElementById("summary-income").textContent = `Rp ${(data.total_income || 0).toLocaleString()}`;
+        document.getElementById("summary-orders").textContent = `${data.total_order || 0}`;
+        const statusEl = document.getElementById("summary-status-badge");
+        if (statusEl) {
+            statusEl.textContent = "Data Sales";
+            statusEl.className = 'status-badge status-deliver';
+        }
+        applyModeLayout('sales');
 
-        // Update table
-        const tbody = document.getElementById("report-body");
-        tbody.innerHTML = "";
-        data.details.forEach((item, i) => {
-            tbody.innerHTML += `
-                <tr>
-                    <td>${i + 1}</td>
-                    <td>${item.menu_name}</td>
-                    <td>${item.quantity}</td>
-                    <td>Rp ${item.unit_price.toLocaleString()}</td>
-                    <td>Rp ${item.total.toLocaleString()}</td>
-                </tr>`;
-        });
+        const details = Array.isArray(data.details) ? data.details : [];
+        const newHash = computeDataHash(details);
+        if (newHash !== lastReportHash) {
+            lastReportHash = newHash;
+            baseData = details;
+            // preserve current search if any
+            const tableSearch = document.getElementById('table-search-input');
+            const term = tableSearch ? tableSearch.value : '';
+            filteredData = term ? baseData.filter(i => (i.menu_name || '').toLowerCase().includes(term.toLowerCase())) : [...baseData];
+            currentPage = 1;
+            renderTablePage();
+            updatePagination();
+            // Re-render charts only when data changed
+            if (details.length > 0) {
+                // Reset table header to normal sales format
+                const tableHeader = document.querySelector('#report-table thead tr');
+                if (tableHeader) {
+                    tableHeader.innerHTML = `
+                        <th>No</th>
+                        <th>Menu</th>
+                        <th>Qty</th>
+                        <th>Harga</th>
+                        <th>Total</th>`;
+                }
+                renderCharts(details);
+            }
+        }
 
-        renderCharts(data.details);
-        const topMenu = data.details.reduce((max, curr) => curr.total > max.total ? curr : max, data.details[0]);
+        if (details.length > 0) {
+            const topMenu = details.reduce((max, curr) => (curr.total || 0) > (max.total || 0) ? curr : max, details[0]);
         await loadTopCustomers(start, end, data, topMenu);
+        } else {
+            await loadBestSellerData(start, end);
+        }
+        
         await fetchSuggestedMenu();
 
     } catch (err) {
-        alert("⚠️ Gagal memuat laporan. Periksa koneksi atau server.");
-        console.error(err);
+        console.error("Error loading report:", err);
+        alert(`⚠️ ${err.message || "Gagal memuat laporan. Periksa koneksi atau server."}`);
     } finally {
-        document.getElementById("loading-overlay").classList.add("hidden");
+        clearTimeout(timeout);
+    }
+}
+
+async function loadBestSellerData(start, end) {
+    try {
+        const res = await fetch(`http://localhost:8004/report/best_seller?start_date=${start}&end_date=${end}&limit=10`);
+        
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.detail || "Gagal mengambil data best seller");
+        }
+        
+        const data = await res.json();
+
+        if (data.best_sellers && data.best_sellers.length > 0) {
+            // Convert best seller data to chart format
+            const chartData = data.best_sellers.map(item => ({
+                menu_name: item.menu_name || 'N/A',
+                quantity: item.total_quantity || 0,
+                unit_price: item.unit_price || 0,
+                total: item.total_revenue || 0
+            }));
+            
+            // Calculate total revenue from best sellers
+            const totalRevenue = data.best_sellers.reduce((sum, item) => sum + (item.total_revenue || 0), 0);
+            
+            // Update summary with best seller data
+            document.getElementById("summary-period").textContent = `${data.start_date || 'N/A'} s/d ${data.end_date || 'N/A'}`;
+            document.getElementById("summary-income").textContent = `Rp ${totalRevenue.toLocaleString()}`;
+            document.getElementById("summary-orders").textContent = `${data.processed_orders || 0}`;
+            const statusEl = document.getElementById("summary-status-badge");
+            if (statusEl) {
+                statusEl.textContent = "Best Seller";
+                statusEl.className = 'status-badge status-warning';
+            }
+            applyModeLayout('best');
+
+            const best = data.best_sellers;
+            const newHash = computeDataHash(best);
+            if (newHash !== lastBestHash) {
+                lastBestHash = newHash;
+                baseData = best;
+                const tableSearch = document.getElementById('table-search-input');
+                const term = tableSearch ? tableSearch.value : '';
+                filteredData = term ? baseData.filter(i => (i.menu_name || '').toLowerCase().includes(term.toLowerCase())) : [...baseData];
+                currentPage = 1;
+                renderTablePage();
+                updatePagination();
+                renderCharts(chartData);
+                // Update chart title to show it's best seller data
+                const chartTitle = document.querySelector('.column-title');
+                if (chartTitle) {
+                    chartTitle.textContent = '🏆 Top Menu Terlaris (Best Seller)';
+                }
+                // Update table header for best seller data
+                const tableHeader = document.querySelector('#report-table thead tr');
+                if (tableHeader) {
+                    tableHeader.innerHTML = `
+                        <th>No</th>
+                        <th>Menu</th>
+                        <th>Total Qty</th>
+                        <th>Unit Price</th>
+                        <th>Total Revenue</th>`;
+                }
+            }
+        } else {
+            // Show empty chart and table
+            renderCharts([]);
+            baseData = [];
+            filteredData = [];
+            renderTablePage();
+            updatePagination();
+            document.getElementById("summary-income").textContent = `Rp 0`;
+            document.getElementById("summary-orders").textContent = `0`;
+            const statusEl2 = document.getElementById("summary-status-badge");
+            if (statusEl2) {
+                statusEl2.textContent = "Kosong";
+                statusEl2.className = 'status-badge status-cancel';
+            }
+        }
+
+    } catch (err) {
+        console.error("Error loading best seller data:", err);
+        // Don't show alert, just log error
     }
 }
 
@@ -380,22 +693,32 @@ async function loadTopCustomers(start, end, salesData, topMenu) {
         const res = await fetch(`/report/top_customers?start_date=${start}&end_date=${end}`, { signal: controller.signal });
         clearTimeout(timeout);
         
-        if (!res.ok) throw new Error("Gagal ambil data loyal customer");
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.detail || "Gagal ambil data loyal customer");
+        }
+        
         const data = await res.json();
 
         const ul = document.getElementById("loyal-list");
         ul.innerHTML = "";
-        data.forEach((cust, i) => {
-            ul.innerHTML += `
-                <li style="padding: 8px 0; border-bottom: 1px solid #F3F4F6; color: #312929;">
-                    <strong>${cust.customer_name}</strong> — ${cust.total_orders}x | Rp ${cust.total_spent.toLocaleString()}
-                </li>`;
-        });
         
+        if (data && data.length > 0) {
+        data.forEach((cust, i) => {
+                ul.innerHTML += `
+                    <li style="padding: 8px 0; border-bottom: 1px solid #F3F4F6; color: #312929;">
+                        <strong>${cust.customer_name || 'N/A'}</strong> — ${cust.total_orders || 0}x | Rp ${(cust.total_spent || 0).toLocaleString()}
+                    </li>`;
+        });
         generateInsight(salesData, topMenu, data[0]);
+        } else {
+            ul.innerHTML = "<li style='padding: 8px 0; color: #6B7280; font-style: italic;'>Tidak ada data customer untuk periode ini.</li>";
+            generateInsight(salesData, topMenu, null);
+        }
+        
     } catch (err) {
-        alert("⚠️ Gagal memuat data pelanggan loyal.");
-        console.error(err);
+        console.error("Error loading top customers:", err);
+        alert(`⚠️ ${err.message || "Gagal memuat data pelanggan loyal."}`);
     }
 }
 
@@ -405,6 +728,12 @@ async function fetchSuggestedMenu() {
     
     try {
         const res = await fetch(`/report/suggested_menu?start_date=${start}&end_date=${end}`);
+        
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.detail || "Gagal memuat data usulan menu");
+        }
+        
         const data = await res.json();
         
         const ul = document.getElementById("usulan-list");
@@ -414,24 +743,34 @@ async function fetchSuggestedMenu() {
             ul.innerHTML = "<li style='padding: 8px 0; color: #6B7280; font-style: italic;'>Tidak ada usulan pada periode ini.</li>";
         } else {
             data.forEach((item) => {
-                const date = new Date(item.last_suggested).toLocaleString("id-ID");
+                const date = new Date(item.last_suggested || new Date()).toLocaleString("id-ID");
                 ul.innerHTML += `
                     <li style="padding: 8px 0; border-bottom: 1px solid #F3F4F6; color: #312929;">
-                        <strong>${item.menu_name}</strong> — ${item.usulan_count}x (terakhir: ${date})
+                        <strong>${item.menu_name || 'N/A'}</strong> — ${item.usulan_count || 0}x (terakhir: ${date})
                     </li>`;
             });
         }
     } catch (err) {
-        console.error("Gagal memuat menu usulan", err);
+        console.error("Error fetching suggested menu:", err);
+        const ul = document.getElementById("usulan-list");
+        ul.innerHTML = `<li style='padding: 8px 0; color: #B3261E; font-style: italic;'>Error: ${err.message}</li>`;
     }
 }
 
+// ========== EXPORT FUNCTIONS ==========
 function exportCSV() {
     const rows = [["No", "Menu", "Qty", "Harga", "Total"]];
     document.querySelectorAll("#report-body tr").forEach((tr, i) => {
         const cols = [...tr.children].map(td => td.innerText);
+        if (cols.length > 1 && !cols[0].includes("Tidak ada data")) {
         rows.push([i + 1, ...cols.slice(1)]);
+        }
     });
+    
+    if (rows.length <= 1) {
+        alert("Tidak ada data untuk di-export!");
+        return;
+    }
     
     const csv = rows.map(row => row.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -443,22 +782,350 @@ function exportCSV() {
 }
 
 async function exportPDF() {
-    const element = document.body;
-    const canvas = await html2canvas(element);
-    const imgData = canvas.toDataURL("image/png");
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [canvas.width, canvas.height] });
-    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-    pdf.save(`laporan_penjualan_${new Date().toISOString().slice(0, 10)}.pdf`);
+    try {
+        const element = document.querySelector('.main-container') || document.body;
+        const canvas = await html2canvas(element, { useCORS: true, scale: 2 });
+        const imgData = canvas.toDataURL("image/png");
+
+        // Use UMD global (robust detection)
+        const jspdfGlobal = window.jspdf;
+        const JS_PDF = (window.jsPDF && typeof window.jsPDF === 'function')
+            ? window.jsPDF
+            : (jspdfGlobal && typeof jspdfGlobal.jsPDF === 'function' ? jspdfGlobal.jsPDF : null);
+        if (!JS_PDF) {
+            throw new Error('jsPDF tidak tersedia atau tidak valid');
+        }
+        const pdf = new JS_PDF({ orientation: "portrait", unit: "px", format: [canvas.width, canvas.height] });
+        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+        pdf.save(`laporan_penjualan_${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (err) {
+        console.error("Error exporting PDF:", err);
+        alert("❌ Gagal export PDF. Pastikan koneksi internet stabil.");
+    }
 }
 
-// Set default dates and load initial report
+// ========== PAGINATION FUNCTIONS ==========
+function changePage(direction) {
+    const newPage = currentPage + direction;
+    const maxPage = Math.ceil(filteredData.length / itemsPerPage);
+    
+    if (newPage >= 1 && newPage <= maxPage) {
+        currentPage = newPage;
+        renderTablePage();
+        updatePagination();
+    }
+}
+
+function renderTablePage() {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const pageData = filteredData.slice(startIndex, endIndex);
+    
+    const tbody = document.getElementById("report-body");
+    tbody.innerHTML = "";
+    
+    if (pageData.length > 0) {
+        pageData.forEach((item, i) => {
+            const actualIndex = startIndex + i;
+            tbody.innerHTML += `
+                <tr>
+                    <td>${actualIndex + 1}</td>
+                    <td>${item.menu_name || 'N/A'}</td>
+                    <td>${item.quantity || item.total_quantity || 0}</td>
+                    <td>Rp ${(item.unit_price || 0).toLocaleString()}</td>
+                    <td>Rp ${(item.total || item.total_revenue || 0).toLocaleString()}</td>
+                </tr>`;
+        });
+    } else {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" style="text-align: center; color: #6B7280; font-style: italic;">
+                    Tidak ada data untuk halaman ini
+                </td>
+            </tr>`;
+        }
+        
+        // Update pagination info
+        document.getElementById("pagination-start").textContent = startIndex + 1;
+        document.getElementById("pagination-end").textContent = Math.min(endIndex, filteredData.length);
+        document.getElementById("pagination-total").textContent = filteredData.length;
+    }
+    
+    function updatePagination() {
+        const maxPage = Math.ceil(filteredData.length / itemsPerPage);
+        const pageNumbers = document.getElementById("page-numbers");
+        const prevBtn = document.getElementById("prev-page");
+        const nextBtn = document.getElementById("next-page");
+        
+        // Update button states
+        prevBtn.disabled = currentPage === 1;
+        nextBtn.disabled = currentPage === maxPage;
+        
+        // Generate page numbers
+        pageNumbers.innerHTML = "";
+        const startPage = Math.max(1, currentPage - 2);
+        const endPage = Math.min(maxPage, currentPage + 2);
+        
+        for (let i = startPage; i <= endPage; i++) {
+            const pageBtn = document.createElement("button");
+            pageBtn.className = `page-number ${i === currentPage ? 'active' : ''}`;
+            pageBtn.textContent = i;
+            pageBtn.onclick = () => {
+                currentPage = i;
+                renderTablePage();
+                updatePagination();
+            };
+            pageNumbers.appendChild(pageBtn);
+        }
+    }
+    
+    // ========== SEARCH FUNCTIONS ==========
+    function filterTableData(searchTerm) {
+        if (!baseData) return;
+        const source = Array.isArray(baseData) ? baseData : [];
+        const term = (searchTerm || '').toLowerCase();
+        filteredData = term
+            ? source.filter(item => (item.menu_name || '').toLowerCase().includes(term))
+            : [...source];
+        
+        currentPage = 1;
+        renderTablePage();
+        updatePagination();
+    }
+
+function toggleReportFilter() {
+    const dd = document.getElementById('report-filter-dropdown');
+    if (!dd) return;
+    dd.classList.toggle('show');
+}
+
+function applyReportFilter() {
+    const sortSelect = document.getElementById('sort-select');
+    if (sortSelect && filteredData && filteredData.length) {
+        const val = sortSelect.value;
+        filteredData.sort((a, b) => {
+            if (val === 'name') {
+                return (a.menu_name || '').localeCompare(b.menu_name || '');
+            }
+            if (val === 'qty') {
+                const qa = a.quantity ?? a.total_quantity ?? 0;
+                const qb = b.quantity ?? b.total_quantity ?? 0;
+                return qb - qa; // desc
+            }
+            if (val === 'total') {
+                const ta = a.total ?? a.total_revenue ?? 0;
+                const tb = b.total ?? b.total_revenue ?? 0;
+                return tb - ta; // desc
+            }
+            return 0;
+        });
+        currentPage = 1;
+        renderTablePage();
+        updatePagination();
+    }
+    toggleReportFilter();
+}
+
+function clearReportFilter() {
+    const sortSelect = document.getElementById('sort-select');
+    const dataTypeSelect = document.getElementById('data-type-select');
+    if (sortSelect) sortSelect.value = 'name';
+    if (dataTypeSelect) dataTypeSelect.value = 'sales';
+    // Re-load sales view by default
+    const start = document.getElementById("start_date").value;
+    const end = document.getElementById("end_date").value;
+    loadReport(start, end);
+    toggleReportFilter();
+}
+
+function applyModeLayout(mode) {
+    const isBest = mode === 'best';
+    const chartBar = document.getElementById('chart-bar-card');
+    const chartPie = document.getElementById('chart-pie-card');
+    const loyal = document.getElementById('loyal-card');
+    const usulan = document.getElementById('usulan-card');
+    const tableHeader = document.querySelector('#report-table thead tr');
+    const statusEl = document.getElementById('summary-status-badge');
+    const dataTypeSelect = document.getElementById('data-type-select');
+    const barTitle = document.querySelector('#chart-bar-card .column-title');
+
+    // Summary badge
+    if (statusEl) {
+        statusEl.textContent = isBest ? 'Best Seller' : 'Data Sales';
+        statusEl.className = `status-badge ${isBest ? 'status-warning' : 'status-deliver'}`;
+    }
+
+    // Sync dropdown and state
+    if (dataTypeSelect && dataTypeSelect.value !== (isBest ? 'best' : 'sales')) {
+        dataTypeSelect.value = isBest ? 'best' : 'sales';
+    }
+    currentDataType = isBest ? 'best' : 'sales';
+
+    // Table header
+    if (tableHeader) {
+        tableHeader.innerHTML = isBest ? `
+            <th>No</th>
+            <th>Menu</th>
+            <th>Total Qty</th>
+            <th>Unit Price</th>
+            <th>Total Revenue</th>
+        ` : `
+            <th>No</th>
+            <th>Menu</th>
+            <th>Qty</th>
+            <th>Harga</th>
+            <th>Total</th>
+        `;
+    }
+
+    // Layout visibility
+    if (chartBar) chartBar.style.display = 'flex';
+    if (chartPie) chartPie.style.display = isBest ? 'none' : 'flex';
+    if (loyal) loyal.style.display = isBest ? 'none' : 'flex';
+    if (usulan) usulan.style.display = isBest ? 'none' : 'flex';
+
+    // Bar chart title per mode
+    if (barTitle) {
+        barTitle.textContent = isBest ? '🏆 Top Menu Terlaris (Best Seller)' : '📊 Top Menu Terlaris';
+    }
+
+    // Ensure charts resize correctly after visibility changes
+    setTimeout(() => {
+        try {
+            if (barChart) barChart.resize();
+            if (pieChart) {
+                // Adjust pie legend position based on new width
+                const pieCanvas = document.getElementById('pieChart');
+                if (pieCanvas && pieChart.options && pieChart.options.plugins && pieChart.options.plugins.legend) {
+                    pieChart.options.plugins.legend.position = (pieCanvas.parentElement && pieCanvas.parentElement.clientWidth < 640) ? 'bottom' : 'right';
+                }
+                pieChart.resize();
+            }
+        } catch (_) {}
+    }, 0);
+}
+    
+// Real-time auto refresh (~5s) with visibility + in-flight guard
+let autoRefreshTimer = null;
+function performRefresh() {
+    if (isRefreshing || document.hidden) return;
+    isRefreshing = true;
+    const start = document.getElementById("start_date").value;
+    const end = document.getElementById("end_date").value;
+    const dataType = document.getElementById('data-type-select')?.value || 'sales';
+    const done = () => { isRefreshing = false; };
+    if (dataType === 'best') {
+        loadBestSellerData(start, end).finally(done);
+    } else {
+        loadReport().finally(done);
+    }
+}
+function startAutoRefresh() {
+    if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+    if (!autoRefreshEnabled) return;
+    autoRefreshTimer = setInterval(performRefresh, 15000);
+}
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) performRefresh();
+});
+
+    // ========== EVENT LISTENERS ==========
+    document.addEventListener('DOMContentLoaded', function() {
+        // Debounced window resize to keep charts responsive (esp. >765px)
+        let resizeTimer = null;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                try {
+                    if (barChart) barChart.resize();
+                    if (pieChart) pieChart.resize();
+                } catch (_) {}
+            }, 150);
+        });
+        // Add menu filter event listener
+        const menuFilter = document.getElementById("menu-filter");
+        if (menuFilter) {
+            menuFilter.addEventListener('input', function() {
+                // Auto-filter after 500ms delay
+                clearTimeout(this.filterTimeout);
+                this.filterTimeout = setTimeout(() => {
+                    // Server-side filter for Data Sales via menu_name
+                    const dataType = document.getElementById('data-type-select')?.value || 'sales';
+                    if (dataType === 'best') {
+                        // Best seller tidak memakai menu_name; fallback ke client-side filter
+                        filterTableData(this.value);
+                    } else {
+                        // Sales: reload dari server dengan menu_name
+                        loadReport();
+                    }
+                }, 500);
+            });
+        }
+
+        // Table search input
+        const tableSearch = document.getElementById('table-search-input');
+        if (tableSearch) {
+            tableSearch.addEventListener('input', function() {
+                clearTimeout(this.filterTimeout);
+                this.filterTimeout = setTimeout(() => {
+                    lastUserInputAt = Date.now();
+                    filterTableData(this.value);
+                }, 300);
+            });
+        }
+
+        // Entries per page select
+        const entriesSelect = document.getElementById('entries-per-page');
+        if (entriesSelect) {
+            entriesSelect.addEventListener('change', function() {
+                itemsPerPage = parseInt(this.value, 10) || 10;
+                currentPage = 1;
+                renderTablePage();
+                updatePagination();
+            });
+        }
+
+        // Data type select (Sales / Best Seller)
+        const dataTypeSelect = document.getElementById('data-type-select');
+        if (dataTypeSelect) {
+            dataTypeSelect.addEventListener('change', async function() {
+                const start = document.getElementById("start_date").value;
+                const end = document.getElementById("end_date").value;
+                if (this.value === 'best') {
+                    await loadBestSellerData(start, end);
+                    applyModeLayout('best');
+                } else {
+                    await loadReport();
+                    applyModeLayout('sales');
+                }
+            });
+        }
+
+        // Auto refresh start
+        startAutoRefresh();
+
+        // Refresh on date change
+        const startInput = document.getElementById('start_date');
+        const endInput = document.getElementById('end_date');
+        const onDateChange = () => {
+            currentPage = 1;
+            const dataType = document.getElementById('data-type-select')?.value || 'sales';
+            if (dataType === 'best') {
+                loadBestSellerData(startInput.value, endInput.value);
+            } else {
+                loadReport();
+            }
+        };
+        if (startInput) startInput.addEventListener('change', onDateChange);
+        if (endInput) endInput.addEventListener('change', onDateChange);
+    });
+    
+    // ========== INITIALIZATION ==========
 window.onload = () => {
     const today = new Date().toISOString().split('T')[0];
     document.getElementById("start_date").value = today;
     document.getElementById("end_date").value = today;
     loadReport();
+        startAutoRefresh();
 };
 </script>
-</body>
-</html>
