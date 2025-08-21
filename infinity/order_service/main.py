@@ -221,9 +221,15 @@ def process_outbox_events(db: Session):
                 response.raise_for_status()
                 
             elif event.event_type == "order_cancelled":
+                reason = payload.get("reason", "").strip()
+                if not reason:
+                    reason = "Dibatalkan oleh sistem"  # Default reason
+                    
+                logging.info(f"Mengirim pembatalan order {event.order_id} dengan reason: '{reason}'")
+                
                 response = requests.post(
                     f"http://kitchen_service:8003/kitchen/update_status/{event.order_id}",
-                    params={"status": "cancel", "reason": payload.get("reason", "")},
+                    params={"status": "cancelled", "reason": reason},
                     timeout=5
                 )
                 response.raise_for_status()
