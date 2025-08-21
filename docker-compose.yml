@@ -215,7 +215,7 @@ services:
     volumes:
     #  - ./pgvector-init.sql:/docker-entrypoint-initdb.d/init.sql
      - pgvector_storage:/var/lib/postgresql/data
-    #  - ./initdb:/docker-entrypoint-initdb.d
+     - ./initdb:/docker-entrypoint-initdb.d
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -h pgvector -U ${POSTGRES_USER} -d postgres']
       interval: 5s
@@ -285,6 +285,7 @@ services:
           echo 'Seeding databases with initial data...' &&
           psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_DEFAULT} -f /initdb/seeder_db_default.sql &&
           psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_MENU} -f /initdb/seeder_db_menu.sql &&
+          psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_MENU} -f /initdb/seeder_db_menu_recipes.sql &&
           psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_ORDER} -f /initdb/seeder_db_order.sql &&
           psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_KITCHEN} -f /initdb/seeder_db_kitchen.sql &&
           psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_INVENTORY} -f /initdb/seeder_db_inventory.sql &&
@@ -415,7 +416,7 @@ services:
     extra_hosts:
       - "ollama:host-gateway"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://inventory_service:8005/health"]
+      test: ["CMD", "curl", "-f", "http://inventory_service:8006/health"]
       interval: 5s
       timeout: 5s
       retries: 3

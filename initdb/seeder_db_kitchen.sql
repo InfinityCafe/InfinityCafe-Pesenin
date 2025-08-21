@@ -9,8 +9,13 @@ CREATE TABLE IF NOT EXISTS embeddings (
     created_at timestamptz DEFAULT now()
 );
 
--- Membersihkan data lama (opsional)
--- TRUNCATE TABLE menus, orders, order_items, kitchen_orders, menu_suggestions RESTART IDENTITY CASCADE;
+-- Membersihkan data lama sebelum insert (jika tabel sudah ada)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'kitchen_orders') THEN
+        TRUNCATE TABLE kitchen_orders RESTART IDENTITY CASCADE;
+    END IF;
+END $$;
 
 INSERT INTO kitchen_orders (order_id, queue_number, status, detail, customer_name, room_name, time_receive, time_making, time_deliver, time_done) VALUES
 ('ORD-001', 1, 'done', E'1x Cafe Latte (Less sugar)\n1x Nasi Goreng Infinity (Pedas)', 'Fahri', 'VIP 1', NOW() - INTERVAL '3 hour', NOW() - INTERVAL '2 hour 50 minutes', NOW() - INTERVAL '2 hour 45 minutes', NOW() - INTERVAL '2 hour 40 minutes');
