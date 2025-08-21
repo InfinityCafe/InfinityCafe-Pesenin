@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi_mcp import FastApiMCP
 from pydantic import BaseModel, Field, model_validator, field_validator
 from typing import Optional
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, Enum as SQLEnum, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, Enum as SQLEnum, ForeignKey, func, and_
 from sqlalchemy.orm import sessionmaker, declarative_base, Session, relationship
 from sqlalchemy.exc import SQLAlchemyError
 from pytz import timezone as pytz_timezone
@@ -453,22 +453,73 @@ def add_flavor_mapping(req: FlavorMappingRequest, db: Session = Depends(get_db))
             "data": None
         })
 
+@app.get("/debug/flavor_mappings", summary="Debug flavor mappings", tags=["Debug"])
+def debug_flavor_mappings(db: Session = Depends(get_db)):
+    """Debug endpoint untuk flavor mappings"""
+    try:
+        # Check total count
+        total_count = db.query(FlavorMapping).count()
+        
+        # Get raw data
+        mappings = db.query(FlavorMapping).all()
+        
+        debug_info = []
+        for i, mapping in enumerate(mappings):
+            try:
+                ingredient = db.query(Inventory).filter(Inventory.id == mapping.ingredient_id).first()
+                debug_info.append({
+                    "index": i,
+                    "mapping_id": mapping.id,
+                    "flavor_name": mapping.flavor_name,
+                    "ingredient_id": mapping.ingredient_id,
+                    "ingredient_found": ingredient is not None,
+                    "ingredient_name": ingredient.name if ingredient else "NOT_FOUND",
+                    "created_at_is_none": mapping.created_at is None,
+                    "created_at_raw": str(mapping.created_at),
+                    "unit_is_none": mapping.unit is None,
+                    "unit_value": mapping.unit.value if mapping.unit else "NO_UNIT"
+                })
+            except Exception as e:
+                debug_info.append({
+                    "index": i,
+                    "error": str(e),
+                    "mapping_id": getattr(mapping, 'id', 'NO_ID')
+                })
+        
+        return {
+            "status": "debug_success",
+            "total_mappings": total_count,
+            "processed_mappings": len(debug_info),
+            "debug_data": debug_info
+        }
+        
+    except Exception as e:
+        return {
+            "status": "debug_error",
+            "message": str(e),
+            "traceback": str(e.__class__.__name__)
+        }
+
 @app.get("/list_flavor_mappings", summary="Daftar semua flavor mapping", tags=["Flavor Management"])
 def list_flavor_mappings(db: Session = Depends(get_db)):
     """Menampilkan semua flavor mapping yang tersedia"""
     try:
-        mappings = db.query(FlavorMapping).join(Inventory).all()
+        mappings = db.query(FlavorMapping).all()
         
         data = []
         for mapping in mappings:
+            # Get ingredient separately to avoid JOIN issues
+            ingredient = db.query(Inventory).filter(Inventory.id == mapping.ingredient_id).first()
+            ingredient_name = ingredient.name if ingredient else "Unknown"
+            
             data.append({
                 "id": mapping.id,
                 "flavor_name": mapping.flavor_name,
                 "ingredient_id": mapping.ingredient_id,
-                "ingredient_name": mapping.ingredient.name,
+                "ingredient_name": ingredient_name,
                 "quantity_per_serving": mapping.quantity_per_serving,
-                "unit": mapping.unit.value,
-                "created_at": mapping.created_at.isoformat()
+                "unit": mapping.unit.value if mapping.unit else "unknown",
+                "created_at": format_jakarta_time(mapping.created_at) if mapping.created_at else "Unknown"
             })
         
         return {
@@ -563,7 +614,7 @@ def update_flavor_mapping(mapping_id: int, req: FlavorMappingRequest, db: Sessio
                 "ingredient_name": ingredient.name,
                 "quantity_per_serving": mapping.quantity_per_serving,
                 "unit": mapping.unit.value,
-                "created_at": mapping.created_at.isoformat()
+                "created_at": format_jakarta_time(mapping.created_at) if mapping.created_at else "Unknown"
             }
         }
         
@@ -1417,6 +1468,178 @@ def get_order_ingredients_detail(order_id: str, db: Session = Depends(get_db)):
         return JSONResponse(status_code=200, content={
             "status": "error",
             "message": f"Gagal mengambil detail konsumsi: {str(e)}",
+            "data": None
+        })
+
+@app.get("/consumption/history/daily", 
+         summary="History konsumsi stock harian", 
+         tags=["Stock Management"],
+         description="Menampilkan riwayat konsumsi stock per hari dengan breakdown per ingredient")
+def get_daily_consumption_history(
+    date: Optional[str] = Query(None, description="Tanggal tunggal dalam format YYYY-MM-DD. Untuk history hari tertentu saja"),
+    start_date: Optional[str] = Query(None, description="Tanggal mulai dalam format YYYY-MM-DD (untuk date range)"),
+    end_date: Optional[str] = Query(None, description="Tanggal akhir dalam format YYYY-MM-DD (untuk date range)"),
+    db: Session = Depends(get_db)
+):
+    """History konsumsi harian dengan breakdown per ingredient."""
+    try:
+        from datetime import datetime, timedelta
+        
+        if date and (start_date or end_date):
+            return JSONResponse(status_code=400, content={
+                "status": "error",
+                "message": "Tidak bisa menggunakan parameter 'date' bersamaan dengan 'start_date/end_date'. Pilih salah satu mode.",
+                "data": None
+            })
+        
+        if (start_date and not end_date) or (not start_date and end_date):
+            return JSONResponse(status_code=400, content={
+                "status": "error", 
+                "message": "Untuk date range, harus menyertakan both 'start_date' dan 'end_date'",
+                "data": None
+            })
+        
+        if date:
+            try:
+                target_date = datetime.strptime(date, '%Y-%m-%d').date()
+                query_start_date = target_date
+                query_end_date = target_date
+                query_mode = "single_date"
+            except ValueError:
+                return JSONResponse(status_code=400, content={
+                    "status": "error",
+                    "message": "Format tanggal tidak valid. Gunakan format YYYY-MM-DD",
+                    "data": None
+                })
+        elif start_date and end_date:
+            try:
+                query_start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+                query_end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+                query_mode = "date_range"
+                
+                if query_start_date > query_end_date:
+                    return JSONResponse(status_code=400, content={
+                        "status": "error",
+                        "message": "start_date tidak boleh lebih besar dari end_date",
+                        "data": None
+                    })
+                    
+            except ValueError:
+                return JSONResponse(status_code=400, content={
+                    "status": "error", 
+                    "message": "Format tanggal tidak valid. Gunakan format YYYY-MM-DD",
+                    "data": None
+                })
+        else:
+            jakarta_now = datetime.now(jakarta_tz)
+            query_start_date = jakarta_now.date()
+            query_end_date = jakarta_now.date()
+            query_mode = "today_default"
+        
+        consumption_logs = db.query(ConsumptionLog).filter(
+            and_(
+                ConsumptionLog.consumed == True,
+                ConsumptionLog.rolled_back == False,
+                func.date(ConsumptionLog.created_at) >= query_start_date,
+                func.date(ConsumptionLog.created_at) <= query_end_date
+            )
+        ).order_by(ConsumptionLog.created_at.desc()).all()
+        
+        daily_consumption = {}
+        
+        for log in consumption_logs:
+            if not log.per_ingredient_payload:
+                continue
+                
+            try:
+                ingredient_data = json.loads(log.per_ingredient_payload)
+            except json.JSONDecodeError:
+                continue
+            
+            log_date = log.created_at.astimezone(jakarta_tz).date()
+            date_str = log_date.strftime('%Y-%m-%d')
+            
+            if date_str not in daily_consumption:
+                daily_consumption[date_str] = {
+                    "date": date_str,
+                    "date_formatted": log_date.strftime('%d/%m/%Y'),
+                    "day_name": log_date.strftime('%A'),
+                    "total_orders": 0,
+                    "ingredients_consumed": {},
+                    "summary": {
+                        "total_ingredients_types": 0,
+                        "total_quantity_consumed": 0
+                    }
+                }
+            
+            daily_consumption[date_str]["total_orders"] += 1
+            
+            for item in ingredient_data:
+                ingredient_id = item.get('ingredient_id')
+                ingredient_name = item.get('ingredient_name', 'Unknown')
+                quantity_consumed = item.get('quantity_consumed', 0)
+                unit = item.get('unit', '')
+                
+                if ingredient_id not in daily_consumption[date_str]["ingredients_consumed"]:
+                    daily_consumption[date_str]["ingredients_consumed"][ingredient_id] = {
+                        "ingredient_id": ingredient_id,
+                        "ingredient_name": ingredient_name,
+                        "unit": unit,
+                        "total_consumed": 0,
+                        "consumption_count": 0
+                    }
+                
+                daily_consumption[date_str]["ingredients_consumed"][ingredient_id]["total_consumed"] += quantity_consumed
+                daily_consumption[date_str]["ingredients_consumed"][ingredient_id]["consumption_count"] += 1
+        
+        for date_str in daily_consumption:
+            ingredients = daily_consumption[date_str]["ingredients_consumed"]
+            daily_consumption[date_str]["summary"]["total_ingredients_types"] = len(ingredients)
+            daily_consumption[date_str]["summary"]["total_quantity_consumed"] = sum(
+                ing["total_consumed"] for ing in ingredients.values()
+            )
+            
+            daily_consumption[date_str]["ingredients_consumed"] = list(ingredients.values())
+        
+        sorted_daily_consumption = dict(sorted(daily_consumption.items(), reverse=True))
+        
+        total_days_with_consumption = len(sorted_daily_consumption)
+        total_orders_all_days = sum(day_data["total_orders"] for day_data in sorted_daily_consumption.values())
+        all_ingredients_used = set()
+        for day_data in sorted_daily_consumption.values():
+            for ing in day_data["ingredients_consumed"]:
+                all_ingredients_used.add(ing["ingredient_id"])
+        
+        return JSONResponse(status_code=200, content={
+            "status": "success",
+            "message": f"History konsumsi berhasil diambil untuk {total_days_with_consumption} hari",
+            "data": {
+                "query_info": {
+                    "mode": query_mode,
+                    "date_range": {
+                        "start_date": query_start_date.strftime('%Y-%m-%d'),
+                        "end_date": query_end_date.strftime('%Y-%m-%d'),
+                        "single_date": date if query_mode == "single_date" else None,
+                        "start_date_param": start_date if query_mode == "date_range" else None,
+                        "end_date_param": end_date if query_mode == "date_range" else None
+                    },
+                    "timezone": "Asia/Jakarta"
+                },
+                "summary": {
+                    "total_days_with_consumption": total_days_with_consumption,
+                    "total_orders_all_days": total_orders_all_days,
+                    "unique_ingredients_used": len(all_ingredients_used),
+                    "date_range_formatted": f"{query_start_date.strftime('%d/%m/%Y')} - {query_end_date.strftime('%d/%m/%Y')}"
+                },
+                "daily_consumption": list(sorted_daily_consumption.values())
+            }
+        })
+        
+    except Exception as e:
+        logging.error(f"Error getting daily consumption history: {e}")
+        return JSONResponse(status_code=500, content={
+            "status": "error",
+            "message": f"Gagal mengambil history konsumsi harian: {str(e)}",
             "data": None
         })
 

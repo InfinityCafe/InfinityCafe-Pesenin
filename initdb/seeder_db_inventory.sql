@@ -4,9 +4,6 @@ SET TIME ZONE 'Asia/Jakarta';
 -- Membuat ekstensi vector jika belum ada
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- ===================================================================
--- MEMBUAT ENUM TYPES UNTUK INVENTORY
--- ===================================================================
 DO $$
 BEGIN
     -- Buat enum stockcategory jika belum ada
@@ -19,7 +16,6 @@ BEGIN
         CREATE TYPE unittype AS ENUM ('gram', 'milliliter', 'piece');
     END IF;
     
-    -- Normalisasi enum yang sudah ada (jika diperlukan)
     -- stockcategory: Ingredient -> ingredient
     IF EXISTS (
         SELECT 1 FROM pg_type t JOIN pg_enum e ON t.oid=e.enumtypid
@@ -75,9 +71,6 @@ BEGIN
         ALTER TYPE unittype RENAME VALUE 'Piece' TO 'piece';
     END IF;
 END $$;
--- ===================================================================
--- MEMBUAT TABEL YANG DIBUTUHKAN JIKA BELUM ADA
--- ===================================================================
 
 -- Tabel embeddings untuk AI/vector operations
 CREATE TABLE IF NOT EXISTS embeddings (
@@ -127,17 +120,6 @@ CREATE INDEX IF NOT EXISTS idx_inventories_unit ON inventories(unit);
 CREATE INDEX IF NOT EXISTS idx_inventory_outbox_event_type ON inventory_outbox(event_type);
 CREATE INDEX IF NOT EXISTS idx_consumption_log_order_id ON consumption_log(order_id);
 
--- ===================================================================
--- SEEDER INVENTORY (Bahan & Packaging) sesuai daftar kebutuhan resep
--- Catatan:
---   - category: 'ingredient' atau 'packaging'
---   - unit mengikuti enum di service: gram | milliliter | piece
---   - minimum_quantity diset konservatif (20% dari stok atau default)
---   - Beberapa variasi rasa disatukan dalam 'Flavor Syrup Generic' untuk baseline
---     karena sistem resep saat ini tidak membedakan per varian rasa di tabel resep.
---     Jika ingin tracking per rasa, pindahkan masing-masing flavor ke resep & order.
--- ===================================================================
-
 -- Bersihkan tabel inventories bila diperlukan (hanya jika sudah ada data)
 DO $$
 BEGIN
@@ -148,7 +130,6 @@ BEGIN
     END IF;
 END $$;
 
--- Gunakan ID eksplisit agar sinkron dengan menu_service.synced_inventory
 -- DATA INVENTORY BERDASARKAN SPREADSHEET TERBARU
 INSERT INTO inventories (id, name, current_quantity, minimum_quantity, category, unit) 
 VALUES
@@ -198,14 +179,17 @@ VALUES
 -- MINUMAN & BAHAN LAIN
 (32, 'Sanquik Lemon',          50,   100,  'ingredient'::stockcategory, 'milliliter'::unittype),
 (33, 'Teh Celup',              22,    10,  'ingredient'::stockcategory, 'piece'::unittype),
-(34, 'Nescafe',                76,    20,  'ingredient'::stockcategory, 'gram'::unittype);
+(34, 'Nescafe',                76,    20,  'ingredient'::stockcategory, 'gram'::unittype),
+
+-- TAMBAHAN BAHAN YANG DIBUTUHKAN MENU
+(35, 'Es Batu',             10000,  2500,  'ingredient'::stockcategory, 'gram'::unittype),
+(36, 'Sprite',               5000,  1250,  'ingredient'::stockcategory, 'milliliter'::unittype),
+(37, 'Biji Selasih',          100,    20,  'ingredient'::stockcategory, 'gram'::unittype);
 
 -- Pastikan sequence lanjut setelah ID max
 SELECT setval(pg_get_serial_sequence('inventories','id'), (SELECT MAX(id) FROM inventories));
 
--- Verifikasi cepat
 -- SELECT id,name,current_quantity,minimum_quantity,category,unit FROM inventories ORDER BY id;
-
 CREATE TABLE IF NOT EXISTS flavor_mapping (
     id SERIAL PRIMARY KEY,
     flavor_name VARCHAR UNIQUE NOT NULL,

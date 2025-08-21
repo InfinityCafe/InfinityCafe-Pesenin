@@ -1,5 +1,3 @@
-# order_service.py
-
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -56,7 +54,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://kitchen.gikstaging.com"],  # Dalam production, ganti dengan domain spesifik
+    allow_origins=["https://kitchen.gikstaging.com"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -189,7 +187,6 @@ def validate_order_items(order_items: List[OrderItemSchema]) -> Optional[str]:
     
     return None
     
-# Fungsi helper untuk outbox
 def create_outbox_event(db: Session, order_id: str, event_type: str, payload: dict):
     outbox_event = OrderOutbox(
         order_id=order_id,
@@ -202,7 +199,6 @@ def create_outbox_event(db: Session, order_id: str, event_type: str, payload: di
 def process_outbox_events(db: Session):
     """Memproses outbox events yang belum terkirim"""
     
-    # Ambil events yang belum diproses dan masih bisa di-retry
     unprocessed_events = db.query(OrderOutbox).filter(
         OrderOutbox.processed == False,
         OrderOutbox.retry_count < OrderOutbox.max_retries
@@ -245,14 +241,12 @@ def process_outbox_events(db: Session):
     
     db.commit()
 
-# Endpoint untuk memproses outbox secara manual (untuk debugging)
 @app.post("/admin/process_outbox", tags=["Admin"])
 def manual_process_outbox(db: Session = Depends(get_db)):
     """Memproses outbox events secara manual"""
     process_outbox_events(db)
     return {"message": "Outbox events processed"}
 
-# Endpoint untuk melihat status outbox
 @app.get("/admin/outbox_status", tags=["Admin"])
 def get_outbox_status(db: Session = Depends(get_db)):
     """Melihat status outbox events"""
@@ -278,40 +272,76 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     if validation_error:
         return JSONResponse(status_code=200, content={"status": "error", "message": validation_error, "data": None})
     
-    flavor_required_menus = ["Caffe Latte", "Cappuccino", "Milkshake", "Squash"]
+    flavor_required_menus = ["Caffe Latte", "Cappuccino", "Milk Shake", "Squash"]
     temp_order_id = req.order_id if req.order_id else generate_order_id()
 
     for item in req.orders:
-        if item.menu_name in flavor_required_menus and not item.preference:
+        if item.menu_name in flavor_required_menus:
             try:
                 flavor_url = f"{MENU_SERVICE_URL}/menu/by_name/{item.menu_name}/flavors"
+                logging.info(f"🔍 DEBUG: Validating flavor for menu '{item.menu_name}', preference: '{item.preference}'")
+                logging.info(f"🔍 DEBUG: Calling flavor endpoint: {flavor_url}")
                 flavor_response = requests.get(flavor_url, timeout=3)
+                logging.info(f"🔍 DEBUG: Flavor response status: {flavor_response.status_code}")
                 if flavor_response.status_code != 200:
                      return JSONResponse(status_code=200, content={"status": "error", "message": f"Gagal mendapatkan data rasa untuk {item.menu_name}", "data": None})
                 
                 available_flavors = flavor_response.json()
-                if available_flavors:
+                available_flavor_names = [f['flavor_name'] for f in available_flavors] if available_flavors else []
+                logging.info(f"🔍 DEBUG: Available flavors for {item.menu_name}: {available_flavor_names}")
+                
+                if not item.preference:
+                    logging.info(f"🔍 DEBUG: No preference provided for {item.menu_name}")
+                    if available_flavors:
+                        flavor_names = [f"{i+1}. {flavor['flavor_name']}" for i, flavor in enumerate(available_flavors)]
+                        flavor_list_str = "\n".join(flavor_names)
+                        message = (
+                            f"Anda memesan {item.menu_name}, pilihan rasa wajib diisi. Varian yang tersedia:\n\n"
+                            f"{flavor_list_str}\n\n"
+                            "Silakan pilih satu rasa dan masukkan ke field 'preference', lalu kirim ulang pesanan Anda."
+                        )
+                        
+                        return JSONResponse(
+                            status_code=200,
+                            content={
+                                "status": "error",
+                                "message": "Pilihan rasa diperlukan untuk menu ini.",
+                                "data": {
+                                    "guidance": message,
+                                    "menu_item": item.menu_name,
+                                    "available_flavors": available_flavor_names,
+                                    "order_id_suggestion": temp_order_id 
+                                }
+                            }
+                        )
+                
+                elif item.preference and available_flavor_names and item.preference not in available_flavor_names:
+                    logging.info(f"🚫 DEBUG: Invalid flavor '{item.preference}' for {item.menu_name}. Valid flavors: {available_flavor_names}")
                     flavor_names = [f"{i+1}. {flavor['flavor_name']}" for i, flavor in enumerate(available_flavors)]
                     flavor_list_str = "\n".join(flavor_names)
                     message = (
-                        f"Anda memesan {item.menu_name}, pilihan rasa wajib diisi. Varian yang tersedia:\n\n"
+                        f"Rasa '{item.preference}' tidak tersedia untuk {item.menu_name}. Varian yang tersedia:\n\n"
                         f"{flavor_list_str}\n\n"
-                        "Silakan pilih satu rasa dan masukkan ke field 'preference', lalu kirim ulang pesanan Anda."
+                        "Silakan pilih salah satu rasa yang tersedia, atau gunakan /custom_order untuk rasa khusus."
                     )
                     
                     return JSONResponse(
                         status_code=200,
                         content={
                             "status": "error",
-                            "message": "Pilihan rasa diperlukan untuk menu ini.",
+                            "message": f"Rasa '{item.preference}' tidak tersedia untuk menu {item.menu_name}.",
                             "data": {
                                 "guidance": message,
                                 "menu_item": item.menu_name,
-                                "available_flavors": [f['flavor_name'] for f in available_flavors],
+                                "invalid_flavor": item.preference,
+                                "available_flavors": available_flavor_names,
                                 "order_id_suggestion": temp_order_id 
                             }
                         }
                     )
+                else:
+                    logging.info(f"✅ DEBUG: Valid flavor '{item.preference}' for {item.menu_name}")
+                    
             except requests.RequestException as e:
                 logging.error(f"Gagal menghubungi menu_service untuk validasi flavor: {e}")
                 return JSONResponse(status_code=200, content={"status": "error", "message": "Tidak dapat memvalidasi pilihan rasa saat ini.", "data": None})
@@ -330,7 +360,6 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     if db.query(Order).filter(Order.order_id == order_id).first():
         return JSONResponse(status_code=200, content={"status": "error", "message": f"Pesanan dengan ID {order_id} sudah dalam proses.", "data": None})
     
-    # Cek stok 
     try:
         inventory_payload = {
             "order_id": temp_order_id,
@@ -348,7 +377,6 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         )
         stock_data = stock_resp.json()
         if not stock_data.get("can_fulfill", False):
-            # Bentuk pesan informatif
             msg = "Stok belum mencukupi."
             shortages = stock_data.get("shortages") or []
             if shortages:
@@ -399,7 +427,6 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     except Exception as e:
         logging.warning(f"⚠️ Gagal memproses outbox events: {e}")
 
-    # Konsumsi stok setelah order berhasil disimpan
     try:
         print(f"🔥 ORDER SERVICE: Mengkonsumsi stok untuk order {order_id}")
         consume_resp = requests.post(
@@ -441,13 +468,18 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
 
 @app.post("/custom_order", summary="Buat pesanan custom (tanpa validasi menu)", tags=["Order"], operation_id="add custom order")
 def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
-    """Membuat pesanan custom baru tanpa validasi ke menu_service."""
+    """Membuat pesanan custom baru dengan validasi menu tetapi flavor bebas."""
 
-    flavor_required_menus = ["Caffe Latte", "Cappuccino", "Milkshake", "Squash"]
+    validation_error = validate_order_items(req.orders)
+    if validation_error:
+        return JSONResponse(status_code=200, content={"status": "error", "message": validation_error, "data": None})
+
+    flavor_required_menus = ["Caffe Latte", "Cappuccino", "Milk Shake", "Squash"]
     temp_order_id = req.order_id if req.order_id else generate_order_id()
 
     for item in req.orders:
         if item.menu_name in flavor_required_menus and not item.preference:
+            logging.info(f"🔍 DEBUG CUSTOM: Menu '{item.menu_name}' memerlukan flavor tapi tidak diisi")
             try:
                 flavor_url = f"{MENU_SERVICE_URL}/menu/by_name/{item.menu_name}/flavors"
                 flavor_response = requests.get(flavor_url, timeout=3)
@@ -459,9 +491,9 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
                     flavor_names = [f"{i+1}. {flavor['flavor_name']}" for i, flavor in enumerate(available_flavors)]
                     flavor_list_str = "\n".join(flavor_names)
                     message = (
-                        f"Anda memesan {item.menu_name}, pilihan rasa wajib diisi. Varian yang tersedia:\n\n"
+                        f"Anda memesan {item.menu_name} via custom order, pilihan rasa tetap wajib diisi. Varian yang tersedia:\n\n"
                         f"{flavor_list_str}\n\n"
-                        "Silakan pilih satu rasa dan masukkan ke field 'preference', lalu kirim ulang pesanan Anda."
+                        "Untuk custom order, Anda bisa menggunakan rasa apapun termasuk yang tidak ada dalam daftar di atas."
                     )
                     
                     return JSONResponse(
@@ -480,6 +512,42 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
             except requests.RequestException as e:
                 logging.error(f"Gagal menghubungi menu_service untuk validasi flavor: {e}")
                 return JSONResponse(status_code=200, content={"status": "error", "message": "Tidak dapat memvalidasi pilihan rasa saat ini.", "data": None})
+        elif item.menu_name in flavor_required_menus and item.preference:
+            logging.info(f"🔍 DEBUG CUSTOM: Mulai validasi flavor '{item.preference}' untuk menu '{item.menu_name}'")
+            try:
+                flavor_check_url = f"{INVENTORY_SERVICE_URL}/flavors"
+                logging.info(f"🔍 DEBUG CUSTOM: Calling {flavor_check_url}")
+                flavor_response = requests.get(flavor_check_url, timeout=3)
+                if flavor_response.status_code == 200:
+                    available_flavors_data = flavor_response.json()
+                    available_flavors = available_flavors_data.get("flavors", [])
+                    logging.info(f"🔍 DEBUG CUSTOM: Got {len(available_flavors)} available flavors from inventory")
+                    
+                    if item.preference not in available_flavors:
+                        logging.info(f"❌ DEBUG CUSTOM: Flavor '{item.preference}' tidak ada dalam database untuk menu '{item.menu_name}'")
+                        return JSONResponse(
+                            status_code=200,
+                            content={
+                                "status": "error",
+                                "message": f"Flavor '{item.preference}' tidak tersedia dalam database. Silakan pilih flavor yang tersedia.",
+                                "data": {
+                                    "available_flavors": available_flavors[:10], 
+                                    "total_flavors": len(available_flavors),
+                                    "invalid_flavor": item.preference,
+                                    "menu_item": item.menu_name,
+                                    "note": "Untuk custom order, Anda tetap harus memilih flavor yang ada dalam database."
+                                }
+                            }
+                        )
+                    else:
+                        logging.info(f"✅ DEBUG CUSTOM: Custom order dengan menu '{item.menu_name}' dan flavor valid '{item.preference}'")
+                else:
+                    logging.warning(f"⚠️ DEBUG CUSTOM: Gagal mengecek flavor dari inventory service, status: {flavor_response.status_code}")
+                    return JSONResponse(status_code=200, content={"status": "error", "message": "Tidak dapat memvalidasi flavor saat ini.", "data": None})
+                    
+            except requests.RequestException as e:
+                logging.error(f"Gagal menghubungi inventory_service untuk validasi flavor: {e}")
+                return JSONResponse(status_code=200, content={"status": "error", "message": "Tidak dapat memvalidasi flavor saat ini.", "data": None})
 
     try:
         status_response = requests.get("http://kitchen_service:8003/kitchen/status/now", timeout=5)
@@ -495,7 +563,6 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     if db.query(Order).filter(Order.order_id == order_id).first():
         return JSONResponse(status_code=200, content={"status": "error", "message": f"Pesanan dengan ID {order_id} sudah dalam proses.", "data": None})
     
-    # Pengecekan stock
     try:
         inventory_payload = {
             "order_id": temp_order_id,
@@ -559,7 +626,6 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     except Exception as e:
         logging.warning(f"⚠️ Gagal memproses outbox events: {e}")
 
-    # Konsumsi stok setelah custom order berhasil disimpan
     try:
         print(f"🔥 ORDER SERVICE: Mengkonsumsi stok untuk custom order {order_id}")
         consume_resp = requests.post(
@@ -618,7 +684,6 @@ def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
     create_outbox_event(db, req.order_id, "order_cancelled", cancel_payload)
     db.commit()
     
-    # Rollback inventory untuk pesanan yang dibatalkan
     try:
         rollback_response = requests.post(f"{INVENTORY_SERVICE_URL}/stock/rollback/{req.order_id}")
         if rollback_response.status_code == 200:
