@@ -1,84 +1,3 @@
-// Login guard
-if (!localStorage.getItem('access_token')) {
-  window.location.href = '/login';
-}
-
-// Fungsi untuk mendekode token JWT
-function parseJwt(token) {
-  try {
-    // Memisahkan header, payload, dan signature
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    // Decode base64 dan parse JSON
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    console.error('Error parsing JWT token:', e);
-    return {};
-  }
-}
-
-// Fungsi untuk menampilkan data user dari token JWT
-function displayUserInfo() {
-  try {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      const userData = parseJwt(token);
-      const username = userData.sub || 'User';
-      
-      // Update header subtitle (nama dan peran)
-      const headerSubtitle = document.querySelector('.header-subtitle');
-      if (headerSubtitle) {
-        headerSubtitle.textContent = `${username} | Barista`;
-      }
-      
-      // Update greeting message
-      const greetingMessage = document.querySelector('.greeting-message h2');
-      if (greetingMessage) {
-        greetingMessage.textContent = `Hi, ${username}, here's list menu!`;
-      }
-    }
-  } catch (error) {
-    console.error('Error displaying user info:', error);
-  }
-}
-
-// Fungsi untuk memperbarui tanggal greeting
-function updateGreetingDate() {
-  const dateElement = document.getElementById('greeting-date');
-  if (dateElement) {
-    const today = new Date();
-    const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-    dateElement.textContent = today.toLocaleDateString('id-ID', options);
-  }
-}
-
-// Fungsi logout
-function logout() {
-  localStorage.removeItem('access_token');
-  window.location.href = '/login';
-}
-
-// Tambahkan tombol logout ke header setelah DOM siap
-window.addEventListener('DOMContentLoaded', function () {
-  const headerRight = document.querySelector('.header-right');
-  if (headerRight && !document.getElementById('logout-btn')) {
-    const logoutBtn = document.createElement('button');
-    logoutBtn.className = 'nav-btn';
-    logoutBtn.id = 'logout-btn';
-    logoutBtn.textContent = 'Logout';
-    logoutBtn.style.marginLeft = '1rem';
-    logoutBtn.onclick = logout;
-    headerRight.appendChild(logoutBtn);
-  }
-  
-  // Tampilkan info user dan update tanggal
-  displayUserInfo();
-  updateGreetingDate();
-});
-
 const BASE_URL = "";
 
 // Global variables for pagination and filtering
@@ -578,6 +497,12 @@ async function saveMenu() {
     const basePrice = parseInt(document.getElementById('base-price').value);
     const isAvail = document.querySelector('input[name="is-avail"]:checked').value === 'true';
 
+    // Client-side validation for non-negative price
+    if (isNaN(basePrice) || basePrice < 0) {
+    	showErrorModal('Harga menu tidak boleh negatif.');
+    	return;
+    }
+
     const data = {
     base_name: baseName,
     base_price: basePrice,
@@ -712,7 +637,7 @@ async function viewMenu(menuId) {
     
     document.getElementById('view-menu-name').textContent = menu.base_name;
     document.getElementById('view-menu-price').textContent = `Rp ${menu.base_price.toLocaleString()}`;
-    document.getElementById('view-menu-available').textContent = menu.isAvail ? 'Yes' : 'No';
+    document.getElementById('view-menu-available').textContent = menu.isAvail ? 'Available' : 'Unavailable';
     
     // Display available flavors
     let flavorsText = 'None';
@@ -746,6 +671,8 @@ async function viewFlavor(flavorId) {
     
     document.getElementById('view-flavor-name').textContent = flavor.flavor_name;
     document.getElementById('view-flavor-price').textContent = `Rp ${flavor.additional_price.toLocaleString()}`;
+    const availEl = document.getElementById('view-flavor-available');
+    if (availEl) availEl.textContent = flavor.isAvail ? 'Available' : 'Unavailable';
     
     // Store the flavor ID for edit functionality
     document.getElementById('view-flavor-modal').setAttribute('data-flavor-id', flavorId);
@@ -767,7 +694,15 @@ async function editFlavor(flavorId) {
     
     document.getElementById('flavour-name').value = flavor.flavor_name;
     document.getElementById('additional-price').value = flavor.additional_price;
-    
+    // Set radio button berdasarkan isAvail
+    if (flavor.isAvail) {
+        document.getElementById('is-flavour-avail-true').checked = true;
+    } else {
+        document.getElementById('is-flavour-avail-false').checked = true;
+    }
+    // Ubah judul modal menjadi Edit Flavour
+    const modalTitle = document.querySelector('#add-flavour-modal .modal-title');
+    if (modalTitle) modalTitle.textContent = 'Edit Flavour';
     document.getElementById('add-flavour-form').setAttribute('data-flavour-id', flavorId);
     openAddFlavourModal();
     } catch (error) {
@@ -873,6 +808,11 @@ function closeAddMenuModal() {
 }
 
 function openAddFlavourModal() {
+    // Pastikan judul default saat create
+    const modalTitle = document.querySelector('#add-flavour-modal .modal-title');
+    if (modalTitle && !document.getElementById('add-flavour-form').getAttribute('data-flavour-id')) {
+        modalTitle.textContent = 'Create New Flavour';
+    }
     document.getElementById('add-flavour-modal').classList.remove('hidden');
 }
 
@@ -881,6 +821,9 @@ function closeAddFlavourModal() {
     document.getElementById('add-flavour-form').removeAttribute('data-flavour-id');
     document.getElementById('flavour-form-error').textContent = '';
     document.getElementById('flavour-form-error').style.color = '';
+    // Reset radio ke default Available
+    const availTrue = document.getElementById('is-flavour-avail-true');
+    if (availTrue) availTrue.checked = true;
     document.getElementById('add-flavour-modal').classList.add('hidden');
 }
 
@@ -930,10 +873,18 @@ async function saveFlavour() {
     const flavourId = document.getElementById('add-flavour-form').getAttribute('data-flavour-id') || null;
     const flavourName = document.getElementById('flavour-name').value;
     const additionalPrice = parseInt(document.getElementById('additional-price').value);
+    const isAvail = document.querySelector('input[name="flavour-is-avail"]:checked').value === 'true';
+
+    // Client-side validation for non-negative additional price
+    if (isNaN(additionalPrice) || additionalPrice < 0) {
+    	showErrorModal('Harga tambahan tidak boleh negatif.');
+    	return;
+    }
 
     const data = {
     flavor_name: flavourName,
-    additional_price: additionalPrice
+    additional_price: additionalPrice,
+    isAvail: isAvail
     };
 
     try {
@@ -1095,6 +1046,9 @@ function closeDeleteConfirmModal() {
 }
 
 function showSuccessModal(message) {
+    // Hide error modal if visible
+    const err = document.getElementById('error-modal');
+    if (err) err.classList.add('hidden');
     document.getElementById('success-message').textContent = message;
     document.getElementById('success-modal').classList.remove('hidden');
 }
@@ -1104,6 +1058,9 @@ function closeSuccessModal() {
 }
 
 function showErrorModal(message) {
+    // Hide success modal if visible
+    const suc = document.getElementById('success-modal');
+    if (suc) suc.classList.add('hidden');
     document.getElementById('error-message').textContent = message;
     document.getElementById('error-modal').classList.remove('hidden');
 }
@@ -1124,10 +1081,6 @@ window.addEventListener('load', async () => {
     switchTab('menu'); // Set default tab
     setupNavigation(); // Setup navigation
     setupSearch(); // Setup search functionality
-    
-    // Tampilkan info user dan update tanggal
-    displayUserInfo();
-    updateGreetingDate();
     
     // Ensure navigation is properly set up after DOM is fully loaded
     setTimeout(() => {

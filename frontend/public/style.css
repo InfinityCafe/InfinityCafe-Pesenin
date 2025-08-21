@@ -330,6 +330,7 @@ input:checked + .slider:before {
     cursor: pointer;
     transform: scale(1);
     transition: all 0.2s ease;
+    white-space: nowrap;
     /* min-width: 1; */
     padding-left: 6%;
     padding-right: 6%;
@@ -428,7 +429,8 @@ input:checked + .slider:before {
     font-size: 19px;
     text-transform: uppercase;
     padding: 12px;
-    
+    width: 285px;
+    margin: auto;
 }
 
 .column-content, .sidebar-content {
@@ -1833,7 +1835,13 @@ input:checked + .slider:before {
             gap: 12px;
         }
         
-        .column, .sidebar {
+        .column {
+            width: auto;
+            min-height: 70vh;
+            max-height: 70vh;
+        }
+
+        .column.sidebar {
             width: auto;
             min-height: 70vh;
             max-height: 70vh;
@@ -2706,10 +2714,11 @@ body.tab-done .add-order-btn {
 #menu-table th:nth-child(5) {
     width: 200px;
 }
-#flavors-table th:nth-child(3) {
+#flavors-table th:nth-child(4) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
+
 
 #menu-table th:not(:first-child):not(.action-header)::before,
 #flavors-table th:not(:first-child):not(.action-header)::before {
@@ -2762,7 +2771,7 @@ body.tab-done .add-order-btn {
     width: 200px;
 }
 
-#flavors-table td:nth-child(3) {
+#flavors-table td:nth-child(4) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
@@ -2840,7 +2849,7 @@ body.tab-done .add-order-btn {
 }
 
 .add-menu-modal .flavor-checkboxes {
-    max-height: 140px;
+    max-height: 120px;
 }
 
 .add-menu-modal .modal-title {
@@ -2861,7 +2870,9 @@ body.tab-done .add-order-btn {
     padding: 32px;
     max-width: 481px;
     width: 481px;
-    height: 426px;
+    height: auto;
+    max-height: 90vh;
+    overflow-y: auto;
     position: relative;
 }
 
@@ -2888,6 +2899,36 @@ body.tab-done .add-order-btn {
     color: #312929;
     display: block;
     margin-bottom: 8px;
+}
+
+/* Flavour status radio group - align with menu modal styling, responsive-safe */
+.add-flavour-modal .radio-group {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.add-flavour-modal .radio-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.add-flavour-modal .radio-option input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    accent-color: #312929;
+}
+
+.add-flavour-modal .radio-option label {
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 1.21;
+    color: #312929;
+    margin: 0;
 }
 
 .add-flavour-modal .form-group input[type="text"],
@@ -3107,7 +3148,7 @@ body.tab-done .add-order-btn {
     border-radius: 10px;
     padding: 16px;
     max-height: 240px;
-    overflow-y: auto;
+    /* overflow-y: auto; */
     box-shadow: inset 0px 4px 4px 0px rgba(0, 0, 0, 0.25);
     box-sizing: border-box;
     scrollbar-width: thin;
@@ -3282,6 +3323,13 @@ body.tab-done .add-order-btn {
         padding: 20px;
         min-height: auto;
         max-height: 90vh;
+    }
+    .add-flavour-modal {
+        width: 95vw;
+        max-width: 95vw;
+        padding: 20px;
+        max-height: 90vh;
+        overflow-y: auto;
     }
     
     .add-menu-modal .flavor-selector {
@@ -3538,8 +3586,10 @@ body.tab-done .add-order-btn {
 }
 
 .apply-filter-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(32, 113, 86, 0.3);
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
+    transition: opacity 0.3s ease;
+    background: #207156;
+    transform: scale(1.02);
 }
 
 .clear-filter-btn {
@@ -3550,7 +3600,8 @@ body.tab-done .add-order-btn {
 
 .clear-filter-btn:hover {
     background: #E8E4D8;
-    transform: translateY(-2px);
+    transition: opacity 0.3s ease;
+    transform: scale(1.02);
 }
 
 /* Table Info Styles */
@@ -3946,23 +3997,25 @@ body.tab-done .add-order-btn {
 
 .view-modal .modal-btn-cancel {
     background-color: #E0E0E0;
-    color: #312929;
 }
 
 .view-modal .modal-btn-cancel:hover {
     background-color: #D0D0D0;
-    transform: translateY(-2px);
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
 }
 
 .view-modal .modal-btn:not(.modal-btn-cancel) {
     background: linear-gradient(90deg, #207156 0%, #60B7A6 100%);
     color: #FFFFFF;
-    box-shadow: 4px 6px 6px 0px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
 }
 
 .view-modal .modal-btn:not(.modal-btn-cancel):hover {
-    transform: translateY(-2px);
-    box-shadow: 6px 8px 8px 0px rgba(0, 0, 0, 0.3);
+background: #207156;
+    transition: opacity 0.3s ease;
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
 }
 
 .view-modal .modal-close {

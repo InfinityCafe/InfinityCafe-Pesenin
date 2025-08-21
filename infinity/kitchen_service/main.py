@@ -94,7 +94,7 @@ class KitchenOrder(Base):
     time_deliver = Column(DateTime(timezone=True), nullable=True)
     time_done = Column(DateTime(timezone=True), nullable=True)
     cancel_reason = Column(Text, nullable=True)
-    orders_json = Column(Text, nullable=True) # Added orders_json column
+    orders_json = Column(Text, nullable=True)
 
 Base.metadata.create_all(bind=engine)
 
@@ -213,7 +213,7 @@ async def update_status(order_id: str, status: str, reason: str = "", db: Sessio
         raise HTTPException(status_code=404, detail="Order not found")
     
     # Validasi status dan reason
-    if status in ["cancel", "habis"] and not reason:
+    if status in ["cancelled", "habis"] and not reason:
         raise HTTPException(status_code=400, detail="Alasan wajib untuk status cancel, atau habis")
 
     # Update timestamp sesuai status
@@ -224,7 +224,12 @@ async def update_status(order_id: str, status: str, reason: str = "", db: Sessio
     elif status == "done" and not order.time_done:
         order.time_done = timestamp
 
-    if status in ["cancel", "habis"]:
+    if status in ["cancelled", "habis"]:
+        if not reason:
+            if status == "cancelled":
+                reason = "Dibatalkan"
+            else:
+                reason = "Bahan habis"
         order.cancel_reason = reason
 
     # Update status
@@ -353,7 +358,7 @@ def get_kitchen_orders(db: Session = Depends(get_db)):
         or_(
             KitchenOrder.status.in_(['receive', 'making', 'deliver']),
             and_(
-                KitchenOrder.status.in_(['done', 'cancel', 'habis']),
+                KitchenOrder.status.in_(['done', 'cancelled', 'habis']),
                 KitchenOrder.time_receive >= start_of_day,
                 KitchenOrder.time_receive < end_of_day
             )

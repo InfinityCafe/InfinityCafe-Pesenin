@@ -103,7 +103,7 @@
             </div>
           </div>
           <div class="column sidebar">
-            <h3 class="column-title">Cancel</h3>
+            <h3 class="column-title">Cancelled</h3>
             <div class="column-content">
               <div id="cancel-order-column" class="order-list"></div>
             </div>
@@ -203,34 +203,22 @@
     </div>
   </div>
 
+  <!-- Error Modal -->
+  <div id="error-modal" class="modal hidden">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeErrorModal()">&times;</button>
+      <h3 class="modal-title">Terjadi Kesalahan</h3>
+      <div id="error-message" class="modal-text" style="margin-bottom:24px;"></div>
+      <div class="modal-actions" style="justify-content:center;">
+        <button class="modal-btn modal-btn-habis" onclick="closeErrorModal()">OK</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Audio -->
   <audio id="sound-new-order" src="https://www.myinstants.com/media/sounds/mario-coin.mp3" preload="auto"></audio>
   <audio id="sound-status-update" src="https://www.myinstants.com/media/sounds/smw_1-up.mp3" preload="auto"></audio>
 
-  <script>
-// Login guard
-if (!localStorage.getItem('access_token')) {
-  window.location.href = '/login';
-}
-// Fungsi logout
-function logout() {
-  localStorage.removeItem('access_token');
-  window.location.href = '/login';
-}
-// Tambahkan tombol logout ke header setelah DOM siap
-window.addEventListener('DOMContentLoaded', function () {
-  const headerRight = document.querySelector('.header-right');
-  if (headerRight && !document.getElementById('logout-btn')) {
-    const logoutBtn = document.createElement('button');
-    logoutBtn.className = 'nav-btn';
-    logoutBtn.id = 'logout-btn';
-    logoutBtn.textContent = 'Logout';
-    logoutBtn.style.marginLeft = '1rem';
-    logoutBtn.onclick = logout;
-    headerRight.appendChild(logoutBtn);
-  }
-});
-  </script>
   <script src="script.js"></script>
   <script src="index.js"></script>
 

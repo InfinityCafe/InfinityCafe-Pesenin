@@ -6,12 +6,14 @@ const fetch = require("node-fetch");
 
 const app = express();
 const PORT = 8080;
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "https://liberal-relative-panther.ngrok-free.app/webhook/trigger-order-status";
 
-app.use(express.static(path.join(__dirname, "public")));
-app.use(express.json()); // Add JSON parsing middleware
+// Middleware
+app.use(express.json());
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
+// Swagger configuration
 const swaggerSpec = swaggerJsdoc({
   definition: {
     openapi: "3.0.0",
@@ -27,115 +29,67 @@ const swaggerSpec = swaggerJsdoc({
 
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-/**
- * @swagger
- * /:
- *   get:
- *     summary: Halaman dashboard dapur
- *     responses:
- *       200:
- *         description: Mengembalikan file index.html
- * /report_page:
- *   get:
- *     summary: Halaman laporan penjualan
- *     responses:
- *       200:
- *         description: Mengembalikan file report.html
- * /health:
- *   get:
- *     summary: Health check API
- *     responses:
- *       200:
- *         description: Status OK
- * /kitchen/orders:
- *   get:
- *     summary: Ambil daftar semua pesanan dari dapur
- *     responses:
- *       200:
- *         description: Daftar pesanan
- * /kitchen/update_status/{order_id}:
- *   post:
- *     summary: Perbarui status pesanan tertentu
- *     parameters:
- *       - in: path
- *         name: order_id
- *         required: true
- *         schema:
- *           type: string
- *         description: ID pesanan
- *       - in: query
- *         name: status
- *         required: true
- *         schema:
- *           type: string
- *         description: Status baru
- *       - in: query
- *         name: reason
- *         schema:
- *           type: string
- *         description: Alasan pembatalan
- *     responses:
- *       200:
- *         description: Status pesanan berhasil diperbarui
- * /stream/orders:
- *   get:
- *     summary: Streaming data pesanan aktif via SSE
- *     responses:
- *       200:
- *         description: Event stream (SSE)
- * /report:
- *   get:
- *     summary: Ambil laporan penjualan berdasarkan rentang tanggal
- *     parameters:
- *       - in: query
- *         name: start_date
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: end_date
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Data laporan penjualan
- * /report/top_customers:
- *   get:
- *     summary: Ambil pelanggan loyal
- *     parameters:
- *       - in: query
- *         name: start_date
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: end_date
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Daftar pelanggan loyal
- * /report/suggested_menu:
- *   get:
- *     summary: Ambil daftar menu usulan pelanggan
- *     parameters:
- *       - in: query
- *         name: start_date
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: end_date
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Daftar menu usulan
- */
+// ========== API ROUTES (MUST COME BEFORE PAGE ROUTES) ==========
 
+// Health check
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+// Order endpoints
+app.post("/create_order", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://order_service:8002/create_order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to create order ", err);
+    res.status(500).json({ error: "Failed to create order" });
+  }
+});
+
+app.post("/cancel_order", async (req, res) => {
+  try {
+    const body = req.body;
+
+    // Panggil service untuk cancel order
+    const resp = await fetch("http://order_service:8002/cancel_order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+
+    const data = await resp.json();
+
+    // Setelah cancel berhasil, trigger webhook ke n8n (GET) - non-blocking
+    try {
+      const { order_id = "", reason = "" } = body;
+      const qs = new URLSearchParams({
+        order_id: String(order_id),
+        status: "cancelled", // status diset manual
+        reason: String(reason || "Cancelled by user")
+      });
+
+      fetch(`${N8N_WEBHOOK_URL}?${qs.toString()}`, { method: "GET" })
+        .catch(err => console.error("Failed to call n8n webhook ", err));
+    } catch (whErr) {
+      console.error("n8n webhook error ", whErr);
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to cancel order ", err);
+    res.status(500).json({ error: "Failed to cancel order" });
+  }
+});
+
+
+// Kitchen endpoints
 app.get("/kitchen/orders", async (req, res) => {
   try {
     const resp = await fetch("http://kitchen_service:8003/kitchen/orders");
@@ -151,7 +105,25 @@ app.post("/kitchen/update_status/:order_id", async (req, res) => {
   const { order_id } = req.params;
   const { status, reason = "" } = req.query;
   try {
-    await fetch(`http://kitchen_service:8003/kitchen/update_status/${order_id}?status=${status}&reason=${encodeURIComponent(reason)}`, { method: "POST" });
+    // Update status di kitchen_service
+    await fetch(
+      `http://kitchen_service:8003/kitchen/update_status/${order_id}?status=${status}&reason=${encodeURIComponent(reason)}`,
+      { method: "POST" }
+    );
+
+    // Trigger n8n webhook (GET) - non-blocking agar tidak mengganggu response
+    try {
+      const qs = new URLSearchParams({
+        order_id: String(order_id || ""),
+        status: String(status || ""),
+        reason: String(reason || "")
+      });
+      fetch(`${N8N_WEBHOOK_URL}?${qs.toString()}`, { method: "GET" })
+        .catch(err => console.error("Failed to call n8n webhook ", err));
+    } catch (whErr) {
+      console.error("n8n webhook error ", whErr);
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error("Failed to update status ", err);
@@ -159,40 +131,6 @@ app.post("/kitchen/update_status/:order_id", async (req, res) => {
   }
 });
 
-app.get("/stream/orders", (req, res) => {
-  const streamReq = fetch("http://kitchen_service:8003/stream/orders");
-  streamReq.then(resp => {
-    res.setHeader('Content-Type', 'text/event-stream');
-    resp.body.pipe(res);
-  }).catch(() => res.status(500).end());
-});
-
-// ========== PAGE ROUTES ==========
-app.get("/", (req, res) => {
-  res.redirect("/dashboard");
-});
-
-app.get("/dashboard", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-app.get("/menu-management", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "menu.html"));
-});
-
-app.get("/reportkitchen", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "report.html"));
-});
-
-app.get("/login", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "login.html"));
-});
-
-app.get("/health", (req, res) => {
-  res.json({ status: "ok" });
-});
-
-// ========== KITCHEN STATUS ENDPOINTS ==========
 app.get("/kitchen/status/now", async (req, res) => {
   try {
     const resp = await fetch("http://kitchen_service:8003/kitchen/status/now");
@@ -220,7 +158,15 @@ app.post("/kitchen/status", async (req, res) => {
   }
 });
 
-// ========== MENU ENDPOINTS ==========
+app.get("/stream/orders", (req, res) => {
+  const streamReq = fetch("http://kitchen_service:8003/stream/orders");
+  streamReq.then(resp => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    resp.body.pipe(res);
+  }).catch(() => res.status(500).end());
+});
+
+// Menu endpoints
 app.get("/menu", async (req, res) => {
   try {
     const resp = await fetch("http://menu_service:8001/menu");
@@ -229,6 +175,22 @@ app.get("/menu", async (req, res) => {
   } catch (err) {
     console.error("Failed to fetch menu ", err);
     res.status(500).json({ error: "Failed to fetch menu" });
+  }
+});
+
+app.post("/menu", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://menu_service:8001/menu", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to create menu ", err);
+    res.status(500).json({ error: "Failed to create menu" });
   }
 });
 
@@ -244,24 +206,6 @@ app.get("/menu/:menu_id", async (req, res) => {
   }
 });
 
-app.post("/menu", async (req, res) => {
-  try {
-    const body = req.body;
-    const resp = await fetch("http://menu_service:8001/menu", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
-    const data = await resp.json();
-    
-    // Forward the status code from the backend service
-    res.status(resp.status).json(data);
-  } catch (err) {
-    console.error("Failed to create menu ", err);
-    res.status(500).json({ error: "Failed to create menu" });
-  }
-});
-
 app.put("/menu/:menu_id", async (req, res) => {
   try {
     const { menu_id } = req.params;
@@ -272,8 +216,6 @@ app.put("/menu/:menu_id", async (req, res) => {
       body: JSON.stringify(body)
     });
     const data = await resp.json();
-    
-    // Forward the status code from the backend service
     res.status(resp.status).json(data);
   } catch (err) {
     console.error("Failed to update menu ", err);
@@ -288,8 +230,6 @@ app.delete("/menu/:menu_id", async (req, res) => {
       method: "DELETE"
     });
     const data = await resp.json();
-    
-    // Forward the status code from the backend service
     res.status(resp.status).json(data);
   } catch (err) {
     console.error("Failed to delete menu ", err);
@@ -297,7 +237,7 @@ app.delete("/menu/:menu_id", async (req, res) => {
   }
 });
 
-// ========== FLAVOUR ENDPOINTS ==========
+// Flavor endpoints
 app.get("/flavors", async (req, res) => {
   try {
     const resp = await fetch("http://menu_service:8001/flavors");
@@ -306,6 +246,22 @@ app.get("/flavors", async (req, res) => {
   } catch (err) {
     console.error("Failed to fetch flavors ", err);
     res.status(500).json({ error: "Failed to fetch flavors" });
+  }
+});
+
+app.post("/flavors", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://menu_service:8001/flavors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to create flavor ", err);
+    res.status(500).json({ error: "Failed to create flavor" });
   }
 });
 
@@ -321,24 +277,6 @@ app.get("/flavors/:flavor_id", async (req, res) => {
   }
 });
 
-app.post("/flavors", async (req, res) => {
-  try {
-    const body = req.body;
-    const resp = await fetch("http://menu_service:8001/flavors", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
-    const data = await resp.json();
-    
-    // Forward the status code from the backend service
-    res.status(resp.status).json(data);
-  } catch (err) {
-    console.error("Failed to create flavor ", err);
-    res.status(500).json({ error: "Failed to create flavor" });
-  }
-});
-
 app.put("/flavors/:flavor_id", async (req, res) => {
   try {
     const { flavor_id } = req.params;
@@ -349,8 +287,6 @@ app.put("/flavors/:flavor_id", async (req, res) => {
       body: JSON.stringify(body)
     });
     const data = await resp.json();
-    
-    // Forward the status code from the backend service
     res.status(resp.status).json(data);
   } catch (err) {
     console.error("Failed to update flavor ", err);
@@ -365,8 +301,6 @@ app.delete("/flavors/:flavor_id", async (req, res) => {
       method: "DELETE"
     });
     const data = await resp.json();
-    
-    // Forward the status code from the backend service
     res.status(resp.status).json(data);
   } catch (err) {
     console.error("Failed to delete flavor ", err);
@@ -374,24 +308,7 @@ app.delete("/flavors/:flavor_id", async (req, res) => {
   }
 });
 
-// ========== ORDER ENDPOINTS ==========
-app.post("/create_order", async (req, res) => {
-  try {
-    const body = req.body;
-    const resp = await fetch("http://order_service:8002/create_order", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
-    const data = await resp.json();
-    res.json(data);
-  } catch (err) {
-    console.error("Failed to create order ", err);
-    res.status(500).json({ error: "Failed to create order" });
-  }
-});
-
-// ========== REPORT ENDPOINTS ==========
+// Report endpoints
 app.get("/report", async (req, res) => {
   const { start_date, end_date, menu_name } = req.query;
   try {
@@ -433,7 +350,7 @@ app.get("/report/suggested_menu", async (req, res) => {
   }
 });
 
-// Proxy login endpoint
+// User endpoints
 app.post('/login', async (req, res) => {
   try {
     const response = await fetch('http://user_service:8005/login', {
@@ -448,6 +365,31 @@ app.post('/login', async (req, res) => {
   }
 });
 
+// ========== PAGE ROUTES ==========
+app.get("/", (req, res) => {
+  res.redirect("/dashboard");
+});
+
+app.get("/dashboard", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+app.get("/menu-management", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "menu.html"));
+});
+
+app.get("/reportkitchen", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "report.html"));
+});
+
+app.get("/login", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "login.html"));
+});
+
+// ========== STATIC FILES (MUST COME LAST) ==========
+app.use(express.static(path.join(__dirname, "public")));
+
+// Start server
 app.listen(PORT, () => {
   console.log(`✅ Frontend running at http://localhost:${PORT}`);
   console.log(`📘 Swagger docs available at http://localhost:${PORT}/docs`);
