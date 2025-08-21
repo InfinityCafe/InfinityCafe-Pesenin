@@ -50,7 +50,7 @@
 
   <!-- Main Content -->
   <div class="main-container">
-<div class="content-area">
+    <div class="content-area">
     
       <!-- Greeting Message -->
       <div class="greeting-message">
@@ -60,8 +60,9 @@
 
       <!-- Tab Navigation -->
       <div class="tab-navigation">
-        <button id="tab-menu" class="tab-btn tab-active" onclick="switchTab('menu')">MENU</button>
+        <button id="tab-menu" class="tab-btn" onclick="switchTab('menu')">MENU</button>
         <button id="tab-flavors" class="tab-btn" onclick="switchTab('flavors')">FLAVORS</button>
+        <button id="tab-menu-suggestion" class="tab-btn tab-menu-suggestion" onclick="window.location.href = 'menu-suggestion';">MENU SUGGESTION</button>
         <button class="add-order-btn" id="add-new-btn" onclick="openAddModal()">ADD NEW MENU</button>
       </div>
 
@@ -89,7 +90,7 @@
                       <option value="Yes">Available</option>
                       <option value="No">Unavailable</option>
                     </select>
-            </div>
+                </div>
                   <div class="filter-group">
                     <label>Price Range:</label>
                     <div class="price-range">

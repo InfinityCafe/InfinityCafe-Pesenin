@@ -16,8 +16,8 @@
     </div>
     <div class="header-menu">
       <button class="nav-btn" id="nav-dashboard" onclick="window.location.href = '/dashboard';">Dashboard</button>
-      <button class="nav-btn" id="nav-menu" onclick="window.location.href = '/menu-management';">Menu Management</button>
-      <button class="nav-btn active" id="nav-suggestion" onclick="window.location.href = '/menu-suggestion';">Usulan Menu</button>
+      <button class="nav-btn active" id="nav-menu" onclick="window.location.href = '/menu-management';">Menu Management</button>
+      <!-- <button class="nav-btn" id="nav-suggestion" onclick="window.location.href = '/menu-suggestion';">Usulan Menu</button> -->
       <button class="nav-btn" id="nav-stok" onclick="window.location.href = '/stock-management';">Stock Management</button>
     </div>
          <div class="header-right">
@@ -52,15 +52,23 @@
         <p class="greeting-date" id="greeting-date">Monday, 14th July 2025</p>
       </div>
 
+      <!-- Tab Navigation -->
+      <div class="tab-navigation">
+        <button id="tab-menu" class="tab-btn" onclick="window.location.href = 'menu-management?tab=menu';">MENU</button>
+        <button id="tab-flavors" class="tab-btn" onclick="window.location.href = 'menu-management?tab=flavors';">FLAVORS</button>
+        <button id="tab-menu-suggestion" class="tab-btn tab-active tab-menu-suggestion" onclick="switchTab('menu_suggestion')">MENU SUGGESTION</button>
+        <button class="add-order-btn menu-suggestion" onclick="openSuggestionModal()">ADD NEW MENU SUGGESTION</button>
+      </div>
+
       <!-- Action Buttons -->
-      <div class="action-buttons">
+      <!-- <div class="action-buttons">
         <button class="btn btn-primary" onclick="openSuggestionModal()">
           <i class="fas fa-plus"></i> Tambah Usulan Baru
         </button>
         <button class="btn btn-secondary" onclick="refreshSuggestions()">
           <i class="fas fa-sync-alt"></i> Refresh
         </button>
-      </div>
+      </div> -->
 
       <!-- Statistics Cards -->
       <div class="stats-container">
@@ -69,8 +77,8 @@
             <i class="fas fa-lightbulb"></i>
           </div>
           <div class="stat-content">
-            <h3 id="total-suggestions">0</h3>
             <p>Total Usulan</p>
+            <h3 id="total-suggestions">0</h3>
           </div>
         </div>
         <div class="stat-card">
@@ -78,11 +86,11 @@
             <i class="fas fa-calendar-day"></i>
           </div>
           <div class="stat-content">
-            <h3 id="today-suggestions">0</h3>
             <p>Usulan Hari Ini</p>
+            <h3 id="today-suggestions">0</h3>
           </div>
         </div>
-        <div class="stat-card">
+        <!-- <div class="stat-card">
           <div class="stat-icon">
             <i class="fas fa-star"></i>
           </div>
@@ -90,89 +98,85 @@
             <h3 id="popular-suggestions">0</h3>
             <p>Usulan Populer</p>
           </div>
-        </div>
+        </div> -->
       </div>
 
-             <!-- Suggestions List -->
-       <div class="suggestions-container">
-         <div class="table-container">
-           <!-- Table Header with Search and Filter -->
-           <div class="table-header">
-             <div class="table-title">
-               <h3>Daftar Usulan Menu</h3>
-             </div>
-             <div class="table-controls">
-               <div class="search-container">
-                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                 <input type="text" placeholder="Search usulan menu..." class="search-input" id="search-suggestions">
-               </div>
-               <div class="filter-controls">
-                 <select id="sort-filter" class="form-select">
-                   <option value="newest">Terbaru</option>
-                   <option value="oldest">Terlama</option>
-                   <option value="popular">Terpopuler</option>
-                 </select>
-               </div>
-             </div>
-           </div>
-           
-           <table id="suggestions-table">
-             <thead>
-               <tr>
-                 <th>No</th>
-                 <th>Nama Menu</th>
-                 <th>Customer</th>
-                 <th>Tanggal</th>
-                 <th class="action-header">Aksi</th>
-               </tr>
-             </thead>
-             <tbody id="suggestions-tbody">
-               <!-- Suggestions will be loaded here -->
-             </tbody>
-           </table>
-              
-              <div id="loading-suggestions" class="loading-spinner hidden">
-                <i class="fas fa-spinner fa-spin"></i>
-                <p>Memuat usulan menu...</p>
+      <!-- Suggestions List -->
+        <div class="table-container">            
+          <div class="search-filter-section">
+              <div class="search-container">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" placeholder="Search menu suggestion..." class="search-input" id="search-suggestions">
               </div>
-              
-              <div id="no-suggestions" class="no-data hidden">
-                <i class="fas fa-inbox"></i>
-                <h3>Belum ada usulan menu</h3>
-                <p>Jadilah yang pertama memberikan usulan menu untuk Infinity Cafe!</p>
+              <div class="filter-container">
+                <select id="sort-filter" class="filter-btn">
+                  <option value="newest">Terbaru</option>
+                  <option value="oldest">Terlama</option>
+                  <option value="popular">Terpopuler</option>
+                </select>
               </div>
-              
-              <!-- Pagination -->
-              <div class="pagination-container" id="pagination-container">
-                <div class="pagination-info">
-                  <span id="pagination-info">Menampilkan 0 dari 0 usulan</span>
-                </div>
-                <div class="pagination-controls">
-                  <button class="pagination-btn" id="prev-page" onclick="changePage(-1)" disabled>
-                    <i class="fas fa-chevron-left"></i>
-                  </button>
-                  <div class="page-numbers" id="page-numbers">
-                    <!-- Page numbers will be generated here -->
-                  </div>
-                  <button class="pagination-btn" id="next-page" onclick="changePage(1)" disabled>
-                    <i class="fas fa-chevron-right"></i>
-                  </button>
-                </div>
-                <div class="pagination-size">
-                  <span>Tampilkan:</span>
-                  <select id="page-size" onchange="changePageSize()">
-                    <option value="10">10</option>
-                    <option value="25">25</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                  </select>
-                  <span>per halaman</span>
-                </div>
-              </div>
+          </div>
+          
+          <!-- Table Info -->
+          <div class="table-info">
+            <span id="">Showing 0 of 0 entries</span>
+          </div>
+          
+          <table id="suggestions-table">
+            <thead>
+              <tr>
+                <th>NO</th>
+                <th>MENU NAME</th>
+                <th>CUSTOMER</th>
+                <th>DATE</th>
+                <th class="action-header">ACTION</th>
+              </tr>
+            </thead>
+            <tbody id="suggestions-tbody">
+              <!-- Suggestions will be loaded here -->
+            </tbody>
+          </table>
+
+          <!-- <div id="loading-suggestions" class="loading-spinner hidden">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Memuat usulan menu...</p>
+          </div> -->
+          
+          <!-- <div id="no-suggestions" class="no-data hidden">
+            <i class="fas fa-inbox"></i>
+            <h3>Belum ada usulan menu</h3>
+            <p>Jadilah yang pertama memberikan usulan menu untuk Infinity Cafe!</p>
+          </div> -->
+          
+          <!-- Pagination -->
+          <div class="pagination-container" id="pagination-container">
+            <div class="pagination-info">
+              <span id="pagination-info">Page 1 of 1</span>
             </div>
-        
-
-      </div>
+            <div class="pagination-controls">
+              <button class="pagination-btn" id="prev-page" onclick="changePage(-1)" disabled>
+                <i class="fas fa-chevron-left"></i>
+              </button>
+              <div class="page-numbers" id="page-numbers">
+                <!-- Page numbers will be generated here -->
+              </div>
+              <button class="pagination-btn" id="next-page" onclick="changePage(1)" disabled>
+                <i class="fas fa-chevron-right"></i>
+              </button>
+            </div>
+            <div class="pagination-size">
+              <span>Tampilkan:</span>
+              <select id="page-size" onchange="changePageSize()">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+              <span>per halaman</span>
+            </div>
+          </div>
+        </div>
+      <!-- </div> -->
     </div>
   </div>
 
@@ -180,36 +184,36 @@
   <div id="suggestion-modal" class="modal hidden">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>Tambah Usulan Menu Baru</h3>
+        <h3 class="modal-title">Add New Menu Suggestion</h3>
         <button class="modal-close" onclick="closeSuggestionModal()">
-          <i class="fas fa-times"></i>
+          &times;
         </button>
       </div>
       <div class="modal-body">
         <form id="suggestion-form">
           <div class="form-group">
-            <label for="menu-name">Nama Menu *</label>
+            <label for="menu-name">Menu Name</label>
             <input type="text" id="menu-name" name="menu_name" class="form-input" 
-                   placeholder="Contoh: Kopi Gula Aren, Croissant Coklat" required>
-            <small class="form-help">Berikan nama menu yang jelas dan menarik</small>
+              placeholder="e.g. Kopi Gula Aren, Croissant Coklat" required>
+            <!-- <small class="form-help">Berikan nama menu yang jelas dan menarik</small> -->
           </div>
           <div class="form-group">
-            <label for="customer-name">Nama Anda *</label>
+            <label for="customer-name">Customer</label>
             <input type="text" id="customer-name" name="customer_name" class="form-input" 
-                   placeholder="Masukkan nama Anda" required>
-            <small class="form-help">Nama Anda akan dicatat sebagai pemberi usulan</small>
+              placeholder="Masukkan nama Anda" required>
+            <!-- <small class="form-help">Nama Anda akan dicatat sebagai pemberi usulan</small> -->
           </div>
           <div class="form-group">
-            <label for="menu-description">Deskripsi (Opsional)</label>
+            <label for="menu-description">Description (Opsional)</label>
             <textarea id="menu-description" name="description" class="form-textarea" 
-                      placeholder="Jelaskan lebih detail tentang menu yang Anda usulkan..."></textarea>
-            <small class="form-help">Tambahkan detail seperti bahan, cara penyajian, atau alasan mengapa menu ini menarik</small>
+              placeholder="Deskripsi detail..."></textarea>
+            <!-- <small class="form-help">Tambahkan detail seperti bahan, cara penyajian, atau alasan mengapa menu ini menarik</small> -->
           </div>
         </form>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeSuggestionModal()">Batal</button>
-        <button class="btn btn-primary" onclick="submitSuggestion()">
+        <!-- <button class="btn btn-secondary" onclick="closeSuggestionModal()">Batal</button> -->
+        <button class="save-button" onclick="submitSuggestion()">
           <i class="fas fa-paper-plane"></i> Kirim Usulan
         </button>
       </div>

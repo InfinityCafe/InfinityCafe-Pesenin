@@ -288,6 +288,11 @@ input:checked + .slider:before {
     color: #8D7272;
 }
 
+.tab-menu-suggestion.tab-btn {
+    width: 200px;
+    text-wrap: nowrap;
+}
+
 .tab-btn:hover {
     background: #F8F9FA;
     color: #8D7272;
@@ -323,6 +328,11 @@ input:checked + .slider:before {
     white-space: nowrap;
     padding-left: 6%;
     padding-right: 6%;
+}
+
+.menu-suggestion.add-order-btn {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .add-order-btn::before {
@@ -1061,6 +1071,11 @@ input:checked + .slider:before {
         display: flex;
         align-items: center;
         justify-content: center;
+    }
+
+    .modal-close:hover {
+        background-color: #F5C1BD;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
     .modal-title {
@@ -1911,6 +1926,7 @@ input:checked + .slider:before {
 
 /* Modal Add Order Figma Style */
 /* .add-menu-modal, */
+#suggestion-modal .modal-content,
 #consumption-log-modal .modal-content,
 #bulk-stock-modal .modal-content,
 #add-stock-modal .modal-content,
@@ -1927,14 +1943,8 @@ input:checked + .slider:before {
   max-height: 90vh;
   overflow-y: auto;
 }
-#add-order-modal .modal-title {
-  font-size: 26px;
-  font-weight: 700;
-  color: #312929;
-  text-align: center;
-  margin-bottom: 32px;
-}
-#add-order-modal .form-group {
+
+.form-group {
   margin-bottom: 22px;
 }
 #add-order-modal label {
@@ -2464,7 +2474,7 @@ body.tab-done .add-order-btn {
     overflow: hidden;
 }
 
-#menu-table, #flavors-table, #inventory-table {
+#menu-table, #flavors-table, #inventory-table, #suggestions-table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0.75rem;
@@ -2473,17 +2483,19 @@ body.tab-done .add-order-btn {
 
 #menu-table th, #menu-table td,
 #flavors-table th, #flavors-table td,
-#inventory-table th, #inventory-table td {
+#inventory-table th, #inventory-table td,
+#suggestions-table th, #suggestions-table td {
     position: relative;
 }
 
 #menu-table thead tr,
 #flavors-table thead tr,
-#inventory-table thead tr {
+#inventory-table thead tr,
+#suggestions-table thead tr {
     background-color: transparent;
 }
 
-#menu-table th, #flavors-table th, #inventory-table th {
+#menu-table th, #flavors-table th, #inventory-table th, #suggestions-table th {
     padding: 0.75rem 1rem;
     text-align: center;
     font-weight: bold;
@@ -2496,7 +2508,8 @@ body.tab-done .add-order-btn {
 /* Sudut untuk blok header utama */
 #menu-table th:first-child,
 #flavors-table th:first-child,
-#inventory-table th:first-child {
+#inventory-table th:first-child,
+#suggestions-table th:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
 }
@@ -2517,11 +2530,15 @@ body.tab-done .add-order-btn {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
-
+#suggestions-table th:nth-child(4) {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
 
 #menu-table th:not(:first-child):not(.action-header)::before,
 #flavors-table th:not(:first-child):not(.action-header)::before,
-#inventory-table th:not(:first-child):not(.action-header)::before {
+#inventory-table th:not(:first-child):not(.action-header)::before,
+#suggestions-table th:not(:first-child):not(.action-header)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2533,18 +2550,19 @@ body.tab-done .add-order-btn {
 
 #menu-table th.action-header,
 #flavors-table th.action-header,
-#inventory-table th.action-header {
+#inventory-table th.action-header,
+#suggestions-table th.action-header {
     background-color: #CAB99D;
     border-radius: 0.5rem;
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
 
-#menu-table tbody tr, #flavors-table tbody tr, #inventory-table {
+#menu-table tbody tr, #flavors-table tbody tr, #inventory-table, #suggestions-table tbody tr {
     background-color: transparent;
 }
 
-#menu-table td, #flavors-table td, #inventory-table td {
+#menu-table td, #flavors-table td, #inventory-table td, #suggestions-table td {
     padding: 1rem;
     vertical-align: middle;
     background-color: #F4F1E8;
@@ -2554,7 +2572,8 @@ body.tab-done .add-order-btn {
 
 #menu-table td:first-child,
 #flavors-table td:first-child,
-#inventory-table td:first-child {
+#inventory-table td:first-child,
+#suggestions-table td:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
 }
@@ -2579,9 +2598,15 @@ body.tab-done .add-order-btn {
     border-bottom-right-radius: 0.5rem;
 }
 
+#suggestions-table td:nth-child(4) {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
 #menu-table td:not(:first-child):not(:last-child)::before,
 #flavors-table td:not(:first-child):not(:last-child)::before,
-#inventory-table td:not(:first-child):not(:last-child)::before {
+#inventory-table td:not(:first-child):not(:last-child)::before,
+#suggestions-table td:not(:first-child):not(:last-child)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2593,7 +2618,8 @@ body.tab-done .add-order-btn {
 
 #menu-table td:last-child,
 #flavors-table td:last-child,
-#inventory-table td:last-child {
+#inventory-table td:last-child,
+#suggestions-table td:last-child {
     background-color: #F4F1E8;
     padding: 0;
     border-top-left-radius: 0.5rem;
@@ -2618,118 +2644,6 @@ body.tab-done .add-order-btn {
 
 
 /* --- STYLE TABEL USULAN MENU --- */
-#suggestions-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0.75rem;
-    text-align: center;
-}
-
-#suggestions-table th, #suggestions-table td {
-    position: relative;
-}
-
-#suggestions-table thead tr {
-    background-color: transparent;
-}
-
-#suggestions-table th {
-    padding: 0.75rem 1rem;
-    text-align: center;
-    font-weight: bold;
-    color: #312929;
-    text-transform: uppercase;
-    font-size: 16px;
-    background-color: #CAB99D;
-}
-
-/* Sudut untuk blok header */
-#suggestions-table th:first-child {
-    border-top-left-radius: 0.5rem;
-    border-bottom-left-radius: 0.5rem;
-}
-
-#suggestions-table th:last-child {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-}
-
-#suggestions-table th:not(:first-child):not(:last-child)::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -0.75rem;
-    width: 0.75rem;
-    height: 100%;
-    background-color: #CAB99D;
-}
-
-#suggestions-table tbody tr {
-    background-color: transparent;
-}
-
-#suggestions-table td {
-    padding: 1rem;
-    vertical-align: middle;
-    background-color: #F4F1E8;
-    font-weight: medium;
-    color: #312929;
-}
-
-#suggestions-table td:first-child {
-    border-top-left-radius: 0.5rem;
-    border-bottom-left-radius: 0.5rem;
-}
-
-#suggestions-table td:last-child {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-}
-
-#suggestions-table td:not(:first-child):not(:last-child)::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -0.75rem;
-    width: 0.75rem;
-    height: 100%;
-    background-color: #F4F1E8;
-}
-
-/* Style untuk kolom ID */
-#suggestions-table th:first-child,
-#suggestions-table td:first-child {
-    width: 120px;
-    font-family: 'Courier New', monospace;
-    font-size: 14px;
-}
-
-/* Style untuk kolom Nama Menu */
-#suggestions-table th:nth-child(2),
-#suggestions-table td:nth-child(2) {
-    width: 250px;
-    text-align: left;
-    padding-left: 1.5rem;
-}
-
-/* Style untuk kolom Customer */
-#suggestions-table th:nth-child(3),
-#suggestions-table td:nth-child(3) {
-    width: 180px;
-}
-
-/* Style untuk kolom Tanggal */
-#suggestions-table th:nth-child(4),
-#suggestions-table td:nth-child(4) {
-    width: 180px;
-    font-size: 14px;
-}
-
-/* Style untuk kolom Aksi */
-#suggestions-table th:last-child,
-#suggestions-table td:last-child {
-    width: 150px;
-}
 
 /* Style untuk action buttons dalam tabel */
 .suggestion-action-btn {
@@ -2857,7 +2771,7 @@ body.tab-done .add-order-btn {
 .modal-title {
     font-family: 'Inter', sans-serif;
     font-weight: 700;
-    font-size: 26px;
+    font-size: 22px;
     line-height: 1.21;
     color: #312929;
     text-align: center;
@@ -2877,31 +2791,6 @@ body.tab-done .add-order-btn {
     overflow-y: auto;
     position: relative;
 }
-
-.add-flavour-modal .modal-title {
-    font-family: 'Inter', sans-serif;
-    font-weight: 700;
-    font-size: 26px;
-    line-height: 1.21;
-    color: #312929;
-    text-align: center;
-    margin-bottom: 43px;
-    margin-top: 0;
-}
-
-.add-flavour-modal .form-group {
-    margin-bottom: 24px;
-}
-
-/* .add-flavour-modal .form-group label {
-    font-family: 'Inter', sans-serif;
-    font-weight: 700;
-    font-size: 16px;
-    line-height: 1.21;
-    color: #312929;
-    display: block;
-    margin-bottom: 8px;
-} */
 
 /* Flavour status radio group - align with menu modal styling, responsive-safe */
 .add-flavour-modal .radio-group {
@@ -3001,10 +2890,6 @@ body.tab-done .add-order-btn {
     font-weight: 500;
 }
 
-.add-menu-modal .form-group {
-    margin-bottom: 20px;
-}
-
 .add-menu-modal .form-group:last-child {
     margin-bottom: 0;
 }
@@ -3014,7 +2899,7 @@ body.tab-done .add-order-btn {
 .form-group label {
     font-family: 'Inter', sans-serif;
     font-weight: 700;
-    font-size: 16px;
+    font-size: 15px;
     line-height: 1.21;
     color: #312929;
     display: block;
@@ -3707,18 +3592,20 @@ body.tab-done .add-order-btn {
         overflow-x: auto;
     }
     
-    #menu-table, #flavors-table {
+    #menu-table, #flavors-table, #suggestions-table {
         min-width: 700px;
     }
     
     #menu-table th, #menu-table td,
-    #flavors-table th, #flavors-table td {
+    #flavors-table th, #flavors-table td,
+    #suggestions-table th, #suggestions-table td {
         white-space: nowrap;
         min-width: 120px;
     }
     
     #menu-table th:first-child, #menu-table td:first-child,
-    #flavors-table th:first-child, #flavors-table td:first-child {
+    #flavors-table th:first-child, #flavors-table td:first-child,
+    #suggestions-table th:first-child, #suggestions-table td:first-child {
         min-width: 60px;
     }
     
@@ -3766,7 +3653,7 @@ body.tab-done .add-order-btn {
         flex-direction: column;
     }
     
-    #menu-table, #flavors-table {
+    #menu-table, #flavors-table, #invetory-table, #suggestions-table {
         min-width: 600px;
     }
     .overview-card {
@@ -3791,17 +3678,6 @@ body.tab-done .add-order-btn {
     width: 500px;
     position: relative;
     max-height: 90vh;
-}
-
-.view-modal .modal-title {
-    font-family: 'Inter', sans-serif;
-    font-weight: 700;
-    font-size: 26px;
-    line-height: 1.21;
-    color: #312929;
-    text-align: center;
-    margin-bottom: 32px;
-    margin-top: 0;
 }
 
 .view-content {
@@ -4744,7 +4620,8 @@ body[data-page="login"] {
 
 .stat-card {
     background: white;
-    border-radius: 1rem;
+    border-radius: 10px;
+    border: 1px solid #DCD0A8;
     padding: 1.5rem;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     display: flex;
@@ -4753,27 +4630,22 @@ body[data-page="login"] {
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-}
-
 .stat-icon {
     width: 3rem;
     height: 3rem;
     border-radius: 50%;
-    background: linear-gradient(135deg, #DCD0A8, #C1B8A0);
+    background-color: #F4F1E8;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #685454;
+    color: #8D7272;
     font-size: 1.25rem;
 }
 
 .stat-content h3 {
-    font-size: 2rem;
+    font-size: 26px;
     font-weight: 700;
-    color: #685454;
+    color: #503A3A;
     margin: 0;
     line-height: 1;
 }
@@ -4832,23 +4704,6 @@ body[data-page="login"] {
 }
 
 /* Table Header Styles */
-.table-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 2px solid #DCD0A8;
-}
-
-.table-title h3 {
-    margin: 0;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #8D7272;
-    font-family: 'Inter', sans-serif;
-}
-
 .table-controls {
     display: flex;
     gap: 1rem;
@@ -4921,83 +4776,6 @@ body[data-page="login"] {
     box-shadow: 0 0 0 3px rgba(141, 114, 114, 0.1);
 }
 
-/* Suggestions Table Styles */
-#suggestions-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0.75rem;
-    text-align: center;
-}
-
-#suggestions-table th {
-    padding: 0.75rem 1rem;
-    text-align: center;
-    font-weight: bold;
-    color: #312929;
-    text-transform: uppercase;
-    font-size: 16px;
-    background-color: #CAB99D;
-    position: relative;
-}
-
-#suggestions-table th:first-child {
-    border-top-left-radius: 0.5rem;
-    border-bottom-left-radius: 0.5rem;
-    width: 80px;
-}
-
-#suggestions-table th:last-child {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-    width: 150px;
-}
-
-#suggestions-table th:not(:first-child):not(:last-child)::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -0.75rem;
-    width: 0.75rem;
-    height: 100%;
-    background-color: #CAB99D;
-}
-
-#suggestions-table td {
-    padding: 1rem;
-    vertical-align: middle;
-    background-color: #F4F1E8;
-    font-weight: 500;
-    color: #312929;
-}
-
-#suggestions-table td:first-child {
-    font-weight: 700;
-    color: #8D7272;
-    background-color: #F4F1E8;
-}
-
-#suggestions-table td:nth-child(2) {
-    font-weight: 600;
-    color: #685454;
-}
-
-#suggestions-table td:nth-child(3) {
-    font-weight: 500;
-    color: #8D7272;
-}
-
-#suggestions-table td:nth-child(4) {
-    font-weight: 500;
-    color: #685454;
-}
-
-#suggestions-table td:last-child {
-    background-color: #F4F1E8;
-    padding: 0.5rem;
-}
-
-/* Suggestions table styles are now handled by the table-specific CSS above */
-
 /* Loading and No Data States */
 .loading-spinner {
     text-align: center;
@@ -5028,54 +4806,6 @@ body[data-page="login"] {
     margin-bottom: 0.5rem;
 }
 
-/* Form Styles */
-.form-group {
-    margin-bottom: 1.5rem;
-}
-
-/* .form-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 500;
-    color: #685454;
-} */
-
-.form-input, .form-textarea {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid #dee2e6;
-    border-radius: 0.375rem;
-    font-size: 0.875rem;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.form-input:focus, .form-textarea:focus {
-    outline: none;
-    border-color: #DCD0A8;
-    box-shadow: 0 0 0 3px rgba(220, 208, 168, 0.1);
-}
-
-.form-textarea {
-    resize: vertical;
-    min-height: 100px;
-}
-
-.form-help {
-    display: block;
-    margin-top: 0.25rem;
-    font-size: 0.75rem;
-    color: #6c757d;
-}
-
-/* Modal Footer */
-.modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 1rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid #e9ecef;
-}
-
 /* Success and Error Icons */
 .success-icon, .error-icon {
     font-size: 3rem;
@@ -5092,144 +4822,6 @@ body[data-page="login"] {
 
 .text-center {
     text-align: center;
-}
-
-/* Suggestion Modal Styles */
-#suggestion-modal .modal-content {
-    max-width: 600px;
-    width: 90%;
-    padding: 2rem;
-}
-
-#suggestion-modal .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 2px solid #DCD0A8;
-}
-
-#suggestion-modal .modal-header h3 {
-    margin: 0;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #8D7272;
-    font-family: 'Inter', sans-serif;
-}
-
-#suggestion-modal .modal-close:hover {
-    background: #8D7272;
-    color: white;
-    border-color: #8D7272;
-    transform: scale(1.1);
-}
-
-#suggestion-modal .modal-body {
-    margin-bottom: 1.5rem;
-}
-
-#suggestion-modal .form-group {
-    margin-bottom: 1.5rem;
-}
-
-#suggestion-modal .form-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 600;
-    color: #8D7272;
-    font-family: 'Inter', sans-serif;
-    font-size: 0.95rem;
-}
-
-#suggestion-modal .form-input,
-#suggestion-modal .form-textarea {
-    width: 100%;
-    padding: 0.875rem;
-    border: 2px solid #DCD0A8;
-    border-radius: 0.5rem;
-    font-size: 0.95rem;
-    font-family: 'Inter', sans-serif;
-    color: #685454;
-    background: #F4F1E8;
-    transition: all 0.3s ease;
-}
-
-#suggestion-modal .form-input:focus,
-#suggestion-modal .form-textarea:focus {
-    outline: none;
-    border-color: #8D7272;
-    background: white;
-    box-shadow: 0 0 0 3px rgba(141, 114, 114, 0.1);
-    transform: translateY(-1px);
-}
-
-#suggestion-modal .form-input::placeholder,
-#suggestion-modal .form-textarea::placeholder {
-    color: #A8A8A8;
-    font-style: italic;
-}
-
-#suggestion-modal .form-textarea {
-    resize: vertical;
-    min-height: 120px;
-    line-height: 1.5;
-}
-
-#suggestion-modal .form-help {
-    display: block;
-    margin-top: 0.5rem;
-    font-size: 0.8rem;
-    color: #8D7272;
-    font-family: 'Inter', sans-serif;
-    font-style: italic;
-    line-height: 1.4;
-}
-
-#suggestion-modal .modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 1rem;
-    padding-top: 1.5rem;
-    border-top: 2px solid #DCD0A8;
-}
-
-#suggestion-modal .modal-footer .btn {
-    padding: 0.75rem 1.5rem;
-    border-radius: 0.5rem;
-    font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    font-size: 0.95rem;
-    transition: all 0.3s ease;
-    cursor: pointer;
-    border: none;
-    min-width: 120px;
-}
-
-#suggestion-modal .modal-footer .btn-secondary {
-    background: #F4F1E8;
-    color: #8D7272;
-    border: 2px solid #DCD0A8;
-}
-
-#suggestion-modal .modal-footer .btn-secondary:hover {
-    background: #DCD0A8;
-    color: #685454;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-#suggestion-modal .modal-footer .btn-primary {
-    background: linear-gradient(135deg, #8D7272 0%, #A8A8A8 100%);
-    color: white;
-    border: 2px solid #8D7272;
-}
-
-#suggestion-modal .modal-footer .btn-primary:hover {
-    background: linear-gradient(135deg, #685454 0%, #8D7272 100%);
-    border-color: #685454;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(141, 114, 114, 0.3);
 }
 
 /* Responsive Design */
@@ -5266,12 +4858,6 @@ body[data-page="login"] {
     }
     
     /* Responsive Table Header */
-    .table-header {
-        flex-direction: column;
-        gap: 1rem;
-        text-align: center;
-    }
-    
     .table-controls {
         flex-direction: column;
         gap: 0.75rem;
@@ -5287,34 +4873,7 @@ body[data-page="login"] {
         min-width: auto;
         width: 100%;
     }
-    
-    /* Responsive Suggestion Modal */
-    #suggestion-modal .modal-content {
-        max-width: 95%;
-        margin: 1rem;
-        padding: 1.5rem;
-    }
-    
-    #suggestion-modal .modal-header {
-        flex-direction: column;
-        text-align: center;
-        gap: 1rem;
-    }
-    
-    #suggestion-modal .modal-header h3 {
-        font-size: 1.25rem;
-    }
-    
-    #suggestion-modal .modal-footer {
-        flex-direction: column;
-        gap: 0.75rem;
-    }
-    
-    #suggestion-modal .modal-footer .btn {
-        width: 100%;
-        min-width: auto;
-    }
-    
+
     .stat-card {
         padding: 1rem;
     }
@@ -5345,14 +4904,6 @@ body[data-page="login"] {
     
     .btn {
         justify-content: center;
-        width: 100%;
-    }
-    
-    .modal-footer {
-        flex-direction: column;
-    }
-    
-    .modal-footer .btn {
         width: 100%;
     }
 }
