@@ -3321,17 +3321,20 @@ body.tab-done .add-order-btn {
     background-color: #FFFFFF;
 }
 
+.date-range,
 .price-range {
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
+.date-range,
 .price-range span {
     color: #8D7272;
     font-weight: 600;
 }
 
+.date-input,
 .price-input {
     flex: 1;
     padding: 10px 12px;
@@ -4633,7 +4636,7 @@ body[data-page="login"] {
 .stat-icon {
     width: 3rem;
     height: 3rem;
-    border-radius: 50%;
+    border-radius: 10px;
     background-color: #F4F1E8;
     display: flex;
     align-items: center;
@@ -4642,18 +4645,19 @@ body[data-page="login"] {
     font-size: 1.25rem;
 }
 
-.stat-content h3 {
-    font-size: 26px;
+.stat-content,
+.stat-content .stat-total {
+    font-size: 28px;
     font-weight: 700;
-    color: #503A3A;
-    margin: 0;
-    line-height: 1;
+    color: #312929;
+    /* margin: 0; */
+    /* line-height: 1; */
 }
 
-.stat-content p {
-    color: #6c757d;
+.stat-title {
+    color: #312929;
     margin: 0;
-    font-size: 0.875rem;
+    font-size: 18px;
 }
 
 /* Section Header */

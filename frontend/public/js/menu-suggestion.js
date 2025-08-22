@@ -21,17 +21,17 @@ function setupEventListeners() {
   const searchInput = document.getElementById('search-suggestions');
   if (searchInput) {
     searchInput.addEventListener('input', function() {
-      filterSuggestions(this.value);
+      applySuggestionFilter();
     });
   }
 
-  // Sort filter
-  const sortFilter = document.getElementById('sort-filter');
-  if (sortFilter) {
-    sortFilter.addEventListener('change', function() {
-      sortSuggestions(this.value);
-    });
-  }
+  // Close filter dropdown when clicking outside
+  document.addEventListener('click', function(event) {
+    const filterDropdown = document.getElementById('suggestion-filter-dropdown');
+    if (filterDropdown && !event.target.closest('.filter-container')) {
+      filterDropdown.classList.remove('show');
+    }
+  });
 }
 
 // Load suggestions from API
@@ -47,7 +47,7 @@ async function loadSuggestions() {
     if (data.status === 'success') {
       suggestions = data.data || [];
       filteredSuggestions = [...suggestions];
-      renderSuggestions();
+      applySuggestionFilter(); // Apply default filter (newest)
       updateStats();
     } else {
       throw new Error(data.message || 'Failed to load suggestions');
@@ -58,6 +58,110 @@ async function loadSuggestions() {
   } finally {
     showLoading(false);
   }
+}
+
+// Toggle filter dropdown
+function toggleSuggestionFilter() {
+  const dropdown = document.getElementById('suggestion-filter-dropdown');
+  if (dropdown) {
+    dropdown.classList.toggle('show');
+  }
+}
+
+// Apply suggestion filter
+function applySuggestionFilter() {
+  const searchTerm = document.getElementById('search-suggestions')?.value.toLowerCase() || '';
+  const sortFilter = document.getElementById('suggestion-sort-filter')?.value || 'newest';
+  const dateMin = document.getElementById('suggestion-date-min')?.value;
+  const dateMax = document.getElementById('suggestion-date-max')?.value;
+
+  filteredSuggestions = suggestions.filter(suggestion => {
+    // Search filter
+    const matchesSearch = suggestion.menu_name.toLowerCase().includes(searchTerm) ||
+                         suggestion.customer_name.toLowerCase().includes(searchTerm);
+
+    // Date range filter
+    let matchesDate = true;
+    if (dateMin || dateMax) {
+      const suggestionDate = new Date(suggestion.timestamp);
+      const startDate = dateMin ? new Date(dateMin) : null;
+      const endDate = dateMax ? new Date(dateMax) : null;
+      if (startDate) startDate.setHours(0, 0, 0, 0);
+      if (endDate) endDate.setHours(23, 59, 59, 999);
+      matchesDate = (!startDate || suggestionDate >= startDate) &&
+                    (!endDate || suggestionDate <= endDate);
+    }
+
+    return matchesSearch && matchesDate;
+  });
+
+  // Apply sorting
+  sortSuggestions(sortFilter);
+
+  currentPage = 1; // Reset to first page
+  renderSuggestions();
+
+  // Close dropdown
+  const filterDropdown = document.getElementById('suggestion-filter-dropdown');
+  if (filterDropdown) {
+    filterDropdown.classList.remove('show');
+  }
+}
+
+// Clear suggestion filter
+function clearSuggestionFilter() {
+  const searchInput = document.getElementById('search-suggestions');
+  const sortFilter = document.getElementById('suggestion-sort-filter');
+  const dateMin = document.getElementById('suggestion-date-min');
+  const dateMax = document.getElementById('suggestion-date-max');
+
+  if (searchInput) searchInput.value = '';
+  if (sortFilter) sortFilter.value = 'newest';
+  if (dateMin) dateMin.value = '';
+  if (dateMax) dateMax.value = '';
+
+  filteredSuggestions = [...suggestions];
+  sortSuggestions('newest'); // Default sort by newest
+  currentPage = 1; // Reset to first page
+  renderSuggestions();
+
+  // Close dropdown
+  const filterDropdown = document.getElementById('suggestion-filter-dropdown');
+  if (filterDropdown) {
+    filterDropdown.classList.remove('show');
+  }
+}
+
+// Filter suggestions based on search query and date range
+function filterSuggestions(query) {
+  // This function is replaced by applySuggestionFilter, but kept for compatibility
+  applySuggestionFilter();
+}
+
+// Sort suggestions
+function sortSuggestions(sortType) {
+  switch (sortType) {
+    case 'newest':
+      filteredSuggestions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      break;
+    case 'oldest':
+      filteredSuggestions.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      break;
+    case 'popular':
+      // Sort by number of similar menu_name occurrences
+      const menuCounts = {};
+      suggestions.forEach(suggestion => {
+        menuCounts[suggestion.menu_name] = (menuCounts[suggestion.menu_name] || 0) + 1;
+      });
+      filteredSuggestions.sort((a, b) => {
+        const countA = menuCounts[a.menu_name] || 1;
+        const countB = menuCounts[b.menu_name] || 1;
+        return countB - countA || new Date(b.timestamp) - new Date(a.timestamp); // Fallback to newest
+      });
+      break;
+  }
+  currentPage = 1; // Reset to first page
+  renderSuggestions();
 }
 
 // Render suggestions list
@@ -75,7 +179,11 @@ function renderSuggestions() {
   
   if (noData) noData.classList.add('hidden');
   
-  const suggestionsHtml = filteredSuggestions.map((suggestion, index) => {
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, filteredSuggestions.length);
+  const pageData = filteredSuggestions.slice(startIndex, endIndex);
+  
+  const suggestionsHtml = pageData.map((suggestion, index) => {
     const timestamp = new Date(suggestion.timestamp || Date.now());
     const formattedDate = timestamp.toLocaleDateString('id-ID', {
       year: 'numeric',
@@ -85,16 +193,16 @@ function renderSuggestions() {
       minute: '2-digit'
     });
     
-    const rowNumber = index + 1; // Nomor berurutan
+    const rowNumber = startIndex + index + 1; // Nomor berurutan
     
     return `
-      <tr data-index="${index}">
+      <tr data-index="${startIndex + index}">
         <td>${rowNumber}</td>
         <td>${suggestion.menu_name}</td>
         <td>${suggestion.customer_name}</td>
         <td>${formattedDate}</td>
         <td>
-          <button class="table-action-btn" onclick="viewSuggestionDetail(${index})" title="Lihat Detail">
+          <button class="table-action-btn" onclick="viewSuggestionDetail(${startIndex + index})" title="Lihat Detail">
             <i class="fas fa-eye"></i>
           </button>
           <button class="table-action-btn" onclick="approveSuggestion('${suggestion.usulan_id}')" title="Setujui">
@@ -110,37 +218,6 @@ function renderSuggestions() {
   
   tbody.innerHTML = suggestionsHtml;
   updatePagination();
-}
-
-// Filter suggestions based on search query
-function filterSuggestions(query) {
-  if (!query.trim()) {
-    filteredSuggestions = [...suggestions];
-  } else {
-    const lowerQuery = query.toLowerCase();
-    filteredSuggestions = suggestions.filter(suggestion => 
-      suggestion.menu_name.toLowerCase().includes(lowerQuery) ||
-      suggestion.customer_name.toLowerCase().includes(lowerQuery)
-    );
-  }
-  renderSuggestions();
-}
-
-// Sort suggestions
-function sortSuggestions(sortType) {
-  switch (sortType) {
-    case 'newest':
-      filteredSuggestions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-      break;
-    case 'oldest':
-      filteredSuggestions.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-      break;
-    case 'popular':
-      // For now, sort by timestamp (newest first) since we don't have popularity data
-      filteredSuggestions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-      break;
-  }
-  renderSuggestions();
 }
 
 // Update statistics
@@ -233,13 +310,13 @@ async function submitSuggestion() {
     
     if (result.status === 'success') {
       closeSuggestionModal();
-      showSuccess(result.message || 'Usulan menu berhasil dikirim!');
+      showSuccess('Usulan menu berhasil dikirim!');
       // Reload suggestions
       loadSuggestions();
     } else if (result.status === 'duplicate') {
-      showError(result.message || 'Menu ini sudah ada atau sudah diusulkan sebelumnya');
+      showError('Menu ini sudah ada atau sudah diusulkan sebelumnya');
     } else {
-      showError(result.message || 'Gagal mengirim usulan menu');
+      showError('Gagal mengirim usulan menu');
     }
   } catch (error) {
     console.error('Error submitting suggestion:', error);
@@ -366,7 +443,7 @@ function updatePagination() {
   // Update pagination info
   const paginationInfo = document.getElementById('pagination-info');
   if (paginationInfo) {
-    paginationInfo.textContent = `Menampilkan ${startIndex + 1}-${endIndex} dari ${filteredSuggestions.length} usulan`;
+    paginationInfo.textContent = `Showing ${startIndex + 1} to ${endIndex} of ${filteredSuggestions.length} entries`;
   }
   
   // Update pagination controls
@@ -491,36 +568,4 @@ function changePageSize() {
     currentPage = 1; // Reset to first page
     updatePagination();
   }
-}
-
-// Update filter and sort to reset pagination
-function filterSuggestions(query) {
-  if (!query.trim()) {
-    filteredSuggestions = [...suggestions];
-  } else {
-    const lowerQuery = query.toLowerCase();
-    filteredSuggestions = suggestions.filter(suggestion => 
-      suggestion.menu_name.toLowerCase().includes(lowerQuery) ||
-      suggestion.customer_name.toLowerCase().includes(lowerQuery)
-    );
-  }
-  currentPage = 1; // Reset to first page
-  renderSuggestions();
-}
-
-function sortSuggestions(sortType) {
-  switch (sortType) {
-    case 'newest':
-      filteredSuggestions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-      break;
-    case 'oldest':
-      filteredSuggestions.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-      break;
-    case 'popular':
-      // For now, sort by timestamp (newest first) since we don't have popularity data
-      filteredSuggestions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-      break;
-  }
-  currentPage = 1; // Reset to first page
-  renderSuggestions();
 }

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Usulan Menu - Infinity Cafe</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/responsive-tables.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 </head>
 <body data-page="menu_suggestion">
@@ -77,8 +78,8 @@
             <i class="fas fa-lightbulb"></i>
           </div>
           <div class="stat-content">
-            <p>Total Usulan</p>
-            <h3 id="total-suggestions">0</h3>
+            <h3 class="stat-title">Total Usulan</h3>
+            <h3 class="stat-total" id="total-suggestions">0</h3>
           </div>
         </div>
         <div class="stat-card">
@@ -86,8 +87,8 @@
             <i class="fas fa-calendar-day"></i>
           </div>
           <div class="stat-content">
-            <p>Usulan Hari Ini</p>
-            <h3 id="today-suggestions">0</h3>
+            <h3 class="stat-title">Usulan Hari Ini</h3>
+            <h3 class="stat-total" id="today-suggestions">0</h3>
           </div>
         </div>
         <!-- <div class="stat-card">
@@ -102,24 +103,48 @@
       </div>
 
       <!-- Suggestions List -->
-        <div class="table-container">            
+      <!-- <div id="tab-menu-suggestion-content" class="tab-panel"> -->
+        <div class="table-container">
+          <!-- Search and Filter Section for Menu Suggestion -->
           <div class="search-filter-section">
               <div class="search-container">
                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
                 <input type="text" placeholder="Search menu suggestion..." class="search-input" id="search-suggestions">
               </div>
               <div class="filter-container">
-                <select id="sort-filter" class="filter-btn">
-                  <option value="newest">Terbaru</option>
-                  <option value="oldest">Terlama</option>
-                  <option value="popular">Terpopuler</option>
-                </select>
+                <button class="filter-btn" onclick="toggleSuggestionFilter()">
+                  <i class="fas fa-filter"></i>
+                  Filter
+                </button>
+                <div class="filter-dropdown" id="suggestion-filter-dropdown">
+                  <div class="filter-group">
+                    <label>Urutan:</label>
+                    <select id="suggestion-sort-filter">
+                      <option value="newest">Terbaru</option>
+                      <option value="oldest">Terlama</option>
+                      <option value="popular">Terpopuler</option>
+                    </select>
+                  </div>
+                  <div class="filter-group">
+                    <label>Rentang Waktu:</label>
+                    <div class="date-range">
+                      <input class="date-input" type="date" id="suggestion-date-min" placeholder="Tanggal Mulai">
+                      <span>-</span>
+                      <input class="date-input" type="date" id="suggestion-date-max" placeholder="Tanggal Akhir">
+                    </div>
+                  </div>
+                  <div class="filter-actions">
+                    <button class="apply-filter-btn" onclick="applySuggestionFilter()">Apply</button>
+                    <button class="clear-filter-btn" onclick="clearSuggestionFilter()">Clear</button>
+                  </div>
+                </div>
               </div>
           </div>
           
           <!-- Table Info -->
           <div class="table-info">
-            <span id="">Showing 0 of 0 entries</span>
+            <!-- <span id="suggestions-table-info">Showing 0 of 0 entries</span> -->
+            <span id="pagination-info">Showing 0 of 0 entries</span>
           </div>
           
           <table id="suggestions-table">
@@ -165,18 +190,19 @@
               </button>
             </div>
             <div class="pagination-size">
-              <span>Tampilkan:</span>
+              <span>Show:</span>
               <select id="page-size" onchange="changePageSize()">
                 <option value="10">10</option>
                 <option value="25">25</option>
                 <option value="50">50</option>
                 <option value="100">100</option>
               </select>
-              <span>per halaman</span>
+              <span>entries</span>
             </div>
           </div>
         </div>
       <!-- </div> -->
+
     </div>
   </div>
 
@@ -223,13 +249,15 @@
   <!-- Success Modal -->
   <div id="success-modal" class="modal hidden">
     <div class="modal-content">
+      <button class="modal-close" onclick="closeSuccessModal()">
+        &times;
+      </button>
       <div class="modal-body text-center">
         <div class="success-icon">
           <i class="fas fa-check-circle"></i>
         </div>
         <h3>Usulan Berhasil Dikirim!</h3>
         <p id="success-message">Terima kasih atas usulan menu Anda. Tim kami akan mempertimbangkan usulan ini.</p>
-        <button class="btn btn-primary" onclick="closeSuccessModal()">Tutup</button>
       </div>
     </div>
   </div>
@@ -237,13 +265,15 @@
   <!-- Error Modal -->
   <div id="error-modal" class="modal hidden">
     <div class="modal-content">
+      <button class="modal-close" onclick="closeErrorModal()">
+        &times;
+      </button>
       <div class="modal-body text-center">
         <div class="error-icon">
           <i class="fas fa-exclamation-circle"></i>
         </div>
         <h3>Oops! Terjadi Kesalahan</h3>
         <p id="error-message">Gagal mengirim usulan menu. Silakan coba lagi.</p>
-        <button class="btn btn-secondary" onclick="closeErrorModal()">Tutup</button>
       </div>
     </div>
   </div>
