@@ -49,18 +49,18 @@ INSERT INTO flavors (id, flavor_name, additional_price, "isAvail") VALUES
 ('FLAV22', 'Blackcurrant', 0, TRUE);      -- ID 31 di inventory   
 
 -- LANGKAH 2: ISI TABEL MASTER 'menu_items'
-INSERT INTO menu_items (id, base_name, base_price, "isAvail") VALUES
-('MENU001', 'Caffe Latte', 20000, TRUE),
-('MENU002', 'Es Kopi Susu', 20000, TRUE),
-('MENU003', 'Kopi Late Gula Aren', 20000, TRUE),
-('MENU004', 'Hot Cappucino', 20000, TRUE),
-('MENU005', 'Vietnam Drive', 18000, TRUE),
-('MENU006', 'Squash', 15000, TRUE),
-('MENU007', 'Milk Shake', 18000, TRUE),
-('MENU008', 'Esteh', 8000, TRUE),
-('MENU009', 'Americano', 12000, TRUE),
-('MENU010', 'Expreso Single', 10000, TRUE),
-('MENU011', 'Expreso Double', 15000, TRUE);
+INSERT INTO menu_items (id, base_name, base_price, making_time_minutes, "isAvail") VALUES
+('MENU001', 'Caffe Latte', 20000, 5.0, TRUE),
+('MENU002', 'Es Kopi Susu', 20000, 5.0, TRUE),
+('MENU003', 'Kopi Late Gula Aren', 20000, 5.0, TRUE),
+('MENU004', 'Hot Cappucino', 20000, 5.0, TRUE),
+('MENU005', 'Vietnam Drive', 18000, 9.0, TRUE),
+('MENU006', 'Squash', 15000, 3.0, TRUE),
+('MENU007', 'Milk Shake', 18000, 6.0, TRUE),
+('MENU008', 'Esteh', 8000, 2.0, TRUE),
+('MENU009', 'Americano', 12000, 2.0, TRUE),
+('MENU010', 'Expreso Single', 10000, 2.0, TRUE),
+('MENU011', 'Expreso Double', 15000, 2.0, TRUE);
 
 -- LANGKAH 3: HUBUNGKAN MENU DENGAN RASA DI TABEL PENGHUBUNG
 INSERT INTO menu_item_flavor_association (menu_item_id, flavor_id) VALUES

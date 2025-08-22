@@ -793,6 +793,84 @@ def get_all_orders(db: Session = Depends(get_db)):
     orders = db.query(Order).order_by(Order.created_at.asc()).all()
     return orders
 
+@app.get("/order/estimate/{order_id}", summary="Perhitungan estimasi waktu order", tags=["Order"], operation_id="estimate order")
+def estimate_order_time(order_id: str, db: Session = Depends(get_db)):
+    """
+    Estimasi untuk order ini = penjumlahan waktu semua order aktif hari ini
+    dengan queue_number <= order ini:
+      - making/receive: sum(quantity * making_time_minutes) + 1 menit
+      - deliver: 1 menit
+    """
+    target = db.query(Order).filter(Order.order_id == order_id).first()
+    if not target:
+        return JSONResponse(status_code=200, content={"status": "error", "message": "Order not found", "data": None})
+
+    # Ambil peta waktu pembuatan dari menu_service
+    try:
+        resp = requests.get(f"{MENU_SERVICE_URL}/menu", timeout=5)
+        resp.raise_for_status()
+        menus = resp.json() or []
+        time_map = {
+            (m.get("base_name") or m.get("menu_name").strip()): float(m.get("making_time_minutes", 0) or 0)
+            for m in menus
+        }
+    except Exception as e:
+        logging.error(f"Error fetching menus for estimation: {e}")
+        time_map = {}
+
+    # Ambil semua order aktif (hari ini) sampai antrian target
+    today = datetime.now(jakarta_tz).date()
+    start_of_day = datetime.combine(today, datetime.min.time()).replace(tzinfo=jakarta_tz)
+    end_of_day = datetime.combine(today, datetime.max.time()).replace(tzinfo=jakarta_tz)
+
+    excluded_status = ["done", "cancelled", "habis"]
+    orders_in_queue = db.query(Order).filter(
+        Order.created_at >= start_of_day,
+        Order.created_at <= end_of_day,
+        Order.queue_number <= target.queue_number,
+        ~Order.status.in_(excluded_status)
+    ).order_by(Order.queue_number.asc()).all()
+
+    order_ids = [o.order_id for o in orders_in_queue]
+    items = db.query(OrderItem).filter(OrderItem.order_id.in_(order_ids)).all() if order_ids else []
+
+    # Hitung total waktu per order
+    per_order_production = {}  # order_id -> total produksi (menit)
+    for it in items:
+        per_order_production[it.order_id] = per_order_production.get(it.order_id, 0.0) + (
+            (it.quantity or 0) * (time_map.get(it.menu_name, 0.0))
+        )
+
+    total_minutes = 0.0
+    breakdown = []
+    for o in orders_in_queue:
+        status = (o.status or "").lower()
+        if status == "deliver":
+            order_minutes = 1.0
+        else:
+            prod = per_order_production.get(o.order_id, 0.0)
+            order_minutes = prod + 1.0  # +1 menit deliver/buffer
+        total_minutes += order_minutes
+        if o.order_id == order_id:
+            target_contrib = order_minutes
+
+        breakdown.append({"order_id": o.order_id, "queue_number": o.queue_number, "status": status, "minutes": order_minutes})
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "status": "success",
+            "message": "Estimasi waktu berhasil dihitung.",
+            "data": {
+                "estimated_time_minutes": total_minutes,
+                "target_order_minutes": target_contrib,
+                "orders_count_in_queue": len(orders_in_queue),
+                "queue_number": target.queue_number,
+                "breakdown": breakdown
+            }
+        }
+    )
+
 @app.get("/today_orders", summary="Pesanan hari ini", tags=["Order"])
 def get_today_orders(db: Session = Depends(get_db)):
     """Mengembalikan pesanan hari ini saja."""

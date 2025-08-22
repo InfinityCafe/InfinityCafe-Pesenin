@@ -134,7 +134,8 @@ class MenuItem(Base):
     base_name = Column(String, index=True, unique=True)
     base_price = Column(Integer)
     isAvail = Column(Boolean, default=True)
-    
+    making_time_minutes = Column(Float, default=0)
+
     # Relasi ke tabel flavors
     recipe_ingredients = relationship("RecipeIngredient", back_populates="menu_item")
     
@@ -194,6 +195,7 @@ class MenuItemBase(BaseModel):
     base_name: str = Field(..., min_length=1, description="Nama menu tidak boleh kosong")
     base_price: int = Field(..., gt=0, description="Harga harus lebih dari 0")
     isAvail: bool = True
+    making_time_minutes: float = Field(default=0, ge=0, description="Waktu pembuatan menu dalam menit")
 
 class MenuItemCreate(MenuItemBase):
     flavor_ids: List[str] = Field(default=[], description="ID flavor untuk menu (opsional)")
