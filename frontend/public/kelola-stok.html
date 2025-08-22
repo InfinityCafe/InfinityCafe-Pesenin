@@ -78,17 +78,6 @@
           </div>
         </div>
 
-        <!-- <div class="overview-card warning">
-          <div class="card-icon warning">
-            <i class="fa-solid fa-triangle-exclamation icons-warning"></i>
-          </div>
-          <div class="card-content">
-            <h3>Warning</h3>
-            <p>Need to restock</p>
-            <span class="card-number" id="warning-items">15</span>
-          </div>
-        </div> -->
-
         <div class="overview-card critical">
           <div class="card-icon critical">
             <i class="fa-solid fa-circle-xmark icons-critical"></i>
@@ -114,10 +103,6 @@
               <i class="fas fa-truck"></i>
               UNIT CONVERTER
             </button>
-            <!-- <button class="consumption-log-btn" id="consumption-log-btn">
-              <i class="fas fa-history"></i>
-              CONSUMPTION LOG
-            </button> -->
           </div>
         </div>
       </div>
@@ -139,22 +124,46 @@
                   Filter
                 </button>
                 <div class="filter-dropdown" id="filter-dropdown">
-                  <div class="filter-group">
-                    <label>Status:</label>
-                    <select id="status-filter">
-                      <option value="">All</option>
-                      <option value="Yes">Available</option>
-                      <option value="No">Unavailable</option>
-                    </select>
-                  </div>
-                  <div class="filter-group">
-                    <label>Quantity Range:</label>
-                    <div class="price-range">
-                      <input type="number" id="quantity-min" placeholder="Min" class="price-input">
-                      <span>-</span>
-                      <input type="number" id="quantity-max" placeholder="Max" class="price-input">
+                  <div class="filter-groups-wrapper">
+                    <div class="filter-group">
+                      <label>Sort by Name:</label>
+                      <select id="sort-filter">
+                        <option value="">Default</option>
+                        <option value="a-z">A to Z</option>
+                        <option value="z-a">Z to A</option>
+                      </select>
+                    </div>
+
+                    <div class="filter-group">
+                      <label>Category:</label>
+                      <select id="category-filter">
+                        <option value="">All Categories</option>
+                        <option value="ingredient">Ingredient</option>
+                        <option value="packaging">Packaging</option>
+                      </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                      <label>Unit:</label>
+                      <select id="unit-filter">
+                        <option value="">All Units</option>
+                        <option value="gram">Gram</option>
+                        <option value="milliliter">Milliliter</option>
+                        <option value="piece">Piece</option>
+                      </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                      <label>Status:</label>
+                      <select id="status-filter">
+                        <option value="">All Status</option>
+                        <option value="in-stock">In Stock</option>
+                        <option value="low-stock">Low Stock</option>
+                        <option value="out-of-stock">Out of Stock</option>
+                      </select>
                     </div>
                   </div>
+                  
                   <div class="filter-actions">
                     <button class="apply-filter-btn" onclick="inventoryManager.applyStockFilter()">Apply</button>
                     <button class="clear-filter-btn" onclick="inventoryManager.clearStockFilter()">Clear</button>

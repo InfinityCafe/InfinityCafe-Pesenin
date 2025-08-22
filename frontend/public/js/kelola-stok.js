@@ -63,6 +63,10 @@ class InventoryManager {
       this.handleSearch(e.target.value);
     });
 
+    safeAddEventListener('filter-btn', 'click', () => {
+      this.toggleFilterStock();
+    });
+
     // Entries per page
     safeAddEventListener('entries-per-page', 'change', () => {
       this.changeMenuPageSize();
@@ -156,6 +160,7 @@ class InventoryManager {
       this.filterConsumptionLogs(e.target.value);
     });
   }
+  
 
   async loadInventoryData() {
     try {
@@ -245,7 +250,7 @@ class InventoryManager {
       total_items: sampleInventory.length,
       critical_count: sampleInventory.filter(item => item.current_quantity <= 0).length,
       low_stock_count: sampleInventory.filter(item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length,
-      warning_count: sampleInventory.filter(item => item.current_quantity > item.minimum_quantity && item.current_quantity <= item.minimum_quantity * 1.5).length
+      // warning_count: sampleInventory.filter(item => item.current_quantity > item.minimum_quantity && item.current_quantity <= item.minimum_quantity * 1.5).length
     });
 
     this.renderInventoryTable();
@@ -263,9 +268,9 @@ class InventoryManager {
     if (summaryData.low_stock_count !== undefined) {
       document.getElementById('low-stock-items').textContent = summaryData.low_stock_count;
     }
-    if (summaryData.warning_count !== undefined) {
-      document.getElementById('warning-items').textContent = summaryData.warning_count;
-    }
+    // if (summaryData.warning_count !== undefined) {
+    //   document.getElementById('warning-items').textContent = summaryData.warning_count;
+    // }
   }
 
   handleSearch(searchTerm) {
@@ -349,8 +354,6 @@ class InventoryManager {
       return { class: 'status-badge status-out-of-stock', text: 'Out of Stock' };
     } else if (item.current_quantity <= item.minimum_quantity) {
       return { class: 'status-badge status-low-stock', text: 'Low Stock' };
-    } else if (item.current_quantity <= item.minimum_quantity * 1.5) {
-      return { class: 'status-badge status-warning', text: 'Warning' };
     } else {
       return { class: 'status-badge status-in-stock', text: 'In Stock' };
     }
@@ -412,27 +415,61 @@ class InventoryManager {
     this.renderInventoryTable();
   }
 
-  applyStockFilter() {
-    const statusFilter = document.getElementById('status-filter');
-    const quantityMin = document.getElementById('quantity-min');
-    const quantityMax = document.getElementById('quantity-max');
+  toggleFilterStock() {
+    const dropdown = document.getElementById('filter-dropdown');
+    const filterBtn = document.querySelector('.filter-btn'); // Sesuaikan selector jika perlu
+    const isShown = dropdown.classList.toggle('show');
 
-    if (!statusFilter || !quantityMin || !quantityMax) {
+    if (isShown) {
+        // Hitung tinggi dinamis saat dropdown muncul
+        const btnRect = filterBtn.getBoundingClientRect();
+        const availableHeight = window.innerHeight - btnRect.bottom - 20; // Minus 20px untuk margin safety
+        
+        // Set max-height ke tinggi tersedia (minimal 200px agar tidak terlalu kecil)
+        dropdown.style.maxHeight = Math.max(200, availableHeight) + 'px';
+    } else {
+        // Reset max-height saat ditutup (opsional)
+        dropdown.style.maxHeight = 'none';
+    }
+  }
+
+  applyStockFilter() {
+    const categoryFilter = document.getElementById('category-filter');
+    const unitFilter = document.getElementById('unit-filter');
+    const statusFilter = document.getElementById('status-filter');
+    const sortFilter = document.getElementById('sort-filter');
+
+    if (!categoryFilter || !unitFilter || !statusFilter || !sortFilter) {
       console.warn("Filter elements not found in DOM");
       return;
     }
 
+    const categoryValue = categoryFilter.value;
+    const unitValue = unitFilter.value;
     const statusValue = statusFilter.value;
-    const minValue = parseFloat(quantityMin.value) || 0;
-    const maxValue = parseFloat(quantityMax.value) || Infinity;
+    const sortValue = sortFilter.value;
 
+    // Filter data
     this.filteredInventory = this.inventory.filter(item => {
-      const statusMatch = !statusValue ||
-        (statusValue === 'Yes' && item.current_quantity > item.minimum_quantity) ||
-        (statusValue === 'No' && item.current_quantity <= item.minimum_quantity);
-      const quantityMatch = item.current_quantity >= minValue && item.current_quantity <= maxValue;
-      return statusMatch && quantityMatch;
+      const categoryMatch = !categoryValue || item.category === categoryValue;
+      const unitMatch = !unitValue || item.unit === unitValue;
+      
+      // Status filter logic
+      let statusMatch = true;
+      if (statusValue) {
+        const status = this.getStockStatus(item);
+        statusMatch = status.text.toLowerCase().replace(' ', '-') === statusValue;
+      }
+      
+      return categoryMatch && unitMatch && statusMatch;
     });
+
+    // Sort data
+    if (sortValue === 'a-z') {
+      this.filteredInventory.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortValue === 'z-a') {
+      this.filteredInventory.sort((a, b) => b.name.localeCompare(a.name));
+    }
 
     this.currentPage = 1;
     this.renderInventoryTable();
@@ -440,18 +477,21 @@ class InventoryManager {
   }
 
   clearStockFilter() {
+    const categoryFilter = document.getElementById('category-filter');
+    const unitFilter = document.getElementById('unit-filter');
     const statusFilter = document.getElementById('status-filter');
-    const quantityMin = document.getElementById('quantity-min');
-    const quantityMax = document.getElementById('quantity-max');
+    const sortFilter = document.getElementById('sort-filter');
 
+    if (categoryFilter) categoryFilter.value = '';
+    if (unitFilter) unitFilter.value = '';
     if (statusFilter) statusFilter.value = '';
-    if (quantityMin) quantityMin.value = '';
-    if (quantityMax) quantityMax.value = '';
+    if (sortFilter) sortFilter.value = '';
 
     this.filteredInventory = [...this.inventory];
     this.currentPage = 1;
     this.renderInventoryTable();
     this.toggleFilterStock();
+
   }
 
   changeStockPage(direction) {
@@ -584,7 +624,7 @@ class InventoryManager {
       total_items: this.inventory.length,
       critical_count: this.inventory.filter(item => item.current_quantity <= 0).length,
       low_stock_count: this.inventory.filter(item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length,
-      warning_count: this.inventory.filter(item => item.current_quantity > item.minimum_quantity && item.current_quantity <= item.minimum_quantity * 1.5).length
+      // warning_count: this.inventory.filter(item => item.current_quantity > item.minimum_quantity && item.current_quantity <= item.minimum_quantity * 1.5).length
     });
     this.closeModal('item-modal');
   }
@@ -625,7 +665,7 @@ class InventoryManager {
         total_items: this.inventory.length,
         critical_count: this.inventory.filter(item => item.current_quantity <= 0).length,
         low_stock_count: this.inventory.filter(item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length,
-        warning_count: this.inventory.filter(item => item.current_quantity > item.minimum_quantity && item.current_quantity <= item.minimum_quantity * 1.5).length
+        // warning_count: this.inventory.filter(item => item.current_quantity > item.minimum_quantity && item.current_quantity <= item.minimum_quantity * 1.5).length
       });
     }
   }
