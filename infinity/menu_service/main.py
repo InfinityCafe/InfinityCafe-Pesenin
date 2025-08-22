@@ -1,10 +1,10 @@
 # menu_service.py
 
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import Body, FastAPI, HTTPException, Depends, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, validator, Field, ValidationError
-from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Table, ForeignKey
+from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Table, ForeignKey, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship, joinedload
 from typing import List, Optional
@@ -21,7 +21,6 @@ from fastapi_mcp import FastApiMCP
 import uvicorn
 from fastapi import APIRouter
 from fastapi.middleware.cors import CORSMiddleware
-
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL_MENU")
 
@@ -135,7 +134,11 @@ class MenuItem(Base):
     base_name = Column(String, index=True, unique=True)
     base_price = Column(Integer)
     isAvail = Column(Boolean, default=True)
+    making_time_minutes = Column(Float, default=0)
 
+    # Relasi ke tabel flavors
+    recipe_ingredients = relationship("RecipeIngredient", back_populates="menu_item")
+    
     flavors = relationship(
         "Flavor",
         secondary=menu_item_flavor_association,
@@ -162,7 +165,7 @@ class MenuSuggestion(Base):
     customer_name = Column(String)
     timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
 
-Base.metadata.create_all(bind=engine)
+# (HAPUS create_all awal – dipindah ke bawah setelah SEMUA model terdefinisi)
 
 class FlavorBase(BaseModel):
     flavor_name: str = Field(..., min_length=1, description="Nama flavor tidak boleh kosong")
@@ -192,6 +195,7 @@ class MenuItemBase(BaseModel):
     base_name: str = Field(..., min_length=1, description="Nama menu tidak boleh kosong")
     base_price: int = Field(..., gt=0, description="Harga harus lebih dari 0")
     isAvail: bool = True
+    making_time_minutes: float = Field(default=0, ge=0, description="Waktu pembuatan menu dalam menit")
 
 class MenuItemCreate(MenuItemBase):
     flavor_ids: List[str] = Field(default=[], description="ID flavor untuk menu (opsional)")
@@ -247,6 +251,35 @@ class SuggestionOut(BaseModel):
     timestamp: datetime
     model_config = { "from_attributes": True }
 
+# Tabel untuk menyimpan informasi bahan yang disinkronkan dari inventory service
+class SyncedInventory(Base):
+    __tablename__ = "synced_inventory"
+    id = Column(Integer, primary_key=True, index=True)  # Tambah Column definisi
+    name = Column(String, index=True)
+    current_quantity = Column(Float, default=0)
+    minimum_quantity = Column(Float, default=0)
+    category = Column(String, index=True)
+    unit = Column(String, index=True)
+        
+    # Tambah relationship ini
+    recipe_ingredients = relationship("RecipeIngredient", back_populates="ingredient")
+
+# Tabel untuk menyimpan bahan yang digunakan dalam resep
+class RecipeIngredient(Base):
+    __tablename__ = "recipe_ingredients"
+    id = Column(Integer, primary_key=True, index=True)
+    menu_item_id = Column(String, ForeignKey('menu_items.id'))
+    ingredient_id = Column(Integer, ForeignKey('synced_inventory.id'))
+    quantity = Column(Float, nullable=False)
+    unit = Column(String, nullable=False)  # disimpan sebagai string agar bebas dari enum mismatch
+
+    # Relasi ke tabel menu_item dan synced_inventory
+    menu_item = relationship("MenuItem", back_populates="recipe_ingredients")
+    ingredient = relationship("SyncedInventory", back_populates="recipe_ingredients")
+
+# PANGGIL create_all SETELAH SEMUA MODEL DI ATAS TERDEFINISI
+Base.metadata.create_all(bind=engine)
+    
 def get_db():
     db = SessionLocal()
     try:
@@ -575,10 +608,127 @@ def get_suggestions(db: Session = Depends(get_db)):
         "data": menu_names
     }
 
+@app.get("/menu_suggestion/raw", summary="Raw Usulan untuk Report", tags=["Usulan Menu"], operation_id="list raw usulan menu")
+def get_suggestions_raw(db: Session = Depends(get_db)):
+    """Mengambil data usulan dalam format raw untuk report service."""
+    suggestions = db.query(MenuSuggestion).order_by(MenuSuggestion.timestamp.desc()).all()
+    
+    return [
+        {
+            "usulan_id": suggestion.usulan_id,
+            "menu_name": suggestion.menu_name,
+            "customer_name": suggestion.customer_name,
+            "timestamp": suggestion.timestamp.isoformat()
+        }
+        for suggestion in suggestions
+    ]
+
 @app.get("/health", summary="Health Check", tags=["Utility"])
 def health_check():
     """Cek apakah service menu sedang berjalan."""
     return {"status": "ok", "service": "menu_service"}
+
+# Endpoint untuk menerima event bahan dari inventory service jika terjadi penambahan agar data dari inventory service dapat disinkronkan dengan menu service
+@app.post("/receive_ingredient_event", summary="Terima Event Bahan", tags=["Inventory"], operation_id="receive ingredient event")
+async def receive_ingredient_event(request: Request, db: Session = Depends(get_db)):
+    """Sinkron add ingredient dari inventory_service (event_type=ingredient_added)."""
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Payload tidak valid (bukan JSON)")
+
+    # Payload langsung berisi field ingredient (inventory_service sudah kirim flat)
+    required = ["id", "name", "current_quantity", "minimum_quantity", "category", "unit"]
+    if not all(k in data for k in required):
+        raise HTTPException(status_code=400, detail="Field ingredient tidak lengkap")
+
+    existing = db.query(SyncedInventory).filter(SyncedInventory.id == data["id"]).first()
+    if existing:
+        # Jika sudah ada, update saja (idempotent)
+        existing.name = data["name"]
+        existing.current_quantity = data["current_quantity"]
+        existing.minimum_quantity = data["minimum_quantity"]
+        existing.category = data["category"]
+        existing.unit = data["unit"]
+        db.commit()
+        return {"message": "Ingredient sudah ada, data diperbarui", "data": {"id": existing.id}}
+
+    new_ing = SyncedInventory(
+        id=data["id"],
+        name=data["name"],
+        current_quantity=data["current_quantity"],
+        minimum_quantity=data["minimum_quantity"],
+        category=data["category"],
+        unit=data["unit"]
+    )
+    db.add(new_ing)
+    db.commit()
+    logging.info(f"🔄 Sinkron add ingredient {new_ing.id} : {new_ing.name}")
+    return {"message": "Ingredient ditambahkan", "data": {"id": new_ing.id}}
+
+# Endpoint untuk menerima event bahan jika terjadi update dari inventory service agar data dari inventory service dapat disinkronkan dengan menu service
+@app.put("/update_ingredient_event", summary="Update Bahan Event", tags=["Inventory"], operation_id="update ingredient event")
+async def update_ingredient_event(request: Request, db: Session = Depends(get_db)):
+    """Sinkron update ingredient dari inventory_service (event_type=ingredient_updated)."""
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Payload tidak valid")
+
+    ingredient_id = data.get("id")
+    if ingredient_id is None:
+        raise HTTPException(status_code=400, detail="Field id wajib ada")
+
+    ingredient = db.query(SyncedInventory).filter(SyncedInventory.id == ingredient_id).first()
+    if not ingredient:
+        raise HTTPException(status_code=404, detail="Bahan tidak ditemukan untuk diupdate")
+
+    # Update
+    for field in ["name", "current_quantity", "minimum_quantity", "category", "unit"]:
+        if field in data:
+            setattr(ingredient, field, data[field])
+    db.commit()
+    logging.info(f"🔄 Sinkron update ingredient {ingredient_id}")
+    return {"message": "Ingredient diperbarui", "data": {"id": ingredient_id}}
+
+# Endpoint untuk menghapus bahan berdasarkan ID dari inventory service agar data dari inventory service dapat disinkronkan dengan menu service
+@app.delete("/delete_ingredient_event/{ingredient_id}", summary="Hapus Bahan Event", tags=["Inventory"], operation_id="delete ingredient event")
+def delete_ingredient_event(ingredient_id: int, db: Session = Depends(get_db)):
+    """Sinkron delete ingredient (event_type=ingredient_deleted)."""
+    ing = db.query(SyncedInventory).filter(SyncedInventory.id == ingredient_id).first()
+    if not ing:
+        # Idempotent delete
+        return {"message": "Ingredient tidak ditemukan, dianggap sudah terhapus"}
+    db.delete(ing)
+    db.commit()
+    logging.info(f"🗑️ Sinkron delete ingredient {ingredient_id}")
+    return {"message": "Ingredient dihapus", "data": {"id": ingredient_id}}
+
+# Endpoint untuk mendapatkan semua bahan resep yang tersedia sesuai dengan data yang ada di inventory service
+@app.post("/recipes/batch", summary="Ambil resep banyak menu", tags=["Recipe"], operation_id="batch recipes")
+def get_recipes_batch(payload: dict = Body(...), db: Session = Depends(get_db)):
+    """
+    Body: { "menu_names": ["Caffe Latte","Cappuccino"] }
+    Return: { "recipes": { "Caffe Latte": [ {ingredient_id, quantity, unit}, ...], ... } }
+    """
+    menu_names = payload.get("menu_names", [])
+    if not isinstance(menu_names, list) or not menu_names:
+        raise HTTPException(status_code=400, detail="menu_names harus list dan tidak kosong")
+    menu_rows = db.query(MenuItem).options(joinedload(MenuItem.recipe_ingredients)).filter(
+        MenuItem.base_name.in_(menu_names)
+    ).all()
+    mapping = {m.base_name: [] for m in menu_rows}
+    for m in menu_rows:
+        for r in m.recipe_ingredients:
+            mapping[m.base_name].append({
+                "ingredient_id": r.ingredient_id,
+                "quantity": r.quantity,
+                "unit": r.unit
+            })
+    # Pastikan menu yang tidak ditemukan tetap muncul kosong untuk feedback
+    for name in menu_names:
+        mapping.setdefault(name, [])
+    return {"recipes": mapping}
 
 hostname = socket.gethostname()
 local_ip = socket.gethostbyname(hostname)
