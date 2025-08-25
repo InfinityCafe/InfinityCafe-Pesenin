@@ -230,6 +230,46 @@
     </div>
   </div>
 
+  <!-- View Item Modal -->
+  <div id="view-item-modal" class="modal hidden">
+    <div class="modal-content view-modal">
+      <button class="modal-close" id="close-view-modal" onclick="closeViewItemModal()">
+        &times;
+      </button>
+      <h3 class="modal-title">Item Details</h3>
+      <div class="view-content">
+        <div class="view-item">
+          <label>Item Name:</label>
+          <span id="view-item-name"></span>
+        </div>
+        <div class="view-item">
+          <label>Category:</label>
+          <span id="view-item-category"></span>
+        </div>
+        <div class="view-item">
+          <label>Current Stock:</label>
+          <span id="view-item-current"></span>
+        </div>
+        <div class="view-item">
+          <label>Unit:</label>
+          <span id="view-item-unit"></span>
+        </div>
+        <div class="view-item">
+          <label>Minimun Stock:</label>
+          <span id="view-item-minimum"></span>
+        </div>
+        <div class="view-item">
+          <label>Status:</label>
+          <span id="view-item-status"></span>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn-cancel" onclick="closeViewItemModal()">Close</button>
+        <!-- <button class="modal-btn" onclick="editItemFromView()">Edit</button> -->
+      </div>
+    </div>
+  </div>
+
   <!-- Add/Edit Item Modal -->
   <div id="item-modal" class="modal hidden">
     <div class="modal-content">

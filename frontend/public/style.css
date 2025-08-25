@@ -3789,6 +3789,30 @@ body.tab-done .add-order-btn {
     font-weight: 500;
 }
 
+
+.view-item .status-label {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.view-item .status-in-stock {
+  background-color: #E8F5E8;
+  color: #2E7D32;
+}
+
+.view-item .status-low-stock {
+  background-color: #FFF3E0;
+  color: #EF6C00;
+}
+
+.view-item .status-out-of-stock {
+  background-color: #FFEBEE;
+  color: #C62828;
+}
+
 .view-modal .modal-actions {
     display: flex;
     gap: 16px;
@@ -3821,6 +3845,7 @@ background: #207156;
     box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
 }
 
+/* Login Page Styles */
 .background-wrapper {
     min-height: 100vh;
     display: flex;

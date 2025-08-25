@@ -21,25 +21,25 @@ let flavorCurrentPage = 1;
 let flavorPageSize = 10;
 let flavorTotalPages = 1;
 
-// function switchTab(tab) {
-//     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('tab-active'));
-//     document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
-//     document.getElementById(`tab-${tab}`).classList.add('tab-active');
-//     document.getElementById(`tab-${tab}-content`).classList.add('active');
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('tab-active'));
+    document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+    document.getElementById(`tab-${tab}`).classList.add('tab-active');
+    document.getElementById(`tab-${tab}-content`).classList.add('active');
     
-//     // Update button text based on active tab
-//     const addButton = document.getElementById('add-new-btn');
-//     if (tab === 'flavors') {
-//     addButton.textContent = 'ADD NEW FLAVOUR';
-//     loadFlavors();
-//     } else if (tab === 'menu') {
-//     addButton.textContent = 'ADD NEW MENU';
-//     // Load menus (flavors are included in menu data)
-//     loadMenus().catch(error => {
-//         console.error('Error loading data for menu tab:', error);
-//     });
-//     }
-// }
+    // Update button text based on active tab
+    const addButton = document.getElementById('add-new-btn');
+    if (tab === 'flavors') {
+    addButton.textContent = 'ADD NEW FLAVOUR';
+    loadFlavors();
+    } else if (tab === 'menu') {
+    addButton.textContent = 'ADD NEW MENU';
+    // Load menus (flavors are included in menu data)
+    loadMenus().catch(error => {
+        console.error('Error loading data for menu tab:', error);
+    });
+    }
+}
 
 // Load all menus with pagination
 async function loadMenus() {
@@ -112,7 +112,7 @@ async function renderMenuTable() {
         
         const row = document.createElement('tr');
         row.innerHTML = `
-        <td>${startIndex + index + 1}</td>
+            <td>${startIndex + index + 1}</td>
             <td>${menu.base_name}</td>
             <td>${menu.base_price}</td>
             <td>

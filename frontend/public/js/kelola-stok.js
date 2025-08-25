@@ -8,10 +8,10 @@ class InventoryManager {
     this.itemsPerPage = 10;
     this.totalPages = 1;
     this.editingItem = null;
+    this.viewingItemId = null;
     
     this.initializeEventListeners();
     this.loadInventoryData();
-    // this.updateGreetingDate();
   }
 
   initializeEventListeners() {
@@ -28,6 +28,10 @@ class InventoryManager {
     // Add item button
     safeAddEventListener('add-item-btn', 'click', () => {
       this.openAddItemModal();
+    });
+
+    safeAddEventListener('close-view-modal', 'click', () => {
+      this.closeViewItemModal();
     });
 
     // Modal close buttons
@@ -69,16 +73,16 @@ class InventoryManager {
 
     // Entries per page
     safeAddEventListener('entries-per-page', 'change', () => {
-      this.changeMenuPageSize();
+      this.changeStockPageSize();
     });
 
     // Pagination buttons
     safeAddEventListener('prev-btn', 'click', () => {
-      this.changeMenuPage(-1);
+      this.changeStockPage(-1);
     });
 
     safeAddEventListener('next-btn', 'click', () => {
-      this.changeMenuPage(1);
+      this.changeStockPage(1);
     });
 
     // Delete confirmation
@@ -512,6 +516,48 @@ class InventoryManager {
     }
   }
 
+  viewItem(itemId) {
+    const item= this.inventory.find(i => i.id === itemId);
+    if (!item) {
+      this.showError('Item not found');
+      return;
+    }
+
+    document.getElementById('view-item-name').textContent = item.name;
+    document.getElementById('view-item-category').textContent = this.capitalizeFirst(item.category);
+    document.getElementById('view-item-current').textContent = `${item.current_quantity.toFixed(2)} ${item.unit}`;
+    document.getElementById('view-item-unit').textContent = this.capitalizeFirst(item.unit);
+    document.getElementById('view-item-minimum').textContent = `${item.minimum_quantity.toFixed(2)} ${item.unit}`;
+
+    const status = this.getStockStatus(item);
+    const statusElement = document.getElementById('view-item-status');
+    statusElement.textContent = status.text;
+    statusElement.className = `status-label ${status.class.replace('status-badge', '')}`;
+
+    document.getElementById('view-item-modal').setAttribute('data-item-id', itemId);
+
+    this.showModal('view-item-modal');
+  }
+
+  closeViewItemModal() {
+    this.closeModal('view-item-modal');
+    document.getElementById('view-item-modal').removeAttribute('data-item-id');
+  }
+
+  editFromView() {
+    const itemId = dosument.getElementById('view-item-modal').getAttribute('data-item-id');
+    if (!itemId) {
+      this.showError('No item selected for editing');
+      return;
+    }
+
+    this.closeViewItemModal();
+
+    setTimeout(() => {
+      this.editItem(parseInt(itemId));
+    }, 50);
+  }
+
   openAddItemModal() {
     this.editingItem = null;
     const modalTitle = document.getElementById('modal-title');
@@ -542,6 +588,11 @@ class InventoryManager {
       if (element) element.value = fields[id];
     });
 
+    const itemForm = document.getElementById('item-form');
+    if (itemForm) {
+      itemForm.setAttribute('data-item-id', itemId);
+    }
+
     this.showModal('item-modal');
   }
 
@@ -568,11 +619,14 @@ class InventoryManager {
       minimum_quantity: parseFloat(formData.get('minimum_quantity'))
     };
 
+    const itemId = itemForm.getAttribute('data-item-id');
+    const isEditing = !!itemId;
+
     try {
       let response;
-      if (this.editingItem) {
+      if (isEditing) {
         // Update existing item
-        itemData.id = this.editingItem.id;
+        itemData.id = parseInt(itemId);
         response = await fetch('/inventory/update', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -588,7 +642,7 @@ class InventoryManager {
       }
 
       if (response.ok) {
-        this.showSuccess(this.editingItem ? 'Item updated successfully' : 'Item added successfully');
+        this.showSuccess(isEditing ? 'Item updated successfully' : 'Item added successfully');
         this.closeModal('item-modal');
         this.loadInventoryData(); // Reload data
       } else {
@@ -602,10 +656,10 @@ class InventoryManager {
     }
   }
 
-  handleLocalFormSubmission(itemData) {
-    if (this.editingItem) {
+  handleLocalFormSubmission(itemData, isEditing, itemId) {
+    if (isEditing) {
       // Update existing item in local data
-      const index = this.inventory.findIndex(item => item.id === this.editingItem.id);
+      const index = this.inventory.findIndex(item => item.id === parseInt(item.id));
       if (index !== -1) {
         this.inventory[index] = { ...this.inventory[index], ...itemData };
         this.showSuccess('Item updated successfully (local demo)');
@@ -685,6 +739,13 @@ class InventoryManager {
       modal.classList.add('hidden');
     }
     this.editingItem = null;
+
+    if (modalId === 'item-modal') {
+      const itemForm = document.getElementById('item-form');
+      if (itemForm) {
+        itemForm.removeAttribute('data-item-id');
+      }
+    }
   }
 
   showSuccess(message) {
@@ -1002,6 +1063,18 @@ class InventoryManager {
 window.removeBulkItem = function(button) {
   if (window.inventoryManager) {
     window.inventoryManager.removeBulkItem(button);
+  }
+};
+
+window.closeViewItemModal = function() {
+  if (window.inventoryManager) {
+    window.inventoryManager.closeViewItemModal();
+  }
+};
+
+window.editFromView = function() {
+  if (window.inventoryManager) {
+    window.inventoryManager.editFromView();
   }
 };
 
