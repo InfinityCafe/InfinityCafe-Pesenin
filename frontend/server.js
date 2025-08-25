@@ -475,21 +475,21 @@ app.post("/inventory/stock/add", async (req, res) => {
   }
 });
 
-app.post("/inventory/stock/bulk_add", async (req, res) => {
-  try {
-    const body = req.body;
-    const resp = await fetch("http://inventory_service:8006/stock/bulk_add", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
-    const data = await resp.json();
-    res.status(resp.status).json(data);
-  } catch (err) {
-    console.error("Failed to bulk add stock ", err);
-    res.status(500).json({ error: "Failed to bulk add stock" });
-  }
-});
+// app.post("/inventory/stock/bulk_add", async (req, res) => {
+//   try {
+//     const body = req.body;
+//     const resp = await fetch("http://inventory_service:8006/stock/bulk_add", {
+//       method: "POST",
+//       headers: { "Content-Type": "application/json" },
+//       body: JSON.stringify(body)
+//     });
+//     const data = await resp.json();
+//     res.status(resp.status).json(data);
+//   } catch (err) {
+//     console.error("Failed to bulk add stock ", err);
+//     res.status(500).json({ error: "Failed to bulk add stock" });
+//   }
+// });
 
 app.put("/inventory/stock/minimum", async (req, res) => {
   try {
