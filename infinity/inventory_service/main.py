@@ -83,8 +83,11 @@ def get_db():
         db.close()
 
 class StockCategory(str, enum.Enum):
-    ingredient = "ingredient"
     packaging = "packaging"
+    ingredients = "ingredients"
+    coffee_flavors = "coffee_flavors"
+    squash_flavors = "squash_flavors" 
+    milk_shake_flavors = "milk_shake_flavors"
 
 class UnitType(str, enum.Enum):
     gram = "gram"
