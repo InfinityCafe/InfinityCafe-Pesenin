@@ -640,8 +640,8 @@ async function loadIngredientAnalysisData() {
                         if (!menuFlavorUsage[mName]) menuFlavorUsage[mName] = {};
                         menuOrderCount[mName] += qty;
 
-                        // Determine flavor
-                        const prefRaw = (it.flavor || it.rasa || '').trim();
+                        // Determine flavor (robust)
+                        const prefRaw = normalizeFlavorForKey(getItemFlavorRaw(it));
                         const prefLower = prefRaw.toLowerCase();
                         const flavorDisplay = prefRaw || '-';
                         const key = `${mName}||${flavorDisplay}`;
@@ -2219,4 +2219,24 @@ window.onload = () => {
     loadReport();
         startAutoRefresh();
 };
+
+function getItemFlavorRaw(item) {
+    if (!item || typeof item !== 'object') return '';
+    // Preferred explicit fields
+    const direct = item.flavor || item.rasa || item.flavour || item.variant || item.variation || item.taste;
+    if (direct) return String(direct);
+    // Fallback: scan keys that look like flavor
+    for (const k of Object.keys(item)) {
+        const low = k.toLowerCase();
+        if (low.includes('flavor') || low.includes('flavour') || low.includes('rasa') || low.includes('variant')) {
+            const val = item[k];
+            if (val) return String(val);
+        }
+    }
+    return '';
+}
+
+function normalizeFlavorForKey(raw) {
+    return (raw || '').trim();
+}
 </script>
