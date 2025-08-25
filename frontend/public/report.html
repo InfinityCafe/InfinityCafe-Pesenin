@@ -549,17 +549,37 @@ async function loadIngredientAnalysisData() {
         const startDate = startEl && startEl.value ? new Date(startEl.value + 'T00:00:00') : null;
         const endDate = endEl && endEl.value ? new Date(endEl.value + 'T23:59:59') : null;
         
-        // Load all menu data (optional) and inventory
-        const [menuResponse, inventoryResponse, kitchenResponse] = await Promise.all([
+        // Load all menu data (optional) and inventory and kitchen orders and flavor mappings
+        const [menuResponse, inventoryResponse, kitchenResponse, flavorMapResp] = await Promise.all([
             fetch('/menu/list'),
             fetch('/inventory/list'),
-            fetch('/kitchen/orders')
+            fetch('/kitchen/orders'),
+            fetch('/inventory/flavor_mapping')
         ]);
-        const [menuData, inventoryData, kitchenOrders] = await Promise.all([
+        const [menuData, inventoryData, kitchenOrders, flavorMapData] = await Promise.all([
             menuResponse.json(),
             inventoryResponse.json(),
-            kitchenResponse.json()
+            kitchenResponse.json(),
+            flavorMapResp.json()
         ]);
+        
+        // Build flavor mapping: flavor_name (lower) -> list of {ingredient_id, quantity_per_serving, unit}
+        let flavorMap = {};
+        if (flavorMapData) {
+            // support both {mappings: []} and [] shapes
+            const mappingsArr = Array.isArray(flavorMapData)
+                ? flavorMapData
+                : (Array.isArray(flavorMapData.mappings) ? flavorMapData.mappings : (Array.isArray(flavorMapData.data) ? flavorMapData.data : []));
+            for (const m of mappingsArr) {
+                const fname = (m.flavor_name || m.flavor || '').toLowerCase();
+                const ingId = m.ingredient_id ?? m.inventory_id ?? m.id;
+                const qty = Number(m.quantity_per_serving ?? m.quantity ?? 0) || 0;
+                const unit = m.unit || m.unit_name || '';
+                if (!fname || !ingId || qty <= 0) continue;
+                if (!flavorMap[fname]) flavorMap[fname] = [];
+                flavorMap[fname].push({ ingredient_id: ingId, quantity_per_serving: qty, unit });
+            }
+        }
         
         // Normalize menus (may be empty; we will derive from orders anyway)
         let menusArray = Array.isArray(menuData) ? menuData : (menuData && Array.isArray(menuData.data) ? menuData.data : []);
@@ -602,7 +622,7 @@ async function loadIngredientAnalysisData() {
                     ingredientData = {};
                 }
                 
-                // Compute consumption from done orders
+                // Compute consumption from done orders (base recipe + flavor mapping)
                 menuConsumption = {};
                 for (const order of doneOrders) {
                     const items = order.items || [];
@@ -610,13 +630,28 @@ async function loadIngredientAnalysisData() {
                         const mName = it.menu_name;
                         const qty = Number(it.quantity) || 0;
                         if (!mName || qty <= 0) continue;
-                        const recipes = menuRecipes[mName] || [];
                         if (!menuConsumption[mName]) menuConsumption[mName] = {};
+                        
+                        // Base recipe consumption
+                        const recipes = menuRecipes[mName] || [];
                         for (const r of recipes) {
                             const ingId = r.ingredient_id;
                             const useQty = (Number(r.quantity) || 0) * qty;
                             if (!menuConsumption[mName][ingId]) menuConsumption[mName][ingId] = { totalQuantity: 0, unit: r.unit };
                             menuConsumption[mName][ingId].totalQuantity += useQty;
+                        }
+                        
+                        // Flavor-based consumption
+                        const pref = (it.preference || it.flavor || it.rasa || '').toLowerCase();
+                        if (pref && flavorMap[pref]) {
+                            for (const fm of flavorMap[pref]) {
+                                const fIngId = fm.ingredient_id;
+                                const fUse = (Number(fm.quantity_per_serving) || 0) * qty;
+                                if (!menuConsumption[mName][fIngId]) menuConsumption[mName][fIngId] = { totalQuantity: 0, unit: fm.unit };
+                                menuConsumption[mName][fIngId].totalQuantity += fUse;
+                                // Prefer unit from mapping if base not set
+                                if (!menuConsumption[mName][fIngId].unit && fm.unit) menuConsumption[mName][fIngId].unit = fm.unit;
+                            }
                         }
                     }
                 }
@@ -1038,38 +1073,37 @@ async function viewOrderIngredients(orderId) {
 }
 
 function viewMenuIngredients(menuName) {
-    const recipes = menuRecipes[menuName] || [];
-    
+    // Show consumed totals per menu (aggregated)
+    const ingMap = menuConsumption[menuName] || {};
+    const rows = Object.entries(ingMap).map(([ingId, v]) => {
+        const ing = ingredientData[ingId];
+        const name = ing ? ing.name : `ID ${ingId}`;
+        return `
+            <tr>
+                <td>${name}</td>
+                <td>${(v.totalQuantity || 0).toFixed(2)}</td>
+                <td>${v.unit || ''}</td>
+                <td>${ing ? (ing.current_quantity ?? '-') : '-'}</td>
+            </tr>
+        `;
+    }).join('');
     let modalContent = `
         <h4>${menuName}</h4>
         <div class="menu-ingredients">
-            <h5>Resep Bahan:</h5>
+            <h5>Konsumsi Bahan (Agregat Pesanan)</h5>
             <table class="ingredient-table">
                 <thead>
                     <tr>
                         <th>Bahan</th>
-                        <th>Jumlah</th>
+                        <th>Total Terpakai</th>
                         <th>Unit</th>
                         <th>Stok Tersedia</th>
                     </tr>
                 </thead>
-                <tbody>
-                    ${recipes.map(recipe => {
-                        const ingredient = ingredientData[recipe.ingredient_id];
-                        return `
-                            <tr>
-                                <td>${ingredient ? ingredient.name : `ID ${recipe.ingredient_id}`}</td>
-                                <td>${recipe.quantity}</td>
-                                <td>${recipe.unit}</td>
-                                <td>${ingredient ? ingredient.current_quantity : 'N/A'}</td>
-                            </tr>
-                        `;
-                    }).join('')}
-                </tbody>
+                <tbody>${rows || '<tr><td colspan="4">Tidak ada data</td></tr>'}</tbody>
             </table>
         </div>
     `;
-    
     document.getElementById('ingredient-modal-body').innerHTML = modalContent;
     document.getElementById('ingredient-modal').classList.remove('hidden');
 }
