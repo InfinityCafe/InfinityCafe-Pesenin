@@ -328,10 +328,9 @@
                             <tr>
                                 <th>No</th>
                                 <th>Nama Menu</th>
-                                <th>Jumlah Bahan</th>
-                                <th>Total Quantity</th>
-                                <th>Bahan Utama</th>
-                                <th>Actions</th>
+                                <th>Flavor</th>
+                                <th>Qty Pesanan</th>
+                                <th>Detail Bahan (Terpakai)</th>
                             </tr>
                         </thead>
                         <tbody id="ingredient-table-body"></tbody>
@@ -423,6 +422,9 @@ let kitchenData = [];
 let ingredientData = {};
 let menuRecipes = {};
 let menuConsumption = {}; // { menuName: { ingredientId: { totalQuantity, unit } } }
+let menuOrderCount = {};   // { menuName: totalQuantityOrdered }
+let menuFlavorUsage = {};  // { menuName: { flavorNameLower: totalQty } }
+let variantConsumption = {}; // { key: { menuName, flavorName, orderQty, ingredients: { ingId: { totalQuantity, unit } } } }
 
 // ========== MODAL FUNCTIONS ==========
 function closePieModal() {
@@ -624,6 +626,9 @@ async function loadIngredientAnalysisData() {
                 
                 // Compute consumption from done orders (base recipe + flavor mapping)
                 menuConsumption = {};
+                menuOrderCount = {};
+                menuFlavorUsage = {};
+                variantConsumption = {};
                 for (const order of doneOrders) {
                     const items = order.items || [];
                     for (const it of items) {
@@ -631,26 +636,47 @@ async function loadIngredientAnalysisData() {
                         const qty = Number(it.quantity) || 0;
                         if (!mName || qty <= 0) continue;
                         if (!menuConsumption[mName]) menuConsumption[mName] = {};
-                        
+                        if (!menuOrderCount[mName]) menuOrderCount[mName] = 0;
+                        if (!menuFlavorUsage[mName]) menuFlavorUsage[mName] = {};
+                        menuOrderCount[mName] += qty;
+
+                        // Determine flavor
+                        const prefRaw = (it.flavor || it.rasa || '').trim();
+                        const prefLower = prefRaw.toLowerCase();
+                        const flavorDisplay = prefRaw || '-';
+                        const key = `${mName}||${flavorDisplay}`;
+                        if (!variantConsumption[key]) variantConsumption[key] = { menuName: mName, flavorName: flavorDisplay, orderQty: 0, ingredients: {} };
+                        variantConsumption[key].orderQty += qty;
+
                         // Base recipe consumption
                         const recipes = menuRecipes[mName] || [];
                         for (const r of recipes) {
                             const ingId = r.ingredient_id;
                             const useQty = (Number(r.quantity) || 0) * qty;
+                            // Aggregate per-menu general
                             if (!menuConsumption[mName][ingId]) menuConsumption[mName][ingId] = { totalQuantity: 0, unit: r.unit };
                             menuConsumption[mName][ingId].totalQuantity += useQty;
+                            // Aggregate per-variant
+                            if (!variantConsumption[key].ingredients[ingId]) variantConsumption[key].ingredients[ingId] = { totalQuantity: 0, unit: r.unit };
+                            variantConsumption[key].ingredients[ingId].totalQuantity += useQty;
                         }
-                        
+
                         // Flavor-based consumption
-                        const pref = (it.preference || it.flavor || it.rasa || '').toLowerCase();
-                        if (pref && flavorMap[pref]) {
-                            for (const fm of flavorMap[pref]) {
-                                const fIngId = fm.ingredient_id;
-                                const fUse = (Number(fm.quantity_per_serving) || 0) * qty;
-                                if (!menuConsumption[mName][fIngId]) menuConsumption[mName][fIngId] = { totalQuantity: 0, unit: fm.unit };
-                                menuConsumption[mName][fIngId].totalQuantity += fUse;
-                                // Prefer unit from mapping if base not set
-                                if (!menuConsumption[mName][fIngId].unit && fm.unit) menuConsumption[mName][fIngId].unit = fm.unit;
+                        if (prefLower) {
+                            menuFlavorUsage[mName][prefLower] = (menuFlavorUsage[mName][prefLower] || 0) + qty;
+                            if (flavorMap[prefLower]) {
+                                for (const fm of flavorMap[prefLower]) {
+                                    const fIngId = fm.ingredient_id;
+                                    const fUse = (Number(fm.quantity_per_serving) || 0) * qty;
+                                    // per-menu
+                                    if (!menuConsumption[mName][fIngId]) menuConsumption[mName][fIngId] = { totalQuantity: 0, unit: fm.unit };
+                                    menuConsumption[mName][fIngId].totalQuantity += fUse;
+                                    if (!menuConsumption[mName][fIngId].unit && fm.unit) menuConsumption[mName][fIngId].unit = fm.unit;
+                                    // per-variant
+                                    if (!variantConsumption[key].ingredients[fIngId]) variantConsumption[key].ingredients[fIngId] = { totalQuantity: 0, unit: fm.unit };
+                                    variantConsumption[key].ingredients[fIngId].totalQuantity += fUse;
+                                    if (!variantConsumption[key].ingredients[fIngId].unit && fm.unit) variantConsumption[key].ingredients[fIngId].unit = fm.unit;
+                                }
                             }
                         }
                     }
@@ -714,9 +740,14 @@ function renderIngredientConsumptionDetails() {
             const name = ing ? ing.name : `ID ${ingId}`;
             return `${name} (${(v.totalQuantity || 0).toFixed(2)} ${v.unit || ''})`;
         }).join(', ');
+        const flavorMapForMenu = menuFlavorUsage[menuName] || {};
+        const flavorsList = Object.entries(flavorMapForMenu).map(([f, q]) => `${f} (${q})`).join(', ');
+        const totalOrders = menuOrderCount[menuName] || 0;
         return `
             <div class="ingredient-menu-item">
                 <h5>${menuName}</h5>
+                <p><strong>Total Pesanan:</strong> ${totalOrders}</p>
+                <p><strong>Flavor Terpakai:</strong> ${flavorsList || 'Tidak ada'}</p>
                 <p><strong>Bahan Terpakai:</strong> ${list || 'Tidak ada data'}</p>
                 <button onclick="viewMenuIngredients('${menuName}')" class="btn-secondary btn-sm">📋 Detail Lengkap</button>
             </div>
@@ -728,19 +759,19 @@ function renderIngredientConsumptionDetails() {
 function renderIngredientConsumptionTable() {
     const tbody = document.getElementById('ingredient-table-body');
     if (!tbody) return;
-    const rows = Object.entries(menuConsumption).map(([menuName, ingMap], idx) => {
-        const numIng = Object.keys(ingMap).length;
-        const totalQty = Object.values(ingMap).reduce((s, v) => s + (Number(v.totalQuantity) || 0), 0);
-        const mainEntry = Object.entries(ingMap)[0];
-        const mainIngName = mainEntry ? (ingredientData[mainEntry[0]] ? ingredientData[mainEntry[0]].name : `ID ${mainEntry[0]}`) : 'Tidak ada data';
+    const rows = Object.values(variantConsumption).map((v, idx) => {
+        const ingList = Object.entries(v.ingredients).map(([ingId, info]) => {
+            const ing = ingredientData[ingId];
+            const name = ing ? ing.name : `ID ${ingId}`;
+            return `${name} (${(info.totalQuantity || 0).toFixed(2)} ${info.unit || ''})`;
+        }).join(', ');
         return `
             <tr>
                 <td>${idx + 1}</td>
-                <td>${menuName}</td>
-                <td>${numIng}</td>
-                <td>${totalQty.toFixed(2)}</td>
-                <td>${mainIngName}</td>
-                <td><button onclick="viewMenuIngredients('${menuName}')" class="btn-secondary btn-sm">📋 Detail Bahan</button></td>
+                <td>${v.menuName}</td>
+                <td>${v.flavorName}</td>
+                <td>${v.orderQty}</td>
+                <td>${ingList || '-'}</td>
             </tr>
         `;
     }).join('');
@@ -791,18 +822,16 @@ function refreshIngredientAnalysis() {
 }
 
 function exportIngredientCSV() {
-    const rows = Object.entries(menuConsumption).map(([menuName, ingMap]) => {
-        const totalIng = Object.keys(ingMap).length;
-        const totalQty = Object.values(ingMap).reduce((s, v) => s + (Number(v.totalQuantity) || 0), 0);
-        const list = Object.entries(ingMap).map(([ingId, v]) => {
+    const rows = Object.values(variantConsumption).map(v => {
+        const ingList = Object.entries(v.ingredients).map(([ingId, info]) => {
             const ing = ingredientData[ingId];
             const name = ing ? ing.name : `ID ${ingId}`;
-            return `${name} (${(v.totalQuantity || 0).toFixed(2)} ${v.unit || ''})`;
+            return `${name} (${(info.totalQuantity || 0).toFixed(2)} ${info.unit || ''})`;
         }).join('; ');
-        return [menuName, totalIng, totalQty.toFixed(2), list];
+        return [v.menuName, v.flavorName, v.orderQty, ingList];
     });
     const csvContent = [
-        ['Nama Menu', 'Jumlah Bahan', 'Total Quantity Terpakai', 'Daftar Bahan (Terpakai)'],
+        ['Nama Menu', 'Flavor', 'Qty Pesanan', 'Detail Bahan (Terpakai)'],
         ...rows
     ].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -1791,20 +1820,22 @@ function filterIngredientTableData(searchTerm) {
     const term = (searchTerm || '').toLowerCase();
     const tbody = document.getElementById('ingredient-table-body');
     if (!tbody) return;
-    const filtered = Object.entries(menuConsumption).filter(([menuName]) => menuName.toLowerCase().includes(term));
-    const rows = filtered.map(([menuName, ingMap], idx) => {
-        const numIng = Object.keys(ingMap).length;
-        const totalQty = Object.values(ingMap).reduce((s, v) => s + (Number(v.totalQuantity) || 0), 0);
-        const mainEntry = Object.entries(ingMap)[0];
-        const mainIngName = mainEntry ? (ingredientData[mainEntry[0]] ? ingredientData[mainEntry[0]].name : `ID ${mainEntry[0]}`) : 'Tidak ada data';
+    const filtered = Object.values(variantConsumption).filter(v =>
+        v.menuName.toLowerCase().includes(term) || (v.flavorName || '').toLowerCase().includes(term)
+    );
+    const rows = filtered.map((v, idx) => {
+        const ingList = Object.entries(v.ingredients).map(([ingId, info]) => {
+            const ing = ingredientData[ingId];
+            const name = ing ? ing.name : `ID ${ingId}`;
+            return `${name} (${(info.totalQuantity || 0).toFixed(2)} ${info.unit || ''})`;
+        }).join(', ');
         return `
             <tr>
                 <td>${idx + 1}</td>
-                <td>${menuName}</td>
-                <td>${numIng}</td>
-                <td>${totalQty.toFixed(2)}</td>
-                <td>${mainIngName}</td>
-                <td><button onclick="viewMenuIngredients('${menuName}')" class="btn-secondary btn-sm">📋 Detail Bahan</button></td>
+                <td>${v.menuName}</td>
+                <td>${v.flavorName}</td>
+                <td>${v.orderQty}</td>
+                <td>${ingList || '-'}</td>
             </tr>
         `;
     }).join('');
@@ -1928,34 +1959,27 @@ function applyIngredientModeLayout() {
     const statusEl = document.getElementById('summary-status-badge');
     const barTitle = document.querySelector('#chart-bar-card .column-title');
 
-    // Summary badge
     if (statusEl) {
         statusEl.textContent = 'Analisis Bahan';
         statusEl.className = 'status-badge status-making';
     }
 
-    // Table header for ingredient mode
     if (tableHeader) {
         tableHeader.innerHTML = `
             <th>No</th>
             <th>Nama Menu</th>
-            <th>Jumlah Bahan</th>
-            <th>Total Quantity</th>
-            <th>Bahan Utama</th>
-            <th>Actions</th>
+            <th>Flavor</th>
+            <th>Qty Pesanan</th>
+            <th>Detail Bahan (Terpakai)</th>
         `;
     }
 
-    // Hide other sections and show ingredient analysis
     if (chartBar) chartBar.style.display = 'none';
     if (chartPie) chartPie.style.display = 'none';
     if (loyal) loyal.style.display = 'none';
     if (usulan) usulan.style.display = 'none';
 
-    // Show ingredient analysis section
     document.getElementById('ingredient-analysis-section').classList.remove('hidden');
-    
-    // Hide main report sections
     document.getElementById('summary').classList.add('hidden');
     document.getElementById('insight-box').classList.add('hidden');
     document.querySelector('.table-container').classList.add('hidden');
