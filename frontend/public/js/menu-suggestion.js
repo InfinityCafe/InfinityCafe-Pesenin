@@ -532,12 +532,7 @@ function renderCurrentPage() {
           <button class="table-action-btn" onclick="viewSuggestionDetail(${startIndex + index})" title="Lihat Detail">
             <i class="fas fa-eye"></i>
           </button>
-          <button class="table-action-btn" onclick="approveSuggestion('${suggestion.usulan_id}')" title="Setujui">
-            <i class="fas fa-check"></i>
-          </button>
-          <button class="table-action-btn" onclick="rejectSuggestion('${suggestion.usulan_id}')" title="Tolak">
-            <i class="fas fa-times"></i>
-          </button>
+
         </td>
       </tr>
     `;
