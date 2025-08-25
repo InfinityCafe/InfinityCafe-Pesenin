@@ -22,7 +22,7 @@
             <button class="nav-btn" id="nav-menu" onclick="window.location.href = '/menu-management';">Menu Management</button>
             <button class="nav-btn" id="nav-suggestion" onclick="window.location.href = '/menu-suggestion';">Usulan Menu</button>
             <button class="nav-btn" id="nav-stok" onclick="window.location.href = '/stock-management';">Stock Management</button>
-            <button class="nav-btn active" id="nav-report" onclick="window.location.href = '/report';">Laporan</button>
+            <button class="nav-btn active" id="nav-report" onclick="window.location.href = '/reportkitchen';">Laporan</button>
             <button class="nav-btn" id="nav-kitchen-report" onclick="showKitchenReport()">Kitchen Report</button>
             <button class="nav-btn" id="nav-ingredient-analysis" onclick="showIngredientAnalysis()">Analisis Bahan</button>
         </div>
@@ -551,11 +551,23 @@ async function loadIngredientAnalysisData() {
         const inventoryData = await inventoryResponse.json();
         
         // Normalize menus array regardless of response shape
-        const menusArray = Array.isArray(menuData)
+        let menusArray = Array.isArray(menuData)
             ? menuData
             : (menuData && Array.isArray(menuData.data) ? menuData.data : []);
         
-        const menuNames = menusArray.map(m => m && m.base_name).filter(Boolean);
+        let menuNames = menusArray.map(m => m && m.base_name).filter(Boolean);
+        
+        // Fallback: derive menu names from kitchen orders if menu list is empty
+        if (menuNames.length === 0) {
+            try {
+                const kitchenResp = await fetch('/kitchen/orders');
+                const kitchenOrders = await kitchenResp.json();
+                if (Array.isArray(kitchenOrders)) {
+                    const derived = [...new Set(kitchenOrders.flatMap(o => (o.items || []).map(i => i.menu_name)).filter(Boolean))];
+                    if (derived.length > 0) menuNames = derived;
+                }
+            } catch (_) {}
+        }
         
         if (menuNames.length > 0) {
             // Load recipes for all menus
@@ -587,7 +599,21 @@ async function loadIngredientAnalysisData() {
                 
                 renderIngredientAnalysis();
                 updateIngredientSummary();
+            } else {
+                // No recipes; clear and show message
+                menuRecipes = {};
+                const details = document.getElementById('ingredient-details');
+                if (details) details.innerHTML = '<div class="ingredient-menu-item">Tidak ada data resep untuk dianalisis.</div>';
+                const tbody = document.getElementById('ingredient-table-body');
+                if (tbody) tbody.innerHTML = '';
             }
+        } else {
+            // No menus; clear and show message
+            menuRecipes = {};
+            const details = document.getElementById('ingredient-details');
+            if (details) details.innerHTML = '<div class="ingredient-menu-item">Tidak ada data menu untuk dianalisis.</div>';
+            const tbody = document.getElementById('ingredient-table-body');
+            if (tbody) tbody.innerHTML = '';
         }
         
         hideLoading();
