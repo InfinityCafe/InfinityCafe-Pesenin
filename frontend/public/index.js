@@ -39,6 +39,7 @@ function formatStatusDisplay(status) {
 // Global variables
 let selectedOrderId = null;
 let selectedOrder = null;
+let selectedStatus = null;
 let currentTab = 'active';
 
 // Kitchen toggle functionality
@@ -167,17 +168,16 @@ function closeDetailModal() {
   document.getElementById("detail-modal").classList.add("hidden");
 }
 
-async function confirmCancel(status) {
-  const reason = status === "cancel" ? prompt("Masukkan alasan pembatalan:", "Tidak jadi") : "Bahan habis";
-  if (!reason) return closeConfirmModal();
-  
-  if (status === "cancel") {
-    // Use proper cancel_order endpoint
-    await cancelOrder(selectedOrderId, reason);
-  } else {
-    // Use existing update_status for other statuses
-    await syncUpdate(selectedOrderId, status, reason);
+async function confirmCancel(type) {
+  let reason;
+  if (type === 'habis') {
+    reason = 'Habis';
+  } else if (type === 'cancel') {
+    reason = prompt("Masukkan alasan pembatalan:", "Tidak jadi");
+    if (!reason) return closeConfirmModal();
   }
+
+  await cancelOrder(selectedOrderId, reason);
   closeConfirmModal();
 }
 
@@ -310,7 +310,7 @@ function createOrderCard(order) {
     <div class="order-header">
       <span class="order-number">${queueNumber ? `#${queueNumber}` : ''}</span>
       <span class="customer-name">${order.customer_name ?? 'John Doe'}</span>
-      ${order.status === "receive" ? `<button class="order-close" onclick="event.stopPropagation(); openConfirmModal('${order.order_id}')">&times;</button>` : ""}
+      ${order.status === "receive" ? `<button class="order-close" onclick="event.stopPropagation(); openConfirmModal('${order.order_id}', 'cancelled')">&times;</button>` : ""}
     </div>
     <div class="order-contents">
         <div class="order-location">
