@@ -185,15 +185,13 @@ class InventoryManager {
       const listResponse = await fetch('/inventory/list');
       const listData = await listResponse.json();
       
-      if (listResponse.ok) {
-        console.log('Inventory list loaded:', listData);
-        this.inventory = listData.data || listData;
-        this.filteredInventory = [...this.inventory];
-        this.renderInventoryTable();
-      } else {
-        // Fallback to sample data if API fails
-        this.loadSampleData();
-      }
+      console.log('Inventory data loaded:', listData);
+      this.inventory = Array.isArray(listData.data) ? listData.data : Array.isArray(listData) ? listData : [];
+      this.filteredInventory = [...this.inventory];
+      
+      console.log('Current inventory:', this.inventory);
+      this.updateOverviewCards();
+      this.renderInventoryTable();
     } catch (error) {
       console.error('Error loading inventory data:', error);
       console.log('Loading sample data as fallback...');
@@ -261,20 +259,39 @@ class InventoryManager {
     console.log('Sample data loaded and table rendered');
   }
 
-  updateOverviewCards(summaryData) {
-    // Update overview cards with real data
-    if (summaryData.total_items !== undefined) {
-      document.getElementById('total-items').textContent = summaryData.total_items;
+  updateOverviewCards() {
+    console.log('Updating overview cards with inventory:', this.inventory);
+    
+    const totalItems = this.inventory.length;
+    const outOfStockCount = this.inventory.filter(item => item.current_quantity <= 0).length;
+    const lowStockCount = this.inventory.filter(
+      item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity
+    ).length;
+
+    const totalItemsElement = document.getElementById('total-items');
+    const lowStockElement = document.getElementById('low-stock-items');
+    const criticalElement = document.getElementById('critical-items');
+
+    if (totalItemsElement) {
+      totalItemsElement.textContent = totalItems;
+      console.log('Total items updated:', totalItems);
+    } else {
+      console.warn("Element 'total-items' not found in DOM");
     }
-    if (summaryData.critical_count !== undefined) {
-      document.getElementById('critical-items').textContent = summaryData.critical_count;
+
+    if (lowStockElement) {
+      lowStockElement.textContent = lowStockCount;
+      console.log('Low stock items updated:', lowStockCount);
+    } else {
+      console.warn("Element 'low-stock-items' not found in DOM");
     }
-    if (summaryData.low_stock_count !== undefined) {
-      document.getElementById('low-stock-items').textContent = summaryData.low_stock_count;
+
+    if (criticalElement) {
+      criticalElement.textContent = outOfStockCount;
+      console.log('Critical items updated:', outOfStockCount);
+    } else {
+      console.warn("Element 'critical-items' not found in DOM");
     }
-    // if (summaryData.warning_count !== undefined) {
-    //   document.getElementById('warning-items').textContent = summaryData.warning_count;
-    // }
   }
 
   handleSearch(searchTerm) {
