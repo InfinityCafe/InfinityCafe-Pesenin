@@ -593,6 +593,47 @@ app.get("/inventory/flavor_mapping", async (req, res) => {
   }
 });
 
+// Recipe endpoints
+app.post("/recipes/batch", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://menu_service:8001/recipes/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to fetch batch recipes ", err);
+    res.status(500).json({ error: "Failed to fetch batch recipes" });
+  }
+});
+
+app.get("/order/:order_id/ingredients", async (req, res) => {
+  try {
+    const { order_id } = req.params;
+    const resp = await fetch(`http://inventory_service:8006/order/${order_id}/ingredients`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch order ingredients ", err);
+    res.status(500).json({ error: "Failed to fetch order ingredients" });
+  }
+});
+
+// Menu endpoints
+app.get("/menu/list", async (req, res) => {
+  try {
+    const resp = await fetch("http://menu_service:8001/menu");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch menu list ", err);
+    res.status(500).json({ error: "Failed to fetch menu list" });
+  }
+});
+
 // User endpoints
 app.post('/login', async (req, res) => {
   try {
