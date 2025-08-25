@@ -422,6 +422,7 @@ let autoRefreshEnabled = false;
 let kitchenData = [];
 let ingredientData = {};
 let menuRecipes = {};
+let menuConsumption = {}; // { menuName: { ingredientId: { totalQuantity, unit } } }
 
 // ========== MODAL FUNCTIONS ==========
 function closePieModal() {
@@ -542,76 +543,100 @@ async function loadIngredientAnalysisData() {
     try {
         showLoading();
         
-        // Load all menu data
-        const menuResponse = await fetch('/menu/list');
-        const menuData = await menuResponse.json();
+        // Dates for filtering done orders
+        const startEl = document.getElementById('ingredient-start-date');
+        const endEl = document.getElementById('ingredient-end-date');
+        const startDate = startEl && startEl.value ? new Date(startEl.value + 'T00:00:00') : null;
+        const endDate = endEl && endEl.value ? new Date(endEl.value + 'T23:59:59') : null;
         
-        // Load inventory data
-        const inventoryResponse = await fetch('/inventory/list');
-        const inventoryData = await inventoryResponse.json();
+        // Load all menu data (optional) and inventory
+        const [menuResponse, inventoryResponse, kitchenResponse] = await Promise.all([
+            fetch('/menu/list'),
+            fetch('/inventory/list'),
+            fetch('/kitchen/orders')
+        ]);
+        const [menuData, inventoryData, kitchenOrders] = await Promise.all([
+            menuResponse.json(),
+            inventoryResponse.json(),
+            kitchenResponse.json()
+        ]);
         
-        // Normalize menus array regardless of response shape
-        let menusArray = Array.isArray(menuData)
-            ? menuData
-            : (menuData && Array.isArray(menuData.data) ? menuData.data : []);
+        // Normalize menus (may be empty; we will derive from orders anyway)
+        let menusArray = Array.isArray(menuData) ? menuData : (menuData && Array.isArray(menuData.data) ? menuData.data : []);
         
-        let menuNames = menusArray.map(m => m && m.base_name).filter(Boolean);
+        // Filter kitchen orders: only done (and match date range if given)
+        const doneOrders = Array.isArray(kitchenOrders) ? kitchenOrders.filter(o => {
+            if (o.status !== 'done') return false;
+            if (!startDate && !endDate) return true;
+            const dt = o.time_done ? new Date(o.time_done) : null;
+            if (!dt) return false;
+            if (startDate && dt < startDate) return false;
+            if (endDate && dt > endDate) return false;
+            return true;
+        }) : [];
         
-        // Fallback: derive menu names from kitchen orders if menu list is empty
+        // Derive menu names from done orders
+        let menuNames = [...new Set(doneOrders.flatMap(o => (o.items || []).map(i => i.menu_name)).filter(Boolean))];
+        // Fallback to menus list if no orders found
         if (menuNames.length === 0) {
-            try {
-                const kitchenResp = await fetch('/kitchen/orders');
-                const kitchenOrders = await kitchenResp.json();
-                if (Array.isArray(kitchenOrders)) {
-                    const derived = [...new Set(kitchenOrders.flatMap(o => (o.items || []).map(i => i.menu_name)).filter(Boolean))];
-                    if (derived.length > 0) menuNames = derived;
-                }
-            } catch (_) {}
+            menuNames = menusArray.map(m => m && m.base_name).filter(Boolean);
         }
         
         if (menuNames.length > 0) {
-            // Load recipes for all menus
+            // Load recipes for these menus
             const recipeResponse = await fetch('/recipes/batch', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ menu_names: menuNames })
             });
-            
             if (recipeResponse.ok) {
                 const recipeData = await recipeResponse.json();
                 menuRecipes = recipeData.recipes || {};
                 
-                // Normalize inventory data
+                // Normalize inventory
                 if (inventoryData && Array.isArray(inventoryData)) {
-                    // direct array
-                    ingredientData = inventoryData.reduce((acc, item) => {
-                        acc[item.id] = item;
-                        return acc;
-                    }, {});
+                    ingredientData = inventoryData.reduce((acc, item) => { acc[item.id] = item; return acc; }, {});
                 } else if (inventoryData && Array.isArray(inventoryData.data)) {
-                    ingredientData = inventoryData.data.reduce((acc, item) => {
-                        acc[item.id] = item;
-                        return acc;
-                    }, {});
+                    ingredientData = inventoryData.data.reduce((acc, item) => { acc[item.id] = item; return acc; }, {});
                 } else {
                     ingredientData = {};
+                }
+                
+                // Compute consumption from done orders
+                menuConsumption = {};
+                for (const order of doneOrders) {
+                    const items = order.items || [];
+                    for (const it of items) {
+                        const mName = it.menu_name;
+                        const qty = Number(it.quantity) || 0;
+                        if (!mName || qty <= 0) continue;
+                        const recipes = menuRecipes[mName] || [];
+                        if (!menuConsumption[mName]) menuConsumption[mName] = {};
+                        for (const r of recipes) {
+                            const ingId = r.ingredient_id;
+                            const useQty = (Number(r.quantity) || 0) * qty;
+                            if (!menuConsumption[mName][ingId]) menuConsumption[mName][ingId] = { totalQuantity: 0, unit: r.unit };
+                            menuConsumption[mName][ingId].totalQuantity += useQty;
+                        }
+                    }
                 }
                 
                 renderIngredientAnalysis();
                 updateIngredientSummary();
             } else {
-                // No recipes; clear and show message
+                // On failure, clear
                 menuRecipes = {};
+                menuConsumption = {};
                 const details = document.getElementById('ingredient-details');
                 if (details) details.innerHTML = '<div class="ingredient-menu-item">Tidak ada data resep untuk dianalisis.</div>';
                 const tbody = document.getElementById('ingredient-table-body');
                 if (tbody) tbody.innerHTML = '';
             }
         } else {
-            // No menus; clear and show message
             menuRecipes = {};
+            menuConsumption = {};
             const details = document.getElementById('ingredient-details');
-            if (details) details.innerHTML = '<div class="ingredient-menu-item">Tidak ada data menu untuk dianalisis.</div>';
+            if (details) details.innerHTML = '<div class="ingredient-menu-item">Tidak ada data pesanan selesai pada periode ini.</div>';
             const tbody = document.getElementById('ingredient-table-body');
             if (tbody) tbody.innerHTML = '';
         }
@@ -625,39 +650,66 @@ async function loadIngredientAnalysisData() {
 }
 
 function renderIngredientAnalysis() {
-    renderIngredientChart();
-    renderIngredientDetails();
-    renderIngredientTable();
+    renderIngredientConsumptionChart();
+    renderIngredientConsumptionDetails();
+    renderIngredientConsumptionTable();
 }
 
-function renderIngredientTable() {
+function renderIngredientConsumptionChart() {
+    const ctx = document.getElementById('ingredientChart');
+    if (!ctx) return;
+    if (ingredientChart) ingredientChart.destroy();
+    // total ingredients used per menu (sum of quantities)
+    const entries = Object.entries(menuConsumption);
+    const labels = entries.map(([menu]) => menu);
+    const totals = entries.map(([, ingMap]) => Object.values(ingMap).reduce((s, v) => s + (Number(v.totalQuantity) || 0), 0));
+    ingredientChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [{ label: 'Total Bahan Terpakai', data: totals, backgroundColor: '#DCD0A8', borderColor: '#C1B8A0', borderWidth: 1 }] },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
+    });
+}
+
+function renderIngredientConsumptionDetails() {
+    const container = document.getElementById('ingredient-details');
+    if (!container) return;
+    const html = Object.entries(menuConsumption).map(([menuName, ingMap]) => {
+        const list = Object.entries(ingMap).map(([ingId, v]) => {
+            const ing = ingredientData[ingId];
+            const name = ing ? ing.name : `ID ${ingId}`;
+            return `${name} (${(v.totalQuantity || 0).toFixed(2)} ${v.unit || ''})`;
+        }).join(', ');
+        return `
+            <div class="ingredient-menu-item">
+                <h5>${menuName}</h5>
+                <p><strong>Bahan Terpakai:</strong> ${list || 'Tidak ada data'}</p>
+                <button onclick="viewMenuIngredients('${menuName}')" class="btn-secondary btn-sm">📋 Detail Lengkap</button>
+            </div>
+        `;
+    }).join('');
+    container.innerHTML = html || '<div class="ingredient-menu-item">Tidak ada data konsumsi bahan.</div>';
+}
+
+function renderIngredientConsumptionTable() {
     const tbody = document.getElementById('ingredient-table-body');
     if (!tbody) return;
-    
-    const menuData = Object.entries(menuRecipes).map(([menuName, recipes], index) => {
-        const totalIngredients = recipes.length;
-        const totalQuantity = recipes.reduce((sum, recipe) => sum + recipe.quantity, 0);
-        const mainIngredient = recipes.length > 0 ? 
-            (ingredientData[recipes[0].ingredient_id] ? ingredientData[recipes[0].ingredient_id].name : `ID ${recipes[0].ingredient_id}`) : 
-            'Tidak ada data';
-        
+    const rows = Object.entries(menuConsumption).map(([menuName, ingMap], idx) => {
+        const numIng = Object.keys(ingMap).length;
+        const totalQty = Object.values(ingMap).reduce((s, v) => s + (Number(v.totalQuantity) || 0), 0);
+        const mainEntry = Object.entries(ingMap)[0];
+        const mainIngName = mainEntry ? (ingredientData[mainEntry[0]] ? ingredientData[mainEntry[0]].name : `ID ${mainEntry[0]}`) : 'Tidak ada data';
         return `
             <tr>
-                <td>${index + 1}</td>
+                <td>${idx + 1}</td>
                 <td>${menuName}</td>
-                <td>${totalIngredients}</td>
-                <td>${totalQuantity.toFixed(2)}</td>
-                <td>${mainIngredient}</td>
-                <td>
-                    <button onclick="viewMenuIngredients('${menuName}')" class="btn-secondary btn-sm">
-                        📋 Detail Bahan
-                    </button>
-                </td>
+                <td>${numIng}</td>
+                <td>${totalQty.toFixed(2)}</td>
+                <td>${mainIngName}</td>
+                <td><button onclick="viewMenuIngredients('${menuName}')" class="btn-secondary btn-sm">📋 Detail Bahan</button></td>
             </tr>
         `;
     }).join('');
-    
-    tbody.innerHTML = menuData;
+    tbody.innerHTML = rows;
 }
 
 function updateIngredientSummary() {
@@ -704,27 +756,25 @@ function refreshIngredientAnalysis() {
 }
 
 function exportIngredientCSV() {
-    const menuData = Object.entries(menuRecipes).map(([menuName, recipes]) => {
-        const totalIngredients = recipes.length;
-        const totalQuantity = recipes.reduce((sum, recipe) => sum + recipe.quantity, 0);
-        const ingredientsList = recipes.map(recipe => {
-            const ingredient = ingredientData[recipe.ingredient_id];
-            return ingredient ? `${ingredient.name} (${recipe.quantity} ${recipe.unit})` : `ID ${recipe.ingredient_id} (${recipe.quantity} ${recipe.unit})`;
+    const rows = Object.entries(menuConsumption).map(([menuName, ingMap]) => {
+        const totalIng = Object.keys(ingMap).length;
+        const totalQty = Object.values(ingMap).reduce((s, v) => s + (Number(v.totalQuantity) || 0), 0);
+        const list = Object.entries(ingMap).map(([ingId, v]) => {
+            const ing = ingredientData[ingId];
+            const name = ing ? ing.name : `ID ${ingId}`;
+            return `${name} (${(v.totalQuantity || 0).toFixed(2)} ${v.unit || ''})`;
         }).join('; ');
-        
-        return [menuName, totalIngredients, totalQuantity.toFixed(2), ingredientsList];
+        return [menuName, totalIng, totalQty.toFixed(2), list];
     });
-    
     const csvContent = [
-        ['Nama Menu', 'Jumlah Bahan', 'Total Quantity', 'Daftar Bahan'],
-        ...menuData
-    ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-    
+        ['Nama Menu', 'Jumlah Bahan', 'Total Quantity Terpakai', 'Daftar Bahan (Terpakai)'],
+        ...rows
+    ].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ingredient_analysis_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `ingredient_consumption_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
 }
@@ -1704,42 +1754,27 @@ function renderTablePage() {
 }
 
 function filterIngredientTableData(searchTerm) {
-    if (!menuRecipes) return;
     const term = (searchTerm || '').toLowerCase();
-    const filteredMenus = term
-        ? Object.entries(menuRecipes).filter(([menuName]) => 
-            menuName.toLowerCase().includes(term)
-        )
-        : Object.entries(menuRecipes);
-    
-    // Update ingredient table with filtered data
     const tbody = document.getElementById('ingredient-table-body');
-    if (tbody) {
-        const menuData = filteredMenus.map(([menuName, recipes], index) => {
-            const totalIngredients = recipes.length;
-            const totalQuantity = recipes.reduce((sum, recipe) => sum + recipe.quantity, 0);
-            const mainIngredient = recipes.length > 0 ? 
-                (ingredientData[recipes[0].ingredient_id] ? ingredientData[recipes[0].ingredient_id].name : `ID ${recipes[0].ingredient_id}`) : 
-                'Tidak ada data';
-            
-            return `
-                <tr>
-                    <td>${index + 1}</td>
-                    <td>${menuName}</td>
-                    <td>${totalIngredients}</td>
-                    <td>${totalQuantity.toFixed(2)}</td>
-                    <td>${mainIngredient}</td>
-                    <td>
-                        <button onclick="viewMenuIngredients('${menuName}')" class="btn-secondary btn-sm">
-                            📋 Detail Bahan
-                        </button>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-        
-        tbody.innerHTML = menuData;
-    }
+    if (!tbody) return;
+    const filtered = Object.entries(menuConsumption).filter(([menuName]) => menuName.toLowerCase().includes(term));
+    const rows = filtered.map(([menuName, ingMap], idx) => {
+        const numIng = Object.keys(ingMap).length;
+        const totalQty = Object.values(ingMap).reduce((s, v) => s + (Number(v.totalQuantity) || 0), 0);
+        const mainEntry = Object.entries(ingMap)[0];
+        const mainIngName = mainEntry ? (ingredientData[mainEntry[0]] ? ingredientData[mainEntry[0]].name : `ID ${mainEntry[0]}`) : 'Tidak ada data';
+        return `
+            <tr>
+                <td>${idx + 1}</td>
+                <td>${menuName}</td>
+                <td>${numIng}</td>
+                <td>${totalQty.toFixed(2)}</td>
+                <td>${mainIngName}</td>
+                <td><button onclick="viewMenuIngredients('${menuName}')" class="btn-secondary btn-sm">📋 Detail Bahan</button></td>
+            </tr>
+        `;
+    }).join('');
+    tbody.innerHTML = rows;
 }
 
 function toggleReportFilter() {
