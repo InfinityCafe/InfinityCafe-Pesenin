@@ -5,14 +5,42 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi_mcp import FastApiMCP
 from pydantic import BaseModel, Field, model_validator, field_validator
 from typing import Optional
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, Enum as SQLEnum
-from sqlalchemy.orm import sessionmaker, declarative_base, Session
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, Enum as SQLEnum, ForeignKey, func, and_
+from sqlalchemy.orm import sessionmaker, declarative_base, Session, relationship
 from sqlalchemy.exc import SQLAlchemyError
 from pytz import timezone as pytz_timezone
 
 last_debug_info = []
 from datetime import datetime
 import enum, os, json, logging, requests, math, socket, threading, time
+
+jakarta_tz = pytz_timezone('Asia/Jakarta')
+
+def format_jakarta_time(dt):
+    """Format datetime to Jakarta timezone string"""
+    if dt is None:
+        return "Unknown"
+    
+    if dt.tzinfo is not None:
+        jakarta_dt = dt.astimezone(jakarta_tz)
+    else:
+        utc_dt = pytz_timezone('UTC').localize(dt)
+        jakarta_dt = utc_dt.astimezone(jakarta_tz)
+    
+    return jakarta_dt.strftime("%d/%m/%Y %H:%M:%S")
+
+def get_jakarta_isoformat(dt):
+    """Get datetime in Jakarta timezone ISO format"""
+    if dt is None:
+        return None
+    
+    if dt.tzinfo is not None:
+        jakarta_dt = dt.astimezone(jakarta_tz)
+    else:
+        utc_dt = pytz_timezone('UTC').localize(dt)
+        jakarta_dt = utc_dt.astimezone(jakarta_tz)
+    
+    return jakarta_dt.isoformat()
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL_INVENTORY")
@@ -26,9 +54,9 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 app = FastAPI(
-    title="Ingredient Service API",
-    description="Service untuk mengelola bahan-bahan Infinity Cafe.",
-    version="1.0.0"
+    title="Inventory Service - Simplified",
+    description="Service untuk mengelola stok Infinity Cafe (Versi Sederhana).",
+    version="2.0.0"
 )
 
 app.add_middleware(
@@ -91,7 +119,18 @@ class ConsumptionLog(Base):
     per_ingredient_payload = Column(Text, nullable=True)  
     consumed = Column(Boolean, default=False)
     rolled_back = Column(Boolean, default=False)    
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
+
+class FlavorMapping(Base):
+    __tablename__ = "flavor_mapping"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    flavor_name = Column(String, index=True, unique=True)  
+    ingredient_id = Column(Integer, ForeignKey('inventories.id'))  
+    quantity_per_serving = Column(Float, default=25)  
+    unit = Column(SQLEnum(UnitType), default=UnitType.milliliter) 
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
+    
+    ingredient = relationship("Inventory", backref="flavor_mappings")
 
 class ValidateIngredientRequest(BaseModel):
     name: str
@@ -136,6 +175,28 @@ class BatchStockItem(BaseModel):
     menu_name: str
     quantity: int = Field(gt=0)
     preference: Optional[str] = ""
+
+class FlavorMappingRequest(BaseModel):
+    flavor_name: str = Field(..., description="Nama flavor (e.g., 'Irish Max')")
+    ingredient_id: int = Field(..., description="ID ingredient yang akan digunakan")
+    quantity_per_serving: float = Field(25, description="Jumlah per porsi (25ml syrup atau 30g powder)")
+    unit: UnitType = Field(UnitType.milliliter, description="Unit: milliliter, gram, atau piece")
+    
+    @field_validator('flavor_name')
+    @classmethod
+    def name_not_blank(cls, v: str):
+        if not v or not v.strip():
+            raise ValueError("Nama flavor tidak boleh kosong")
+        return v.strip()
+
+class FlavorMappingResponse(BaseModel):
+    id: int
+    flavor_name: str
+    ingredient_id: int
+    ingredient_name: str
+    quantity_per_serving: float
+    unit: str
+    created_at: str
 
 class BatchStockRequest(BaseModel):
     order_id: str
@@ -232,7 +293,7 @@ def outbox_status(db: Session = Depends(get_db)):
 @app.get("/list_ingredients", summary="Daftar bahan", tags=["Inventory"], operation_id="list ingredients")
 def list_ingredients(db: Session = Depends(get_db)):
     try:
-        rows = db.query(Inventory).all()
+        rows = db.query(Inventory).order_by(Inventory.id.asc()).all()
         ingredients_data = [
             {
                 "id": r.id,
@@ -259,6 +320,8 @@ def list_ingredients(db: Session = Depends(get_db)):
 
 @app.post("/add_ingredient", summary="Tambah bahan baru", tags=["Inventory"], operation_id="add ingredient")
 def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)):
+    print(f"🚀 DEBUG: Starting add_ingredient for: {req.name}")
+    logging.info(f"🚀 DEBUG: Starting add_ingredient for: {req.name}")
     try:
         ing = Inventory(
             name=req.name,
@@ -267,9 +330,13 @@ def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)
             category=req.category,
             unit=req.unit
         )
+        print(f"📝 DEBUG: Created inventory object: {ing.name} - {ing.category} - {ing.unit}")
+        logging.info(f"📝 DEBUG: Created inventory object: {ing.name} - {ing.category} - {ing.unit}")
         db.add(ing)
         db.commit()
         db.refresh(ing)
+        print(f"💾 DEBUG: Saved to database with ID: {ing.id}")
+        logging.info(f"💾 DEBUG: Saved to database with ID: {ing.id}")
         
         create_outbox_event(db, "ingredient_added", {
             "id": ing.id,
@@ -279,6 +346,37 @@ def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)
             "category": ing.category.value,
             "unit": ing.unit.value
         })
+        
+        print(f"🔍 DEBUG: Checking auto-flavor-mapping for {ing.name}: category={ing.category}, unit={ing.unit}")
+        logging.info(f"🔍 DEBUG: Checking auto-flavor-mapping for {ing.name}: category={ing.category}, unit={ing.unit}")
+        
+        if (ing.category == StockCategory.ingredient and 
+            ing.unit in [UnitType.milliliter, UnitType.gram]):
+            
+            print(f"🎯 DEBUG: Conditions met for auto-flavor-mapping: {ing.name}")
+            logging.info(f"🎯 DEBUG: Conditions met for auto-flavor-mapping: {ing.name}")
+            
+            try:
+                existing_flavor = db.query(FlavorMapping).filter(FlavorMapping.flavor_name == ing.name).first()
+                if existing_flavor:
+                    logging.info(f"⚠️ DEBUG: Flavor mapping for '{ing.name}' already exists, skipping")
+                else:
+                    default_quantity = 25 if ing.unit == UnitType.milliliter else 30
+                    
+                    flavor_mapping = FlavorMapping(
+                        flavor_name=ing.name,
+                        ingredient_id=ing.id,
+                        quantity_per_serving=default_quantity,
+                        unit=ing.unit
+                    )
+                    db.add(flavor_mapping)
+                    logging.info(f"✅ Auto-created flavor mapping: {ing.name} -> ID {ing.id} ({default_quantity}{ing.unit.value})")
+                
+            except Exception as flavor_error:
+                logging.warning(f"⚠️ Failed to auto-create flavor mapping for {ing.name}: {flavor_error}")
+        else:
+            logging.info(f"⏭️ DEBUG: Skipping auto-flavor-mapping for {ing.name} - conditions not met")
+        
         db.commit()
         process_outbox_events(db)
         
@@ -300,6 +398,228 @@ def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)
         return JSONResponse(status_code=200, content={
             "status": "error", 
             "message": f"Gagal menambahkan bahan: {str(e)}", 
+            "data": None
+        })
+
+@app.post("/add_flavor_mapping", summary="Tambah mapping flavor ke ingredient", tags=["Flavor Management"])
+def add_flavor_mapping(req: FlavorMappingRequest, db: Session = Depends(get_db)):
+    """Menambahkan mapping flavor baru ke ingredient yang sudah ada"""
+    try:
+        ingredient = db.query(Inventory).filter(Inventory.id == req.ingredient_id).first()
+        if not ingredient:
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": f"Ingredient dengan ID {req.ingredient_id} tidak ditemukan",
+                "data": None
+            })
+        
+        existing = db.query(FlavorMapping).filter(FlavorMapping.flavor_name == req.flavor_name).first()
+        if existing:
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": f"Flavor '{req.flavor_name}' sudah ada dalam mapping",
+                "data": None
+            })
+        
+        mapping = FlavorMapping(
+            flavor_name=req.flavor_name,
+            ingredient_id=req.ingredient_id,
+            quantity_per_serving=req.quantity_per_serving,
+            unit=req.unit
+        )
+        db.add(mapping)
+        db.commit()
+        db.refresh(mapping)
+        
+        return {
+            "status": "success",
+            "message": f"Flavor mapping '{req.flavor_name}' berhasil ditambahkan",
+            "data": {
+                "id": mapping.id,
+                "flavor_name": mapping.flavor_name,
+                "ingredient_id": mapping.ingredient_id,
+                "ingredient_name": ingredient.name,
+                "quantity_per_serving": mapping.quantity_per_serving,
+                "unit": mapping.unit.value,
+                "created_at": get_jakarta_isoformat(mapping.created_at)
+            }
+        }
+        
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": f"Gagal menambahkan flavor mapping: {str(e)}",
+            "data": None
+        })
+
+@app.get("/debug/flavor_mappings", summary="Debug flavor mappings", tags=["Debug"])
+def debug_flavor_mappings(db: Session = Depends(get_db)):
+    """Debug endpoint untuk flavor mappings"""
+    try:
+        total_count = db.query(FlavorMapping).count()
+        
+        mappings = db.query(FlavorMapping).all()
+        
+        debug_info = []
+        for i, mapping in enumerate(mappings):
+            try:
+                ingredient = db.query(Inventory).filter(Inventory.id == mapping.ingredient_id).first()
+                debug_info.append({
+                    "index": i,
+                    "mapping_id": mapping.id,
+                    "flavor_name": mapping.flavor_name,
+                    "ingredient_id": mapping.ingredient_id,
+                    "ingredient_found": ingredient is not None,
+                    "ingredient_name": ingredient.name if ingredient else "NOT_FOUND",
+                    "created_at_is_none": mapping.created_at is None,
+                    "created_at_raw": str(mapping.created_at),
+                    "unit_is_none": mapping.unit is None,
+                    "unit_value": mapping.unit.value if mapping.unit else "NO_UNIT"
+                })
+            except Exception as e:
+                debug_info.append({
+                    "index": i,
+                    "error": str(e),
+                    "mapping_id": getattr(mapping, 'id', 'NO_ID')
+                })
+        
+        return {
+            "status": "debug_success",
+            "total_mappings": total_count,
+            "processed_mappings": len(debug_info),
+            "debug_data": debug_info
+        }
+        
+    except Exception as e:
+        return {
+            "status": "debug_error",
+            "message": str(e),
+            "traceback": str(e.__class__.__name__)
+        }
+
+@app.get("/list_flavor_mappings", summary="Daftar semua flavor mapping", tags=["Flavor Management"])
+def list_flavor_mappings(db: Session = Depends(get_db)):
+    """Menampilkan semua flavor mapping yang tersedia"""
+    try:
+        mappings = db.query(FlavorMapping).all()
+        
+        data = []
+        for mapping in mappings:
+            ingredient = db.query(Inventory).filter(Inventory.id == mapping.ingredient_id).first()
+            ingredient_name = ingredient.name if ingredient else "Unknown"
+            
+            data.append({
+                "id": mapping.id,
+                "flavor_name": mapping.flavor_name,
+                "ingredient_id": mapping.ingredient_id,
+                "ingredient_name": ingredient_name,
+                "quantity_per_serving": mapping.quantity_per_serving,
+                "unit": mapping.unit.value if mapping.unit else "unknown",
+                "created_at": format_jakarta_time(mapping.created_at) if mapping.created_at else "Unknown"
+            })
+        
+        return {
+            "status": "success",
+            "message": f"Ditemukan {len(data)} flavor mapping",
+            "data": data
+        }
+        
+    except Exception as e:
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": f"Gagal mengambil flavor mapping: {str(e)}",
+            "data": []
+        })
+
+@app.delete("/delete_flavor_mapping/{mapping_id}", summary="Hapus flavor mapping", tags=["Flavor Management"])
+def delete_flavor_mapping(mapping_id: int, db: Session = Depends(get_db)):
+    """Menghapus flavor mapping berdasarkan ID"""
+    try:
+        mapping = db.query(FlavorMapping).filter(FlavorMapping.id == mapping_id).first()
+        if not mapping:
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": f"Flavor mapping dengan ID {mapping_id} tidak ditemukan",
+                "data": None
+            })
+        
+        flavor_name = mapping.flavor_name
+        db.delete(mapping)
+        db.commit()
+        
+        return {
+            "status": "success",
+            "message": f"Flavor mapping '{flavor_name}' berhasil dihapus",
+            "data": None
+        }
+        
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": f"Gagal menghapus flavor mapping: {str(e)}",
+            "data": None
+        })
+
+@app.put("/update_flavor_mapping/{mapping_id}", summary="Update flavor mapping", tags=["Flavor Management"])
+def update_flavor_mapping(mapping_id: int, req: FlavorMappingRequest, db: Session = Depends(get_db)):
+    """Mengupdate flavor mapping yang sudah ada"""
+    try:
+        mapping = db.query(FlavorMapping).filter(FlavorMapping.id == mapping_id).first()
+        if not mapping:
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": f"Flavor mapping dengan ID {mapping_id} tidak ditemukan",
+                "data": None
+            })
+        
+        ingredient = db.query(Inventory).filter(Inventory.id == req.ingredient_id).first()
+        if not ingredient:
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": f"Ingredient dengan ID {req.ingredient_id} tidak ditemukan",
+                "data": None
+            })
+        
+        existing = db.query(FlavorMapping).filter(
+            FlavorMapping.flavor_name == req.flavor_name,
+            FlavorMapping.id != mapping_id
+        ).first()
+        if existing:
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": f"Flavor '{req.flavor_name}' sudah digunakan oleh mapping lain",
+                "data": None
+            })
+        
+        mapping.flavor_name = req.flavor_name
+        mapping.ingredient_id = req.ingredient_id
+        mapping.quantity_per_serving = req.quantity_per_serving
+        mapping.unit = req.unit
+        
+        db.commit()
+        db.refresh(mapping)
+        
+        return {
+            "status": "success",
+            "message": f"Flavor mapping berhasil diupdate",
+            "data": {
+                "id": mapping.id,
+                "flavor_name": mapping.flavor_name,
+                "ingredient_id": mapping.ingredient_id,
+                "ingredient_name": ingredient.name,
+                "quantity_per_serving": mapping.quantity_per_serving,
+                "unit": mapping.unit.value,
+                "created_at": format_jakarta_time(mapping.created_at) if mapping.created_at else "Unknown"
+            }
+        }
+        
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": f"Gagal mengupdate flavor mapping: {str(e)}",
             "data": None
         })
 
@@ -406,76 +726,144 @@ def health():
         }
     })
 
-@app.get("/stock/alerts", summary="Peringatan stok minimum", tags=["Inventory"])
+@app.post("/stock/check", summary="Cek ketersediaan stok", tags=["Stock Management"])
+def check_stock(req: BatchStockRequest, db: Session = Depends(get_db)):
+    """Cek ketersediaan stok untuk pesanan (tanpa mengubah stok)"""
+    try:
+        result = check_and_consume(req, db, consume=False)
+        
+        if result.can_fulfill:
+            return {
+                "success": True,
+                "message": "Stok tersedia untuk semua pesanan",
+                "order_id": req.order_id,
+                "can_process": True
+            }
+        else:
+            return {
+                "success": False, 
+                "message": "Stok tidak mencukupi",
+                "order_id": req.order_id,
+                "can_process": False,
+                "missing_items": [s.get("ingredient_name", "Unknown") for s in result.shortages]
+            }
+    except Exception as e:
+        return {"success": False, "message": f"Error: {str(e)}", "can_process": False}
+
+
+@app.post("/stock/check_availability", summary="Cek ketersediaan stok untuk order (format baru)", tags=["Stock Management"])
+def check_availability(req: BatchStockRequest, db: Session = Depends(get_db)):
+    """Cek ketersediaan stok untuk pesanan dengan format response yang sesuai order_service"""
+    try:
+        result = check_and_consume(req, db, consume=False)
+        
+        if result.can_fulfill:
+            return {
+                "can_fulfill": True,
+                "success": True,
+                "message": "Stok tersedia untuk semua pesanan",
+                "order_id": req.order_id
+            }
+        else:
+            formatted_shortages = []
+            for shortage in result.shortages:
+                formatted_shortages.append({
+                    "ingredient_id": shortage.get("ingredient_id", "unknown"),
+                    "required": shortage.get("required", 0),
+                    "available": shortage.get("available", 0),
+                    "ingredient_name": shortage.get("ingredient_name", "Unknown")
+                })
+            
+            return {
+                "can_fulfill": False,
+                "success": False,
+                "message": "Stok tidak mencukupi",
+                "order_id": req.order_id,
+                "shortages": formatted_shortages
+            }
+    except Exception as e:
+        logging.error(f"Error in check_availability: {e}")
+        return {
+            "can_fulfill": False,
+            "success": False, 
+            "message": f"Error checking availability: {str(e)}",
+            "order_id": req.order_id
+        }
+
+
+@app.post("/stock/consume", summary="Konsumsi stok untuk pesanan", tags=["Stock Management"])  
+def consume_stock(req: BatchStockRequest, db: Session = Depends(get_db)):
+    """Kurangi stok untuk pesanan yang sudah dikonfirmasi"""
+    try:
+        result = check_and_consume(req, db, consume=True)
+        
+        if result.can_fulfill:
+            return {
+                "success": True,
+                "message": "Stok berhasil dikurangi",
+                "order_id": req.order_id,
+                "processed": True
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Tidak dapat memproses - stok tidak cukup", 
+                "order_id": req.order_id,
+                "processed": False
+            }
+    except Exception as e:
+        return {"success": False, "message": f"Error: {str(e)}", "processed": False}
+
+@app.get("/stock/alerts", summary="Ingredient yang butuh restock", tags=["Stock Management"])
 def get_stock_alerts(db: Session = Depends(get_db)):
-    """Mendapatkan daftar bahan yang stoknya di bawah minimum atau hampir habis"""
+    """Daftar ingredient yang perlu direstock (format sederhana)"""
     
     inventories = db.query(Inventory).all()
     
     alerts = {
-        "critical": [],    
-        "warning": [],     
-        "low": [],         
-        "ok": []           
+        "critical": [],  
+        "low": [],       
+        "ok": []         
     }
     
     for inv in inventories:
-        current = inv.current_quantity
-        minimum = inv.minimum_quantity
-        
-        if minimum > 0:
-            percentage_of_minimum = (current / minimum) * 100
-        else:
-            percentage_of_minimum = 100 if current > 0 else 0
-        
-        alert_item = {
-            "ingredient_id": inv.id,
+        item = {
+            "id": inv.id,
             "name": inv.name,
-            "current_quantity": current,
-            "minimum_quantity": minimum,
-            "unit": inv.unit.value,
-            "category": inv.category.value,
-            "percentage_of_minimum": round(percentage_of_minimum, 1)
+            "current": inv.current_quantity,
+            "minimum": inv.minimum_quantity,
+            "unit": inv.unit.value
         }
         
-        if current <= 0:
-            alert_item["status"] = "HABIS"
-            alert_item["message"] = "Stok habis! Tidak dapat memproses pesanan."
-            alerts["critical"].append(alert_item)
-        elif percentage_of_minimum <= 10:
-            alert_item["status"] = "SANGAT RENDAH"
-            alert_item["message"] = f"Stok sangat rendah ({percentage_of_minimum:.1f}% dari minimum)"
-            alerts["critical"].append(alert_item)
-        elif current < minimum:
-            alert_item["status"] = "DI BAWAH MINIMUM"
-            alert_item["message"] = f"Stok di bawah minimum ({percentage_of_minimum:.1f}% dari minimum)"
-            alerts["warning"].append(alert_item)
-        elif percentage_of_minimum <= 150:
-            alert_item["status"] = "PERLU PERHATIAN"
-            alert_item["message"] = f"Stok mendekati minimum ({percentage_of_minimum:.1f}% dari minimum)"
-            alerts["low"].append(alert_item)
+        if inv.current_quantity <= 0:
+            item["status"] = "HABIS"
+            alerts["critical"].append(item)
+        elif inv.current_quantity < inv.minimum_quantity:
+            item["status"] = "RENDAH"
+            alerts["low"].append(item)
         else:
-            alert_item["status"] = "AMAN"
-            alert_item["message"] = "Stok dalam kondisi baik"
-            alerts["ok"].append(alert_item)
+            item["status"] = "AMAN"
+            alerts["ok"].append(item)
     
-    total_items = len(inventories)
     critical_count = len(alerts["critical"])
-    warning_count = len(alerts["warning"])
     low_count = len(alerts["low"])
     
+    if critical_count > 0:
+        message = f"URGENT: {critical_count} ingredient habis!"
+    elif low_count > 0:
+        message = f"WARNING: {low_count} ingredient butuh restock"
+    else:
+        message = "Semua stok dalam kondisi baik"
+    
     return {
-        "status": "success",
+        "success": True,
+        "message": message,
         "summary": {
-            "total_ingredients": total_items,
-            "critical_alerts": critical_count,
-            "warning_alerts": warning_count,
-            "low_stock_alerts": low_count,
-            "ok_stock": len(alerts["ok"]),
-            "overall_status": "CRITICAL" if critical_count > 0 else "WARNING" if warning_count > 0 else "CAUTION" if low_count > 0 else "GOOD"
+            "critical": critical_count,
+            "low": low_count, 
+            "ok": len(alerts["ok"])
         },
-        "alerts": alerts,
-        "message": f"Ditemukan {critical_count} stok kritis, {warning_count} stok warning, {low_count} stok perlu perhatian"
+        "alerts": alerts
     }
 
 class StockAddRequest(BaseModel):
@@ -492,361 +880,53 @@ class BulkStockAddRequest(BaseModel):
     items: list[StockAddRequest] = Field(..., min_length=1, description="Daftar ingredient untuk penambahan stok")
 
 
-@app.post("/stock/add", summary="Tambah stok ingredient", tags=["Stock Management"])
-def add_stock(req: StockAddRequest, db: Session = Depends(get_db)):
-    """Menambahkan stok untuk ingredient tertentu"""
+@app.post("/stock/update/{ingredient_id}", summary="Update stok ingredient", tags=["Stock Management"])
+def update_ingredient_stock(
+    ingredient_id: int,
+    new_quantity: float,
+    reason: str = "Manual update",
+    db: Session = Depends(get_db)
+):
+    """Update stok ingredient secara manual"""
     
-    ingredient = db.query(Inventory).filter(Inventory.id == req.ingredient_id).first()
+    ingredient = db.query(Inventory).filter(Inventory.id == ingredient_id).first()
     if not ingredient:
-        return JSONResponse(status_code=200, content={
-            "status": "error", 
-            "message": f"Ingredient dengan ID {req.ingredient_id} tidak ditemukan",
-            "data": None
-        })
+        return {"success": False, "message": "Ingredient tidak ditemukan"}
     
     try:
         old_quantity = ingredient.current_quantity
-        ingredient.current_quantity += req.add_quantity
-        
+        ingredient.current_quantity = new_quantity
         db.commit()
         
-        logging.info(f"✅ Stok {ingredient.name} ditambah {req.add_quantity} {ingredient.unit.value}")
-        logging.info(f"   Dari: {old_quantity} → Menjadi: {ingredient.current_quantity}")
-        
-        create_outbox_event(db, "stock_increased", {
-            "ingredient_id": ingredient.id,
-            "ingredient_name": ingredient.name,
+        return {
+            "success": True,
+            "message": f"Stok {ingredient.name} berhasil diupdate",
+            "ingredient": ingredient.name,
             "old_quantity": old_quantity,
-            "new_quantity": ingredient.current_quantity,
-            "added_quantity": req.add_quantity,
-            "reason": req.reason
-        })
-        db.commit()
-        
-        return {
-            "status": "success",
-            "message": f"Berhasil menambah stok {ingredient.name}",
-            "data": {
-                "ingredient_id": ingredient.id,
-                "ingredient_name": ingredient.name,
-                "old_quantity": old_quantity,
-                "new_quantity": ingredient.current_quantity,
-                "added_quantity": req.add_quantity,
-                "unit": ingredient.unit.value,
-                "reason": req.reason,
-                "timestamp": datetime.now(jakarta_tz).isoformat()
-            }
-        }
-        
-    except Exception as e:
-        db.rollback()
-        logging.error(f"❌ Gagal menambah stok {ingredient.name}: {e}")
-        return JSONResponse(status_code=200, content={
-            "status": "error",
-            "message": f"Gagal menambah stok: {str(e)}",
-            "data": None
-        })
-
-@app.post("/stock/bulk_add", summary="Tambah stok multiple ingredient", tags=["Stock Management"])
-def bulk_add_stock(req: BulkStockAddRequest, db: Session = Depends(get_db)):
-    """Menambahkan stok untuk multiple ingredients sekaligus"""
-    
-    results = {
-        "success": [],
-        "errors": [],
-        "total_processed": len(req.items)
-    }
-    
-    for item in req.items:
-        try:
-            ingredient = db.query(Inventory).filter(Inventory.id == item.ingredient_id).first()
-            if not ingredient:
-                results["errors"].append({
-                    "ingredient_id": item.ingredient_id,
-                    "error": "Ingredient tidak ditemukan"
-                })
-                continue
-            
-            old_quantity = ingredient.current_quantity
-            ingredient.current_quantity += item.add_quantity
-            
-            results["success"].append({
-                "ingredient_id": ingredient.id,
-                "ingredient_name": ingredient.name,
-                "old_quantity": old_quantity,
-                "new_quantity": ingredient.current_quantity,
-                "added_quantity": item.add_quantity,
-                "unit": ingredient.unit.value
-            })
-            
-        except Exception as e:
-            results["errors"].append({
-                "ingredient_id": item.ingredient_id,
-                "error": str(e)
-            })
-    
-    try:
-        db.commit()
-        return {
-            "status": "success",
-            "message": f"Bulk add stock selesai: {len(results['success'])} berhasil, {len(results['errors'])} gagal",
-            "data": results
+            "new_quantity": new_quantity,
+            "unit": ingredient.unit.value,
+            "reason": reason
         }
     except Exception as e:
         db.rollback()
-        return JSONResponse(status_code=200, content={
-            "status": "error",
-            "message": f"Gagal commit bulk add: {str(e)}",
-            "data": None
-        })
-
-@app.put("/stock/minimum", summary="Update batas minimum stok", tags=["Stock Management"])
-def update_minimum_stock(req: MinimumStockRequest, db: Session = Depends(get_db)):
-    """Mengupdate batas minimum stok untuk ingredient"""
-    
-    ingredient = db.query(Inventory).filter(Inventory.id == req.ingredient_id).first()
-    if not ingredient:
-        return JSONResponse(status_code=200, content={
-            "status": "error",
-            "message": f"Ingredient dengan ID {req.ingredient_id} tidak ditemukan",
-            "data": None
-        })
-    
-    try:
-        old_minimum = ingredient.minimum_quantity
-        ingredient.minimum_quantity = req.new_minimum
-        
-        db.commit()
-        
-        logging.info(f"✅ Batas minimum {ingredient.name} diubah dari {old_minimum} → {req.new_minimum}")
-        
-        create_outbox_event(db, "minimum_stock_updated", {
-            "ingredient_id": ingredient.id,
-            "ingredient_name": ingredient.name,
-            "old_minimum": old_minimum,
-            "new_minimum": req.new_minimum,
-            "reason": req.reason
-        })
-        db.commit()
-        
-        current = ingredient.current_quantity
-        status = "AMAN"
-        message = "Stok dalam kondisi baik"
-        
-        if current <= 0:
-            status = "HABIS"
-            message = "⚠️ PERHATIAN: Stok habis!"
-        elif current < req.new_minimum:
-            status = "DI BAWAH MINIMUM"
-            message = f"⚠️ PERHATIAN: Stok di bawah minimum baru ({current}/{req.new_minimum})"
-        
-        return {
-            "status": "success",
-            "message": f"Berhasil mengubah batas minimum {ingredient.name}",
-            "data": {
-                "ingredient_id": ingredient.id,
-                "ingredient_name": ingredient.name,
-                "old_minimum": old_minimum,
-                "new_minimum": req.new_minimum,
-                "current_quantity": current,
-                "unit": ingredient.unit.value,
-                "stock_status": status,
-                "stock_message": message,
-                "reason": req.reason,
-                "timestamp": datetime.now(jakarta_tz).isoformat()
-            }
-        }
-        
-    except Exception as e:
-        db.rollback()
-        logging.error(f"❌ Gagal update minimum {ingredient.name}: {e}")
-        return JSONResponse(status_code=200, content={
-            "status": "error",
-            "message": f"Gagal update batas minimum: {str(e)}",
-            "data": None
-        })
-
-@app.get("/stock/summary", summary="Ringkasan stok semua ingredient", tags=["Stock Management"])
-def get_stock_summary(db: Session = Depends(get_db)):
-    """Mendapatkan ringkasan stok semua ingredient dengan status"""
-    
-    inventories = db.query(Inventory).order_by(Inventory.category, Inventory.name).all()
-    
-    summary = {
-        "ingredient": [],
-        "packaging": [],
-        "statistics": {
-            "total_items": 0,
-            "out_of_stock": 0,
-            "below_minimum": 0,
-            "low_stock": 0,
-            "adequate_stock": 0
-        }
-    }
-    
-    for inv in inventories:
-        current = inv.current_quantity
-        minimum = inv.minimum_quantity
-        
-        if current <= 0:
-            status = "OUT_OF_STOCK"
-            status_text = "Habis"
-            summary["statistics"]["out_of_stock"] += 1
-        elif current < minimum:
-            status = "BELOW_MINIMUM"
-            status_text = "Di bawah minimum"
-            summary["statistics"]["below_minimum"] += 1
-        elif current <= minimum * 1.5:
-            status = "LOW_STOCK"
-            status_text = "Stok rendah"
-            summary["statistics"]["low_stock"] += 1
-        else:
-            status = "ADEQUATE"
-            status_text = "Stok aman"
-            summary["statistics"]["adequate_stock"] += 1
-        
-        item_data = {
-            "id": inv.id,
-            "name": inv.name,
-            "current_quantity": current,
-            "minimum_quantity": minimum,
-            "unit": inv.unit.value,
-            "status": status,
-            "status_text": status_text,
-            "percentage_of_minimum": round((current / minimum * 100), 1) if minimum > 0 else 0
-        }
-        
-        if inv.category.value == "ingredient":
-            summary["ingredient"].append(item_data)
-        else:
-            summary["packaging"].append(item_data)
-        
-        summary["statistics"]["total_items"] += 1
-    
-    return {
-        "status": "success",
-        "data": summary,
-        "message": f"Ringkasan {summary['statistics']['total_items']} item inventory"
-    }
-
-@app.get("/stock/out_of_stock", summary="Daftar ingredient yang habis", tags=["Stock Management"])
-def get_out_of_stock_items(db: Session = Depends(get_db)):
-    """Mendapatkan daftar ingredient yang stoknya habis (0)"""
-    
-    out_of_stock = db.query(Inventory).filter(Inventory.current_quantity <= 0).all()
-    
-    result = []
-    for inv in out_of_stock:
-        result.append({
-            "ingredient_id": inv.id,
-            "name": inv.name,
-            "current_quantity": inv.current_quantity,
-            "minimum_quantity": inv.minimum_quantity,
-            "unit": inv.unit.value,
-            "category": inv.category.value,
-            "status": "HABIS" if inv.current_quantity == 0 else "NEGATIF",
-            "impact": "Pesanan yang memerlukan bahan ini tidak dapat diproses"
-        })
-    
-    return {
-        "status": "success",
-        "total_out_of_stock": len(result),
-        "out_of_stock_items": result,
-        "message": f"Ditemukan {len(result)} ingredient yang habis" if result else "Semua ingredient tersedia",
-        "severity": "CRITICAL" if result else "OK"
-    }
-
-@app.get("/stock/critical_status", summary="Status kritis inventory", tags=["Stock Management"])
-def get_critical_status(db: Session = Depends(get_db)):
-    """Mendapatkan status kritis inventory untuk dashboard monitoring"""
-    
-    total_items = db.query(Inventory).count()
-    out_of_stock = db.query(Inventory).filter(Inventory.current_quantity <= 0).count()
-    below_minimum = db.query(Inventory).filter(
-        Inventory.current_quantity > 0,
-        Inventory.current_quantity < Inventory.minimum_quantity
-    ).count()
-    
-    critical_items = db.query(Inventory).filter(
-        Inventory.current_quantity <= 0
-    ).limit(5).all()
-    
-    warning_items = db.query(Inventory).filter(
-        Inventory.current_quantity > 0,
-        Inventory.current_quantity < Inventory.minimum_quantity
-    ).order_by(
-        (Inventory.current_quantity / Inventory.minimum_quantity).asc()
-    ).limit(5).all()
-    
-    if out_of_stock > 0:
-        overall_status = "CRITICAL"
-        overall_message = f"{out_of_stock} ingredient habis - operasional terganggu"
-    elif below_minimum > 0:
-        overall_status = "WARNING"
-        overall_message = f"{below_minimum} ingredient di bawah minimum - perlu restok"
-    else:
-        overall_status = "GOOD"
-        overall_message = "Semua stok dalam kondisi baik"
-    
-    return {
-        "status": "success",
-        "overall_status": overall_status,
-        "overall_message": overall_message,
-        "statistics": {
-            "total_items": total_items,
-            "out_of_stock_count": out_of_stock,
-            "below_minimum_count": below_minimum,
-            "percentage_critical": round((out_of_stock / total_items * 100), 1) if total_items > 0 else 0,
-            "percentage_warning": round((below_minimum / total_items * 100), 1) if total_items > 0 else 0
-        },
-        "critical_items": [
-            {
-                "id": item.id,
-                "name": item.name,
-                "current_quantity": item.current_quantity,
-                "unit": item.unit.value,
-                "status": "HABIS"
-            } for item in critical_items
-        ],
-        "warning_items": [
-            {
-                "id": item.id,
-                "name": item.name,
-                "current_quantity": item.current_quantity,
-                "minimum_quantity": item.minimum_quantity,
-                "unit": item.unit.value,
-                "percentage": round((item.current_quantity / item.minimum_quantity * 100), 1) if item.minimum_quantity > 0 else 0
-            } for item in warning_items
-        ]
-    }
-
-@app.get("/debug/last_processing", tags=["Debug"])
-async def get_last_debug_info():
-    return {"debug_info": last_debug_info}
-
-@app.post("/debug/test_preference", tags=["Debug"])
-async def test_preference(request: BatchStockRequest):
-    result = []
-    for item in request.items:
-        result.append({
-            "menu_name": item.menu_name,
-            "quantity": item.quantity,
-            "preference": item.preference,
-            "preference_received": bool(item.preference),
-            "preference_length": len(item.preference or "")
-        })
-    return {"received_items": result, "order_id": request.order_id}
+        return {"success": False, "message": f"Error: {str(e)}"}
 
 class StockRequestPayload(BaseModel):
     order_id: str
     items: list[BatchStockItem]
 
-@app.post("/stock/check_and_consume", response_model=BatchStockResponse, tags=["Inventory"], operation_id="check and consume stock")
+@app.post("/stock/check_and_consume", 
+          response_model=BatchStockResponse, 
+          tags=["⚠️ Legacy Endpoints"], 
+          operation_id="check and consume stock",
+          deprecated=True,
+          summary="[DEPRECATED] Gunakan /stock/check_availability atau /stock/consume")
 def check_and_consume(
     req: BatchStockRequest,
     db: Session = Depends(get_db),
-    consume: bool = Query(True, description="False = hanya cek (dry-run)")
+    consume: bool = Query(True, description="DEPRECATED: Gunakan endpoint terpisah yang lebih jelas")
 ):
+    
     global last_debug_info 
     debug_info = []  
     
@@ -894,52 +974,24 @@ def check_and_consume(
         print(f"🔍 DEBUG: Checking preference for {it.menu_name}: '{preference}'")
         debug_info.append(f"Checking preference for {it.menu_name}: '{preference}'")
         if preference:
-            flavor_mapping = {
-                "Butterscotch": 12, "Butterscout": 12,
-                "French Mocca": 13, "French Mocha": 13,
-                "Roasted Almond": 14, "Rosted Almond": 14,
-                "Creme Brulee": 15,
-                "Irish": 16,
-                "Havana": 17,
-                "Salted Caramel": 18,
-                "Mangga": 19, "Mango": 19,
-                "Permenkaret": 20, "Bubble Gum": 20,
-                "Tiramisu": 21,
-                "Redvelvet": 22, "Red Velvet": 22,
-                "Strawberry": 23, "Stroberi": 23,
-                "Vanilla": 24,
-                "Macadamia Nut": 12,  
-                "Java Brown Sugar": 13, 
-                "Chocolate": 15,
-                "Taro": 21,
-                "Choco Malt": 22,
-                "Choco Hazelnut": 23,
-                "Choco Biscuit": 24,
-                "Milktea": 16,
-                "Banana": 19,
-                "Alpukat": 20,
-                "Green Tea": 21,
-                "Markisa": 22,
-                "Melon": 23,
-                "Nanas": 24
-            }
+            flavor_mapping = db.query(FlavorMapping).filter(
+                FlavorMapping.flavor_name == preference
+            ).first()
             
-            flavor_id = flavor_mapping.get(preference)
-            if flavor_id:
-                flavor_qty = 25 
-                flavor_unit = "milliliter"
+            if flavor_mapping:
+                flavor_id = flavor_mapping.ingredient_id
+                flavor_qty = flavor_mapping.quantity_per_serving  
+                flavor_unit = flavor_mapping.unit.value  
                 
                 if it.menu_name in ["Milkshake"] or "milkshake" in it.menu_name.lower():
-                    powder_flavors = ["Mangga", "Mango", "Permenkaret", "Bubble Gum", "Tiramisu", "Redvelvet", "Red Velvet", "Strawberry", "Stroberi", "Vanilla", "Chocolate", "Taro", "Banana", "Alpukat"]
-                    if preference in powder_flavors:
-                        flavor_qty = 30
-                        flavor_unit = "gram"
+                    if flavor_mapping.unit == UnitType.gram:
+                        flavor_qty = max(flavor_qty, 30)
                 elif "squash" in it.menu_name.lower():
-                    flavor_qty = 20
-                    flavor_unit = "milliliter"
+                    if flavor_mapping.unit == UnitType.milliliter:
+                        flavor_qty = min(flavor_qty, 20)
                 elif any(keyword in it.menu_name.lower() for keyword in ["custom", "special", "premium"]):
-                    flavor_qty = 35
-                    flavor_unit = "milliliter"
+                    if flavor_mapping.unit == UnitType.milliliter:
+                        flavor_qty = flavor_qty * 1.4  
                 
                 need_map.setdefault(flavor_id, {"needed": 0, "unit": flavor_unit, "menus": set()})
                 need_map[flavor_id]["needed"] += flavor_qty * it.quantity
@@ -1100,231 +1152,493 @@ def check_and_consume(
         logging.error(f"❌ Gagal konsumsi stok untuk order {req.order_id}: {e}")
         return BatchStockResponse(can_fulfill=False, shortages=[{"error": f"Gagal konsumsi stok: {e}"}], partial_suggestions=[], details=[], debug_info=debug_info)
 
-
-@app.get("/flavor_mapping", summary="Mapping flavor ke ingredient ID", tags=["Inventory"])
-def get_flavor_mapping():
-    """Mengembalikan mapping nama flavor ke ingredient ID untuk debugging."""
-    return {
-        "flavor_mapping": {
-            "Butterscotch": 12, "Butterscout": 12,
-            "French Mocca": 13, "French Mocha": 13,
-            "Roasted Almond": 14, "Rosted Almond": 14,
-            "Creme Brulee": 15,
-            "Irish": 16,
-            "Havana": 17,
-            "Salted Caramel": 18,
-            "Mangga": 19, "Mango": 19,
-            "Permenkaret": 20, "Bubble Gum": 20,
-            "Tiramisu": 21,
-            "Redvelvet": 22, "Red Velvet": 22,
-            "Strawberry": 23, "Stroberi": 23,
-            "Vanilla": 24,
-            "Macadamia Nut": 12,  
-            "Java Brown Sugar": 13,  
-            "Chocolate": 15,  
-            "Taro": 21,  
-            "Choco Malt": 22,  
-            "Choco Hazelnut": 23,  
-            "Choco Biscuit": 24,  
-            "Milktea": 16,  
-            "Banana": 19,  
-            "Alpukat": 20,  
-            "Green Tea": 21,  
-            "Markisa": 22,  
-            "Melon": 23,  
-            "Nanas": 24  
-        },
-        "powder_flavors": [
-            "Mangga", "Mango", "Permenkaret", "Bubble Gum", "Tiramisu", 
-            "Redvelvet", "Red Velvet", "Strawberry", "Stroberi", "Vanilla", 
-            "Chocolate", "Taro", "Banana", "Alpukat"
-        ],
-        "flavor_quantities": {
-            "default_liquid": 25,     
-            "milkshake_powder": 30,   
-            "milkshake_liquid": 25,   
-            "squash": 20,             
-            "custom_premium": 35      
-        },
-        "menu_compatibility": {
-            "note": "Semua flavor bisa digunakan untuk semua menu dan custom order",
-            "flexible": "Tidak ada batasan menu_item_flavor_association di inventory level",
-            "custom_order_support": "Penuh mendukung custom order dengan flavor apapun"
-        }
-    }
-
-@app.post("/stock/rollback/{order_id}", summary="Rollback konsumsi stok", tags=["Inventory"])
-def rollback(order_id: str, db: Session = Depends(get_db)):
+@app.post("/stock/rollback/{order_id}", summary="Rollback stok yang sudah dikonsumsi", tags=["Stock Management"])
+def rollback_stock(order_id: str, db: Session = Depends(get_db)):
+    """Mengembalikan stok yang sudah dikonsumsi untuk order yang dibatalkan"""
+    
     log = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
     if not log or not log.consumed:
-        return {"status": "ignore", "message": "Tidak ada konsumsi untuk order ini"}
+        return {"success": False, "message": "Tidak ada konsumsi untuk order ini"}
     if log.rolled_back:
-        return {"status": "ok", "message": "Sudah rollback"}
+        return {"success": True, "message": "Sudah pernah di-rollback"}
+    
     try:
         per_ing = json.loads(log.per_ingredient_payload or "[]")
-        ids = [d["ingredient_id"] for d in per_ing]
-        if ids:
-            invs = db.query(Inventory).filter(Inventory.id.in_(ids)).with_for_update().all()
-            inv_map = {i.id: i for i in invs}
-            restored_items = []
-            for d in per_ing:
-                inv = inv_map.get(d["ingredient_id"])
-                if inv:
-                    inv.current_quantity += d["deducted"]
-                    restored_items.append({
-                        "ingredient_id": d["ingredient_id"],
-                        "ingredient_name": d.get("ingredient_name", inv.name),
-                        "restored_quantity": d["deducted"],
-                        "unit": d["unit"]
-                    })
+        restored_count = 0
+        
+        for detail in per_ing:
+            ingredient = db.query(Inventory).filter(
+                Inventory.id == detail["ingredient_id"]
+            ).first()
+            if ingredient:
+                ingredient.current_quantity += detail["deducted"]
+                restored_count += 1
+        
         log.rolled_back = True
         db.commit()
-        logging.info(f"✅ Rollback berhasil untuk order {order_id}: {len(restored_items)} ingredients")
+        
         return {
-            "status": "success", 
-            "message": f"Rollback order {order_id} berhasil", 
-            "restored": len(restored_items),
-            "restored_items": restored_items
+            "success": True,
+            "message": f"Rollback berhasil untuk order {order_id}",
+            "restored_ingredients": restored_count
         }
     except Exception as e:
         db.rollback()
-        logging.error(f"❌ Gagal rollback order {order_id}: {e}")
-        return {"status": "error", "message": f"Gagal rollback: {e}"}
+        return {"success": False, "message": f"Error rollback: {str(e)}"}
 
-@app.post("/stock/check_custom_with_flavor", summary="Cek stok untuk custom order dengan flavor", tags=["Inventory"])
-def check_custom_with_flavor(
-    req: dict,  
+@app.get("/flavors", summary="Daftar flavor yang tersedia", tags=["Utility"])
+def get_available_flavors(db: Session = Depends(get_db)):
+    """Daftar flavor yang bisa digunakan untuk pesanan - diambil dinamis dari database"""
+    try:
+        flavors = db.query(FlavorMapping.flavor_name).distinct().all()
+        flavor_list = [flavor[0] for flavor in flavors]
+        flavor_list.sort()
+        
+        return {
+            "success": True,
+            "total_flavors": len(flavor_list),
+            "flavors": flavor_list
+        }
+    except Exception as e:
+        logging.error(f"Error getting flavors from database: {e}")
+        return {
+            "success": True,
+            "total_flavors": 22,
+            "flavors": [
+                "Butterscotch", "French Mocha", "Roasted Almond", "Creme Brulee",
+                "Irish", "Havana", "Salted Caramel", "Mangga", "Permenkaret",
+                "Tiramisu", "Redvelvet", "Strawberry", "Vanilla", "Chocolate",
+                "Taro", "Milktea", "Banana", "Alpukat", "Green Tea", "Markisa",
+                "Melon", "Nanas"
+            ],
+            "note": "Fallback data - database error occurred"
+        }
+
+@app.get("/flavors/detailed", summary="Daftar flavor dengan detail ingredient", tags=["Utility"])
+def get_detailed_flavors(db: Session = Depends(get_db)):
+    """Daftar flavor lengkap dengan detail ingredient yang digunakan"""
+    try:
+        flavor_details = db.query(
+            FlavorMapping.flavor_name,
+            FlavorMapping.ingredient_id,
+            FlavorMapping.quantity_per_serving,
+            FlavorMapping.unit,
+            Inventory.name.label('ingredient_name'),
+            Inventory.category
+        ).join(
+            Inventory, FlavorMapping.ingredient_id == Inventory.id
+        ).all()
+        
+        flavors_list = []
+        for detail in flavor_details:
+            flavors_list.append({
+                "flavor_name": detail.flavor_name,
+                "ingredient_info": {
+                    "ingredient_id": detail.ingredient_id,
+                    "ingredient_name": detail.ingredient_name,
+                    "quantity_per_serving": detail.quantity_per_serving,
+                    "unit": detail.unit.value,
+                    "category": detail.category.value
+                }
+            })
+        
+        flavors_list.sort(key=lambda x: x['flavor_name'])
+        
+        return {
+            "success": True,
+            "total_flavors": len(flavors_list),
+            "flavors": flavors_list
+        }
+        
+    except Exception as e:
+        logging.error(f"Error getting detailed flavors: {e}")
+        return {
+            "success": False,
+            "message": f"Error retrieving flavor details: {str(e)}",
+            "flavors": []
+        }
+
+@app.get("/flavors/ingredient/{ingredient_id}", summary="Daftar flavor untuk ingredient tertentu", tags=["Utility"])
+def get_flavors_for_ingredient(ingredient_id: int, db: Session = Depends(get_db)):
+    """Daftar flavor yang menggunakan ingredient tertentu"""
+    try:
+        flavors = db.query(FlavorMapping.flavor_name).filter(
+            FlavorMapping.ingredient_id == ingredient_id
+        ).distinct().all()
+        
+        ingredient = db.query(Inventory).filter(Inventory.id == ingredient_id).first()
+        if not ingredient:
+            return {
+                "success": False,
+                "message": f"Ingredient ID {ingredient_id} tidak ditemukan",
+                "available_flavors": []
+            }
+        
+        flavor_list = [flavor[0] for flavor in flavors]
+        flavor_list.sort()
+        
+        return {
+            "success": True,
+            "ingredient_id": ingredient_id,
+            "ingredient_name": ingredient.name,
+            "total_flavors": len(flavor_list),
+            "available_flavors": flavor_list
+        }
+        
+    except Exception as e:
+        logging.error(f"Error getting flavors for ingredient {ingredient_id}: {e}")
+        return {
+            "success": False,
+            "message": f"Error retrieving flavors for ingredient {ingredient_id}: {str(e)}",
+            "available_flavors": []
+        }
+
+@app.get("/history", summary="History penggunaan stok", tags=["Stock Management"])
+def get_stock_history(
+    order_id: str = Query(None, description="Filter by order ID"),
+    limit: int = Query(20, description="Jumlah record maksimal"),
     db: Session = Depends(get_db)
 ):
-    """
-    Endpoint khusus untuk testing custom order dengan flavor.
-    Tidak memerlukan resep dari menu_service, langsung hitung flavor yang diperlukan.
-    """
-    menu_name = req.get("menu_name", "Custom Menu")
-    quantity = req.get("quantity", 1)
-    flavor = req.get("flavor", "")
-    order_id = req.get("order_id", f"TEST_{datetime.now().strftime('%H%M%S')}")
+    """History penggunaan stok dengan filter yang berfungsi"""
     
-    if not flavor:
-        return {"can_fulfill": False, "message": "Flavor harus diisi untuk custom order"}
-    
-    flavor_mapping = {
-        "Butterscotch": 12, "Butterscout": 12,
-        "French Mocca": 13, "French Mocha": 13,
-        "Roasted Almond": 14, "Rosted Almond": 14,
-        "Creme Brulee": 15,
-        "Irish": 16,
-        "Havana": 17,
-        "Salted Caramel": 18,
-        "Mangga": 19, "Mango": 19,
-        "Permenkaret": 20, "Bubble Gum": 20,
-        "Tiramisu": 21,
-        "Redvelvet": 22, "Red Velvet": 22,
-        "Strawberry": 23, "Stroberi": 23,
-        "Vanilla": 24,
-        "Macadamia Nut": 12, "Java Brown Sugar": 13, "Chocolate": 15,
-        "Taro": 21, "Choco Malt": 22, "Choco Hazelnut": 23,
-        "Choco Biscuit": 24, "Milktea": 16, "Banana": 19,
-        "Alpukat": 20, "Green Tea": 21, "Markisa": 22,
-        "Melon": 23, "Nanas": 24
-    }
-    
-    flavor_id = flavor_mapping.get(flavor)
-    if not flavor_id:
-        return {
-            "can_fulfill": False, 
-            "message": f"Flavor '{flavor}' tidak tersedia",
-            "available_flavors": list(flavor_mapping.keys())
-        }
-    
-    inv = db.query(Inventory).filter(Inventory.id == flavor_id).first()
-    if not inv:
-        return {"can_fulfill": False, "message": f"Ingredient untuk flavor '{flavor}' tidak ditemukan"}
-    
-    needed_qty = 35 * quantity 
-    
-    if inv.current_quantity < needed_qty:
-        return {
-            "can_fulfill": False,
-            "message": f"Stok {flavor} tidak cukup",
-            "details": {
-                "flavor": flavor,
-                "ingredient_id": flavor_id,
-                "ingredient_name": inv.name,
-                "needed": needed_qty,
-                "available": inv.current_quantity,
-                "unit": inv.unit.value,
-                "shortage": needed_qty - inv.current_quantity
-            }
-        }
-    
-    return {
-        "can_fulfill": True,
-        "message": f"Custom order '{menu_name}' dengan flavor '{flavor}' dapat dipenuhi",
-        "details": {
-            "menu_name": menu_name,
-            "quantity": quantity,
-            "flavor": flavor,
-            "ingredient_id": flavor_id,
-            "ingredient_name": inv.name,
-            "needed": needed_qty,
-            "available": inv.current_quantity,
-            "unit": inv.unit.value,
-            "remaining_after": inv.current_quantity - needed_qty
-        },
-        "order_id": order_id
-    }
-
-@app.get("/consumption_log/{order_id}", summary="Lihat log konsumsi order", tags=["Inventory"])
-def get_consumption_log(order_id: str, db: Session = Depends(get_db)):
-    """Melihat detail konsumsi stok untuk order tertentu."""
-    log = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
-    if not log:
-        return JSONResponse(status_code=200, content={
-            "status": "error", 
-            "message": "Log konsumsi tidak ditemukan", 
-            "data": None
-        })
-    
-    result = {
-        "order_id": log.order_id,
-        "consumed": log.consumed,
-        "rolled_back": log.rolled_back,
-        "created_at": log.created_at.isoformat() if log.created_at else None,
-        "per_menu_summary": json.loads(log.per_menu_payload) if log.per_menu_payload else [],
-        "ingredient_details": json.loads(log.per_ingredient_payload) if log.per_ingredient_payload else []
-    }
-    
-    return JSONResponse(status_code=200, content={
-        "status": "success", 
-        "message": "Log konsumsi berhasil diambil", 
-        "data": result
-    })
-
-@app.get("/consumption_log", summary="Lihat semua log konsumsi", tags=["Inventory"])
-def get_all_consumption_logs(
-    db: Session = Depends(get_db),
-    limit: int = Query(50, le=100),
-    consumed_only: bool = Query(False)
-):
-    """Melihat semua log konsumsi dengan filter."""
     query = db.query(ConsumptionLog)
-    if consumed_only:
-        query = query.filter(ConsumptionLog.consumed.is_(True))
+    
+    if order_id:
+        query = query.filter(ConsumptionLog.order_id == order_id)
     
     logs = query.order_by(ConsumptionLog.created_at.desc()).limit(limit).all()
     
     result = []
     for log in logs:
+        ingredient_count = 0
+        if log.per_ingredient_payload:
+            try:
+                ingredient_count = len(json.loads(log.per_ingredient_payload))
+            except:
+                ingredient_count = 0
+        
         result.append({
             "order_id": log.order_id,
+            "date": format_jakarta_time(log.created_at).replace("/", "/").replace(" ", " ")[:16],
             "consumed": log.consumed,
             "rolled_back": log.rolled_back,
-            "created_at": log.created_at.isoformat() if log.created_at else None,
-            "ingredient_count": len(json.loads(log.per_ingredient_payload)) if log.per_ingredient_payload else 0
+            "ingredients_affected": ingredient_count,
+            "status": "DIKONSUMSI" if log.consumed else "PENDING"
         })
     
-    return {"logs": result, "total": len(result)}
+    return {
+        "success": True,
+        "total_records": len(result),
+        "filter_applied": order_id if order_id else "None",
+        "history": result
+    }
+
+@app.get("/order/{order_id}/ingredients", summary="Detail konsumsi bahan untuk order tertentu", tags=["Order Analysis"])
+def get_order_ingredients_detail(order_id: str, db: Session = Depends(get_db)):
+    """
+    Menampilkan detail bahan-bahan yang digunakan untuk membuat pesanan tertentu
+    termasuk jumlah yang dikonsumsi per bahan
+    """
+    try:
+        logging.info(f"🔍 DEBUG: Starting get_order_ingredients_detail for {order_id}")
+        
+        log = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
+        
+        if not log:
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": f"Order ID '{order_id}' tidak ditemukan dalam log konsumsi",
+                "data": None
+            })
+        
+        logging.info(f"🔍 DEBUG: Found log for {order_id}")
+        
+        menu_info = []
+        if log.per_menu_payload:
+            try:
+                menu_data = json.loads(log.per_menu_payload)
+                menu_info = menu_data if isinstance(menu_data, list) else []
+            except:
+                menu_info = []
+        
+        ingredients_detail = []
+        total_ingredients_used = 0
+        debug_info = {
+            "per_ingredient_payload_exists": log.per_ingredient_payload is not None,
+            "per_ingredient_payload_length": len(log.per_ingredient_payload) if log.per_ingredient_payload else 0,
+            "per_ingredient_payload_preview": log.per_ingredient_payload[:100] + "..." if log.per_ingredient_payload and len(log.per_ingredient_payload) > 100 else log.per_ingredient_payload
+        }
+        
+        if log.per_ingredient_payload:
+            try:
+                logging.info(f"🔍 DEBUG: Starting to parse per_ingredient_payload for {order_id}")
+                logging.info(f"🔍 DEBUG: Raw per_ingredient_payload: {log.per_ingredient_payload}")
+                
+                ingredients_data = json.loads(log.per_ingredient_payload)
+                logging.info(f"🔍 DEBUG: Raw ingredients_data type: {type(ingredients_data)}")
+                logging.info(f"🔍 DEBUG: Raw ingredients_data: {ingredients_data}")
+                
+                if isinstance(ingredients_data, list):
+                    for ingredient_info in ingredients_data:
+                        ingredient = db.query(Inventory).filter(
+                            Inventory.id == ingredient_info.get('ingredient_id')
+                        ).first()
+                        
+                        if ingredient:
+                            ingredients_detail.append({
+                                "ingredient_id": ingredient_info.get('ingredient_id'),
+                                "ingredient_name": ingredient_info.get('ingredient_name', ingredient.name),
+                                "consumed_quantity": ingredient_info.get('deducted', 0),
+                                "unit": ingredient_info.get('unit', ingredient.unit.value),
+                                "category": ingredient.category.value,
+                                "current_stock": ingredient.current_quantity,
+                                "stock_before_consumption": ingredient_info.get('before', 0),
+                                "stock_after_consumption": ingredient_info.get('after', 0)
+                            })
+                            total_ingredients_used += 1
+                            
+                ingredients_detail.sort(key=lambda x: x['ingredient_name'])
+                
+            except Exception as e:
+                import traceback
+                logging.warning(f"Failed to parse ingredient payload for {order_id}: {e}")
+                logging.warning(f"Raw payload: {log.per_ingredient_payload}")
+                logging.warning(f"Traceback: {traceback.format_exc()}")
+        
+        ingredients_detail = []
+        total_ingredients_used = 0
+        
+        if log.per_ingredient_payload:
+            try:
+                ingredients_data = json.loads(log.per_ingredient_payload)
+                
+                if isinstance(ingredients_data, list):
+                    for ingredient_info in ingredients_data:
+                        ingredient = db.query(Inventory).filter(
+                            Inventory.id == ingredient_info.get('ingredient_id')
+                        ).first()
+                        
+                        if ingredient:
+                            ingredients_detail.append({
+                                "ingredient_id": ingredient_info.get('ingredient_id'),
+                                "ingredient_name": ingredient_info.get('ingredient_name', ingredient.name),
+                                "consumed_quantity": ingredient_info.get('deducted', 0),
+                                "unit": ingredient_info.get('unit', ingredient.unit.value),
+                                "category": ingredient.category.value,
+                                "current_stock": ingredient.current_quantity,
+                                "stock_before_consumption": ingredient_info.get('before', 0),
+                                "stock_after_consumption": ingredient_info.get('after', 0)
+                            })
+                            total_ingredients_used += 1
+                            
+                ingredients_detail.sort(key=lambda x: x['ingredient_name'])
+                
+            except Exception as e:
+                ingredients_detail = []
+                total_ingredients_used = 0
+
+        return JSONResponse(status_code=200, content={
+            "status": "success",
+            "message": f"Detail konsumsi bahan untuk order {order_id}",
+            "data": {
+                "order_id": order_id,
+                "order_date": format_jakarta_time(log.created_at),
+                "consumption_status": {
+                    "consumed": log.consumed,
+                    "rolled_back": log.rolled_back,
+                    "status_text": "BERHASIL DIKONSUMSI" if log.consumed and not log.rolled_back else 
+                                  "DIBATALKAN" if log.rolled_back else "PENDING"
+                },
+                "ingredients_breakdown": {
+                    "total_ingredients_used": total_ingredients_used,
+                    "details": ingredients_detail
+                },
+                "summary": {
+                    "total_ingredients": total_ingredients_used,
+                    "consumption_date": format_jakarta_time(log.created_at)
+                }
+            }
+        })
+        
+    except Exception as e:
+        logging.error(f"Error getting order ingredients detail for {order_id}: {e}")
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": f"Gagal mengambil detail konsumsi: {str(e)}",
+            "data": None
+        })
+
+@app.get("/consumption/history/daily", 
+         summary="History konsumsi stock harian", 
+         tags=["Stock Management"],
+         description="Menampilkan riwayat konsumsi stock per hari dengan breakdown per ingredient")
+def get_daily_consumption_history(
+    date: Optional[str] = Query(None, description="Tanggal tunggal dalam format YYYY-MM-DD. Untuk history hari tertentu saja"),
+    start_date: Optional[str] = Query(None, description="Tanggal mulai dalam format YYYY-MM-DD (untuk date range)"),
+    end_date: Optional[str] = Query(None, description="Tanggal akhir dalam format YYYY-MM-DD (untuk date range)"),
+    db: Session = Depends(get_db)
+):
+    """History konsumsi harian dengan breakdown per ingredient."""
+    try:
+        from datetime import datetime, timedelta
+        
+        if date and (start_date or end_date):
+            return JSONResponse(status_code=400, content={
+                "status": "error",
+                "message": "Tidak bisa menggunakan parameter 'date' bersamaan dengan 'start_date/end_date'. Pilih salah satu mode.",
+                "data": None
+            })
+        
+        if (start_date and not end_date) or (not start_date and end_date):
+            return JSONResponse(status_code=400, content={
+                "status": "error", 
+                "message": "Untuk date range, harus menyertakan both 'start_date' dan 'end_date'",
+                "data": None
+            })
+        
+        if date:
+            try:
+                target_date = datetime.strptime(date, '%Y-%m-%d').date()
+                query_start_date = target_date
+                query_end_date = target_date
+                query_mode = "single_date"
+            except ValueError:
+                return JSONResponse(status_code=400, content={
+                    "status": "error",
+                    "message": "Format tanggal tidak valid. Gunakan format YYYY-MM-DD",
+                    "data": None
+                })
+        elif start_date and end_date:
+            try:
+                query_start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+                query_end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+                query_mode = "date_range"
+                
+                if query_start_date > query_end_date:
+                    return JSONResponse(status_code=400, content={
+                        "status": "error",
+                        "message": "start_date tidak boleh lebih besar dari end_date",
+                        "data": None
+                    })
+                    
+            except ValueError:
+                return JSONResponse(status_code=400, content={
+                    "status": "error", 
+                    "message": "Format tanggal tidak valid. Gunakan format YYYY-MM-DD",
+                    "data": None
+                })
+        else:
+            jakarta_now = datetime.now(jakarta_tz)
+            query_start_date = jakarta_now.date()
+            query_end_date = jakarta_now.date()
+            query_mode = "today_default"
+        
+        consumption_logs = db.query(ConsumptionLog).filter(
+            and_(
+                ConsumptionLog.consumed == True,
+                ConsumptionLog.rolled_back == False,
+                func.date(ConsumptionLog.created_at) >= query_start_date,
+                func.date(ConsumptionLog.created_at) <= query_end_date
+            )
+        ).order_by(ConsumptionLog.created_at.desc()).all()
+        
+        daily_consumption = {}
+        
+        for log in consumption_logs:
+            if not log.per_ingredient_payload:
+                continue
+                
+            try:
+                ingredient_data = json.loads(log.per_ingredient_payload)
+            except json.JSONDecodeError:
+                continue
+            
+            log_date = log.created_at.astimezone(jakarta_tz).date()
+            date_str = log_date.strftime('%Y-%m-%d')
+            
+            if date_str not in daily_consumption:
+                daily_consumption[date_str] = {
+                    "date": date_str,
+                    "date_formatted": log_date.strftime('%d/%m/%Y'),
+                    "day_name": log_date.strftime('%A'),
+                    "total_orders": 0,
+                    "ingredients_consumed": {},
+                    "summary": {
+                        "total_ingredients_types": 0,
+                        "total_quantity_consumed": 0
+                    }
+                }
+            
+            daily_consumption[date_str]["total_orders"] += 1
+            
+            for item in ingredient_data:
+                ingredient_id = item.get('ingredient_id')
+                ingredient_name = item.get('ingredient_name', 'Unknown')
+                quantity_consumed = item.get('deducted', 0) 
+                unit = item.get('unit', '')
+                
+                if ingredient_id not in daily_consumption[date_str]["ingredients_consumed"]:
+                    daily_consumption[date_str]["ingredients_consumed"][ingredient_id] = {
+                        "ingredient_id": ingredient_id,
+                        "ingredient_name": ingredient_name,
+                        "unit": unit,
+                        "total_consumed": 0,
+                        "consumption_count": 0
+                    }
+                
+                daily_consumption[date_str]["ingredients_consumed"][ingredient_id]["total_consumed"] += quantity_consumed
+                daily_consumption[date_str]["ingredients_consumed"][ingredient_id]["consumption_count"] += 1
+        
+        for date_str in daily_consumption:
+            ingredients = daily_consumption[date_str]["ingredients_consumed"]
+            daily_consumption[date_str]["summary"]["total_ingredients_types"] = len(ingredients)
+            daily_consumption[date_str]["summary"]["total_quantity_consumed"] = sum(
+                ing["total_consumed"] for ing in ingredients.values()
+            )
+            
+            daily_consumption[date_str]["ingredients_consumed"] = list(ingredients.values())
+        
+        sorted_daily_consumption = dict(sorted(daily_consumption.items(), reverse=True))
+        
+        total_days_with_consumption = len(sorted_daily_consumption)
+        total_orders_all_days = sum(day_data["total_orders"] for day_data in sorted_daily_consumption.values())
+        all_ingredients_used = set()
+        for day_data in sorted_daily_consumption.values():
+            for ing in day_data["ingredients_consumed"]:
+                all_ingredients_used.add(ing["ingredient_id"])
+        
+        return JSONResponse(status_code=200, content={
+            "status": "success",
+            "message": f"History konsumsi berhasil diambil untuk {total_days_with_consumption} hari",
+            "data": {
+                "query_info": {
+                    "mode": query_mode,
+                    "date_range": {
+                        "start_date": query_start_date.strftime('%Y-%m-%d'),
+                        "end_date": query_end_date.strftime('%Y-%m-%d'),
+                        "single_date": date if query_mode == "single_date" else None,
+                        "start_date_param": start_date if query_mode == "date_range" else None,
+                        "end_date_param": end_date if query_mode == "date_range" else None
+                    },
+                    "timezone": "Asia/Jakarta"
+                },
+                "summary": {
+                    "total_days_with_consumption": total_days_with_consumption,
+                    "total_orders_all_days": total_orders_all_days,
+                    "unique_ingredients_used": len(all_ingredients_used),
+                    "date_range_formatted": f"{query_start_date.strftime('%d/%m/%Y')} - {query_end_date.strftime('%d/%m/%Y')}"
+                },
+                "daily_consumption": list(sorted_daily_consumption.values())
+            }
+        })
+        
+    except Exception as e:
+        logging.error(f"Error getting daily consumption history: {e}")
+        return JSONResponse(status_code=500, content={
+            "status": "error",
+            "message": f"Gagal mengambil history konsumsi harian: {str(e)}",
+            "data": None
+        })
 
 def init_db():
     try:
