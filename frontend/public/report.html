@@ -550,9 +550,14 @@ async function loadIngredientAnalysisData() {
         const inventoryResponse = await fetch('/inventory/list');
         const inventoryData = await inventoryResponse.json();
         
-        if (menuData && menuData.data) {
-            const menuNames = menuData.data.map(menu => menu.base_name);
-            
+        // Normalize menus array regardless of response shape
+        const menusArray = Array.isArray(menuData)
+            ? menuData
+            : (menuData && Array.isArray(menuData.data) ? menuData.data : []);
+        
+        const menuNames = menusArray.map(m => m && m.base_name).filter(Boolean);
+        
+        if (menuNames.length > 0) {
             // Load recipes for all menus
             const recipeResponse = await fetch('/recipes/batch', {
                 method: 'POST',
@@ -564,11 +569,20 @@ async function loadIngredientAnalysisData() {
                 const recipeData = await recipeResponse.json();
                 menuRecipes = recipeData.recipes || {};
                 
-                if (inventoryData && inventoryData.data) {
+                // Normalize inventory data
+                if (inventoryData && Array.isArray(inventoryData)) {
+                    // direct array
+                    ingredientData = inventoryData.reduce((acc, item) => {
+                        acc[item.id] = item;
+                        return acc;
+                    }, {});
+                } else if (inventoryData && Array.isArray(inventoryData.data)) {
                     ingredientData = inventoryData.data.reduce((acc, item) => {
                         acc[item.id] = item;
                         return acc;
                     }, {});
+                } else {
+                    ingredientData = {};
                 }
                 
                 renderIngredientAnalysis();
