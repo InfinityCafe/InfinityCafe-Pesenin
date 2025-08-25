@@ -1,6 +1,6 @@
 # menu_service.py
 
-from fastapi import Body, FastAPI, HTTPException, Depends, Request
+from fastapi import Body, FastAPI, HTTPException, Depends, Request, Query
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, validator, Field, ValidationError
@@ -197,14 +197,33 @@ class MenuItemBase(BaseModel):
     isAvail: bool = True
     making_time_minutes: float = Field(default=0, ge=0, description="Waktu pembuatan menu dalam menit")
 
+class RecipeIngredientCreate(BaseModel):
+    ingredient_id: int = Field(..., description="ID ingredient dari inventory service")
+    quantity: float = Field(..., gt=0, description="Jumlah ingredient yang dibutuhkan")
+    unit: str = Field(..., min_length=1, description="Unit (milliliter, gram, piece)")
+    
+    @validator('unit')
+    def validate_unit(cls, v):
+        allowed_units = ['milliliter', 'gram', 'piece']
+        if v.lower() not in allowed_units:
+            raise ValueError(f'Unit harus salah satu dari: {", ".join(allowed_units)}')
+        return v.lower()
+
 class MenuItemCreate(MenuItemBase):
     flavor_ids: List[str] = Field(default=[], description="ID flavor untuk menu (opsional)")
+    recipe_ingredients: List[RecipeIngredientCreate] = Field(default=[], description="Resep ingredients untuk menu ini (WAJIB untuk menu baru)")
     
     @validator('base_name')
     def validate_base_name(cls, v):
         if not v or v.strip() == "":
             raise ValueError('Nama menu tidak boleh kosong atau hanya spasi')
         return v.strip()
+    
+    @validator('recipe_ingredients')
+    def validate_recipe_ingredients(cls, v):
+        if not v or len(v) == 0:
+            raise ValueError('Recipe ingredients tidak boleh kosong! Menu harus memiliki setidaknya 1 ingredient.')
+        return v
     
     @validator('base_price')
     def validate_base_price(cls, v):
@@ -422,13 +441,29 @@ def delete_flavor_item(flavor_id: str, db: Session = Depends(get_db)):
 
 @app.post("/menu", summary="Tambah Menu Baru", tags=["Menu"], operation_id="add menu")
 def create_menu_item(item: MenuItemCreate, db: Session = Depends(get_db)):
-    """Menambahkan menu dasar baru dan menautkannya dengan varian rasa."""
+    """Menambahkan menu dasar baru beserta recipe ingredients dan menautkannya dengan varian rasa."""
     
     if not item.base_name or item.base_name.strip() == "":
         raise HTTPException(status_code=400, detail="Nama menu tidak boleh kosong")
     
     if item.base_price is None or item.base_price <= 0:
         raise HTTPException(status_code=400, detail="Harga menu harus diisi dan lebih dari 0")
+    
+    # Validasi recipe ingredients (wajib)
+    if not item.recipe_ingredients or len(item.recipe_ingredients) == 0:
+        raise HTTPException(status_code=400, detail="Recipe ingredients tidak boleh kosong! Menu harus memiliki setidaknya 1 ingredient.")
+    
+    # Validasi ingredient_ids ada di synced_inventory
+    ingredient_ids = [ri.ingredient_id for ri in item.recipe_ingredients]
+    existing_ingredients = db.query(SyncedInventory).filter(SyncedInventory.id.in_(ingredient_ids)).all()
+    existing_ingredient_ids = {ing.id for ing in existing_ingredients}
+    
+    missing_ingredients = set(ingredient_ids) - existing_ingredient_ids
+    if missing_ingredients:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Ingredient ID tidak ditemukan di inventory service: {', '.join(map(str, missing_ingredients))}"
+        )
     
     if item.flavor_ids:
         for flavor_id in item.flavor_ids:
@@ -447,6 +482,7 @@ def create_menu_item(item: MenuItemCreate, db: Session = Depends(get_db)):
     else:
         flavors = []
 
+    # Buat menu item
     db_item = MenuItem(
         id=generate_id("MENU"), 
         base_name=item.base_name.strip(), 
@@ -458,18 +494,41 @@ def create_menu_item(item: MenuItemCreate, db: Session = Depends(get_db)):
         db_item.flavors.extend(flavors)
     
     db.add(db_item)
+    db.flush()  # Flush untuk mendapatkan ID tanpa commit
+    
+    # Tambahkan recipe ingredients
+    recipe_ingredients_created = []
+    for recipe_ingredient in item.recipe_ingredients:
+        db_recipe = RecipeIngredient(
+            menu_item_id=db_item.id,
+            ingredient_id=recipe_ingredient.ingredient_id,
+            quantity=recipe_ingredient.quantity,
+            unit=recipe_ingredient.unit
+        )
+        db.add(db_recipe)
+        
+        # Cari nama ingredient untuk response
+        ingredient = next((ing for ing in existing_ingredients if ing.id == recipe_ingredient.ingredient_id), None)
+        recipe_ingredients_created.append({
+            "ingredient_id": recipe_ingredient.ingredient_id,
+            "ingredient_name": ingredient.name if ingredient else f"ID:{recipe_ingredient.ingredient_id}",
+            "quantity": recipe_ingredient.quantity,
+            "unit": recipe_ingredient.unit
+        })
+    
     db.commit()
     db.refresh(db_item)
     
     return {
         "status": "success",
-        "message": "Menu berhasil ditambahkan",
+        "message": "Menu beserta recipe berhasil ditambahkan",
         "data": {
             "id": db_item.id,
             "base_name": db_item.base_name,
             "base_price": db_item.base_price,
             "isAvail": db_item.isAvail,
-            "flavors": [{"id": f.id, "flavor_name": f.flavor_name, "additional_price": f.additional_price} for f in db_item.flavors]
+            "flavors": [{"id": f.id, "flavor_name": f.flavor_name, "additional_price": f.additional_price} for f in db_item.flavors],
+            "recipe_ingredients": recipe_ingredients_created
         }
     }
 
@@ -691,6 +750,97 @@ async def update_ingredient_event(request: Request, db: Session = Depends(get_db
     logging.info(f"🔄 Sinkron update ingredient {ingredient_id}")
     return {"message": "Ingredient diperbarui", "data": {"id": ingredient_id}}
 
+@app.get("/ingredients/available", summary="Daftar Ingredients Tersedia", tags=["Recipe"], operation_id="list available ingredients")
+def get_available_ingredients(db: Session = Depends(get_db)):
+    """Mengambil daftar ingredients yang tersedia dari synced inventory untuk pembuatan recipe."""
+    
+    ingredients = db.query(SyncedInventory).order_by(SyncedInventory.id.asc()).all()
+    
+    ingredients_data = []
+    for ing in ingredients:
+        ingredients_data.append({
+            "ingredient_id": ing.id,
+            "ingredient_name": ing.name,
+            "current_quantity": ing.current_quantity,
+            "minimum_quantity": ing.minimum_quantity,
+            "category": ing.category,
+            "unit": ing.unit,
+            "is_low_stock": ing.current_quantity <= ing.minimum_quantity
+        })
+    
+    # Grouping by category untuk kemudahan UI
+    categories = {}
+    for ing in ingredients_data:
+        cat = ing["category"]
+        if cat not in categories:
+            categories[cat] = []
+        categories[cat].append(ing)
+    
+    return {
+        "status": "success",
+        "message": f"Berhasil mengambil {len(ingredients_data)} ingredients tersedia",
+        "data": {
+            "total_ingredients": len(ingredients_data),
+            "low_stock_count": sum(1 for ing in ingredients_data if ing["is_low_stock"]),
+            "categories": categories,
+            "all_ingredients": ingredients_data
+        }
+    }
+
+@app.get("/recipes/validation", summary="Validasi Recipe Ingredients", tags=["Recipe"], operation_id="validate recipe ingredients")
+def validate_recipe_ingredients(
+    ingredient_ids: str = Query(..., description="Comma-separated ingredient IDs (e.g., '1,2,3')"),
+    db: Session = Depends(get_db)
+):
+    """Memvalidasi apakah ingredient IDs tersedia di inventory service."""
+    
+    try:
+        # Parse ingredient IDs
+        ids = [int(id.strip()) for id in ingredient_ids.split(',') if id.strip().isdigit()]
+        if not ids:
+            raise HTTPException(status_code=400, detail="Tidak ada ingredient ID yang valid")
+        
+        # Check availability
+        available_ingredients = db.query(SyncedInventory).filter(SyncedInventory.id.in_(ids)).all()
+        available_ids = {ing.id for ing in available_ingredients}
+        missing_ids = set(ids) - available_ids
+        
+        validation_results = []
+        for ing in available_ingredients:
+            validation_results.append({
+                "ingredient_id": ing.id,
+                "ingredient_name": ing.name,
+                "is_available": True,
+                "current_stock": ing.current_quantity,
+                "unit": ing.unit,
+                "category": ing.category
+            })
+        
+        for missing_id in missing_ids:
+            validation_results.append({
+                "ingredient_id": missing_id,
+                "ingredient_name": f"Unknown ID:{missing_id}",
+                "is_available": False,
+                "current_stock": 0,
+                "unit": "unknown",
+                "category": "unknown"
+            })
+        
+        return {
+            "status": "success" if len(missing_ids) == 0 else "warning",
+            "message": f"Validasi selesai: {len(available_ids)} tersedia, {len(missing_ids)} tidak ditemukan",
+            "data": {
+                "total_checked": len(ids),
+                "available_count": len(available_ids),
+                "missing_count": len(missing_ids),
+                "missing_ids": list(missing_ids),
+                "validation_results": validation_results
+            }
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Format ingredient_ids tidak valid: {str(e)}")
+
 # Endpoint untuk menghapus bahan berdasarkan ID dari inventory service agar data dari inventory service dapat disinkronkan dengan menu service
 @app.delete("/delete_ingredient_event/{ingredient_id}", summary="Hapus Bahan Event", tags=["Inventory"], operation_id="delete ingredient event")
 def delete_ingredient_event(ingredient_id: int, db: Session = Depends(get_db)):
@@ -705,6 +855,126 @@ def delete_ingredient_event(ingredient_id: int, db: Session = Depends(get_db)):
     return {"message": "Ingredient dihapus", "data": {"id": ingredient_id}}
 
 # Endpoint untuk mendapatkan semua bahan resep yang tersedia sesuai dengan data yang ada di inventory service
+@app.post("/menu/{menu_id}/recipe", summary="Tambah/Update Recipe untuk Menu", tags=["Recipe"], operation_id="update menu recipe")
+def update_menu_recipe(
+    menu_id: str, 
+    recipe_ingredients: List[RecipeIngredientCreate], 
+    db: Session = Depends(get_db)
+):
+    """Menambah atau mengupdate recipe ingredients untuk menu yang sudah ada."""
+    
+    # Validasi menu exists
+    menu = db.query(MenuItem).filter(MenuItem.id == menu_id).first()
+    if not menu:
+        raise HTTPException(status_code=404, detail=f"Menu dengan ID '{menu_id}' tidak ditemukan")
+    
+    if not recipe_ingredients or len(recipe_ingredients) == 0:
+        raise HTTPException(status_code=400, detail="Recipe ingredients tidak boleh kosong")
+    
+    # Validasi ingredient_ids ada di synced_inventory
+    ingredient_ids = [ri.ingredient_id for ri in recipe_ingredients]
+    existing_ingredients = db.query(SyncedInventory).filter(SyncedInventory.id.in_(ingredient_ids)).all()
+    existing_ingredient_ids = {ing.id for ing in existing_ingredients}
+    
+    missing_ingredients = set(ingredient_ids) - existing_ingredient_ids
+    if missing_ingredients:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Ingredient ID tidak ditemukan di inventory service: {', '.join(map(str, missing_ingredients))}"
+        )
+    
+    # Hapus recipe yang sudah ada
+    db.query(RecipeIngredient).filter(RecipeIngredient.menu_item_id == menu_id).delete()
+    
+    # Tambahkan recipe ingredients baru
+    recipe_ingredients_created = []
+    for recipe_ingredient in recipe_ingredients:
+        db_recipe = RecipeIngredient(
+            menu_item_id=menu_id,
+            ingredient_id=recipe_ingredient.ingredient_id,
+            quantity=recipe_ingredient.quantity,
+            unit=recipe_ingredient.unit
+        )
+        db.add(db_recipe)
+        
+        # Cari nama ingredient untuk response
+        ingredient = next((ing for ing in existing_ingredients if ing.id == recipe_ingredient.ingredient_id), None)
+        recipe_ingredients_created.append({
+            "ingredient_id": recipe_ingredient.ingredient_id,
+            "ingredient_name": ingredient.name if ingredient else f"ID:{recipe_ingredient.ingredient_id}",
+            "quantity": recipe_ingredient.quantity,
+            "unit": recipe_ingredient.unit
+        })
+    
+    db.commit()
+    
+    return {
+        "status": "success",
+        "message": f"Recipe untuk menu '{menu.base_name}' berhasil diperbarui",
+        "data": {
+            "menu_id": menu_id,
+            "menu_name": menu.base_name,
+            "total_ingredients": len(recipe_ingredients_created),
+            "recipe_ingredients": recipe_ingredients_created
+        }
+    }
+
+@app.get("/menu/{menu_id}/recipe", summary="Lihat Recipe Menu", tags=["Recipe"], operation_id="get menu recipe")
+def get_menu_recipe(menu_id: str, db: Session = Depends(get_db)):
+    """Mengambil recipe ingredients untuk menu tertentu dengan detail ingredient."""
+    
+    menu = db.query(MenuItem).options(joinedload(MenuItem.recipe_ingredients)).filter(MenuItem.id == menu_id).first()
+    if not menu:
+        raise HTTPException(status_code=404, detail=f"Menu dengan ID '{menu_id}' tidak ditemukan")
+    
+    # Ambil detail ingredients dari synced_inventory
+    recipe_with_details = []
+    for recipe in menu.recipe_ingredients:
+        ingredient = db.query(SyncedInventory).filter(SyncedInventory.id == recipe.ingredient_id).first()
+        recipe_with_details.append({
+            "ingredient_id": recipe.ingredient_id,
+            "ingredient_name": ingredient.name if ingredient else f"Unknown ID:{recipe.ingredient_id}",
+            "quantity": recipe.quantity,
+            "unit": recipe.unit,
+            "ingredient_category": ingredient.category if ingredient else "unknown",
+            "current_stock": ingredient.current_quantity if ingredient else 0
+        })
+    
+    return {
+        "status": "success",
+        "message": f"Recipe untuk menu '{menu.base_name}' berhasil diambil",
+        "data": {
+            "menu_id": menu_id,
+            "menu_name": menu.base_name,
+            "menu_price": menu.base_price,
+            "is_available": menu.isAvail,
+            "total_ingredients": len(recipe_with_details),
+            "recipe_ingredients": recipe_with_details
+        }
+    }
+
+@app.delete("/menu/{menu_id}/recipe", summary="Hapus Recipe Menu", tags=["Recipe"], operation_id="delete menu recipe")
+def delete_menu_recipe(menu_id: str, db: Session = Depends(get_db)):
+    """Menghapus semua recipe ingredients untuk menu tertentu."""
+    
+    menu = db.query(MenuItem).filter(MenuItem.id == menu_id).first()
+    if not menu:
+        raise HTTPException(status_code=404, detail=f"Menu dengan ID '{menu_id}' tidak ditemukan")
+    
+    # Hapus semua recipe ingredients
+    deleted_count = db.query(RecipeIngredient).filter(RecipeIngredient.menu_item_id == menu_id).delete()
+    db.commit()
+    
+    return {
+        "status": "success",
+        "message": f"Recipe untuk menu '{menu.base_name}' berhasil dihapus",
+        "data": {
+            "menu_id": menu_id,
+            "menu_name": menu.base_name,
+            "deleted_ingredients_count": deleted_count
+        }
+    }
+
 @app.post("/recipes/batch", summary="Ambil resep banyak menu", tags=["Recipe"], operation_id="batch recipes")
 def get_recipes_batch(payload: dict = Body(...), db: Session = Depends(get_db)):
     """
