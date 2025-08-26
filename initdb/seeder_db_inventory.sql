@@ -8,67 +8,16 @@ DO $$
 BEGIN
     -- Buat enum stockcategory jika belum ada
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'stockcategory') THEN
-        CREATE TYPE stockcategory AS ENUM ('ingredient', 'packaging');
+        CREATE TYPE stockcategory AS ENUM ('packaging', 'ingredients', 'coffee_flavors', 'squash_flavors', 'milk_shake_flavors');
+    ELSE
+        -- Drop dan recreate enum dengan kategori baru
+        DROP TYPE IF EXISTS stockcategory CASCADE;
+        CREATE TYPE stockcategory AS ENUM ('packaging', 'ingredients', 'coffee_flavors', 'squash_flavors', 'milk_shake_flavors');
     END IF;
     
     -- Buat enum unittype jika belum ada
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'unittype') THEN
         CREATE TYPE unittype AS ENUM ('gram', 'milliliter', 'piece');
-    END IF;
-    
-    -- stockcategory: Ingredient -> ingredient
-    IF EXISTS (
-        SELECT 1 FROM pg_type t JOIN pg_enum e ON t.oid=e.enumtypid
-         WHERE t.typname='stockcategory' AND e.enumlabel='Ingredient'
-    ) AND NOT EXISTS (
-        SELECT 1 FROM pg_type t JOIN pg_enum e ON t.oid=e.enumtypid
-         WHERE t.typname='stockcategory' AND e.enumlabel='ingredient'
-    ) THEN
-        ALTER TYPE stockcategory RENAME VALUE 'Ingredient' TO 'ingredient';
-    END IF;
-
-    -- stockcategory: Packaging -> packaging
-    IF EXISTS (
-        SELECT 1 FROM pg_type t JOIN pg_enum e ON t.oid=e.enumtypid
-         WHERE t.typname='stockcategory' AND e.enumlabel='Packaging'
-    ) AND NOT EXISTS (
-        SELECT 1 FROM pg_type t JOIN pg_enum e ON t.oid=e.enumtypid
-         WHERE t.typname='stockcategory' AND e.enumlabel='packaging'
-    ) THEN
-        ALTER TYPE stockcategory RENAME VALUE 'Packaging' TO 'packaging';
-    END IF;
-
-    -- unittype: Gram -> gram
-    IF EXISTS (
-        SELECT 1 FROM pg_type t JOIN pg_enum e ON t.oid=e.enumtypid
-         WHERE t.typname='unittype' AND e.enumlabel='Gram'
-    ) AND NOT EXISTS (
-        SELECT 1 FROM pg_type t JOIN pg_enum e ON t.oid=e.enumtypid
-         WHERE t.typname='unittype' AND e.enumlabel='gram'
-    ) THEN
-        ALTER TYPE unittype RENAME VALUE 'Gram' TO 'gram';
-    END IF;
-
-    -- unittype: Milliliter -> milliliter
-    IF EXISTS (
-        SELECT 1 FROM pg_type t JOIN pg_enum e ON t.oid=e.enumtypid
-         WHERE t.typname='unittype' AND e.enumlabel='Milliliter'
-    ) AND NOT EXISTS (
-        SELECT 1 FROM pg_type t JOIN pg_enum e ON t.oid=e.enumtypid
-         WHERE t.typname='unittype' AND e.enumlabel='milliliter'
-    ) THEN
-        ALTER TYPE unittype RENAME VALUE 'Milliliter' TO 'milliliter';
-    END IF;
-
-    -- unittype: Piece -> piece
-    IF EXISTS (
-        SELECT 1 FROM pg_type t JOIN pg_enum e ON t.oid=e.enumtypid
-         WHERE t.typname='unittype' AND e.enumlabel='Piece'
-    ) AND NOT EXISTS (
-        SELECT 1 FROM pg_type t JOIN pg_enum e ON t.oid=e.enumtypid
-         WHERE t.typname='unittype' AND e.enumlabel='piece'
-    ) THEN
-        ALTER TYPE unittype RENAME VALUE 'Piece' TO 'piece';
     END IF;
 END $$;
 
@@ -80,8 +29,9 @@ CREATE TABLE IF NOT EXISTS embeddings (
     created_at timestamptz DEFAULT now()
 );
 
--- Tabel utama inventories
-CREATE TABLE IF NOT EXISTS inventories (
+-- Drop dan recreate tabel inventories untuk memastikan schema terbaru
+DROP TABLE IF EXISTS inventories CASCADE;
+CREATE TABLE inventories (
     id SERIAL PRIMARY KEY,
     name VARCHAR NOT NULL,
     current_quantity FLOAT DEFAULT 0,
@@ -130,61 +80,55 @@ BEGIN
     END IF;
 END $$;
 
--- DATA INVENTORY BERDASARKAN SPREADSHEET TERBARU
+-- DATA INVENTORY BERDASARKAN KATEGORI DETAIL YANG DIMINTA
 INSERT INTO inventories (id, name, current_quantity, minimum_quantity, category, unit) 
 VALUES
--- PACKAGING & PERLENGKAPAN
+-- 1. PACKAGING
 (1,  'Cup',                   700,   100,  'packaging'::stockcategory, 'piece'::unittype),
 (2,  'Cup Hot',               550,   100,  'packaging'::stockcategory, 'piece'::unittype),
 (3,  'Sedotan',               173,    50,  'packaging'::stockcategory, 'piece'::unittype),
 
--- BAHAN DASAR MINUMAN
-(4,  'Kopi Robusta',         1800,   500,  'ingredient'::stockcategory, 'gram'::unittype),
-(5,  'Creamer',              1200,   500,  'ingredient'::stockcategory, 'gram'::unittype),
-(6,  'Susu Kental Manis',    1605,   540,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(7,  'Susu Diamond',         6000,  3000,  'ingredient'::stockcategory, 'milliliter'::unittype),
+-- 2. INGREDIENTS (Bahan Dasar)
+(4,  'Kopi Robusta',         1800,   500,  'ingredients'::stockcategory, 'gram'::unittype),
+(5,  'Creamer',              1200,   500,  'ingredients'::stockcategory, 'gram'::unittype),
+(6,  'Susu Kental Manis',    1605,   540,  'ingredients'::stockcategory, 'milliliter'::unittype),
+(7,  'Susu Diamond',         6000,  3000,  'ingredients'::stockcategory, 'milliliter'::unittype),
+(36, 'Sprite',               5000,  1250,  'ingredients'::stockcategory, 'milliliter'::unittype),
+(35, 'Es Batu',             10000,  2500,  'ingredients'::stockcategory, 'gram'::unittype),
+(37, 'Biji Selasih',          100,    20,  'ingredients'::stockcategory, 'gram'::unittype),
+(34, 'Nescafe',                76,    20,  'ingredients'::stockcategory, 'gram'::unittype),
+(33, 'Teh Celup',              22,    10,  'ingredients'::stockcategory, 'piece'::unittype),
+(32, 'Sanquik Lemon',          50,   100,  'ingredients'::stockcategory, 'milliliter'::unittype),
+(23, 'Gula Pasir Cair',       300,   200,  'ingredients'::stockcategory, 'milliliter'::unittype),
+(24, 'Gula Aren Cair',        337,   200,  'ingredients'::stockcategory, 'milliliter'::unittype),
 
--- SYRUP & FLAVOR LIQUID
-(8,  'Caramel',               435,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(9,  'Peach',                 600,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(10, 'Macadamia Nut',         460,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(11, 'French Moca',           400,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(12, 'Java Brown Sugar',      400,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(13, 'Chocolate',             470,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(14, 'Passion Fruit',         530,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(15, 'Roasted Almond',        585,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(16, 'Creme Brulee',          280,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(17, 'Butter Scotch',         500,   150,  'ingredient'::stockcategory, 'milliliter'::unittype),
+-- 3. COFFEE FLAVORS
+(8,  'Caramel',               435,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype),
+(9,  'Peach',                 600,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype),
+(10, 'Macadamia Nut',         460,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype),
+(11, 'French Moca',           400,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype),
+(12, 'Java Brown Sugar',      400,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype),
+(13, 'Chocolate',             470,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype),
+(15, 'Roasted Almond',        585,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype),
+(16, 'Creme Brulee',          280,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype),
+(17, 'Butter Scotch',         500,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype),
 
--- MARJAN SERIES
-(18, 'Marjan Vanilla',        230,   100,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(19, 'Marjan Grenadine',      367,   100,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(20, 'Marjan Markisa',        294,   100,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(21, 'Marjan Melon',          215,   100,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(22, 'Marjan Nanas',          460,   100,  'ingredient'::stockcategory, 'milliliter'::unittype),
+-- 4. SQUASH FLAVORS
+(14, 'Passion Fruit',         530,   150,  'squash_flavors'::stockcategory, 'milliliter'::unittype),
+(18, 'Marjan Vanilla',        230,   100,  'squash_flavors'::stockcategory, 'milliliter'::unittype),
+(19, 'Marjan Grenadine',      367,   100,  'squash_flavors'::stockcategory, 'milliliter'::unittype),
+(20, 'Marjan Markisa',        294,   100,  'squash_flavors'::stockcategory, 'milliliter'::unittype),
+(21, 'Marjan Melon',          215,   100,  'squash_flavors'::stockcategory, 'milliliter'::unittype),
+(22, 'Marjan Nanas',          460,   100,  'squash_flavors'::stockcategory, 'milliliter'::unittype),
 
--- GULA & PEMANIS
-(23, 'Gula Pasir Cair',       300,   200,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(24, 'Gula Aren Cair',        337,   200,  'ingredient'::stockcategory, 'milliliter'::unittype),
-
--- POWDER SERIES
-(25, 'Powder Keju Vanilla',   197,   300,  'ingredient'::stockcategory, 'gram'::unittype),
-(26, 'Powder Taro',           187,   300,  'ingredient'::stockcategory, 'gram'::unittype),
-(27, 'Powder Banana',         377,   300,  'ingredient'::stockcategory, 'gram'::unittype),
-(28, 'Powder Dark Chocolate', 882,   300,  'ingredient'::stockcategory, 'gram'::unittype),
-(29, 'Powder Chocolate Hazelnut', 413, 300, 'ingredient'::stockcategory, 'gram'::unittype),
-(30, 'Powder Chocolate Malt', 668,   300,  'ingredient'::stockcategory, 'gram'::unittype),
-(31, 'Powder Blackcurrant',  1000,   300,  'ingredient'::stockcategory, 'gram'::unittype),
-
--- MINUMAN & BAHAN LAIN
-(32, 'Sanquik Lemon',          50,   100,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(33, 'Teh Celup',              22,    10,  'ingredient'::stockcategory, 'piece'::unittype),
-(34, 'Nescafe',                76,    20,  'ingredient'::stockcategory, 'gram'::unittype),
-
--- TAMBAHAN BAHAN YANG DIBUTUHKAN MENU
-(35, 'Es Batu',             10000,  2500,  'ingredient'::stockcategory, 'gram'::unittype),
-(36, 'Sprite',               5000,  1250,  'ingredient'::stockcategory, 'milliliter'::unittype),
-(37, 'Biji Selasih',          100,    20,  'ingredient'::stockcategory, 'gram'::unittype);
+-- 5. MILK SHAKE FLAVORS
+(25, 'Powder Keju Vanilla',   197,   300,  'milk_shake_flavors'::stockcategory, 'gram'::unittype),
+(26, 'Powder Taro',           187,   300,  'milk_shake_flavors'::stockcategory, 'gram'::unittype),
+(27, 'Powder Banana',         377,   300,  'milk_shake_flavors'::stockcategory, 'gram'::unittype),
+(28, 'Powder Dark Chocolate', 882,   300,  'milk_shake_flavors'::stockcategory, 'gram'::unittype),
+(29, 'Powder Chocolate Hazelnut', 413, 300, 'milk_shake_flavors'::stockcategory, 'gram'::unittype),
+(30, 'Powder Chocolate Malt', 668,   300,  'milk_shake_flavors'::stockcategory, 'gram'::unittype),
+(31, 'Powder Blackcurrant',  1000,   300,  'milk_shake_flavors'::stockcategory, 'gram'::unittype);
 
 -- Pastikan sequence lanjut setelah ID max
 SELECT setval(pg_get_serial_sequence('inventories','id'), (SELECT MAX(id) FROM inventories));
