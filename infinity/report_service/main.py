@@ -149,8 +149,37 @@ def get_report(
     menu_url = f"{MENU_SERVICE_URL}/menu"
     menus = make_request(menu_url)
     
+    # Debug logging
+    logging.info(f"Retrieved {len(menus)} menus from menu service")
+    if menus:
+        logging.info(f"Sample menu structure: {menus[0]}")
+    
     # Create menu price lookup - gunakan field yang benar dari menu service
-    menu_prices = {menu['base_name']: menu['base_price'] for menu in menus}
+    # Menu service menggunakan 'base_name' dan 'base_price'
+    menu_prices = {}
+    for menu in menus:
+        if 'base_name' in menu and 'base_price' in menu:
+            menu_prices[menu['base_name']] = menu['base_price']
+        elif 'menu_name' in menu and 'menu_price' in menu:
+            # Fallback untuk struktur data lama
+            menu_prices[menu['menu_name']] = menu['menu_price']
+        else:
+            # Fallback untuk struktur data yang berbeda
+            logging.warning(f"Menu item missing required fields: {menu}")
+            continue
+    
+    if not menu_prices:
+        logging.error("No valid menu prices found. Available fields in first menu:")
+        if menus:
+            logging.error(f"Available fields: {list(menus[0].keys())}")
+        # Return empty report instead of error
+        return {
+            "start_date": start_date,
+            "end_date": end_date,
+            "total_order": 0,
+            "total_income": 0,
+            "details": []
+        }
     
     # Filter completed orders dalam date range
     completed_order_ids = {
@@ -164,7 +193,20 @@ def get_report(
     total_transactions = 0
     
     for order in orders:
-        order_date = datetime.fromisoformat(order['created_at'].replace('Z', '+00:00')).date()
+        # Handle different date field names
+        created_at = order.get('created_at') or order.get('time_receive')
+        if not created_at:
+            continue
+            
+        try:
+            # Handle different date formats
+            if 'Z' in str(created_at):
+                order_date = datetime.fromisoformat(str(created_at).replace('Z', '+00:00')).date()
+            else:
+                order_date = datetime.fromisoformat(str(created_at)).date()
+        except (ValueError, TypeError):
+            logging.warning(f"Invalid date format for order {order.get('order_id')}: {created_at}")
+            continue
         
         # Filter by date range and completion status
         if (start_dt.date() <= order_date <= end_dt.date() and 
@@ -173,7 +215,7 @@ def get_report(
             # Filter by menu name if specified
             if menu_name:
                 order_items = [item for item in order.get('items', []) 
-                             if menu_name.lower() in item['menu_name'].lower()]
+                             if menu_name.lower() in item.get('menu_name', '').lower()]
             else:
                 order_items = order.get('items', [])
             
@@ -181,8 +223,12 @@ def get_report(
                 total_transactions += 1
                 
                 for item in order_items:
-                    menu_item_name = item['menu_name']
-                    quantity = item['quantity']
+                    menu_item_name = item.get('menu_name', '')
+                    quantity = item.get('quantity', 0)
+                    
+                    if not menu_item_name or not quantity:
+                        continue
+                    
                     unit_price = menu_prices.get(menu_item_name, 0)
                     item_total = quantity * unit_price
                     
@@ -249,6 +295,30 @@ def get_best_seller(
         orders = make_request(f"{ORDER_SERVICE_URL}/order")
         menus = make_request(f"{MENU_SERVICE_URL}/menu")
         
+        # Create price lookup dictionary - gunakan field yang benar
+        menu_prices = {}
+        for menu in menus:
+            if 'base_name' in menu and 'base_price' in menu:
+                menu_prices[menu['base_name']] = menu['base_price']
+            elif 'menu_name' in menu and 'menu_price' in menu:
+                # Fallback untuk struktur data lama
+                menu_prices[menu['menu_name']] = menu['menu_price']
+            else:
+                logging.warning(f"Menu item missing required fields: {menu}")
+                continue
+        
+        if not menu_prices:
+            logging.error("No valid menu prices found in best_seller. Available fields in first menu:")
+            if menus:
+                logging.error(f"Available fields: {list(menus[0].keys())}")
+            # Return empty report instead of error
+            return {
+                "start_date": start_date,
+                "end_date": end_date,
+                "total_orders_in_range": 0,
+                "processed_orders": 0,
+                "best_sellers": []
+            }
         # Get flavor data dengan harga dari menu service
         try:
             flavors = make_request(f"{MENU_SERVICE_URL}/flavors")
@@ -266,7 +336,11 @@ def get_best_seller(
         
         for order in orders:
             # Extract date from created_at timestamp
-            order_date = extract_date_from_datetime(order['created_at'])
+            created_at = order.get('created_at') or order.get('time_receive')
+            if not created_at:
+                continue
+                
+            order_date = extract_date_from_datetime(str(created_at))
             
             # Filter orders by date range
             if is_date_in_range(order_date, start_date, end_date):
@@ -394,19 +468,49 @@ def get_top_customers(
     menus = make_request(f"{MENU_SERVICE_URL}/menu")
     
     # Create lookups - gunakan field yang benar
-    menu_prices = {menu['base_name']: menu['base_price'] for menu in menus}
+    menu_prices = {}
+    for menu in menus:
+        if 'base_name' in menu and 'base_price' in menu:
+            menu_prices[menu['base_name']] = menu['base_price']
+        elif 'menu_name' in menu and 'menu_price' in menu:
+            # Fallback untuk struktur data lama
+            menu_prices[menu['menu_name']] = menu['menu_price']
+        else:
+            logging.warning(f"Menu item missing required fields: {menu}")
+            continue
+    
+    if not menu_prices:
+        logging.error("No valid menu prices found in top_customers. Available fields in first menu:")
+        if menus:
+            logging.error(f"Available fields: {list(menus[0].keys())}")
+        # Return empty list instead of error
+        return []
+        
     completed_order_ids = {order['order_id'] for order in kitchen_orders if order['status'] == 'done'}
     
     # Process customer data
     customer_stats = {}
     
     for order in orders:
-        order_date = datetime.fromisoformat(order['created_at'].replace('Z', '+00:00')).date()
+        # Handle different date field names
+        created_at = order.get('created_at') or order.get('time_receive')
+        if not created_at:
+            continue
+            
+        try:
+            # Handle different date formats
+            if 'Z' in str(created_at):
+                order_date = datetime.fromisoformat(str(created_at).replace('Z', '+00:00')).date()
+            else:
+                order_date = datetime.fromisoformat(str(created_at)).date()
+        except (ValueError, TypeError):
+            logging.warning(f"Invalid date format for order {order.get('order_id')}: {created_at}")
+            continue
         
         if (start_dt.date() <= order_date <= end_dt.date() and 
             order['order_id'] in completed_order_ids):
             
-            customer_name = order['customer_name']
+            customer_name = order.get('customer_name', '')
             if not customer_name:
                 continue
                 
@@ -421,8 +525,14 @@ def get_top_customers(
             
             # Calculate spending
             for item in order.get('items', []):
-                unit_price = menu_prices.get(item['menu_name'], 0)
-                customer_stats[customer_name]["total_spent"] += item['quantity'] * unit_price
+                menu_name = item.get('menu_name', '')
+                quantity = item.get('quantity', 0)
+                
+                if not menu_name or not quantity:
+                    continue
+                    
+                unit_price = menu_prices.get(menu_name, 0)
+                customer_stats[customer_name]["total_spent"] += quantity * unit_price
     
     # Sort by total spent and return top 5
     top_customers = sorted(customer_stats.values(), key=lambda x: x["total_spent"], reverse=True)[:5]

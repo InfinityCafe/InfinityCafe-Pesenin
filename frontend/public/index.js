@@ -39,6 +39,7 @@ function formatStatusDisplay(status) {
 // Global variables
 let selectedOrderId = null;
 let selectedOrder = null;
+let selectedStatus = null;
 let currentTab = 'active';
 
 // Kitchen toggle functionality
@@ -151,12 +152,16 @@ function openDetailModal(order) {
   const itemsHtml = items.map(item => {
     return `<div style='margin-bottom:4px;'><b>${item.menu_name}</b>${item.preference ? ' <span style=\"color:#888;font-size:13px;\">(' + item.preference + ')</span>' : ''} - ${item.quantity}${item.notes ? `<div style='font-size:12px;color:#888;margin-top:2px;'><b>Notes:</b> ${item.notes}</div>` : ''}</div>`;
   }).join('');
+  // Add cancel reason if order is cancelled
+  const cancelReasonHtml = order.cancel_reason ? `<p><strong>Alasan Pembatalan:</strong> <span style="color: #dc3545; font-style: italic;">${order.cancel_reason}</span></p>` : '';
+  
   box.innerHTML = `
     <p><strong>Order ID:</strong> ${order.order_id}</p>
     <p><strong>Nama:</strong> ${order.customer_name}</p>
     <p><strong>Ruangan:</strong> ${order.room_name}</p>
     <p><strong>Status:</strong> ${formatStatusDisplay(order.status)}</p>
     <p><strong>Waktu:</strong> ${new Date(order.time_receive).toLocaleString("id-ID")}</p>
+    ${cancelReasonHtml}
     <div style='margin-top:10px;'><strong>Detail:</strong><br>${itemsHtml}</div>
   `;
   document.getElementById("detail-modal").classList.remove("hidden");
@@ -167,17 +172,16 @@ function closeDetailModal() {
   document.getElementById("detail-modal").classList.add("hidden");
 }
 
-async function confirmCancel(status) {
-  const reason = status === "cancel" ? prompt("Masukkan alasan pembatalan:", "Tidak jadi") : "Bahan habis";
-  if (!reason) return closeConfirmModal();
-  
-  if (status === "cancel") {
-    // Use proper cancel_order endpoint
-    await cancelOrder(selectedOrderId, reason);
-  } else {
-    // Use existing update_status for other statuses
-    await syncUpdate(selectedOrderId, status, reason);
+async function confirmCancel(type) {
+  let reason;
+  if (type === 'habis') {
+    reason = 'Habis';
+  } else if (type === 'cancel') {
+    reason = prompt("Masukkan alasan pembatalan:", "Tidak jadi");
+    if (!reason) return closeConfirmModal();
   }
+
+  await cancelOrder(selectedOrderId, reason);
   closeConfirmModal();
 }
 
@@ -310,7 +314,7 @@ function createOrderCard(order) {
     <div class="order-header">
       <span class="order-number">${queueNumber ? `#${queueNumber}` : ''}</span>
       <span class="customer-name">${order.customer_name ?? 'John Doe'}</span>
-      ${order.status === "receive" ? `<button class="order-close" onclick="event.stopPropagation(); openConfirmModal('${order.order_id}')">&times;</button>` : ""}
+      ${order.status === "receive" ? `<button class="order-close" onclick="event.stopPropagation(); openConfirmModal('${order.order_id}', 'cancelled')">&times;</button>` : ""}
     </div>
     <div class="order-contents">
         <div class="order-location">
