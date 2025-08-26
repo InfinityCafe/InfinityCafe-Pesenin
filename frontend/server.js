@@ -6,7 +6,7 @@ const fetch = require("node-fetch");
 
 const app = express();
 const PORT = 8080;
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "https://liberal-relative-panther.ngrok-free.app/webhook/trigger-order-status";
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "https://oriented-terminally-sheepdog.ngrok-free.app/webhook/trigger-order-status";
 
 // Middleware
 app.use(express.json());
@@ -344,6 +344,21 @@ app.get("/report", async (req, res) => {
     if (menu_name) params.append('menu_name', menu_name);
     
     const resp = await fetch(`http://report_service:8004/report?${params.toString()}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch report ", err);
+    res.status(500).json({ error: "Failed to fetch report" });
+  }
+});
+
+app.get("/report/best_seller", async (req, res) => {
+  const { start_date, end_date, menu_name } = req.query;
+  try {
+    const params = new URLSearchParams({ start_date, end_date });
+    if (menu_name) params.append('menu_name', menu_name);
+    
+    const resp = await fetch(`http://report_service:8004/best_seller?start_date=${start}&end_date=${end}&limit=10`);
     const data = await resp.json();
     res.json(data);
   } catch (err) {
