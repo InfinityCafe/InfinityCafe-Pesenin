@@ -8,10 +8,10 @@ class InventoryManager {
     this.itemsPerPage = 10;
     this.totalPages = 1;
     this.editingItem = null;
+    this.viewingItemId = null;
     
     this.initializeEventListeners();
     this.loadInventoryData();
-    // this.updateGreetingDate();
   }
 
   initializeEventListeners() {
@@ -28,6 +28,10 @@ class InventoryManager {
     // Add item button
     safeAddEventListener('add-item-btn', 'click', () => {
       this.openAddItemModal();
+    });
+
+    safeAddEventListener('close-view-modal', 'click', () => {
+      this.closeViewItemModal();
     });
 
     // Modal close buttons
@@ -63,18 +67,22 @@ class InventoryManager {
       this.handleSearch(e.target.value);
     });
 
+    safeAddEventListener('filter-btn', 'click', () => {
+      this.toggleFilterStock();
+    });
+
     // Entries per page
     safeAddEventListener('entries-per-page', 'change', () => {
-      this.changeMenuPageSize();
+      this.changeStockPageSize();
     });
 
     // Pagination buttons
     safeAddEventListener('prev-btn', 'click', () => {
-      this.changeMenuPage(-1);
+      this.changeStockPage(-1);
     });
 
     safeAddEventListener('next-btn', 'click', () => {
-      this.changeMenuPage(1);
+      this.changeStockPage(1);
     });
 
     // Delete confirmation
@@ -98,9 +106,9 @@ class InventoryManager {
     });
 
     // Bulk stock button
-    safeAddEventListener('bulk-stock-btn', 'click', () => {
-      this.openBulkStockModal();
-    });
+    // safeAddEventListener('bulk-stock-btn', 'click', () => {
+    //   this.openBulkStockModal();
+    // });
 
     // Consumption log button
     safeAddEventListener('consumption-log-btn', 'click', () => {
@@ -114,19 +122,19 @@ class InventoryManager {
     });
 
     // Bulk stock form
-    safeAddEventListener('bulk-stock-form', 'submit', (e) => {
-      e.preventDefault();
-      this.handleBulkStockSubmit();
-    });
+    // safeAddEventListener('bulk-stock-form', 'submit', (e) => {
+    //   e.preventDefault();
+    //   this.handleBulkStockSubmit();
+    // });
 
     // Modal close buttons
     safeAddEventListener('close-add-stock-modal', 'click', () => {
       this.closeModal('add-stock-modal');
     });
 
-    safeAddEventListener('close-bulk-stock-modal', 'click', () => {
-      this.closeModal('bulk-stock-modal');
-    });
+    // safeAddEventListener('close-bulk-stock-modal', 'click', () => {
+    //   this.closeModal('bulk-stock-modal');
+    // });
 
     safeAddEventListener('close-consumption-log-modal', 'click', () => {
       this.closeModal('consumption-log-modal');
@@ -137,14 +145,14 @@ class InventoryManager {
       this.closeModal('add-stock-modal');
     });
 
-    safeAddEventListener('cancel-bulk-stock-btn', 'click', () => {
-      this.closeModal('bulk-stock-modal');
-    });
+    // safeAddEventListener('cancel-bulk-stock-btn', 'click', () => {
+    //   this.closeModal('bulk-stock-modal');
+    // });
 
     // Add bulk item button
-    safeAddEventListener('add-bulk-item-btn', 'click', () => {
-      this.addBulkItem();
-    });
+    // safeAddEventListener('add-bulk-item-btn', 'click', () => {
+    //   this.addBulkItem();
+    // });
 
     // Refresh logs button
     safeAddEventListener('refresh-logs-btn', 'click', () => {
@@ -156,6 +164,7 @@ class InventoryManager {
       this.filterConsumptionLogs(e.target.value);
     });
   }
+  
 
   async loadInventoryData() {
     try {
@@ -176,15 +185,13 @@ class InventoryManager {
       const listResponse = await fetch('/inventory/list');
       const listData = await listResponse.json();
       
-      if (listResponse.ok) {
-        console.log('Inventory list loaded:', listData);
-        this.inventory = listData.data || listData;
-        this.filteredInventory = [...this.inventory];
-        this.renderInventoryTable();
-      } else {
-        // Fallback to sample data if API fails
-        this.loadSampleData();
-      }
+      console.log('Inventory data loaded:', listData);
+      this.inventory = Array.isArray(listData.data) ? listData.data : Array.isArray(listData) ? listData : [];
+      this.filteredInventory = [...this.inventory];
+      
+      console.log('Current inventory:', this.inventory);
+      this.updateOverviewCards();
+      this.renderInventoryTable();
     } catch (error) {
       console.error('Error loading inventory data:', error);
       console.log('Loading sample data as fallback...');
@@ -245,26 +252,45 @@ class InventoryManager {
       total_items: sampleInventory.length,
       critical_count: sampleInventory.filter(item => item.current_quantity <= 0).length,
       low_stock_count: sampleInventory.filter(item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length,
-      warning_count: sampleInventory.filter(item => item.current_quantity > item.minimum_quantity && item.current_quantity <= item.minimum_quantity * 1.5).length
+      // warning_count: sampleInventory.filter(item => item.current_quantity > item.minimum_quantity && item.current_quantity <= item.minimum_quantity * 1.5).length
     });
 
     this.renderInventoryTable();
     console.log('Sample data loaded and table rendered');
   }
 
-  updateOverviewCards(summaryData) {
-    // Update overview cards with real data
-    if (summaryData.total_items !== undefined) {
-      document.getElementById('total-items').textContent = summaryData.total_items;
+  updateOverviewCards() {
+    console.log('Updating overview cards with inventory:', this.inventory);
+    
+    const totalItems = this.inventory.length;
+    const outOfStockCount = this.inventory.filter(item => item.current_quantity <= 0).length;
+    const lowStockCount = this.inventory.filter(
+      item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity
+    ).length;
+
+    const totalItemsElement = document.getElementById('total-items');
+    const lowStockElement = document.getElementById('low-stock-items');
+    const criticalElement = document.getElementById('critical-items');
+
+    if (totalItemsElement) {
+      totalItemsElement.textContent = totalItems;
+      console.log('Total items updated:', totalItems);
+    } else {
+      console.warn("Element 'total-items' not found in DOM");
     }
-    if (summaryData.critical_count !== undefined) {
-      document.getElementById('critical-items').textContent = summaryData.critical_count;
+
+    if (lowStockElement) {
+      lowStockElement.textContent = lowStockCount;
+      console.log('Low stock items updated:', lowStockCount);
+    } else {
+      console.warn("Element 'low-stock-items' not found in DOM");
     }
-    if (summaryData.low_stock_count !== undefined) {
-      document.getElementById('low-stock-items').textContent = summaryData.low_stock_count;
-    }
-    if (summaryData.warning_count !== undefined) {
-      document.getElementById('warning-items').textContent = summaryData.warning_count;
+
+    if (criticalElement) {
+      criticalElement.textContent = outOfStockCount;
+      console.log('Critical items updated:', outOfStockCount);
+    } else {
+      console.warn("Element 'critical-items' not found in DOM");
     }
   }
 
@@ -349,8 +375,6 @@ class InventoryManager {
       return { class: 'status-badge status-out-of-stock', text: 'Out of Stock' };
     } else if (item.current_quantity <= item.minimum_quantity) {
       return { class: 'status-badge status-low-stock', text: 'Low Stock' };
-    } else if (item.current_quantity <= item.minimum_quantity * 1.5) {
-      return { class: 'status-badge status-warning', text: 'Warning' };
     } else {
       return { class: 'status-badge status-in-stock', text: 'In Stock' };
     }
@@ -412,27 +436,61 @@ class InventoryManager {
     this.renderInventoryTable();
   }
 
-  applyStockFilter() {
-    const statusFilter = document.getElementById('status-filter');
-    const quantityMin = document.getElementById('quantity-min');
-    const quantityMax = document.getElementById('quantity-max');
+  toggleFilterStock() {
+    const dropdown = document.getElementById('filter-dropdown');
+    const filterBtn = document.querySelector('.filter-btn'); // Sesuaikan selector jika perlu
+    const isShown = dropdown.classList.toggle('show');
 
-    if (!statusFilter || !quantityMin || !quantityMax) {
+    if (isShown) {
+        // Hitung tinggi dinamis saat dropdown muncul
+        const btnRect = filterBtn.getBoundingClientRect();
+        const availableHeight = window.innerHeight - btnRect.bottom - 20; // Minus 20px untuk margin safety
+        
+        // Set max-height ke tinggi tersedia (minimal 200px agar tidak terlalu kecil)
+        dropdown.style.maxHeight = Math.max(200, availableHeight) + 'px';
+    } else {
+        // Reset max-height saat ditutup (opsional)
+        dropdown.style.maxHeight = 'none';
+    }
+  }
+
+  applyStockFilter() {
+    const categoryFilter = document.getElementById('category-filter');
+    const unitFilter = document.getElementById('unit-filter');
+    const statusFilter = document.getElementById('status-filter');
+    const sortFilter = document.getElementById('sort-filter');
+
+    if (!categoryFilter || !unitFilter || !statusFilter || !sortFilter) {
       console.warn("Filter elements not found in DOM");
       return;
     }
 
+    const categoryValue = categoryFilter.value;
+    const unitValue = unitFilter.value;
     const statusValue = statusFilter.value;
-    const minValue = parseFloat(quantityMin.value) || 0;
-    const maxValue = parseFloat(quantityMax.value) || Infinity;
+    const sortValue = sortFilter.value;
 
+    // Filter data
     this.filteredInventory = this.inventory.filter(item => {
-      const statusMatch = !statusValue ||
-        (statusValue === 'Yes' && item.current_quantity > item.minimum_quantity) ||
-        (statusValue === 'No' && item.current_quantity <= item.minimum_quantity);
-      const quantityMatch = item.current_quantity >= minValue && item.current_quantity <= maxValue;
-      return statusMatch && quantityMatch;
+      const categoryMatch = !categoryValue || item.category === categoryValue;
+      const unitMatch = !unitValue || item.unit === unitValue;
+      
+      // Status filter logic
+      let statusMatch = true;
+      if (statusValue) {
+        const status = this.getStockStatus(item);
+        statusMatch = status.text.toLowerCase().replace(' ', '-') === statusValue;
+      }
+      
+      return categoryMatch && unitMatch && statusMatch;
     });
+
+    // Sort data
+    if (sortValue === 'a-z') {
+      this.filteredInventory.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortValue === 'z-a') {
+      this.filteredInventory.sort((a, b) => b.name.localeCompare(a.name));
+    }
 
     this.currentPage = 1;
     this.renderInventoryTable();
@@ -440,18 +498,21 @@ class InventoryManager {
   }
 
   clearStockFilter() {
+    const categoryFilter = document.getElementById('category-filter');
+    const unitFilter = document.getElementById('unit-filter');
     const statusFilter = document.getElementById('status-filter');
-    const quantityMin = document.getElementById('quantity-min');
-    const quantityMax = document.getElementById('quantity-max');
+    const sortFilter = document.getElementById('sort-filter');
 
+    if (categoryFilter) categoryFilter.value = '';
+    if (unitFilter) unitFilter.value = '';
     if (statusFilter) statusFilter.value = '';
-    if (quantityMin) quantityMin.value = '';
-    if (quantityMax) quantityMax.value = '';
+    if (sortFilter) sortFilter.value = '';
 
     this.filteredInventory = [...this.inventory];
     this.currentPage = 1;
     this.renderInventoryTable();
     this.toggleFilterStock();
+
   }
 
   changeStockPage(direction) {
@@ -470,6 +531,48 @@ class InventoryManager {
     } else {
       console.warn("Entries per page element not found in DOM");
     }
+  }
+
+  viewItem(itemId) {
+    const item= this.inventory.find(i => i.id === itemId);
+    if (!item) {
+      this.showError('Item not found');
+      return;
+    }
+
+    document.getElementById('view-item-name').textContent = item.name;
+    document.getElementById('view-item-category').textContent = this.capitalizeFirst(item.category);
+    document.getElementById('view-item-current').textContent = `${item.current_quantity.toFixed(2)} ${item.unit}`;
+    document.getElementById('view-item-unit').textContent = this.capitalizeFirst(item.unit);
+    document.getElementById('view-item-minimum').textContent = `${item.minimum_quantity.toFixed(2)} ${item.unit}`;
+
+    const status = this.getStockStatus(item);
+    const statusElement = document.getElementById('view-item-status');
+    statusElement.textContent = status.text;
+    statusElement.className = `status-label ${status.class.replace('status-badge', '')}`;
+
+    document.getElementById('view-item-modal').setAttribute('data-item-id', itemId);
+
+    this.showModal('view-item-modal');
+  }
+
+  closeViewItemModal() {
+    this.closeModal('view-item-modal');
+    document.getElementById('view-item-modal').removeAttribute('data-item-id');
+  }
+
+  editFromView() {
+    const itemId = dosument.getElementById('view-item-modal').getAttribute('data-item-id');
+    if (!itemId) {
+      this.showError('No item selected for editing');
+      return;
+    }
+
+    this.closeViewItemModal();
+
+    setTimeout(() => {
+      this.editItem(parseInt(itemId));
+    }, 50);
   }
 
   openAddItemModal() {
@@ -502,6 +605,11 @@ class InventoryManager {
       if (element) element.value = fields[id];
     });
 
+    const itemForm = document.getElementById('item-form');
+    if (itemForm) {
+      itemForm.setAttribute('data-item-id', itemId);
+    }
+
     this.showModal('item-modal');
   }
 
@@ -528,11 +636,14 @@ class InventoryManager {
       minimum_quantity: parseFloat(formData.get('minimum_quantity'))
     };
 
+    const itemId = itemForm.getAttribute('data-item-id');
+    const isEditing = !!itemId;
+
     try {
       let response;
-      if (this.editingItem) {
+      if (isEditing) {
         // Update existing item
-        itemData.id = this.editingItem.id;
+        itemData.id = parseInt(itemId);
         response = await fetch('/inventory/update', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -548,7 +659,7 @@ class InventoryManager {
       }
 
       if (response.ok) {
-        this.showSuccess(this.editingItem ? 'Item updated successfully' : 'Item added successfully');
+        this.showSuccess(isEditing ? 'Item updated successfully' : 'Item added successfully');
         this.closeModal('item-modal');
         this.loadInventoryData(); // Reload data
       } else {
@@ -562,10 +673,10 @@ class InventoryManager {
     }
   }
 
-  handleLocalFormSubmission(itemData) {
-    if (this.editingItem) {
+  handleLocalFormSubmission(itemData, isEditing, itemId) {
+    if (isEditing) {
       // Update existing item in local data
-      const index = this.inventory.findIndex(item => item.id === this.editingItem.id);
+      const index = this.inventory.findIndex(item => item.id === parseInt(item.id));
       if (index !== -1) {
         this.inventory[index] = { ...this.inventory[index], ...itemData };
         this.showSuccess('Item updated successfully (local demo)');
@@ -584,7 +695,7 @@ class InventoryManager {
       total_items: this.inventory.length,
       critical_count: this.inventory.filter(item => item.current_quantity <= 0).length,
       low_stock_count: this.inventory.filter(item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length,
-      warning_count: this.inventory.filter(item => item.current_quantity > item.minimum_quantity && item.current_quantity <= item.minimum_quantity * 1.5).length
+      // warning_count: this.inventory.filter(item => item.current_quantity > item.minimum_quantity && item.current_quantity <= item.minimum_quantity * 1.5).length
     });
     this.closeModal('item-modal');
   }
@@ -625,7 +736,7 @@ class InventoryManager {
         total_items: this.inventory.length,
         critical_count: this.inventory.filter(item => item.current_quantity <= 0).length,
         low_stock_count: this.inventory.filter(item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length,
-        warning_count: this.inventory.filter(item => item.current_quantity > item.minimum_quantity && item.current_quantity <= item.minimum_quantity * 1.5).length
+        // warning_count: this.inventory.filter(item => item.current_quantity > item.minimum_quantity && item.current_quantity <= item.minimum_quantity * 1.5).length
       });
     }
   }
@@ -645,6 +756,13 @@ class InventoryManager {
       modal.classList.add('hidden');
     }
     this.editingItem = null;
+
+    if (modalId === 'item-modal') {
+      const itemForm = document.getElementById('item-form');
+      if (itemForm) {
+        itemForm.removeAttribute('data-item-id');
+      }
+    }
   }
 
   showSuccess(message) {
@@ -755,112 +873,112 @@ class InventoryManager {
     }
   }
 
-  // Bulk Stock Modal Methods
-  openBulkStockModal() {
-    this.populateBulkIngredientSelect();
-    this.showModal('bulk-stock-modal');
-  }
+  // // Bulk Stock Modal Methods
+  // openBulkStockModal() {
+  //   this.populateBulkIngredientSelect();
+  //   this.showModal('bulk-stock-modal');
+  // }
 
-  populateBulkIngredientSelect() {
-    const selects = document.querySelectorAll('#bulk-stock-items select[name="ingredient_id[]"]');
-    if (selects.length === 0) {
-      console.warn("Bulk stock select elements not found in DOM");
-    }
-    selects.forEach(select => {
-      select.innerHTML = '<option value="">Select Ingredient</option>';
-      this.inventory.forEach(item => {
-        const option = document.createElement('option');
-        option.value = item.id;
-        option.textContent = `${item.name} (${item.current_quantity.toFixed(2)} ${item.unit})`;
-        select.appendChild(option);
-      });
-    });
-  }
+  // populateBulkIngredientSelect() {
+  //   const selects = document.querySelectorAll('#bulk-stock-items select[name="ingredient_id[]"]');
+  //   if (selects.length === 0) {
+  //     console.warn("Bulk stock select elements not found in DOM");
+  //   }
+  //   selects.forEach(select => {
+  //     select.innerHTML = '<option value="">Select Ingredient</option>';
+  //     this.inventory.forEach(item => {
+  //       const option = document.createElement('option');
+  //       option.value = item.id;
+  //       option.textContent = `${item.name} (${item.current_quantity.toFixed(2)} ${item.unit})`;
+  //       select.appendChild(option);
+  //     });
+  //   });
+  // }
 
-  addBulkItem() {
-    const container = document.getElementById('bulk-stock-items');
-    // if (!container) {
-    //   console.warn("Bulk stock items container not found in DOM");
-    //   return;
-    // }
-    addStockForm.reset();
-    const newItem = document.createElement('div');
-    newItem.className = 'bulk-stock-item';
-    newItem.innerHTML = `
-      <select name="ingredient_id[]" required>
-        <option value="">Select Ingredient</option>
-      </select>
-      <input type="number" name="quantity[]" placeholder="Qty" min="0" step="0.01" required>
-      <button type="button" class="remove-bulk-item-btn" onclick="inventoryManager.removeBulkItem(this)">
-        <i class="fas fa-minus"></i>
-      </button>
-    `;
+  // addBulkItem() {
+  //   const container = document.getElementById('bulk-stock-items');
+  //   // if (!container) {
+  //   //   console.warn("Bulk stock items container not found in DOM");
+  //   //   return;
+  //   // }
+  //   addStockForm.reset();
+  //   const newItem = document.createElement('div');
+  //   newItem.className = 'bulk-stock-item';
+  //   newItem.innerHTML = `
+  //     <select name="ingredient_id[]" required>
+  //       <option value="">Select Ingredient</option>
+  //     </select>
+  //     <input type="number" name="quantity[]" placeholder="Qty" min="0" step="0.01" required>
+  //     <button type="button" class="remove-bulk-item-btn" onclick="inventoryManager.removeBulkItem(this)">
+  //       <i class="fas fa-minus"></i>
+  //     </button>
+  //   `;
     
-    container.appendChild(newItem);
-    this.populateBulkIngredientSelect();
-  }
+  //   container.appendChild(newItem);
+  //   this.populateBulkIngredientSelect();
+  // }
 
-  removeBulkItem(button) {
-    button.parentElement.remove();
-  }
+  // removeBulkItem(button) {
+  //   button.parentElement.remove();
+  // }
 
-  async handleBulkStockSubmit() {
-    // const formData = new FormData(document.getElementById('bulk-stock-form'));
-    const bulkStockForm = document.getElementById('bulk-stock-form');
-    if (!bulkStockForm) {
-      console.warn("Bulk stock form not found in DOM");
-      return;
-    }
+  // async handleBulkStockSubmit() {
+  //   // const formData = new FormData(document.getElementById('bulk-stock-form'));
+  //   const bulkStockForm = document.getElementById('bulk-stock-form');
+  //   if (!bulkStockForm) {
+  //     console.warn("Bulk stock form not found in DOM");
+  //     return;
+  //   }
 
-    const formData = new FormData(bulkStockForm);
-    const ingredientIds = formData.getAll('ingredient_id[]');
-    const quantities = formData.getAll('quantity[]');
-    const notes = formData.get('notes') || '';
+  //   const formData = new FormData(bulkStockForm);
+  //   const ingredientIds = formData.getAll('ingredient_id[]');
+  //   const quantities = formData.getAll('quantity[]');
+  //   const notes = formData.get('notes') || '';
 
-    const stockItems = ingredientIds.map((id, index) => ({
-      ingredient_id: parseInt(id),
-      quantity: parseFloat(quantities[index])
-    }));
+  //   const stockItems = ingredientIds.map((id, index) => ({
+  //     ingredient_id: parseInt(id),
+  //     quantity: parseFloat(quantities[index])
+  //   }));
 
-    const bulkData = {
-      stock_items: stockItems,
-      notes: notes
-    };
+  //   const bulkData = {
+  //     stock_items: stockItems,
+  //     notes: notes
+  //   };
 
-    try {
-      const response = await fetch('/inventory/stock/bulk_add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bulkData)
-      });
+  //   try {
+  //     const response = await fetch('/inventory/stock/bulk_add', {
+  //       method: 'POST',
+  //       headers: { 'Content-Type': 'application/json' },
+  //       body: JSON.stringify(bulkData)
+  //     });
 
-      if (response.ok) {
-        this.showSuccess('Bulk stock added successfully');
-        this.closeModal('bulk-stock-modal');
-        this.loadInventoryData();
-        // document.getElementById('bulk-stock-form').reset();
-        // Reset bulk items to single item
-        bulkStockForm.reset();
-        document.getElementById('bulk-stock-items').innerHTML = `
-          <div class="bulk-stock-item">
-            <select name="ingredient_id[]" required>
-              <option value="">Select Ingredient</option>
-            </select>
-            <input type="number" name="quantity[]" placeholder="Qty" min="0" step="0.01" required>
-            <button type="button" class="remove-bulk-item-btn" onclick="inventoryManager.removeBulkItem(this)">
-              <i class="fas fa-minus"></i>
-            </button>
-          </div>
-        `;
-      } else {
-        const errorData = await response.json();
-        this.showError(errorData.error || 'Failed to add bulk stock');
-      }
-    } catch (error) {
-      console.error('Error adding bulk stock:', error);
-      this.showError('Failed to add bulk stock');
-    }
-  }
+  //     if (response.ok) {
+  //       this.showSuccess('Bulk stock added successfully');
+  //       this.closeModal('bulk-stock-modal');
+  //       this.loadInventoryData();
+  //       // document.getElementById('bulk-stock-form').reset();
+  //       // Reset bulk items to single item
+  //       bulkStockForm.reset();
+  //       document.getElementById('bulk-stock-items').innerHTML = `
+  //         <div class="bulk-stock-item">
+  //           <select name="ingredient_id[]" required>
+  //             <option value="">Select Ingredient</option>
+  //           </select>
+  //           <input type="number" name="quantity[]" placeholder="Qty" min="0" step="0.01" required>
+  //           <button type="button" class="remove-bulk-item-btn" onclick="inventoryManager.removeBulkItem(this)">
+  //             <i class="fas fa-minus"></i>
+  //           </button>
+  //         </div>
+  //       `;
+  //     } else {
+  //       const errorData = await response.json();
+  //       this.showError(errorData.error || 'Failed to add bulk stock');
+  //     }
+  //   } catch (error) {
+  //     console.error('Error adding bulk stock:', error);
+  //     this.showError('Failed to add bulk stock');
+  //   }
+  // }
 
   // Consumption Log Modal Methods
   openConsumptionLogModal() {
@@ -959,9 +1077,21 @@ class InventoryManager {
 }
 
 // Global functions for onclick handlers
-window.removeBulkItem = function(button) {
+// window.removeBulkItem = function(button) {
+//   if (window.inventoryManager) {
+//     window.inventoryManager.removeBulkItem(button);
+//   }
+// };
+
+window.closeViewItemModal = function() {
   if (window.inventoryManager) {
-    window.inventoryManager.removeBulkItem(button);
+    window.inventoryManager.closeViewItemModal();
+  }
+};
+
+window.editFromView = function() {
+  if (window.inventoryManager) {
+    window.inventoryManager.editFromView();
   }
 };
 

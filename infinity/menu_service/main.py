@@ -653,8 +653,8 @@ def get_suggestions(db: Session = Depends(get_db)):
     
     return {
         "status": "success", 
-        "message": f"Hallo! Kami punya beberapa usulan menu yang baru nih dari pelanggan lain, coba cek siapa tahu ada yang cocok dengan anda:",
-        "data": suggestion_data
+        "message": f" Hallo! Kami punya beberapa usulan menu yang baru nih dari pelanggan lain, coba cek siapa tahu ada yang cocok dengan anda:",
+        "data": menu_names
     }
 
 @app.get("/menu_suggestion/raw", summary="Raw Usulan untuk Report", tags=["Usulan Menu"], operation_id="list raw usulan menu")

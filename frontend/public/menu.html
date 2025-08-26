@@ -1,465 +1,466 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Menu Management - Infinity Cafe</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="css/responsive-tables.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-</head>
-<body data-page="menu">
-  <!-- Header -->
-  <nav class="header">
-    <div class="header-brand">
-      <h1 class="header-title" id="navbar-title">Management Menu</h1>
-      <p class="header-subtitle">Stephany | Barista</p>
+  <!DOCTYPE html>
+  <html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Menu Management - Infinity Cafe</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="css/responsive-tables.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  </head>
+  <body data-page="menu">
+    <!-- Header -->
+    <nav class="header">
+      <div class="header-brand">
+        <h1 class="header-title" id="navbar-title">Management Menu</h1>
+        <p class="header-subtitle">Stephany | Barista</p>
+      </div>
+      <div class="header-menu">
+        <button class="nav-btn" id="nav-dashboard" onclick="window.location.href = '/dashboard';">Dashboard</button>
+        <button class="nav-btn active" id="nav-menu" onclick="window.location.href = '/menu-management';">Menu Management</button>
+        <!-- <button class="nav-btn" id="nav-suggestion" onclick="window.location.href = '/menu-suggestion';">Usulan Menu</button> -->
+        <button class="nav-btn" id="nav-stok" onclick="window.location.href = '/stock-management';">Stock Management</button>
+      </div>
+      <div class="header-right">
+        <!-- <div class="search-container">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input type="text" placeholder="Search" class="search-input">
+        </div>
+        <div class="kitchen-status-container"> -->
+          <label class="switch">
+            <input type="checkbox" id="kitchen-toggle" checked>
+            <span class="slider"></span>
+          </label>
+          <!-- <span id="kitchen-status-text" class="kitchen-status-text">BUKA</span> -->
+        </div>
+      </div>
+    </nav>
+
+    <!-- Kitchen Off Banner -->
+    <div id="kitchen-off-banner" class="kitchen-off-banner hidden">
+        🚫 Dapur sedang OFF. Tidak dapat menerima/memproses pesanan.
     </div>
-    <div class="header-menu">
-      <button class="nav-btn" id="nav-dashboard" onclick="window.location.href = '/dashboard';">Dashboard</button>
-      <button class="nav-btn active" id="nav-menu" onclick="window.location.href = '/menu-management';">Menu Management</button>
-      <button class="nav-btn" id="nav-suggestion" onclick="window.location.href = '/menu-suggestion';">Usulan Menu</button>
-      <button class="nav-btn" id="nav-stok" onclick="window.location.href = '/stock-management';">Stock Management</button>
+
+    <!-- Offline Banner -->
+    <div id="offline-banner" class="offline-banner hidden">
+        🔌 Gagal ambil data. Cek koneksi.
     </div>
-    <div class="header-right">
-      <!-- <div class="search-container">
-        <i class="fa-solid fa-magnifying-glass search-icon"></i>
-        <input type="text" placeholder="Search" class="search-input">
-      </div>
-      <div class="kitchen-status-container"> -->
-        <label class="switch">
-          <input type="checkbox" id="kitchen-toggle" checked>
-          <span class="slider"></span>
-        </label>
-        <!-- <span id="kitchen-status-text" class="kitchen-status-text">BUKA</span> -->
-      </div>
-    </div>
-  </nav>
 
-  <!-- Kitchen Off Banner -->
-  <div id="kitchen-off-banner" class="kitchen-off-banner hidden">
-      🚫 Dapur sedang OFF. Tidak dapat menerima/memproses pesanan.
-  </div>
+    <!-- Main Content -->
+    <div class="main-container">
+      <div class="content-area">
+      
+        <!-- Greeting Message -->
+        <div class="greeting-message">
+          <h2>Hi, John Doe, here's list menu!</h2>
+          <p class="greeting-date" id="greeting-date">Monday, 14th July 2025</p>
+        </div>
 
-  <!-- Offline Banner -->
-  <div id="offline-banner" class="offline-banner hidden">
-      🔌 Gagal ambil data. Cek koneksi.
-  </div>
+        <!-- Tab Navigation -->
+        <div class="tab-navigation">
+          <button id="tab-menu" class="tab-btn" onclick="switchTab('menu')">MENU</button>
+          <button id="tab-flavors" class="tab-btn" onclick="switchTab('flavors')">FLAVORS</button>
+          <button id="tab-menu-suggestion" class="tab-btn tab-menu-suggestion" onclick="window.location.href = 'menu-suggestion';">MENU SUGGESTION</button>
+          <button class="add-order-btn" id="add-new-btn" onclick="openAddModal()">ADD NEW MENU</button>
+        </div>
 
-  <!-- Main Content -->
-  <div class="main-container">
-<div class="content-area">
-    
-      <!-- Greeting Message -->
-      <div class="greeting-message">
-        <h2>Hi, John Doe, here's list menu!</h2>
-        <p class="greeting-date" id="greeting-date">Monday, 14th July 2025</p>
-      </div>
-
-      <!-- Tab Navigation -->
-      <div class="tab-navigation">
-        <button id="tab-menu" class="tab-btn tab-active" onclick="switchTab('menu')">MENU</button>
-        <button id="tab-flavors" class="tab-btn" onclick="switchTab('flavors')">FLAVORS</button>
-        <button class="add-order-btn" id="add-new-btn" onclick="openAddModal()">ADD NEW MENU</button>
-      </div>
-
-      <!-- Tab Content -->
-      <div id="tab-content">
-        <!-- Menu Tab (Default) -->
-        <div id="tab-menu-content" class="tab-panel active">
-          <div class="table-container">
-            <!-- Search and Filter Section for Menu -->
-            <div class="search-filter-section">
-              <div class="search-container">
-                <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                <input type="text" id="menu-search" placeholder="Search menu..." class="search-input">
-              </div>
-              <div class="filter-container">
-                <button class="filter-btn" onclick="toggleFilterMenu()">
-                  <i class="fas fa-filter"></i>
-                  Filter
-                </button>
-                <div class="filter-dropdown" id="menu-filter-dropdown">
-                  <div class="filter-group">
-                    <label>Status:</label>
-                    <select id="menu-status-filter">
-                      <option value="">All</option>
-                      <option value="Yes">Available</option>
-                      <option value="No">Unavailable</option>
-                    </select>
-            </div>
-                  <div class="filter-group">
-                    <label>Price Range:</label>
-                    <div class="price-range">
-                      <input type="number" id="menu-price-min" placeholder="Min" class="price-input">
-                      <span>-</span>
-                      <input type="number" id="menu-price-max" placeholder="Max" class="price-input">
+        <!-- Tab Content -->
+        <div id="tab-content">
+          <!-- Menu Tab (Default) -->
+          <div id="tab-menu-content" class="tab-panel active">
+            <div class="table-container">
+              <!-- Search and Filter Section for Menu -->
+              <div class="search-filter-section">
+                <div class="search-container">
+                  <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                  <input type="text" id="menu-search" placeholder="Search menu..." class="search-input">
+                </div>
+                <div class="filter-container">
+                  <button class="filter-btn" onclick="toggleFilterMenu()">
+                    <i class="fas fa-filter"></i>
+                    Filter
+                  </button>
+                  <div class="filter-dropdown" id="menu-filter-dropdown">
+                    <div class="filter-group">
+                      <label>Status:</label>
+                      <select id="menu-status-filter">
+                        <option value="">All</option>
+                        <option value="Yes">Available</option>
+                        <option value="No">Unavailable</option>
+                      </select>
+                    </div>
+                    <div class="filter-group">
+                      <label>Price Range:</label>
+                      <div class="price-range">
+                        <input type="number" id="menu-price-min" placeholder="Min" class="price-input">
+                        <span>-</span>
+                        <input type="number" id="menu-price-max" placeholder="Max" class="price-input">
+                      </div>
+                    </div>
+                    <div class="filter-actions">
+                      <button class="apply-filter-btn" onclick="applyMenuFilter()">Apply</button>
+                      <button class="clear-filter-btn" onclick="clearMenuFilter()">Clear</button>
                     </div>
                   </div>
-                  <div class="filter-actions">
-                    <button class="apply-filter-btn" onclick="applyMenuFilter()">Apply</button>
-                    <button class="clear-filter-btn" onclick="clearMenuFilter()">Clear</button>
+                </div>
+              </div>
+              
+              <!-- Table Info -->
+              <div class="table-info">
+                <span id="menu-table-info">Showing 0 of 0 entries</span>
+              </div>
+              
+              <table id="menu-table">
+                <thead>
+                  <tr>
+                    <th>NO</th>
+                    <th>MENU NAME</th>
+                    <th>PRICE</th>
+                    <th>STATUS</th>
+                    <th class="action-header">ACTION</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Rows will be populated by script.js -->
+                </tbody>
+              </table>
+              
+              <!-- Pagination for Menu -->
+              <div class="pagination-container" id="menu-pagination">
+                <div class="pagination-info">
+                  <span id="menu-pagination-info">Page 1 of 1</span>
+                </div>
+                <div class="pagination-controls">
+                  <button class="pagination-btn" id="menu-prev-btn" onclick="changeMenuPage(-1)">
+                    <i class="fas fa-chevron-left"></i>
+                  </button>
+                  <div class="page-numbers" id="menu-page-numbers">
+                    <!-- Page numbers will be generated here -->
                   </div>
+                  <button class="pagination-btn" id="menu-next-btn" onclick="changeMenuPage(1)">
+                    <i class="fas fa-chevron-right"></i>
+                  </button>
+                </div>
+                <div class="pagination-size">
+                  <label>Show:</label>
+                  <select id="menu-page-size" onchange="changeMenuPageSize()">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                  </select>
+                  <span>entries</span>
                 </div>
               </div>
             </div>
-            
-            <!-- Table Info -->
-            <div class="table-info">
-              <span id="menu-table-info">Showing 0 of 0 entries</span>
-            </div>
-            
-            <table id="menu-table">
-              <thead>
-                <tr>
-                  <th>NO</th>
-                  <th>MENU NAME</th>
-                  <th>PRICE</th>
-                  <th>STATUS</th>
-                  <th class="action-header">ACTION</th>
-                </tr>
-              </thead>
-              <tbody>
-                <!-- Rows will be populated by script.js -->
-              </tbody>
-            </table>
-            
-            <!-- Pagination for Menu -->
-            <div class="pagination-container" id="menu-pagination">
-              <div class="pagination-info">
-                <span id="menu-pagination-info">Page 1 of 1</span>
-              </div>
-              <div class="pagination-controls">
-                <button class="pagination-btn" id="menu-prev-btn" onclick="changeMenuPage(-1)">
-                  <i class="fas fa-chevron-left"></i>
-                </button>
-                <div class="page-numbers" id="menu-page-numbers">
-                  <!-- Page numbers will be generated here -->
-                </div>
-                <button class="pagination-btn" id="menu-next-btn" onclick="changeMenuPage(1)">
-                  <i class="fas fa-chevron-right"></i>
-                </button>
-              </div>
-              <div class="pagination-size">
-                <label>Show:</label>
-                <select id="menu-page-size" onchange="changeMenuPageSize()">
-                  <option value="5">5</option>
-                  <option value="10" selected>10</option>
-                  <option value="25">25</option>
-                  <option value="50">50</option>
-                </select>
-                <span>entries</span>
-              </div>
-            </div>
           </div>
-        </div>
 
-        <!-- Flavors Tab -->
-        <div id="tab-flavors-content" class="tab-panel">
-          <div class="table-container">
-            <!-- Search and Filter Section for Flavors -->
-            <div class="search-filter-section">
-              <div class="search-container">
-                <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                <input type="text" id="flavor-search" placeholder="Search flavors..." class="search-input">
-              </div>
-              <div class="filter-container">
-                <button class="filter-btn" onclick="toggleFilterFlavor()">
-                  <i class="fas fa-filter"></i>
-                  Filter
-                </button>
-                <div class="filter-dropdown" id="flavor-filter-dropdown">
-                  <div class="filter-group">
-                    <label>Status:</label>
-                    <select id="flavor-status-filter">
-                      <option value="">All</option>
-                      <option value="Yes">Available</option>
-                      <option value="No">Unavailable</option>
-                    </select>
-                  </div>
-                  <div class="filter-group">
-                    <label>Price Range:</label>
-                    <div class="price-range">
-                      <input type="number" id="flavor-price-min" placeholder="Min" class="price-input">
-                      <span>-</span>
-                      <input type="number" id="flavor-price-max" placeholder="Max" class="price-input">
-            </div>
-                  </div>
-                  <div class="filter-actions">
-                    <button class="apply-filter-btn" onclick="applyFlavorFilter()">Apply</button>
-                    <button class="clear-filter-btn" onclick="clearFlavorFilter()">Clear</button>
+          <!-- Flavors Tab -->
+          <div id="tab-flavors-content" class="tab-panel">
+            <div class="table-container">
+              <!-- Search and Filter Section for Flavors -->
+              <div class="search-filter-section">
+                <div class="search-container">
+                  <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                  <input type="text" id="flavor-search" placeholder="Search flavors..." class="search-input">
+                </div>
+                <div class="filter-container">
+                  <button class="filter-btn" onclick="toggleFilterFlavor()">
+                    <i class="fas fa-filter"></i>
+                    Filter
+                  </button>
+                  <div class="filter-dropdown" id="flavor-filter-dropdown">
+                    <div class="filter-group">
+                      <label>Status:</label>
+                      <select id="flavor-status-filter">
+                        <option value="">All</option>
+                        <option value="Yes">Available</option>
+                        <option value="No">Unavailable</option>
+                      </select>
+                    </div>
+                    <div class="filter-group">
+                      <label>Price Range:</label>
+                      <div class="price-range">
+                        <input type="number" id="flavor-price-min" placeholder="Min" class="price-input">
+                        <span>-</span>
+                        <input type="number" id="flavor-price-max" placeholder="Max" class="price-input">
+                      </div>
+                    </div>
+                    <div class="filter-actions">
+                      <button class="apply-filter-btn" onclick="applyFlavorFilter()">Apply</button>
+                      <button class="clear-filter-btn" onclick="clearFlavorFilter()">Clear</button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-            
-            <!-- Table Info -->
-            <div class="table-info">
-              <span id="flavor-table-info">Showing 0 of 0 entries</span>
-            </div>
-            
-            <table id="flavors-table">
-              <thead>
-                <tr>
-                  <th>NO</th>
-                  <th>FLAVOUR NAME</th>
-                  <th>ADDITIONAL PRICE</th>
-                  <th>STATUS</th>
-                  <th class="action-header">ACTION</th>
-                </tr>
-              </thead>
-              <tbody>
+              
+              <!-- Table Info -->
+              <div class="table-info">
+                <span id="flavor-table-info">Showing 0 of 0 entries</span>
+              </div>
+              
+              <table id="flavors-table">
+                <thead>
+                  <tr>
+                    <th>NO</th>
+                    <th>FLAVOUR NAME</th>
+                    <th>ADDITIONAL PRICE</th>
+                    <th>STATUS</th>
+                    <th class="action-header">ACTION</th>
+                  </tr>
+                </thead>
+                <tbody>
 
-              </tbody>
-            </table>
-            
-            <!-- Pagination for Flavors -->
-            <div class="pagination-container" id="flavor-pagination">
-              <div class="pagination-info">
-                <span id="flavor-pagination-info">Page 1 of 1</span>
+                </tbody>
+              </table>
+              
+              <!-- Pagination for Flavors -->
+              <div class="pagination-container" id="flavor-pagination">
+                <div class="pagination-info">
+                  <span id="flavor-pagination-info">Page 1 of 1</span>
+            </div>
+                <div class="pagination-controls">
+                  <button class="pagination-btn" id="flavor-prev-btn" onclick="changeFlavorPage(-1)">
+                    <i class="fas fa-chevron-left"></i>
+                  </button>
+                  <div class="page-numbers" id="flavor-page-numbers">
+                    <!-- Page numbers will be generated here -->
           </div>
-              <div class="pagination-controls">
-                <button class="pagination-btn" id="flavor-prev-btn" onclick="changeFlavorPage(-1)">
-                  <i class="fas fa-chevron-left"></i>
-                </button>
-                <div class="page-numbers" id="flavor-page-numbers">
-                  <!-- Page numbers will be generated here -->
-        </div>
-                <button class="pagination-btn" id="flavor-next-btn" onclick="changeFlavorPage(1)">
-                  <i class="fas fa-chevron-right"></i>
-                </button>
-        </div>
-              <div class="pagination-size">
-                <label>Show:</label>
-                <select id="flavor-page-size" onchange="changeFlavorPageSize()">
-                  <option value="5">5</option>
-                  <option value="10" selected>10</option>
-                  <option value="25">25</option>
-                  <option value="50">50</option>
-                </select>
-                <span>entries</span>
+                  <button class="pagination-btn" id="flavor-next-btn" onclick="changeFlavorPage(1)">
+                    <i class="fas fa-chevron-right"></i>
+                  </button>
+          </div>
+                <div class="pagination-size">
+                  <label>Show:</label>
+                  <select id="flavor-page-size" onchange="changeFlavorPageSize()">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                  </select>
+                  <span>entries</span>
+                </div>
               </div>
             </div>
           </div>
+
+
         </div>
-
-
       </div>
     </div>
-  </div>
 
-  <!-- Add Menu Modal -->
-  <div id="add-menu-modal" class="modal hidden">
-    <div class="modal-content add-menu-modal">
-      <button class="modal-close" onclick="closeAddMenuModal()">
-        &times;
-      </button>
-      <h3 class="modal-title">Add New Menu</h3>
-      <form id="add-menu-form">
-        <div class="form-group">
-          <label for="base-name">Menu Name</label>
-          <input type="text" id="base-name" name="base-name" placeholder="Type Here ..." required />
-        </div>
-        <div class="form-group">
-          <label for="base-price">Price</label>
-          <input type="number" id="base-price" name="base-price" placeholder="Type Here ..." required min="0" step="1" />
-        </div>
-        <div class="form-group">
-          <label for="is-avail">Status</label>
-          <div class="radio-group">
-            <div class="radio-option">
-              <input type="radio" id="is-avail-true" name="is-avail" value="true" checked />
-              <label for="is-avail-true">Available</label>
-            </div>
-            <div class="radio-option">
-              <input type="radio" id="is-avail-false" name="is-avail" value="false" />
-              <label for="is-avail-false">Unavailable</label>
-            </div>
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="menu-flavors">Available Flavors</label>
-          <div class="flavor-selector">
-            <div class="flavor-selector-header">
-              <button type="button" class="select-all-btn" onclick="toggleAllFlavors()">Select All</button>
-              <button type="button" class="clear-all-btn" onclick="clearAllFlavors()">Clear All</button>
-            </div>
-            <div class="flavor-checkboxes" id="flavor-checkboxes">
-              <!-- Flavor checkboxes will be populated here -->
-            </div>
-          </div>
-        </div>
-        <button type="submit" class="save-button">
-          <span class="fa fa-save"></span>
-          <span>Save Menu</span>
+    <!-- Add Menu Modal -->
+    <div id="add-menu-modal" class="modal hidden">
+      <div class="modal-content add-menu-modal">
+        <button class="modal-close" onclick="closeAddMenuModal()">
+          &times;
         </button>
-      </form>
-      <div id="form-error" class="error"></div>
-    </div>
-  </div>
-
-  <!-- Add Flavour Modal -->
-  <div id="add-flavour-modal" class="modal hidden">
-    <div class="modal-content add-flavour-modal">
-      <button class="modal-close" onclick="closeAddFlavourModal()">
-        &times;
-      </button>
-      <h3 class="modal-title">Create New Flavour</h3>
-      <form id="add-flavour-form">
-        <div class="form-group">
-          <label for="flavour-name">Flavour Name</label>
-          <input type="text" id="flavour-name" name="flavour-name" placeholder="Type Here ..." required />
-        </div>
-        <div class="form-group">
-          <label for="additional-price">Additional Price</label>
-          <input type="number" id="additional-price" name="additional-price" placeholder="Type Here ..." required min="0" step="1" />
-        </div>
-        <div class="form-group">
-          <label for="flavour-is-avail">Status</label>
-          <div class="radio-group">
-            <div class="radio-option">
-              <input type="radio" id="is-flavour-avail-true" name="flavour-is-avail" value="true" checked />
-              <label for="is-flavour-avail-true">Available</label>
-            </div>
-            <div class="radio-option">
-              <input type="radio" id="is-flavour-avail-false" name="flavour-is-avail" value="false" />
-              <label for="is-flavour-avail-false">Unavailable</label>
+        <h3 class="modal-title">Add New Menu</h3>
+        <form id="add-menu-form">
+          <div class="form-group">
+            <label for="base-name">Menu Name</label>
+            <input type="text" id="base-name" name="base-name" placeholder="Type Here ..." required />
+          </div>
+          <div class="form-group">
+            <label for="base-price">Price</label>
+            <input type="number" id="base-price" name="base-price" placeholder="Type Here ..." required min="0" step="1" />
+          </div>
+          <div class="form-group">
+            <label for="is-avail">Status</label>
+            <div class="radio-group">
+              <div class="radio-option">
+                <input type="radio" id="is-avail-true" name="is-avail" value="true" checked />
+                <label for="is-avail-true">Available</label>
+              </div>
+              <div class="radio-option">
+                <input type="radio" id="is-avail-false" name="is-avail" value="false" />
+                <label for="is-avail-false">Unavailable</label>
+              </div>
             </div>
           </div>
-        </div>
-        <button type="submit" class="save-button">
-          <span class="fa fa-save"></span>
-          <span>Save Flavour</span>
+          <div class="form-group">
+            <label for="menu-flavors">Available Flavors</label>
+            <div class="flavor-selector">
+              <div class="flavor-selector-header">
+                <button type="button" class="select-all-btn" onclick="toggleAllFlavors()">Select All</button>
+                <button type="button" class="clear-all-btn" onclick="clearAllFlavors()">Clear All</button>
+              </div>
+              <div class="flavor-checkboxes" id="flavor-checkboxes">
+                <!-- Flavor checkboxes will be populated here -->
+              </div>
+            </div>
+          </div>
+          <button type="submit" class="save-button">
+            <span class="fa fa-save"></span>
+            <span>Save Menu</span>
+          </button>
+        </form>
+        <div id="form-error" class="error"></div>
+      </div>
+    </div>
+
+    <!-- Add Flavour Modal -->
+    <div id="add-flavour-modal" class="modal hidden">
+      <div class="modal-content add-flavour-modal">
+        <button class="modal-close" onclick="closeAddFlavourModal()">
+          &times;
         </button>
-      </form>
-      <div id="flavour-form-error" class="error"></div>
-    </div>
-  </div>
-
-  <!-- View Menu Modal -->
-  <div id="view-menu-modal" class="modal hidden">
-    <div class="modal-content view-modal">
-      <button class="modal-close" onclick="closeViewMenuModal()">
-        &times;
-      </button>
-      <h3 class="modal-title">Menu Details</h3>
-      <div class="view-content">
-        <div class="view-item">
-          <label>Menu Name:</label>
-          <span id="view-menu-name"></span>
-        </div>
-        <div class="view-item">
-          <label>Price:</label>
-          <span id="view-menu-price"></span>
-        </div>
-        <div class="view-item">
-          <label>Status:</label>
-          <span id="view-menu-available"></span>
-        </div>
-        <div class="view-item">
-          <label>Available Flavors:</label>
-          <span id="view-menu-flavors" class="flavor-display"></span>
-        </div>
-      </div>
-      <div class="modal-actions">
-        <button class="modal-btn modal-btn-cancel" onclick="closeViewMenuModal()">Close</button>
-        <button class="modal-btn" onclick="editFromView()">Edit</button>
+        <h3 class="modal-title">Create New Flavour</h3>
+        <form id="add-flavour-form">
+          <div class="form-group">
+            <label for="flavour-name">Flavour Name</label>
+            <input type="text" id="flavour-name" name="flavour-name" placeholder="Type Here ..." required />
+          </div>
+          <div class="form-group">
+            <label for="additional-price">Additional Price</label>
+            <input type="number" id="additional-price" name="additional-price" placeholder="Type Here ..." required min="0" step="1" />
+          </div>
+          <div class="form-group">
+            <label for="flavour-is-avail">Status</label>
+            <div class="radio-group">
+              <div class="radio-option">
+                <input type="radio" id="is-flavour-avail-true" name="flavour-is-avail" value="true" checked />
+                <label for="is-flavour-avail-true">Available</label>
+              </div>
+              <div class="radio-option">
+                <input type="radio" id="is-flavour-avail-false" name="flavour-is-avail" value="false" />
+                <label for="is-flavour-avail-false">Unavailable</label>
+              </div>
+            </div>
+          </div>
+          <button type="submit" class="save-button">
+            <span class="fa fa-save"></span>
+            <span>Save Flavour</span>
+          </button>
+        </form>
+        <div id="flavour-form-error" class="error"></div>
       </div>
     </div>
-  </div>
 
-  <!-- View Flavor Modal -->
-  <div id="view-flavor-modal" class="modal hidden">
-    <div class="modal-content view-modal">
-      <button class="modal-close" onclick="closeViewFlavorModal()">
-        &times;
-      </button>
-      <h3 class="modal-title">Flavor Details</h3>
-      <div class="view-content">
-        <div class="view-item">
-          <label>Flavor Name:</label>
-          <span id="view-flavor-name"></span>
+    <!-- View Menu Modal -->
+    <div id="view-menu-modal" class="modal hidden">
+      <div class="modal-content view-modal">
+        <button class="modal-close" onclick="closeViewMenuModal()">
+          &times;
+        </button>
+        <h3 class="modal-title">Menu Details</h3>
+        <div class="view-content">
+          <div class="view-item">
+            <label>Menu Name:</label>
+            <span id="view-menu-name"></span>
+          </div>
+          <div class="view-item">
+            <label>Price:</label>
+            <span id="view-menu-price"></span>
+          </div>
+          <div class="view-item">
+            <label>Status:</label>
+            <span id="view-menu-available"></span>
+          </div>
+          <div class="view-item">
+            <label>Available Flavors:</label>
+            <span id="view-menu-flavors" class="flavor-display"></span>
+          </div>
         </div>
-        <div class="view-item">
-          <label>Additional Price:</label>
-          <span id="view-flavor-price"></span>
-        </div>
-        <div class="view-item">
-          <label>Status:</label>
-          <span id="view-flavor-available"></span>
+        <div class="modal-actions">
+          <button class="modal-btn modal-btn-cancel" onclick="closeViewMenuModal()">Close</button>
+          <button class="modal-btn" onclick="editFromView()">Edit</button>
         </div>
       </div>
-      <div class="modal-actions">
-        <button class="modal-btn modal-btn-cancel" onclick="closeViewFlavorModal()">Close</button>
-        <button class="modal-btn" onclick="editFlavorFromView()">Edit</button>
+    </div>
+
+    <!-- View Flavor Modal -->
+    <div id="view-flavor-modal" class="modal hidden">
+      <div class="modal-content view-modal">
+        <button class="modal-close" onclick="closeViewFlavorModal()">
+          &times;
+        </button>
+        <h3 class="modal-title">Flavor Details</h3>
+        <div class="view-content">
+          <div class="view-item">
+            <label>Flavor Name:</label>
+            <span id="view-flavor-name"></span>
+          </div>
+          <div class="view-item">
+            <label>Additional Price:</label>
+            <span id="view-flavor-price"></span>
+          </div>
+          <div class="view-item">
+            <label>Status:</label>
+            <span id="view-flavor-available"></span>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="modal-btn modal-btn-cancel" onclick="closeViewFlavorModal()">Close</button>
+          <button class="modal-btn" onclick="editFlavorFromView()">Edit</button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Delete Confirmation Modal -->
-  <div id="delete-confirm-modal" class="modal hidden">
-    <div class="modal-content delete-confirm-modal">
-      <button class="modal-close" onclick="closeDeleteConfirmModal()">
-        &times;
-      </button>
-      <div class="modal-header">
-        <i class="fas fa-exclamation-triangle warning-icon"></i>
-        <h3 class="modal-title">Konfirmasi Hapus</h3>
-      </div>
-      <div class="modal-body">
-        <p id="delete-confirm-message">Apakah Anda yakin ingin menghapus item ini?</p>
-        <p class="delete-warning">Tindakan ini tidak dapat dibatalkan.</p>
-      </div>
-      <div class="modal-actions">
-        <button class="modal-btn modal-btn-cancel" onclick="closeDeleteConfirmModal()">Batal</button>
-        <button class="modal-btn modal-btn-danger" id="delete-confirm-btn">Hapus</button>
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-confirm-modal" class="modal hidden">
+      <div class="modal-content delete-confirm-modal">
+        <button class="modal-close" onclick="closeDeleteConfirmModal()">
+          &times;
+        </button>
+        <div class="modal-header">
+          <i class="fas fa-exclamation-triangle warning-icon"></i>
+          <h3 class="modal-title">Konfirmasi Hapus</h3>
+        </div>
+        <div class="modal-body">
+          <p id="delete-confirm-message">Apakah Anda yakin ingin menghapus item ini?</p>
+          <p class="delete-warning">Tindakan ini tidak dapat dibatalkan.</p>
+        </div>
+        <div class="modal-actions">
+          <button class="modal-btn modal-btn-cancel" onclick="closeDeleteConfirmModal()">Batal</button>
+          <button class="modal-btn modal-btn-danger" id="delete-confirm-btn">Hapus</button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Success Modal -->
-  <div id="success-modal" class="modal hidden">
-    <div class="modal-content success-modal">
-      <button class="modal-close" onclick="closeSuccessModal()">
-        &times;
-      </button>
-      <div class="modal-header">
-        <i class="fas fa-check-circle success-icon"></i>
-        <h3 class="modal-title">Berhasil!</h3>
-      </div>
-      <div class="modal-body">
-        <p id="success-message">Operasi berhasil dilakukan.</p>
-      </div>
-      <div class="modal-actions">
-        <button class="modal-btn" onclick="closeSuccessModal()">OK</button>
+    <!-- Success Modal -->
+    <div id="success-modal" class="modal hidden">
+      <div class="modal-content success-modal">
+        <button class="modal-close" onclick="closeSuccessModal()">
+          &times;
+        </button>
+        <div class="modal-header">
+          <i class="fas fa-check-circle success-icon"></i>
+          <h3 class="modal-title">Berhasil!</h3>
+        </div>
+        <div class="modal-body">
+          <p id="success-message">Operasi berhasil dilakukan.</p>
+        </div>
+        <div class="modal-actions">
+          <button class="modal-btn" onclick="closeSuccessModal()">OK</button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Error Modal -->
-  <div id="error-modal" class="modal hidden">
-    <div class="modal-content error-modal">
-      <button class="modal-close" onclick="closeErrorModal()">
-        &times;
-      </button>
-      <div class="modal-header">
-        <i class="fas fa-exclamation-circle error-icon"></i>
-        <h3 class="modal-title">Terjadi Kesalahan</h3>
-      </div>
-      <div class="modal-body">
-        <p id="error-message">Terjadi kesalahan saat melakukan operasi.</p>
-      </div>
-      <div class="modal-actions">
-        <button class="modal-btn" onclick="closeErrorModal()">OK</button>
+    <!-- Error Modal -->
+    <div id="error-modal" class="modal hidden">
+      <div class="modal-content error-modal">
+        <button class="modal-close" onclick="closeErrorModal()">
+          &times;
+        </button>
+        <div class="modal-header">
+          <i class="fas fa-exclamation-circle error-icon"></i>
+          <h3 class="modal-title">Terjadi Kesalahan</h3>
+        </div>
+        <div class="modal-body">
+          <p id="error-message">Terjadi kesalahan saat melakukan operasi.</p>
+        </div>
+        <div class="modal-actions">
+          <button class="modal-btn" onclick="closeErrorModal()">OK</button>
+        </div>
       </div>
     </div>
-  </div>
 
-  
-  <script src="script.js"></script>
-  <script src="menu.js"></script>
+    
+    <script src="script.js"></script>
+    <script src="menu.js"></script>
 
-</body>
-</html>
+  </body>
+  </html>

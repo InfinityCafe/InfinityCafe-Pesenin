@@ -27,6 +27,51 @@ function updateGreetingDate(format = 'en') {
     }
 }
 
+function switchTab(tabId) {
+    const page = document.body.getAttribute('data-page');
+
+    // Remove active classes from all tab buttons and panels
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('tab-active'));
+    document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+
+    if (page === 'menu') {
+        // Handle menu.html tab switching
+        if (tabId === 'menu' || tabId === 'flavors') {
+            const tabButton = document.getElementById(`tab-${tabId}`);
+            const tabContent = document.getElementById(`tab-${tabId}-content`);
+            if (tabButton && tabContent) {
+                tabButton.classList.add('tab-active');
+                tabContent.classList.add('active');
+                // Update add button text
+                const addButton = document.getElementById('add-new-btn');
+                if (addButton) {
+                    addButton.textContent = tabId === 'flavors' ? 'ADD NEW FLAVOUR' : 'ADD NEW MENU';
+                }
+                // Load appropriate data with error handling
+                if (tabId === 'flavors' && typeof loadFlavors === 'function') {
+                    loadFlavors().catch(error => {
+                        console.error('Failed to load flavors:', error);
+                        showErrorModal('Gagal memuat data varian rasa: ' + error.message);
+                    });
+                } else if (tabId === 'menu' && typeof loadMenus === 'function') {
+                    loadMenus().catch(error => {
+                        console.error('Failed to load menus:', error);
+                        showErrorModal('Gagal memuat data menu: ' + error.message);
+                    });
+                }
+            } else {
+                console.warn(`Tab element not found: tab-${tabId} or tab-${tabId}-content`);
+            }
+        }
+    } else if (page === 'menu_suggestion') {
+        // Handle menu-suggestion.html (visual feedback only)
+        const suggestionButton = document.getElementById('tab-menu-suggestion');
+        if (suggestionButton) {
+            suggestionButton.classList.add('tab-active');
+        }
+    }
+}
+
 // Fungsi navigasi navbar
 function setupNavigation() {
     console.log('Setting up navigation...');
@@ -53,7 +98,7 @@ function setupNavigation() {
         dashboard: 'nav-dashboard',
         menu: 'nav-menu',
         inventory: 'nav-stok',
-        menu_suggestion: 'nav-suggestion',
+        menu_suggestion: 'nav-menu',
     };
     const activeNavId = pageToNavId[currentPage];
     navButtons.forEach(btn => {
@@ -213,6 +258,7 @@ function parseJwt(token) {
         return {};
     }
 }
+
 // Fungsi untuk menampilkan data user dari token JWT
 function displayUserInfo() {
     try {
@@ -255,6 +301,42 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('DOMContentLoaded event triggered in script.js');
     checkAuth();
     updateGreetingDate();
+
+    const page = document.body.getAttribute('data-page');
+    const urlParams = new URLSearchParams(window.location.search);
+    const tab = urlParams.get('tab');
+
+    if (page === 'menu') {
+        // Default to 'menu' tab if no valid parameter
+        const activeTab = tab && ['menu', 'flavors'].includes(tab) ? tab : 'menu';
+        switchTab(activeTab);
+        // Clear URL query parameters to prevent persistence
+        if (window.location.search) {
+            window.history.replaceState({}, document.title, 'menu-management');
+        }
+        // Ensure data is loaded for the active tab
+        if (activeTab === 'flavors' && typeof loadFlavors === 'function') {
+            loadFlavors().catch(error => {
+                console.error('Failed to load flavors on init:', error);
+                showErrorModal('Gagal memuat data varian rasa: ' + error.message);
+            });
+        } else if (activeTab === 'menu' && typeof loadMenus === 'function') {
+            loadMenus().catch(error => {
+                console.error('Failed to load menus on init:', error);
+                showErrorModal('Gagal memuat data menu: ' + error.message);
+            });
+        }
+    } else if (page === 'menu_suggestion') {
+        switchTab('menu_suggestion');
+        // Ensure suggestions are loaded
+        if (typeof loadSuggestions === 'function') {
+            loadSuggestions().catch(error => {
+                console.error('Failed to load suggestions:', error);
+                showErrorModal('Gagal memuat usulan menu: ' + error.message);
+            });
+        }
+    }
+
     setupNavigation();
     initializeKitchenToggle();
     fetchKitchenStatus();

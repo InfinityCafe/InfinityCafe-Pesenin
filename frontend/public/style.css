@@ -52,7 +52,7 @@ body {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     position: sticky;
     top: 0;
-    z-index: 100;
+    z-index: 1000;
 }
 
 .header-brand h1 +
@@ -462,6 +462,11 @@ input:checked + .slider:before {
     color: #8D7272;
 }
 
+.tab-menu-suggestion.tab-btn {
+    width: 200px;
+    text-wrap: nowrap;
+}
+
 .tab-btn:hover {
     background: #F8F9FA;
     color: #8D7272;
@@ -497,6 +502,11 @@ input:checked + .slider:before {
     white-space: nowrap;
     padding-left: 6%;
     padding-right: 6%;
+}
+
+.menu-suggestion.add-order-btn {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .add-order-btn::before {
@@ -842,6 +852,7 @@ input:checked + .slider:before {
     text-transform: uppercase;
     letter-spacing: 0.025em;
     margin-left: auto;
+    text-wrap: nowrap;
 }
 
 .status-receive, .status-low-stock {
@@ -873,10 +884,10 @@ input:checked + .slider:before {
     color: #B3261E !important;
     font-weight: 600 !important;
 }
-.status-warning {
+/* .status-warning {
     background: #FFC49D;
     color: #BB5903;
-}
+} */
 
 .action-btn {
     padding: 0.75rem 1rem;
@@ -1235,6 +1246,11 @@ input:checked + .slider:before {
         display: flex;
         align-items: center;
         justify-content: center;
+    }
+
+    .modal-close:hover {
+        background-color: #F5C1BD;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
     .modal-title {
@@ -1966,6 +1982,9 @@ input:checked + .slider:before {
         }
     }
     
+    @media (width: 1024px) {
+      
+    }
 
     /* Large Desktop */
     @media (min-width: 1025px) and (max-width: 1599px) {
@@ -2085,6 +2104,7 @@ input:checked + .slider:before {
 
 /* Modal Add Order Figma Style */
 /* .add-menu-modal, */
+#suggestion-modal .modal-content,
 #consumption-log-modal .modal-content,
 #bulk-stock-modal .modal-content,
 #add-stock-modal .modal-content,
@@ -2101,14 +2121,8 @@ input:checked + .slider:before {
   max-height: 90vh;
   overflow-y: auto;
 }
-#add-order-modal .modal-title {
-  font-size: 26px;
-  font-weight: 700;
-  color: #312929;
-  text-align: center;
-  margin-bottom: 32px;
-}
-#add-order-modal .form-group {
+
+.form-group {
   margin-bottom: 22px;
 }
 #add-order-modal label {
@@ -2638,7 +2652,7 @@ body.tab-done .add-order-btn {
     overflow: hidden;
 }
 
-#menu-table, #flavors-table, #inventory-table {
+#menu-table, #flavors-table, #inventory-table, #suggestions-table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0.75rem;
@@ -2647,17 +2661,19 @@ body.tab-done .add-order-btn {
 
 #menu-table th, #menu-table td,
 #flavors-table th, #flavors-table td,
-#inventory-table th, #inventory-table td {
+#inventory-table th, #inventory-table td,
+#suggestions-table th, #suggestions-table td {
     position: relative;
 }
 
 #menu-table thead tr,
 #flavors-table thead tr,
-#inventory-table thead tr {
+#inventory-table thead tr,
+#suggestions-table thead tr {
     background-color: transparent;
 }
 
-#menu-table th, #flavors-table th, #inventory-table th {
+#menu-table th, #flavors-table th, #inventory-table th, #suggestions-table th {
     padding: 0.75rem 1rem;
     text-align: center;
     font-weight: bold;
@@ -2670,7 +2686,8 @@ body.tab-done .add-order-btn {
 /* Sudut untuk blok header utama */
 #menu-table th:first-child,
 #flavors-table th:first-child,
-#inventory-table th:first-child {
+#inventory-table th:first-child,
+#suggestions-table th:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
 }
@@ -2691,11 +2708,15 @@ body.tab-done .add-order-btn {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
-
+#suggestions-table th:nth-child(4) {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
 
 #menu-table th:not(:first-child):not(.action-header)::before,
 #flavors-table th:not(:first-child):not(.action-header)::before,
-#inventory-table th:not(:first-child):not(.action-header)::before {
+#inventory-table th:not(:first-child):not(.action-header)::before,
+#suggestions-table th:not(:first-child):not(.action-header)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2707,18 +2728,19 @@ body.tab-done .add-order-btn {
 
 #menu-table th.action-header,
 #flavors-table th.action-header,
-#inventory-table th.action-header {
+#inventory-table th.action-header,
+#suggestions-table th.action-header {
     background-color: #CAB99D;
     border-radius: 0.5rem;
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
 
-#menu-table tbody tr, #flavors-table tbody tr, #inventory-table {
+#menu-table tbody tr, #flavors-table tbody tr, #inventory-table, #suggestions-table tbody tr {
     background-color: transparent;
 }
 
-#menu-table td, #flavors-table td, #inventory-table td {
+#menu-table td, #flavors-table td, #inventory-table td, #suggestions-table td {
     padding: 1rem;
     vertical-align: middle;
     background-color: #F4F1E8;
@@ -2728,7 +2750,8 @@ body.tab-done .add-order-btn {
 
 #menu-table td:first-child,
 #flavors-table td:first-child,
-#inventory-table td:first-child {
+#inventory-table td:first-child,
+#suggestions-table td:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
 }
@@ -2753,9 +2776,15 @@ body.tab-done .add-order-btn {
     border-bottom-right-radius: 0.5rem;
 }
 
+#suggestions-table td:nth-child(4) {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
 #menu-table td:not(:first-child):not(:last-child)::before,
 #flavors-table td:not(:first-child):not(:last-child)::before,
-#inventory-table td:not(:first-child):not(:last-child)::before {
+#inventory-table td:not(:first-child):not(:last-child)::before,
+#suggestions-table td:not(:first-child):not(:last-child)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2767,7 +2796,8 @@ body.tab-done .add-order-btn {
 
 #menu-table td:last-child,
 #flavors-table td:last-child,
-#inventory-table td:last-child {
+#inventory-table td:last-child,
+#suggestions-table td:last-child {
     background-color: #F4F1E8;
     padding: 0;
     border-top-left-radius: 0.5rem;
@@ -2792,118 +2822,6 @@ body.tab-done .add-order-btn {
 
 
 /* --- STYLE TABEL USULAN MENU --- */
-#suggestions-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0.75rem;
-    text-align: center;
-}
-
-#suggestions-table th, #suggestions-table td {
-    position: relative;
-}
-
-#suggestions-table thead tr {
-    background-color: transparent;
-}
-
-#suggestions-table th {
-    padding: 0.75rem 1rem;
-    text-align: center;
-    font-weight: bold;
-    color: #312929;
-    text-transform: uppercase;
-    font-size: 16px;
-    background-color: #CAB99D;
-}
-
-/* Sudut untuk blok header */
-#suggestions-table th:first-child {
-    border-top-left-radius: 0.5rem;
-    border-bottom-left-radius: 0.5rem;
-}
-
-#suggestions-table th:last-child {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-}
-
-#suggestions-table th:not(:first-child):not(:last-child)::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -0.75rem;
-    width: 0.75rem;
-    height: 100%;
-    background-color: #CAB99D;
-}
-
-#suggestions-table tbody tr {
-    background-color: transparent;
-}
-
-#suggestions-table td {
-    padding: 1rem;
-    vertical-align: middle;
-    background-color: #F4F1E8;
-    font-weight: medium;
-    color: #312929;
-}
-
-#suggestions-table td:first-child {
-    border-top-left-radius: 0.5rem;
-    border-bottom-left-radius: 0.5rem;
-}
-
-#suggestions-table td:last-child {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-}
-
-#suggestions-table td:not(:first-child):not(:last-child)::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -0.75rem;
-    width: 0.75rem;
-    height: 100%;
-    background-color: #F4F1E8;
-}
-
-/* Style untuk kolom ID */
-#suggestions-table th:first-child,
-#suggestions-table td:first-child {
-    width: 120px;
-    font-family: 'Courier New', monospace;
-    font-size: 14px;
-}
-
-/* Style untuk kolom Nama Menu */
-#suggestions-table th:nth-child(2),
-#suggestions-table td:nth-child(2) {
-    width: 250px;
-    text-align: left;
-    padding-left: 1.5rem;
-}
-
-/* Style untuk kolom Customer */
-#suggestions-table th:nth-child(3),
-#suggestions-table td:nth-child(3) {
-    width: 180px;
-}
-
-/* Style untuk kolom Tanggal */
-#suggestions-table th:nth-child(4),
-#suggestions-table td:nth-child(4) {
-    width: 180px;
-    font-size: 14px;
-}
-
-/* Style untuk kolom Aksi */
-#suggestions-table th:last-child,
-#suggestions-table td:last-child {
-    width: 150px;
-}
 
 /* Style untuk action buttons dalam tabel */
 .suggestion-action-btn {
@@ -3031,7 +2949,7 @@ body.tab-done .add-order-btn {
 .modal-title {
     font-family: 'Inter', sans-serif;
     font-weight: 700;
-    font-size: 26px;
+    font-size: 22px;
     line-height: 1.21;
     color: #312929;
     text-align: center;
@@ -3051,31 +2969,6 @@ body.tab-done .add-order-btn {
     overflow-y: auto;
     position: relative;
 }
-
-.add-flavour-modal .modal-title {
-    font-family: 'Inter', sans-serif;
-    font-weight: 700;
-    font-size: 26px;
-    line-height: 1.21;
-    color: #312929;
-    text-align: center;
-    margin-bottom: 43px;
-    margin-top: 0;
-}
-
-.add-flavour-modal .form-group {
-    margin-bottom: 24px;
-}
-
-/* .add-flavour-modal .form-group label {
-    font-family: 'Inter', sans-serif;
-    font-weight: 700;
-    font-size: 16px;
-    line-height: 1.21;
-    color: #312929;
-    display: block;
-    margin-bottom: 8px;
-} */
 
 /* Flavour status radio group - align with menu modal styling, responsive-safe */
 .add-flavour-modal .radio-group {
@@ -3175,10 +3068,6 @@ body.tab-done .add-order-btn {
     font-weight: 500;
 }
 
-.add-menu-modal .form-group {
-    margin-bottom: 20px;
-}
-
 .add-menu-modal .form-group:last-child {
     margin-bottom: 0;
 }
@@ -3188,7 +3077,7 @@ body.tab-done .add-order-btn {
 .form-group label {
     font-family: 'Inter', sans-serif;
     font-weight: 700;
-    font-size: 16px;
+    font-size: 15px;
     line-height: 1.21;
     color: #312929;
     display: block;
@@ -3568,11 +3457,13 @@ body.tab-done .add-order-btn {
     border: 2px solid #DCD0A8;
     border-radius: 10px;
     padding: 20px;
-    min-width: 280px;
+    min-width: 300px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-    z-index: 1000;
+    z-index: 100;
     display: none;
     margin-top: 8px;
+    overflow-y: auto;
+    max-height: none;
 }
 
 .filter-dropdown.show {
@@ -3610,17 +3501,20 @@ body.tab-done .add-order-btn {
     background-color: #FFFFFF;
 }
 
+.date-range,
 .price-range {
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
+.date-range,
 .price-range span {
     color: #8D7272;
     font-weight: 600;
 }
 
+.date-input,
 .price-input {
     flex: 1;
     padding: 10px 12px;
@@ -3881,18 +3775,20 @@ body.tab-done .add-order-btn {
         overflow-x: auto;
     }
     
-    #menu-table, #flavors-table {
+    #menu-table, #flavors-table, #suggestions-table {
         min-width: 700px;
     }
     
     #menu-table th, #menu-table td,
-    #flavors-table th, #flavors-table td {
+    #flavors-table th, #flavors-table td,
+    #suggestions-table th, #suggestions-table td {
         white-space: nowrap;
         min-width: 120px;
     }
     
     #menu-table th:first-child, #menu-table td:first-child,
-    #flavors-table th:first-child, #flavors-table td:first-child {
+    #flavors-table th:first-child, #flavors-table td:first-child,
+    #suggestions-table th:first-child, #suggestions-table td:first-child {
         min-width: 60px;
     }
     
@@ -3940,7 +3836,7 @@ body.tab-done .add-order-btn {
         flex-direction: column;
     }
     
-    #menu-table, #flavors-table {
+    #menu-table, #flavors-table, #invetory-table, #suggestions-table {
         min-width: 600px;
     }
     .overview-card {
@@ -3965,17 +3861,6 @@ body.tab-done .add-order-btn {
     width: 500px;
     position: relative;
     max-height: 90vh;
-}
-
-.view-modal .modal-title {
-    font-family: 'Inter', sans-serif;
-    font-weight: 700;
-    font-size: 26px;
-    line-height: 1.21;
-    color: #312929;
-    text-align: center;
-    margin-bottom: 32px;
-    margin-top: 0;
 }
 
 .view-content {
@@ -4078,6 +3963,30 @@ body.tab-done .add-order-btn {
     font-weight: 500;
 }
 
+
+.view-item .status-label {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.view-item .status-in-stock {
+  background-color: #E8F5E8;
+  color: #2E7D32;
+}
+
+.view-item .status-low-stock {
+  background-color: #FFF3E0;
+  color: #EF6C00;
+}
+
+.view-item .status-out-of-stock {
+  background-color: #FFEBEE;
+  color: #C62828;
+}
+
 .view-modal .modal-actions {
     display: flex;
     gap: 16px;
@@ -4110,6 +4019,7 @@ background: #207156;
     box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
 }
 
+/* Login Page Styles */
 .background-wrapper {
     min-height: 100vh;
     display: flex;
@@ -4305,21 +4215,24 @@ body[data-page="login"] {
 /* Inventory Overview Cards */
 .inventory-overview {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(236px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(3, 1fr) 1.2fr;
+  gap: 10px;
+  align-items: stretch;
   margin-bottom: 2rem;
+  height: 120px;
 }
 
 .overview-card {
   background: #FFFFFF;
   border-radius: 10px;
-  padding: 1.5rem;
+  padding: 1rem;
   box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.25);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 1rem;
   position: relative;
   overflow: hidden;
+  min-height: 120px;
 }
 
 .overview-card.total-items {
@@ -4346,13 +4259,13 @@ body[data-page="login"] {
   background: #FFE8C0;
 }
 
-.overview-card.warning {
+/* .overview-card.warning {
   border: 1px solid #BB5903;
 }
 
 .overview-card.warning::before {
   background: #FFC49D;
-}
+} */
 
 .card-icon {
   width: 2rem;
@@ -4361,15 +4274,15 @@ body[data-page="login"] {
   align-items: center;
   justify-content: center;
   color: #312929;
-  font-size: 1.125rem;
+  font-size: 24px;
   z-index: 2;
   position: relative;
 }
 
 .card-icon.total-items{
   background-color: #C5F0C0;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   border-radius: 10px;
 }
 
@@ -4379,8 +4292,8 @@ body[data-page="login"] {
 
 .card-icon.low-stock {
   background-color: #FFE8C0;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   border-radius: 10px;
 }
 
@@ -4388,7 +4301,7 @@ body[data-page="login"] {
   color: #E09B20;
 }
 
-.card-icon.warning {
+/* .card-icon.warning {
     background-color: #FFC49D;
     width: 32px;
     height: 32px;
@@ -4397,12 +4310,12 @@ body[data-page="login"] {
 
 .icons-warning {
   color: #BB5903;
-}
+} */
 
 .card-icon.critical {
     background-color: #F5C1BD;
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     border-radius: 10px;
 }
 
@@ -4415,46 +4328,74 @@ body[data-page="login"] {
 }
 
 .card-content h3 {
-  font-size: 1rem;
+  font-size: 18px;
   font-weight: 700;
-  margin: 0 0 0.25rem 0;
+  margin: 0 0 0.05rem 0;
   color: #312929;
 }
 
 .card-content p {
-  font-size: 0.75rem;
+  font-size: 12px;
   color: #312929;
-  margin: 0 0 0.5rem 0;
+  margin: 0 0 0.4rem 0;
   opacity: 0.8;
 }
 
 .card-number {
-  font-size: 1.375rem;
+  font-size: 28px;
   font-weight: 700;
   color: #312929;
 }
 
 /* Quick Action Section */
 .quick-action-section {
-  background: #FFFFFF;
-  border: 2px solid #CAB99D;
-  border-radius: 10px;
-  padding: 1.5rem;
-  margin-bottom: 2rem;
-  box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    background: #FFFFFF;
+    border: 2px solid #CAB99D;
+    border-radius: 10px;
+    padding: 1.5rem;
+    box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.25);
+    gap: 50px;
+    height: 120px;
+}
+
+.quick-action-header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    height: 100%;
 }
 
 .quick-action-header h3 {
-  font-size: 1rem;
+  font-size: 18px;
   font-weight: 700;
   color: #312929;
-  margin: 0 0 1rem 0;
+  margin: 0;
+  writing-mode: horizontal-tb;
 }
 
 .quick-action-buttons {
   display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.quick-action-buttons button:hover {
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
+    transition: opacity 0.3s ease;
+    background: #503A3A;
+    transform: scale(1.02);
+}
+
+.quick-action-buttons button {
+  width: 220px;   /* lebar fix */
+  height: 40px;   /* tinggi fix */
+  font-size: 14px; /* biar teks tetap pas */
+  border-radius: 6px; /* opsional: biar kelihatan rapi */
+  cursor: pointer;
 }
 
 .add-stock-btn, .bulk-stock-btn, .consumption-log-btn {
@@ -4469,14 +4410,14 @@ body[data-page="login"] {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  box-shadow: 3px 3px 5px rgba(0, 0, 0, 0.25);
+  /* box-shadow: 3px 3px 5px rgba(0, 0, 0, 0.25); */
   transition: all 0.3s ease;
 }
 
-.add-stock-btn:hover, .bulk-stock-btn:hover, .consumption-log-btn:hover {
+/* .add-stock-btn:hover, .bulk-stock-btn:hover, .consumption-log-btn:hover {
   transform: translateY(-2px);
   box-shadow: 4px 6px 8px rgba(0, 0, 0, 0.3);
-}
+} */
 
 .bulk-stock-btn {
     background: linear-gradient(to right, #503A3A, #8D7272);
@@ -4887,7 +4828,8 @@ body[data-page="login"] {
 
 .stat-card {
     background: white;
-    border-radius: 1rem;
+    border-radius: 10px;
+    border: 1px solid #CAB99D;
     padding: 1.5rem;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     display: flex;
@@ -4896,35 +4838,31 @@ body[data-page="login"] {
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-}
-
 .stat-icon {
     width: 3rem;
     height: 3rem;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #DCD0A8, #C1B8A0);
+    border-radius: 10px;
+    background-color: #F4F1E8;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #685454;
+    color: #8D7272;
     font-size: 1.25rem;
 }
 
-.stat-content h3 {
-    font-size: 2rem;
+.stat-content,
+.stat-content .stat-total {
+    font-size: 28px;
     font-weight: 700;
-    color: #685454;
-    margin: 0;
-    line-height: 1;
+    color: #312929;
+    /* margin: 0; */
+    /* line-height: 1; */
 }
 
-.stat-content p {
-    color: #6c757d;
+.stat-title {
+    color: #312929;
     margin: 0;
-    font-size: 0.875rem;
+    font-size: 18px;
 }
 
 /* Section Header */
@@ -4975,23 +4913,6 @@ body[data-page="login"] {
 }
 
 /* Table Header Styles */
-.table-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 2px solid #DCD0A8;
-}
-
-.table-title h3 {
-    margin: 0;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #8D7272;
-    font-family: 'Inter', sans-serif;
-}
-
 .table-controls {
     display: flex;
     gap: 1rem;
@@ -5462,28 +5383,27 @@ body[data-page="login"] {
         padding: 1rem;
     }
     
-    .stat-icon {
-        width: 2.5rem;
-        height: 2.5rem;
-        font-size: 1rem;
+    .table-controls {
+        flex-direction: column;
+        align-items: stretch;
     }
     
-    .stat-content h3 {
-        font-size: 1.5rem;
+    .table-actions {
+        justify-content: center;
     }
 }
 
 @media (max-width: 480px) {
-    .suggestions-container {
+    .search-filter-section {
         padding: 1rem;
     }
     
-    .suggestion-card {
+    .summary-details {
         padding: 1rem;
     }
     
-    .suggestion-actions {
-        flex-direction: column;
+    .table-header {
+        padding: 1rem;
     }
     
     .btn {

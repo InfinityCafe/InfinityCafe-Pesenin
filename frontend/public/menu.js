@@ -112,7 +112,7 @@ async function renderMenuTable() {
         
         const row = document.createElement('tr');
         row.innerHTML = `
-        <td>${startIndex + index + 1}</td>
+            <td>${startIndex + index + 1}</td>
             <td>${menu.base_name}</td>
             <td>${menu.base_price}</td>
             <td>
