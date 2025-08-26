@@ -17,8 +17,11 @@
       <p class="header-subtitle">Stephany | Barista</p>
     </div>
     <div class="header-menu">
-      <button class="nav-btn" id="nav-dashboard" data-url="dashboard" onclick="window.location.href = '/index.html';">Dashboard</button>
-      <button class="nav-btn" id="nav-menu" data-url="menu-management" onclick="window.location.href = '/menu.html';">Menu Management</button>
+      <button class="nav-btn active" id="nav-dashboard" onclick="window.location.href = '/dashboard';">Dashboard</button>
+      <button class="nav-btn" id="nav-menu" onclick="window.location.href = '/menu-management';">Menu Management</button>
+      <!-- <button class="nav-btn" id="nav-suggestion" onclick="window.location.href = '/menu-suggestion';">Usulan Menu</button> -->
+      <button class="nav-btn" id="nav-stok" onclick="window.location.href = '/stock-management';">Stock Management</button>
+      <button class="nav-btn" id="nav-report" onclick="window.location.href = '/reportkitchen';">Reports</button>
     </div>
     <div class="header-right">
       <div class="search-container">
@@ -183,7 +186,7 @@
         </div>
         
         <div class="modal-actions">
-          <button type="submit" class="modal-btn modal-btn-habis" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;">
+          <button type="submit" class="save-button" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;">
             <span class="fa fa-save"></span> Save Order
           </button>
         </div>
