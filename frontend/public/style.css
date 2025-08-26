@@ -5424,7 +5424,7 @@ body[data-page="login"] {
 /* Menggunakan class yang sudah ada dan menambahkan style khusus untuk kitchen report */
 
 /* Kitchen Report specific styles */
-.status-item {
+[data-page="report"].status-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -5475,13 +5475,13 @@ body[data-page="login"] {
     color: #503A3A;
 }
 
-.status-label {
+[data-page="report"].status-label {
     font-weight: 600;
     color: #412E27;
     font-size: 0.875rem;
 }
 
-.status-count {
+[data-page="report"].status-count {
     background-color: #8D7272;
     color: white;
     padding: 0.25rem 0.75rem;
@@ -5597,7 +5597,7 @@ body[data-page="login"] {
 }
 
 /* Kitchen Report Summary Details */
-.summary-details {
+[data-page="report"].summary-details {
     display: flex;
     gap: 2rem;
     flex-wrap: wrap;
@@ -5608,7 +5608,7 @@ body[data-page="login"] {
     border: 1px solid #E9ECEF;
 }
 
-.summary-detail--order {
+[data-page="report"].summary-detail--order {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -5616,7 +5616,7 @@ body[data-page="login"] {
     font-size: 0.875rem;
 }
 
-.summary-detail--order strong {
+[data-page="report"].summary-detail--order strong {
     color: #412E27;
     font-weight: 700;
 }
