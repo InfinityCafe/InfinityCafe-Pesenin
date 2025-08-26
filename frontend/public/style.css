@@ -200,20 +200,20 @@ body {
     border: 1px solid #DCD0A8;
 }
 
-.status-badge.status-receive {
+/* .status-badge.status-receive {
     background-color: #E3F2FD;
     color: #1976D2;
-}
+} */
 
-.status-badge.status-making {
+/* .status-badge.status-making {
     background-color: #FFF3E0;
     color: #F57C00;
-}
+} */
 
-.status-badge.status-deliver {
+/* .status-badge.status-deliver {
     background-color: #E8F5E8;
     color: #388E3C;
-}
+} */
 
 .status-badge.status-done {
     background-color: #E8F5E8;
@@ -5653,7 +5653,7 @@ body[data-page="login"] {
 }
 
 /* Kitchen Report Filter Section */
-.search-filter-section {
+#search-filter-section-report.search-filter-section {
     background-color: white;
     padding: 1.5rem;
     border-radius: 0.75rem;
@@ -5702,7 +5702,7 @@ body[data-page="login"] {
 }
 
 /* Kitchen Report Dashboard Layout */
-.dashboard-layout {
+[data-page="report"].dashboard-layout {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1.5rem;
@@ -5710,18 +5710,18 @@ body[data-page="login"] {
 }
 
 /* Kitchen Report Table Container */
-.table-container {
+[data-page="report"].table-container {
     margin-bottom: 1.5rem;
 }
 
-.table-header {
+[data-page="report"].table-header {
     background-color: #F8F9FA;
     padding: 1rem 1.5rem;
     border-bottom: 1px solid #E9ECEF;
     border-radius: 0.75rem 0.75rem 0 0;
 }
 
-.table-controls {
+[data-page="report"].table-controls {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -5729,14 +5729,14 @@ body[data-page="login"] {
     flex-wrap: wrap;
 }
 
-.table-actions {
+[data-page="report"].table-actions {
     display: flex;
     gap: 0.5rem;
 }
 
 /* Kitchen Report Responsive Design */
 @media (max-width: 768px) {
-    .dashboard-layout {
+    [data-page="report"].dashboard-layout {
         grid-template-columns: 1fr;
     }
     
