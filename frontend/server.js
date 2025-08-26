@@ -352,18 +352,31 @@ app.get("/report", async (req, res) => {
   }
 });
 
+// app.get("/report/best_seller", async (req, res) => {
+//   const { start_date, end_date, menu_name } = req.query;
+//   try {
+//     const params = new URLSearchParams({ start_date, end_date });
+//     if (menu_name) params.append('menu_name', menu_name);
+    
+//     const resp = await fetch(`http://report_service:8004/report/best_seller?${params.toString()}`);
+//     const data = await resp.json();
+//     res.json(data);
+//   } catch (err) {
+//     console.error("Failed to fetch report ", err);
+//     res.status(500).json({ error: "Failed to fetch report" });
+//   }
+// });
+
 app.get("/report/best_seller", async (req, res) => {
-  const { start_date, end_date, menu_name } = req.query;
+  const { start_date, end_date } = req.query;
   try {
     const params = new URLSearchParams({ start_date, end_date });
-    if (menu_name) params.append('menu_name', menu_name);
-    
-    const resp = await fetch(`http://report_service:8004/best_seller?start_date=${start}&end_date=${end}&limit=10`);
+    const resp = await fetch(`http://report_service:8004/report/best_seller?${params.toString()}`);
     const data = await resp.json();
     res.json(data);
   } catch (err) {
-    console.error("Failed to fetch report ", err);
-    res.status(500).json({ error: "Failed to fetch report" });
+    console.error("Failed to fetch top customers ", err);
+    res.status(500).json({ error: "Failed to fetch top customers" });
   }
 });
 
