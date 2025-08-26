@@ -112,10 +112,12 @@ async function renderMenuTable() {
         
         const row = document.createElement('tr');
         row.innerHTML = `
-        <td>${startIndex + index + 1}</td>
+            <td>${startIndex + index + 1}</td>
             <td>${menu.base_name}</td>
             <td>${menu.base_price}</td>
-            <td>${menu.isAvail ? 'Available' : 'Unavailable'}</td>
+            <td>
+            ${menu.isAvail ? '<span class="status-badge status-available">Available</span>' : '<span class="status-badge status-unavailable">Unavailable</span>'}
+            </td>
             <td class="action-header">
             <button class="table-action-btn" onclick="viewMenu('${menu.id}')"><i class="fas fa-eye"></i></button>
             <button class="table-action-btn" onclick="editMenu('${menu.id}')"><i class="fas fa-edit"></i></button>
@@ -283,7 +285,7 @@ function renderFlavorTable() {
         <td>${startIndex + index + 1}</td>
             <td>${flavor.flavor_name}</td>
             <td>${flavor.additional_price}</td>
-            <td>${flavor.isAvail ? 'Available' : 'Unavailable'}</td>
+            <td>${flavor.isAvail ? '<span class="status-badge status-available">Available</span>' : '<span class="status-badge status-unavailable">Unavailable</span>'}</td>
             <td class="action-header">
             <button class="table-action-btn" onclick="viewFlavor('${flavor.id}')"><i class="fas fa-eye"></i></button>
             <button class="table-action-btn" onclick="editFlavor('${flavor.id}')"><i class="fas fa-edit"></i></button>
@@ -637,7 +639,10 @@ async function viewMenu(menuId) {
     
     document.getElementById('view-menu-name').textContent = menu.base_name;
     document.getElementById('view-menu-price').textContent = `Rp ${menu.base_price.toLocaleString()}`;
-    document.getElementById('view-menu-available').textContent = menu.isAvail ? 'Available' : 'Unavailable';
+    document.getElementById('view-menu-available').innerHTML =
+    `<span class="status-badge ${menu.isAvail ? 'status-available' : 'status-unavailable'}">
+        ${menu.isAvail ? 'Available' : 'Unavailable'}
+    </span>`;
     
     // Display available flavors
     let flavorsText = 'None';
@@ -671,8 +676,10 @@ async function viewFlavor(flavorId) {
     
     document.getElementById('view-flavor-name').textContent = flavor.flavor_name;
     document.getElementById('view-flavor-price').textContent = `Rp ${flavor.additional_price.toLocaleString()}`;
-    const availEl = document.getElementById('view-flavor-available');
-    if (availEl) availEl.textContent = flavor.isAvail ? 'Available' : 'Unavailable';
+    document.getElementById('view-flavor-available').innerHTML =
+    `<span class="status-badge ${flavor.isAvail ? 'status-available' : 'status-unavailable'}">
+        ${flavor.isAvail ? 'Available' : 'Unavailable'}
+    </span>`;
     
     // Store the flavor ID for edit functionality
     document.getElementById('view-flavor-modal').setAttribute('data-flavor-id', flavorId);
@@ -946,30 +953,7 @@ document.getElementById('add-flavour-form').addEventListener('submit', async (e)
     await saveFlavour();
 });
 
-// Setup navigation
-function setupNavigation() {
-    const navButtons = document.querySelectorAll('.nav-btn');
-    
-    // Remove active class from all nav buttons first
-    navButtons.forEach(btn => {
-    btn.classList.remove('active');
-    });
-    
-    // Add active class to current page
-    const currentPath = window.location.pathname;
-    navButtons.forEach(btn => {
-    const url = btn.getAttribute('data-url');
-    if (url && (currentPath === `/${url}` || (currentPath === '/' && url === 'dashboard'))) {
-        btn.classList.add('active');
-    }
-    
-    btn.addEventListener('click', () => {
-        if (url) {
-        window.location.href = `/${url}`;
-        }
-    });
-    });
-}
+// setupNavigation is provided globally by script.js; remove page-specific duplicate
 
 // Flavor Selector Functions
 function populateFlavorCheckboxes() {
