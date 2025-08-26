@@ -425,6 +425,7 @@ let menuConsumption = {}; // { menuName: { ingredientId: { totalQuantity, unit }
 let menuOrderCount = {};   // { menuName: totalQuantityOrdered }
 let menuFlavorUsage = {};  // { menuName: { flavorNameLower: totalQty } }
 let variantConsumption = {}; // { key: { menuName, flavorName, orderQty, ingredients: { ingId: { totalQuantity, unit } } } }
+let menuValidFlavors = {}; // { menuName: Set(lowercase flavor names) }
 
 // ========== MODAL FUNCTIONS ==========
 function closePieModal() {
@@ -624,6 +625,20 @@ async function loadIngredientAnalysisData() {
                     ingredientData = {};
                 }
                 
+                // Load valid flavors per menu (best-effort)
+                menuValidFlavors = {};
+                try {
+                    const flavorFetches = menuNames.map(name => fetch(`/menu/by_name/${encodeURIComponent(name)}/flavors`).then(r => r.ok ? r.json() : []));
+                    const flavorsPerMenu = await Promise.all(flavorFetches);
+                    menuNames.forEach((name, idx) => {
+                        const arr = Array.isArray(flavorsPerMenu[idx]) ? flavorsPerMenu[idx] : [];
+                        const set = new Set(arr.map(f => (f.flavor_name || f.name || '').toLowerCase()).filter(Boolean));
+                        menuValidFlavors[name] = set;
+                    });
+                } catch (_) {
+                    // ignore if menu service not available for flavors
+                }
+                
                 // Compute consumption from done orders (base recipe + flavor mapping)
                 menuConsumption = {};
                 menuOrderCount = {};
@@ -640,10 +655,23 @@ async function loadIngredientAnalysisData() {
                         if (!menuFlavorUsage[mName]) menuFlavorUsage[mName] = {};
                         menuOrderCount[mName] += qty;
 
-                        // Determine flavor (robust)
-                        const prefRaw = normalizeFlavorForKey(getItemFlavorRaw(it));
-                        const prefLower = prefRaw.toLowerCase();
-                        const flavorDisplay = prefRaw || '-';
+                        // Determine flavor using validation against menuValidFlavors
+                        const candidatePref = (it.preference || '').trim();
+                        const candidateAlt = normalizeFlavorForKey(getItemFlavorRaw(it));
+                        const validSet = menuValidFlavors[mName] || new Set();
+                        let chosen = '';
+                        if (candidatePref && validSet.has(candidatePref.toLowerCase())) {
+                            chosen = candidatePref;
+                        } else if (candidateAlt && validSet.has(candidateAlt.toLowerCase())) {
+                            chosen = candidateAlt;
+                        } else if (candidatePref) {
+                            // if menu has no set (service unavailable), still use candidatePref
+                            if (validSet.size === 0) chosen = candidatePref;
+                        } else if (candidateAlt) {
+                            if (validSet.size === 0) chosen = candidateAlt;
+                        }
+                        const flavorDisplay = chosen || '-';
+                        const prefLower = flavorDisplay.toLowerCase();
                         const key = `${mName}||${flavorDisplay}`;
                         if (!variantConsumption[key]) variantConsumption[key] = { menuName: mName, flavorName: flavorDisplay, orderQty: 0, ingredients: {} };
                         variantConsumption[key].orderQty += qty;
@@ -662,7 +690,7 @@ async function loadIngredientAnalysisData() {
                         }
 
                         // Flavor-based consumption
-                        if (prefLower) {
+                        if (prefLower && prefLower !== '-') {
                             menuFlavorUsage[mName][prefLower] = (menuFlavorUsage[mName][prefLower] || 0) + qty;
                             if (flavorMap[prefLower]) {
                                 for (const fm of flavorMap[prefLower]) {
