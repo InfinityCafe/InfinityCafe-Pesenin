@@ -1576,7 +1576,7 @@ async function loadReport() {
 
 async function loadBestSellerData(start, end) {
     try {
-        const res = await fetch(`http://localhost:8004/report/best_seller?start_date=${start}&end_date=${end}&limit=10`);
+        const res = await fetch(`/report/best_seller?start_date=${start}&end_date=${end}&limit=10`);
         
         if (!res.ok) {
             const errorData = await res.json();
