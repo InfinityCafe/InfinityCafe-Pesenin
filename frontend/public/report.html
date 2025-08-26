@@ -20,11 +20,11 @@
         <div class="header-menu">
             <button class="nav-btn" id="nav-dashboard" onclick="window.location.href = '/dashboard';">Dashboard</button>
             <button class="nav-btn" id="nav-menu" onclick="window.location.href = '/menu-management';">Menu Management</button>
-            <button class="nav-btn" id="nav-suggestion" onclick="window.location.href = '/menu-suggestion';">Usulan Menu</button>
+            <!-- <button class="nav-btn" id="nav-suggestion" onclick="window.location.href = '/menu-suggestion';">Usulan Menu</button> -->
             <button class="nav-btn" id="nav-stok" onclick="window.location.href = '/stock-management';">Stock Management</button>
-            <button class="nav-btn active" id="nav-report" onclick="window.location.href = '/reportkitchen';">Laporan</button>
-            <button class="nav-btn" id="nav-kitchen-report" onclick="showKitchenReport()">Kitchen Report</button>
-            <button class="nav-btn" id="nav-ingredient-analysis" onclick="showIngredientAnalysis()">Analisis Bahan</button>
+            <button class="nav-btn active" id="nav-report" onclick="window.location.href = '/reportkitchen';">Reports</button>
+            <!-- <button class="nav-btn" id="nav-kitchen-report" onclick="showKitchenReport()">Kitchen Report</button> -->
+            <!-- <button class="nav-btn" id="nav-ingredient-analysis" onclick="showIngredientAnalysis()">Analisis Bahan</button> -->
         </div>
         <div class="header-right">
             <div class="kitchen-status-container">
@@ -51,6 +51,15 @@
             <div class="greeting-message">
                 <h2>Hi, John Doe, here's your sales report!</h2>
                 <p class="greeting-date" id="greeting-date">Monday, 14th July 2025</p>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="tab-navigation">
+              <button id="nav-report" class="tab-btn active" onclick="window.location.href = '/reportkitchen';">LAPORAN</button>
+              <button class="tab-btn tab-menu-suggestion" id="nav-kitchen-report" onclick="showKitchenReport()">KITCHEN REPORT</button>
+              <button class="tab-btn tab-menu-suggestion" id="nav-ingredient-analysis" onclick="showIngredientAnalysis()">ANALISIS BAHAN</button>
+
+              <!-- <button id="tab-menu-suggestion" class="tab-btn tab-menu-suggestion" onclick="window.location.href = 'menu-suggestion';">MENU SUGGESTION</button> -->
             </div>
 
             <!-- Enhanced Filter Section -->
