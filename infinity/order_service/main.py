@@ -278,7 +278,7 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     if validation_error:
         return JSONResponse(status_code=200, content={"status": "error", "message": validation_error, "data": None})
     
-    flavor_required_menus = ["Caffe Latte", "Cappuccino", "Milk Shake", "Squash"]
+    flavor_required_menus = ["Caffe Latte", "Cappuccino", "Milkshake", "Squash"]
     temp_order_id = req.order_id if req.order_id else generate_order_id()
 
     for item in req.orders:
@@ -480,7 +480,7 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     if validation_error:
         return JSONResponse(status_code=200, content={"status": "error", "message": validation_error, "data": None})
 
-    flavor_required_menus = ["Caffe Latte", "Cappuccino", "Milk Shake", "Squash"]
+    flavor_required_menus = ["Caffe Latte", "Cappuccino", "Milkshake", "Squash"]
     temp_order_id = req.order_id if req.order_id else generate_order_id()
 
     for item in req.orders:

@@ -56,7 +56,7 @@ INSERT INTO menu_items (id, base_name, base_price, making_time_minutes, "isAvail
 ('MENU004', 'Hot Cappucino', 20000, 5.0, TRUE),
 ('MENU005', 'Vietnam Drive', 18000, 9.0, TRUE),
 ('MENU006', 'Squash', 15000, 3.0, TRUE),
-('MENU007', 'Milk Shake', 18000, 6.0, TRUE),
+('MENU007', 'Milkshake', 18000, 6.0, TRUE),
 ('MENU008', 'Esteh', 8000, 2.0, TRUE),
 ('MENU009', 'Americano', 12000, 2.0, TRUE),
 ('MENU010', 'Expreso Single', 10000, 2.0, TRUE),
