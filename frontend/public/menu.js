@@ -1057,16 +1057,18 @@ function closeErrorModal() {
 window.addEventListener('load', async () => {
     try {
     // Load menus (flavors are included in menu data)
-    await loadMenus();
+    // await loadMenus();
     
     // Load flavors separately for flavor selector
-    await loadFlavors();
+    // await loadFlavors();
+
+    const activeTabFromHash = window.location.hash.substring(1);
+    const activeTab = activeTabFromHash || 'menu';
+    switchTab(activeTab);
     
-    switchTab('menu'); // Set default tab
-    setupNavigation(); // Setup navigation
-    setupSearch(); // Setup search functionality
+    // setupNavigation();
+    setupSearch();
     
-    // Ensure navigation is properly set up after DOM is fully loaded
     setTimeout(() => {
         setupNavigation();
     }, 100);
