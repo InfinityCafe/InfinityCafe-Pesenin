@@ -2652,7 +2652,7 @@ body.tab-done .add-order-btn {
     overflow: hidden;
 }
 
-#menu-table, #flavors-table, #inventory-table, #suggestions-table {
+#menu-table, #flavors-table, #inventory-table, #suggestions-table, #report-table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0.75rem;
@@ -2662,18 +2662,20 @@ body.tab-done .add-order-btn {
 #menu-table th, #menu-table td,
 #flavors-table th, #flavors-table td,
 #inventory-table th, #inventory-table td,
-#suggestions-table th, #suggestions-table td {
+#suggestions-table th, #suggestions-table td,
+#report-table th, #report-table td {
     position: relative;
 }
 
 #menu-table thead tr,
 #flavors-table thead tr,
 #inventory-table thead tr,
-#suggestions-table thead tr {
+#suggestions-table thead tr,
+#report-table thead tr {
     background-color: transparent;
 }
 
-#menu-table th, #flavors-table th, #inventory-table th, #suggestions-table th {
+#menu-table th, #flavors-table th, #inventory-table th, #suggestions-table th, #report-table th {
     padding: 0.75rem 1rem;
     text-align: center;
     font-weight: bold;
@@ -2687,10 +2689,12 @@ body.tab-done .add-order-btn {
 #menu-table th:first-child,
 #flavors-table th:first-child,
 #inventory-table th:first-child,
-#suggestions-table th:first-child {
+#suggestions-table th:first-child,
+#report-table th:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
 }
+
 #menu-table th:nth-child(4) {
     width: 100px;
     border-top-right-radius: 0.5rem;
@@ -2700,15 +2704,23 @@ body.tab-done .add-order-btn {
 #menu-table th:nth-child(5) {
     width: 200px;
 }
+
 #flavors-table th:nth-child(4) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
+
 #inventory-table th:nth-child(7) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
+
 #suggestions-table th:nth-child(4) {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
+#report-table th:nth-child(5) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
@@ -2716,7 +2728,8 @@ body.tab-done .add-order-btn {
 #menu-table th:not(:first-child):not(.action-header)::before,
 #flavors-table th:not(:first-child):not(.action-header)::before,
 #inventory-table th:not(:first-child):not(.action-header)::before,
-#suggestions-table th:not(:first-child):not(.action-header)::before {
+#suggestions-table th:not(:first-child):not(.action-header)::before,
+#report-table th:not(:first-child):not(.action-header)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2736,11 +2749,11 @@ body.tab-done .add-order-btn {
     border-bottom-right-radius: 0.5rem;
 }
 
-#menu-table tbody tr, #flavors-table tbody tr, #inventory-table, #suggestions-table tbody tr {
+#menu-table tbody tr, #flavors-table tbody tr, #inventory-table, #suggestions-table tbody tr, #report-table tbody tr {
     background-color: transparent;
 }
 
-#menu-table td, #flavors-table td, #inventory-table td, #suggestions-table td {
+#menu-table td, #flavors-table td, #inventory-table td, #suggestions-table td, #report-table td {
     padding: 1rem;
     vertical-align: middle;
     background-color: #F4F1E8;
@@ -2751,7 +2764,8 @@ body.tab-done .add-order-btn {
 #menu-table td:first-child,
 #flavors-table td:first-child,
 #inventory-table td:first-child,
-#suggestions-table td:first-child {
+#suggestions-table td:first-child,
+#report-table td:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
 }
@@ -2781,10 +2795,26 @@ body.tab-done .add-order-btn {
     border-bottom-right-radius: 0.5rem;
 }
 
+#report-table td:nth-child(5) {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
 #menu-table td:not(:first-child):not(:last-child)::before,
 #flavors-table td:not(:first-child):not(:last-child)::before,
 #inventory-table td:not(:first-child):not(:last-child)::before,
-#suggestions-table td:not(:first-child):not(:last-child)::before {
+#suggestions-table td:not(:first-child):not(:last-child)::before,
+#report-table td:not(:first-child):not(:last-child)::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -0.75rem;
+    width: 0.75rem;
+    height: 100%;
+    background-color: #F4F1E8;
+}
+
+#report-table td:last-child::before {
     content: '';
     position: absolute;
     top: 0;
@@ -4914,9 +4944,11 @@ body[data-page="login"] {
 
 /* Table Header Styles */
 .table-controls {
-    display: flex;
+    width: 100%; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
     gap: 1rem;
-    align-items: center;
 }
 
 /* Search Container in Table */

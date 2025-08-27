@@ -34,4 +34,4 @@ INSERT INTO kitchen_orders (order_id, queue_number, status, detail, customer_nam
 -- DIPERBAIKI: Menambahkan kolom `queue_number` dengan nilai 4
 
 INSERT INTO kitchen_orders (order_id, queue_number, status, detail, customer_name, room_name, time_receive, cancel_reason) VALUES
-('ORD-004', 4, 'cancel', E'2x Teh Manis (Hangat)', 'Sari', 'Outdoor', NOW() - INTERVAL '1 day', 'Stok bahan baku habis');
+('ORD-004', 4, 'cancelled', E'2x Teh Manis (Hangat)', 'Sari', 'Outdoor', NOW() - INTERVAL '1 day', 'Stok bahan baku habis');

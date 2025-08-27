@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Laporan Penjualan - Infinity Cafe</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="./css/responsive-tables.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -116,7 +117,7 @@
                         <span class="summary-name">📊 Data Laporan</span>
                     </div>
                     <div class="table-header">
-                        <div class="table-controls" style="width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                        <div class="search-filter-section"> 
                             <div class="search-container">
                                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
                                 <input type="text" id="table-search-input" class="search-input" placeholder="Cari di tabel...">
@@ -153,18 +154,18 @@
                             </div>
                         </div>
                     </div>
-                    <table id="report-table" class="flavour-table">
-        <thead>
-            <tr>
+                    <table id="report-table">
+                        <thead>
+                            <tr>
                                 <th>No</th>
                                 <th>Menu</th>
                                 <th>Qty</th>
-                                <th>Harga</th>
+                                <th>Price</th>
                                 <th>Total</th>
-            </tr>
-        </thead>
-        <tbody id="report-body"></tbody>
-    </table>
+                            </tr>
+                        </thead>
+                        <tbody id="report-tbody"></tbody>
+                    </table>
 
                     <!-- Pagination -->
                     <div class="pagination-container">
@@ -1550,7 +1551,7 @@ async function loadReport() {
                         <th>No</th>
                         <th>Menu</th>
                         <th>Qty</th>
-                        <th>Harga</th>
+                        <th>Price</th>
                         <th>Total</th>`;
                 }
                 renderCharts(details);
@@ -1731,8 +1732,8 @@ async function fetchSuggestedMenu() {
 
 // ========== EXPORT FUNCTIONS ==========
 function exportCSV() {
-    const rows = [["No", "Menu", "Qty", "Harga", "Total"]];
-    document.querySelectorAll("#report-body tr").forEach((tr, i) => {
+    const rows = [["No", "Menu", "Qty", "Price", "Total"]];
+    document.querySelectorAll("#report-tbody tr").forEach((tr, i) => {
         const cols = [...tr.children].map(td => td.innerText);
         if (cols.length > 1 && !cols[0].includes("Tidak ada data")) {
         rows.push([i + 1, ...cols.slice(1)]);
@@ -1793,7 +1794,7 @@ function renderTablePage() {
     const endIndex = startIndex + itemsPerPage;
     const pageData = filteredData.slice(startIndex, endIndex);
     
-    const tbody = document.getElementById("report-body");
+    const tbody = document.getElementById("report-tbody");
     tbody.innerHTML = "";
     
     if (pageData.length > 0) {
@@ -1811,7 +1812,7 @@ function renderTablePage() {
     } else {
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" style="text-align: center; color: #6B7280; font-style: italic;">
+                <td colspan="5" style="text-align: center; padding 2rem; border-top-right-radius: 0.5rem; border-bottom-right-radius: 0.5rem;">
                     Tidak ada data untuk halaman ini
                 </td>
             </tr>`;
@@ -2070,7 +2071,7 @@ function applyModeLayout(mode) {
             <th>No</th>
             <th>Menu</th>
             <th>Qty</th>
-            <th>Harga</th>
+            <th>Price</th>
             <th>Total</th>
         `;
     }
