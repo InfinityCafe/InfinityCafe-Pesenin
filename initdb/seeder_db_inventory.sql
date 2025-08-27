@@ -52,23 +52,47 @@ CREATE TABLE IF NOT EXISTS inventory_outbox (
     error_message TEXT
 );
 
--- Tabel consumption_log untuk tracking konsumsi stok
-CREATE TABLE IF NOT EXISTS consumption_log (
+-- 1. Tabel utama untuk consumption logs (dengan informasi menu)
+CREATE TABLE IF NOT EXISTS consumption_logs (
     id SERIAL PRIMARY KEY,
     order_id VARCHAR UNIQUE NOT NULL,
-    per_menu_payload TEXT,
-    per_ingredient_payload TEXT,
-    consumed BOOLEAN DEFAULT FALSE,
-    rolled_back BOOLEAN DEFAULT FALSE,
+    menu_names TEXT NOT NULL, -- JSON array atau comma-separated menu names
+    menu_summary TEXT, -- Summary info untuk display (e.g., "2x Cappuccino, 1x Latte")
+    total_menu_items INTEGER DEFAULT 0,
+    total_ingredients_affected INTEGER DEFAULT 0,
+    status VARCHAR CHECK (status IN ('pending', 'consumed', 'rolled_back')) DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT now(),
+    consumed_at TIMESTAMP NULL,
+    rolled_back_at TIMESTAMP NULL,
+    notes TEXT NULL
+);
+
+-- 2. Tabel untuk detail konsumsi per ingredient
+CREATE TABLE IF NOT EXISTS consumption_ingredient_details (
+    id SERIAL PRIMARY KEY,
+    consumption_log_id INTEGER NOT NULL REFERENCES consumption_logs(id) ON DELETE CASCADE,
+    ingredient_id INTEGER NOT NULL REFERENCES inventories(id),
+    ingredient_name VARCHAR NOT NULL, -- denormalized untuk historical record
+    quantity_consumed DECIMAL(10,3) NOT NULL,
+    unit VARCHAR NOT NULL,
+    stock_before DECIMAL(10,3) NOT NULL,
+    stock_after DECIMAL(10,3) NOT NULL,
     created_at TIMESTAMP DEFAULT now()
 );
 
--- Membuat index yang diperlukan
+-- Membuat index yang diperlukan untuk tabel yang sudah ada
 CREATE INDEX IF NOT EXISTS idx_inventories_name ON inventories(name);
 CREATE INDEX IF NOT EXISTS idx_inventories_category ON inventories(category);
 CREATE INDEX IF NOT EXISTS idx_inventories_unit ON inventories(unit);
 CREATE INDEX IF NOT EXISTS idx_inventory_outbox_event_type ON inventory_outbox(event_type);
-CREATE INDEX IF NOT EXISTS idx_consumption_log_order_id ON consumption_log(order_id);
+
+-- Index untuk tabel simplified normalized consumption (2 tables only)
+CREATE INDEX IF NOT EXISTS idx_consumption_logs_order_id ON consumption_logs(order_id);
+CREATE INDEX IF NOT EXISTS idx_consumption_logs_status ON consumption_logs(status);
+CREATE INDEX IF NOT EXISTS idx_consumption_logs_created_at ON consumption_logs(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_consumption_ingredient_details_log_id ON consumption_ingredient_details(consumption_log_id);
+CREATE INDEX IF NOT EXISTS idx_consumption_ingredient_details_ingredient_id ON consumption_ingredient_details(ingredient_id);
 
 -- Bersihkan tabel inventories bila diperlukan (hanya jika sudah ada data)
 DO $$
@@ -76,7 +100,8 @@ BEGIN
     IF EXISTS (SELECT 1 FROM inventories) THEN
         TRUNCATE TABLE inventories RESTART IDENTITY CASCADE;
         TRUNCATE TABLE inventory_outbox RESTART IDENTITY CASCADE;
-        TRUNCATE TABLE consumption_log RESTART IDENTITY CASCADE;
+        TRUNCATE TABLE consumption_logs RESTART IDENTITY CASCADE;
+        TRUNCATE TABLE consumption_ingredient_details RESTART IDENTITY CASCADE;
     END IF;
 END $$;
 
