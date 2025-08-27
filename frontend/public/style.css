@@ -5582,7 +5582,7 @@ body[data-page="login"] {
     border: 1px solid #E9ECEF;
 }
 
-.filter-container {
+[data-page="report"].filter-container {
     display: flex;
     align-items: center;
     gap: 1rem;
@@ -5590,7 +5590,7 @@ body[data-page="login"] {
     flex-wrap: wrap;
 }
 
-.filter-group {
+[data-page="report"].filter-group {
     display: flex;
     align-items: center;
     gap: 0.5rem;
