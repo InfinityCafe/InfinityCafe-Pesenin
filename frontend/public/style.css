@@ -2804,7 +2804,7 @@ body.tab-done .add-order-btn {
 #flavors-table td:not(:first-child):not(:last-child)::before,
 #inventory-table td:not(:first-child):not(:last-child)::before,
 #suggestions-table td:not(:first-child):not(:last-child)::before,
-#report-table td:not(:first-child):not(:last-child)::before {
+#report-table td:not(:first-child):(:last-child)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2814,7 +2814,7 @@ body.tab-done .add-order-btn {
     background-color: #F4F1E8;
 }
 
-#report-table td:last-child::before {
+/* #report-table td:last-child::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2822,7 +2822,7 @@ body.tab-done .add-order-btn {
     width: 0.75rem;
     height: 100%;
     background-color: #F4F1E8;
-}
+} */
 
 #menu-table td:last-child,
 #flavors-table td:last-child,
