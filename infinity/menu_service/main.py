@@ -119,7 +119,8 @@ menu_item_flavor_association = Table(
 class MenuItem(Base):
     __tablename__ = "menu_items"
     id = Column(String, primary_key=True, index=True)
-    base_name = Column(String, index=True, unique=True)
+    base_name_en = Column(String, index=True)  
+    base_name_id = Column(String, index=True)  
     base_price = Column(Integer)
     isAvail = Column(Boolean, default=True)
     making_time_minutes = Column(Float, default=0)
@@ -135,7 +136,8 @@ class MenuItem(Base):
 class Flavor(Base):
     __tablename__ = "flavors"
     id = Column(String, primary_key=True, index=True)
-    flavor_name = Column(String, unique=True, index=True)
+    flavor_name_en = Column(String, index=True)  
+    flavor_name_id = Column(String, index=True)  
     additional_price = Column(Integer, default=0)
     isAvail = Column(Boolean, default=True)
     
@@ -155,15 +157,22 @@ class MenuSuggestion(Base):
 
 
 class FlavorBase(BaseModel):
-    flavor_name: str = Field(..., min_length=1, description="Nama flavor tidak boleh kosong")
+    flavor_name_en: str = Field(..., min_length=1, description="English flavor name tidak boleh kosong")
+    flavor_name_id: str = Field(..., min_length=1, description="Indonesian flavor name tidak boleh kosong")
     additional_price: Optional[int] = Field(default=0, ge=0, description="Harga tambahan tidak boleh negatif, default 0 jika tidak diisi")
     isAvail: bool = True
 
 class FlavorCreate(FlavorBase):
-    @validator('flavor_name')
-    def validate_flavor_name(cls, v):
+    @validator('flavor_name_en')
+    def validate_flavor_name_en(cls, v):
         if not v or v.strip() == "":
-            raise ValueError('Nama flavor tidak boleh kosong atau hanya spasi')
+            raise ValueError('English flavor name tidak boleh kosong atau hanya spasi')
+        return v.strip()
+    
+    @validator('flavor_name_id')
+    def validate_flavor_name_id(cls, v):
+        if not v or v.strip() == "":
+            raise ValueError('Indonesian flavor name tidak boleh kosong atau hanya spasi')
         return v.strip()
     
     @validator('additional_price')
@@ -179,7 +188,8 @@ class FlavorOut(FlavorBase):
     model_config = { "from_attributes": True }
 
 class MenuItemBase(BaseModel):
-    base_name: str = Field(..., min_length=1, description="Nama menu tidak boleh kosong")
+    base_name_en: str = Field(..., min_length=1, description="Nama menu tidak boleh kosong")
+    base_name_id: str = Field(..., min_length=1, description="Nama menu tidak boleh kosong")
     base_price: int = Field(..., gt=0, description="Harga harus lebih dari 0")
     isAvail: bool = True
     making_time_minutes: float = Field(default=0, ge=0, description="Waktu pembuatan menu dalam menit")
@@ -200,8 +210,14 @@ class MenuItemCreate(MenuItemBase):
     flavor_ids: List[str] = Field(default=[], description="ID flavor untuk menu (opsional)")
     recipe_ingredients: List[RecipeIngredientCreate] = Field(default=[], description="Resep ingredients untuk menu ini (WAJIB untuk menu baru)")
     
-    @validator('base_name')
-    def validate_base_name(cls, v):
+    @validator('base_name_en')
+    def validate_base_name_en(cls, v):
+        if not v or v.strip() == "":
+            raise ValueError('Nama menu tidak boleh kosong atau hanya spasi')
+        return v.strip()
+    
+    @validator('base_name_id')
+    def validate_base_name_id(cls, v):
         if not v or v.strip() == "":
             raise ValueError('Nama menu tidak boleh kosong atau hanya spasi')
         return v.strip()
@@ -304,7 +320,10 @@ def generate_id(prefix: str, length: int = 8):
 def create_flavor(flavor: FlavorCreate, db: Session = Depends(get_db)):
     """Menambahkan varian rasa baru ke database."""
     
-    if not flavor.flavor_name or flavor.flavor_name.strip() == "":
+    if not flavor.flavor_name_en or flavor.flavor_name_en.strip() == "":
+        raise HTTPException(status_code=400, detail="Nama flavor tidak boleh kosong")
+    
+    if not flavor.flavor_name_id or flavor.flavor_name_id.strip() == "":
         raise HTTPException(status_code=400, detail="Nama flavor tidak boleh kosong")
     
     price = flavor.additional_price if flavor.additional_price is not None else 0
@@ -312,13 +331,18 @@ def create_flavor(flavor: FlavorCreate, db: Session = Depends(get_db)):
     if price < 0:
         raise HTTPException(status_code=400, detail="Harga tambahan tidak boleh negatif")
     
-    db_flavor = db.query(Flavor).filter(Flavor.flavor_name == flavor.flavor_name.strip()).first()
-    if db_flavor:
+    db_flavor_en = db.query(Flavor).filter(Flavor.flavor_name_en == flavor.flavor_name_en.strip()).first()
+    if db_flavor_en:
+        raise HTTPException(status_code=400, detail="Rasa dengan nama ini sudah ada")
+    
+    db_flavor_id = db.query(Flavor).filter(Flavor.flavor_name_id == flavor.flavor_name_id.strip()).first()
+    if db_flavor_id:
         raise HTTPException(status_code=400, detail="Rasa dengan nama ini sudah ada")
     
     new_flavor = Flavor(
         id=generate_id("FLAV", 6), 
-        flavor_name=flavor.flavor_name.strip(),
+        flavor_name_en=flavor.flavor_name_en.strip(),
+        flavor_name_id=flavor.flavor_name_id.strip(),
         additional_price=price,
         isAvail=flavor.isAvail
     )
@@ -331,7 +355,8 @@ def create_flavor(flavor: FlavorCreate, db: Session = Depends(get_db)):
         "message": "Flavor berhasil ditambahkan",
         "data": {
             "id": new_flavor.id,
-            "flavor_name": new_flavor.flavor_name,
+            "flavor_name_en": new_flavor.flavor_name_en,
+            "flavor_name_id": new_flavor.flavor_name_id,
             "additional_price": new_flavor.additional_price
         }
     }
@@ -361,20 +386,31 @@ def update_flavor_item(flavor_id: str, flavor: FlavorCreate, db: Session = Depen
     if not db_flavor:
         raise HTTPException(status_code=404, detail="Varian rasa tidak ditemukan")
     
-    if not flavor.flavor_name or flavor.flavor_name.strip() == "":
+    if not flavor.flavor_name_en or flavor.flavor_name_en.strip() == "":
+        raise HTTPException(status_code=400, detail="Nama varian rasa tidak boleh kosong")
+    
+    if not flavor.flavor_name_id or flavor.flavor_name_id.strip() == "":
         raise HTTPException(status_code=400, detail="Nama varian rasa tidak boleh kosong")
     
     if flavor.additional_price is None or flavor.additional_price < 0:
         raise HTTPException(status_code=400, detail="Harga tambahan tidak boleh negatif")
     
-    existing = db.query(Flavor).filter(
-        Flavor.flavor_name == flavor.flavor_name.strip(),
+    existing_en = db.query(Flavor).filter(
+        Flavor.flavor_name_en == flavor.flavor_name_en.strip(),
         Flavor.id != flavor_id
     ).first()
-    if existing:
-        raise HTTPException(status_code=400, detail=f"Varian rasa dengan nama '{flavor.flavor_name}' sudah ada.")
+    if existing_en:
+        raise HTTPException(status_code=400, detail=f"Varian rasa dengan nama '{flavor.flavor_name_en}' sudah ada.")
     
-    db_flavor.flavor_name = flavor.flavor_name.strip()
+    existing_id = db.query(Flavor).filter(
+        Flavor.flavor_name_id == flavor.flavor_name_id.strip(),
+        Flavor.id != flavor_id
+    ).first()
+    if existing_id:
+        raise HTTPException(status_code=400, detail=f"Varian rasa dengan nama '{flavor.flavor_name_id}' sudah ada.")
+    
+    db_flavor.flavor_name_en = flavor.flavor_name_en.strip()
+    db_flavor.flavor_name_id = flavor.flavor_name_id.strip()
     db_flavor.additional_price = flavor.additional_price
     db_flavor.isAvail = flavor.isAvail
     
@@ -386,7 +422,8 @@ def update_flavor_item(flavor_id: str, flavor: FlavorCreate, db: Session = Depen
         "message": "Varian rasa berhasil diperbarui",
         "data": {
             "id": db_flavor.id,
-            "flavor_name": db_flavor.flavor_name,
+            "flavor_name_en": db_flavor.flavor_name_en,
+            "flavor_name_id": db_flavor.flavor_name_id,
             "additional_price": db_flavor.additional_price
         }
     }
@@ -402,8 +439,19 @@ def delete_flavor_item(flavor_id: str, db: Session = Depends(get_db)):
         MenuItem.flavors.any(id=flavor_id)
     ).all()
     
+@app.delete("/flavors/{flavor_id}", summary="Hapus Varian Rasa", tags=["Flavor"], operation_id="delete flavor")
+def delete_flavor_item(flavor_id: str, db: Session = Depends(get_db)):
+    """Menghapus varian rasa berdasarkan ID."""
+    db_flavor = db.query(Flavor).filter(Flavor.id == flavor_id).first()
+    if not db_flavor:
+        raise HTTPException(status_code=404, detail="Varian rasa tidak ditemukan")
+    
+    menu_items_using_flavor = db.query(MenuItem).filter(
+        MenuItem.flavors.any(id=flavor_id)
+    ).all()
+    
     if menu_items_using_flavor:
-        menu_names = [item.base_name for item in menu_items_using_flavor]
+        menu_names = [f"{item.base_name_en} / {item.base_name_id}" for item in menu_items_using_flavor]
         raise HTTPException(
             status_code=400, 
             detail=f"Varian rasa tidak dapat dihapus karena masih digunakan oleh menu: {', '.join(menu_names)}"
@@ -423,7 +471,8 @@ def delete_flavor_item(flavor_id: str, db: Session = Depends(get_db)):
         "message": "Varian rasa berhasil dihapus",
         "data": {
             "id": flavor_id,
-            "flavor_name": db_flavor.flavor_name
+            "flavor_name_en": db_flavor.flavor_name_en,
+            "flavor_name_id": db_flavor.flavor_name_id
         }
     }
 
@@ -431,9 +480,12 @@ def delete_flavor_item(flavor_id: str, db: Session = Depends(get_db)):
 def create_menu_item(item: MenuItemCreate, db: Session = Depends(get_db)):
     """Menambahkan menu dasar baru beserta recipe ingredients dan menautkannya dengan varian rasa."""
     
-    if not item.base_name or item.base_name.strip() == "":
+    if not item.base_name_en or item.base_name_en.strip() == "":
         raise HTTPException(status_code=400, detail="Nama menu tidak boleh kosong")
     
+    if not item.base_name_id or item.base_name_id.strip() == "":
+        raise HTTPException(status_code=400, detail="Nama menu tidak boleh kosong")
+
     if item.base_price is None or item.base_price <= 0:
         raise HTTPException(status_code=400, detail="Harga menu harus diisi dan lebih dari 0")
     
@@ -456,9 +508,13 @@ def create_menu_item(item: MenuItemCreate, db: Session = Depends(get_db)):
             if not flavor_id or flavor_id.strip() == "":
                 raise HTTPException(status_code=400, detail="Flavor ID tidak boleh kosong")
     
-    existing = db.query(MenuItem).filter(MenuItem.base_name == item.base_name.strip()).first()
-    if existing:
-        raise HTTPException(status_code=400, detail=f"Menu dengan nama '{item.base_name}' sudah ada.")
+    existing_en = db.query(MenuItem).filter(MenuItem.base_name_en == item.base_name_en.strip()).first()
+    if existing_en:
+        raise HTTPException(status_code=400, detail=f"Menu dengan nama '{item.base_name_en}' sudah ada.")
+    
+    existing_id = db.query(MenuItem).filter(MenuItem.base_name_id == item.base_name_id.strip()).first()
+    if existing_id:
+        raise HTTPException(status_code=400, detail=f"Menu dengan nama '{item.base_name_id}' sudah ada.")
     
     if item.flavor_ids:
         flavors = db.query(Flavor).filter(Flavor.id.in_(item.flavor_ids)).all()
@@ -470,9 +526,11 @@ def create_menu_item(item: MenuItemCreate, db: Session = Depends(get_db)):
 
     db_item = MenuItem(
         id=generate_id("MENU"), 
-        base_name=item.base_name.strip(), 
+        base_name_en=item.base_name_en.strip(), 
+        base_name_id=item.base_name_id.strip(),
         base_price=item.base_price, 
-        isAvail=item.isAvail
+        isAvail=item.isAvail,
+        making_time_minutes=item.making_time_minutes
     )
     
     if flavors:
@@ -507,10 +565,11 @@ def create_menu_item(item: MenuItemCreate, db: Session = Depends(get_db)):
         "message": "Menu beserta recipe berhasil ditambahkan",
         "data": {
             "id": db_item.id,
-            "base_name": db_item.base_name,
+            "base_name_en": db_item.base_name_en,
+            "base_name_id": db_item.base_name_id,
             "base_price": db_item.base_price,
             "isAvail": db_item.isAvail,
-            "flavors": [{"id": f.id, "flavor_name": f.flavor_name, "additional_price": f.additional_price} for f in db_item.flavors],
+            "flavors": [{"id": f.id, "flavor_name_en": f.flavor_name_en, "flavor_name_id": f.flavor_name_id, "additional_price": f.additional_price} for f in db_item.flavors],
             "recipe_ingredients": recipe_ingredients_created
         }
     }
@@ -537,8 +596,10 @@ def get_menu_item(menu_id: str, db: Session = Depends(get_db)):
 
 @app.get("/menu/by_name/{base_name}/flavors", summary="Dapatkan rasa untuk menu tertentu by Name", tags=["Menu"], response_model=List[FlavorOut])
 def get_flavors_for_menu_by_name(base_name: str, db: Session = Depends(get_db)):
-    """Mengembalikan daftar rasa yang tersedia untuk menu tertentu berdasarkan namanya."""
-    menu_item = db.query(MenuItem).options(joinedload(MenuItem.flavors)).filter(MenuItem.base_name == base_name).first()
+    """Mengembalikan daftar rasa yang tersedia untuk menu tertentu berdasarkan namanya (English atau Indonesian)."""
+    menu_item = db.query(MenuItem).options(joinedload(MenuItem.flavors)).filter(
+        (MenuItem.base_name_en == base_name) | (MenuItem.base_name_id == base_name)
+    ).first()
     
     if not menu_item:
         raise HTTPException(status_code=404, detail=f"Menu dengan nama '{base_name}' tidak ditemukan.")
@@ -552,9 +613,11 @@ def update_menu_item(menu_id: str, item: MenuItemCreate, db: Session = Depends(g
     if not db_item:
         raise HTTPException(status_code=404, detail="Menu item tidak ditemukan")
     
-    db_item.base_name = item.base_name
+    db_item.base_name_en = item.base_name_en
+    db_item.base_name_id = item.base_name_id
     db_item.base_price = item.base_price
     db_item.isAvail = item.isAvail
+    db_item.making_time_minutes = item.making_time_minutes
     
     flavors = db.query(Flavor).filter(Flavor.id.in_(item.flavor_ids)).all()
     if len(flavors) != len(item.flavor_ids):
@@ -593,7 +656,9 @@ def suggest_menu(item: SuggestionItem, db: Session = Depends(get_db)):
                 "data": None
             }
         
-        exist_main = db.query(MenuItem).filter(MenuItem.base_name == item.menu_name.strip()).first()
+        exist_main = db.query(MenuItem).filter(
+            (MenuItem.base_name_en == item.menu_name.strip()) | (MenuItem.base_name_id == item.menu_name.strip())
+        ).first()
         exist_suggested = db.query(MenuSuggestion).filter(MenuSuggestion.menu_name == item.menu_name.strip()).first()
         if exist_main or exist_suggested:
             return {
@@ -641,7 +706,7 @@ def get_suggestions(db: Session = Depends(get_db)):
             "data": []
         }
     
-    menu_names = []
+    suggestion_data = []
     for suggestion in suggestions:
         suggestion_data.append({
             "usulan_id": suggestion.usulan_id,
@@ -654,7 +719,7 @@ def get_suggestions(db: Session = Depends(get_db)):
     return {
         "status": "success", 
         "message": f" Hallo! Kami punya beberapa usulan menu yang baru nih dari pelanggan lain, coba cek siapa tahu ada yang cocok dengan anda:",
-        "data": menu_names
+        "data": suggestion_data
     }
 
 @app.get("/menu_suggestion/raw", summary="Raw Usulan untuk Report", tags=["Usulan Menu"], operation_id="list raw usulan menu")
@@ -884,10 +949,11 @@ def update_menu_recipe(
     
     return {
         "status": "success",
-        "message": f"Recipe untuk menu '{menu.base_name}' berhasil diperbarui",
+        "message": f"Recipe untuk menu '{menu.base_name_en} / {menu.base_name_id}' berhasil diperbarui",
         "data": {
             "menu_id": menu_id,
-            "menu_name": menu.base_name,
+            "menu_name_en": menu.base_name_en,
+            "menu_name_id": menu.base_name_id,
             "total_ingredients": len(recipe_ingredients_created),
             "recipe_ingredients": recipe_ingredients_created
         }
@@ -915,10 +981,11 @@ def get_menu_recipe(menu_id: str, db: Session = Depends(get_db)):
     
     return {
         "status": "success",
-        "message": f"Recipe untuk menu '{menu.base_name}' berhasil diambil",
+        "message": f"Recipe untuk menu '{menu.base_name_en} / {menu.base_name_id}' berhasil diambil",
         "data": {
             "menu_id": menu_id,
-            "menu_name": menu.base_name,
+            "menu_name_en": menu.base_name_en,
+            "menu_name_id": menu.base_name_id,
             "menu_price": menu.base_price,
             "is_available": menu.isAvail,
             "total_ingredients": len(recipe_with_details),
@@ -939,10 +1006,11 @@ def delete_menu_recipe(menu_id: str, db: Session = Depends(get_db)):
     
     return {
         "status": "success",
-        "message": f"Recipe untuk menu '{menu.base_name}' berhasil dihapus",
+        "message": f"Recipe untuk menu '{menu.base_name_en} / {menu.base_name_id}' berhasil dihapus",
         "data": {
             "menu_id": menu_id,
-            "menu_name": menu.base_name,
+            "menu_name_en": menu.base_name_en,
+            "menu_name_id": menu.base_name_id,
             "deleted_ingredients_count": deleted_count
         }
     }
@@ -950,25 +1018,34 @@ def delete_menu_recipe(menu_id: str, db: Session = Depends(get_db)):
 @app.post("/recipes/batch", summary="Ambil resep banyak menu", tags=["Recipe"], operation_id="batch recipes")
 def get_recipes_batch(payload: dict = Body(...), db: Session = Depends(get_db)):
     """
-    Body: { "menu_names": ["Caffe Latte","Cappuccino"] }
+    Body: { "menu_names": ["Caffe Latte","Cappuccino","Kafe Latte"] }
     Return: { "recipes": { "Caffe Latte": [ {ingredient_id, quantity, unit}, ...], ... } }
+    Mendukung pencarian dengan nama English atau Indonesian
     """
     menu_names = payload.get("menu_names", [])
     if not isinstance(menu_names, list) or not menu_names:
         raise HTTPException(status_code=400, detail="menu_names harus list dan tidak kosong")
+    
     menu_rows = db.query(MenuItem).options(joinedload(MenuItem.recipe_ingredients)).filter(
-        MenuItem.base_name.in_(menu_names)
+        (MenuItem.base_name_en.in_(menu_names)) | (MenuItem.base_name_id.in_(menu_names))
     ).all()
-    mapping = {m.base_name: [] for m in menu_rows}
+    
+    mapping = {}
     for m in menu_rows:
-        for r in m.recipe_ingredients:
-            mapping[m.base_name].append({
-                "ingredient_id": r.ingredient_id,
-                "quantity": r.quantity,
-                "unit": r.unit
-            })
+        for name in menu_names:
+            if name == m.base_name_en or name == m.base_name_id:
+                if name not in mapping:
+                    mapping[name] = []
+                    for r in m.recipe_ingredients:
+                        mapping[name].append({
+                            "ingredient_id": r.ingredient_id,
+                            "quantity": r.quantity,
+                            "unit": r.unit
+                        })
+    
     for name in menu_names:
         mapping.setdefault(name, [])
+    
     return {"recipes": mapping}
 
 hostname = socket.gethostname()
