@@ -127,7 +127,7 @@ async function renderMenuTable() {
         tbody.appendChild(row);
         });
     } else {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No menus found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 1rem">No menus found</td></tr>';
     }
     
     updateMenuTableInfo();
@@ -295,7 +295,7 @@ function renderFlavorTable() {
         tbody.appendChild(row);
         });
     } else {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No flavors found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 1rem;">No flavors found</td></tr>';
     }
     
     updateFlavorTableInfo();

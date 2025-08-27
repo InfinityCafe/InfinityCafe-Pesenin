@@ -180,180 +180,6 @@ body {
     font-size: 0.875rem;
 }
 
-/* Kitchen Report Styles */
-.kitchen-report-section {
-    margin-top: 2rem;
-}
-
-.kitchen-report-section .summary-item {
-    margin-bottom: 1.5rem;
-}
-
-.menu-item-tag {
-    display: inline-block;
-    background-color: #F5EFE6;
-    color: #312929;
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
-    font-size: 0.75rem;
-    margin: 0.125rem;
-    border: 1px solid #DCD0A8;
-}
-
-/* .status-badge.status-receive {
-    background-color: #E3F2FD;
-    color: #1976D2;
-} */
-
-/* .status-badge.status-making {
-    background-color: #FFF3E0;
-    color: #F57C00;
-} */
-
-/* .status-badge.status-deliver {
-    background-color: #E8F5E8;
-    color: #388E3C;
-} */
-
-.status-badge.status-done {
-    background-color: #E8F5E8;
-    color: #2E7D32;
-}
-
-.status-badge.status-cancelled {
-    background-color: #FFEBEE;
-    color: #D32F2F;
-}
-
-.ingredient-details {
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-.ingredient-menu-item {
-    background-color: #F5EFE6;
-    border: 1px solid #DCD0A8;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    margin-bottom: 1rem;
-}
-
-.ingredient-menu-item h5 {
-    color: #312929;
-    margin-bottom: 0.5rem;
-    font-size: 1rem;
-}
-
-.ingredient-menu-item p {
-    color: #5D5D5D;
-    margin-bottom: 1rem;
-    font-size: 0.875rem;
-}
-
-.ingredient-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 1rem;
-    font-size: 0.875rem;
-}
-
-.ingredient-table th,
-.ingredient-table td {
-    padding: 0.5rem;
-    text-align: left;
-    border-bottom: 1px solid #DCD0A8;
-}
-
-.ingredient-table th {
-    background-color: #F5EFE6;
-    color: #312929;
-    font-weight: 600;
-}
-
-.ingredient-table td {
-    color: #5D5D5D;
-}
-
-.order-ingredients h4,
-.menu-ingredients h4 {
-    color: #312929;
-    margin-bottom: 1rem;
-    font-size: 1.25rem;
-}
-
-.order-ingredients h5,
-.menu-ingredients h5 {
-    color: #312929;
-    margin-bottom: 0.5rem;
-    font-size: 1rem;
-}
-
-.order-ingredients ul {
-    list-style: none;
-    padding: 0;
-    margin-bottom: 1rem;
-}
-
-.order-ingredients li {
-    background-color: #F5EFE6;
-    padding: 0.5rem;
-    margin-bottom: 0.5rem;
-    border-radius: 0.25rem;
-    border: 1px solid #DCD0A8;
-}
-
-.btn-sm {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
-    border-radius: 0.25rem;
-}
-
-/* Ingredient Usage Styles */
-.ingredient-usage-summary {
-    max-width: 200px;
-    font-size: 0.75rem;
-}
-
-.ingredient-tag {
-    display: inline-block;
-    background-color: #F5EFE6;
-    border: 1px solid #DCD0A8;
-    border-radius: 0.25rem;
-    padding: 0.125rem 0.375rem;
-    margin: 0.125rem;
-    font-size: 0.7rem;
-    color: #312929;
-    white-space: nowrap;
-}
-
-.ingredient-tag-more {
-    display: inline-block;
-    background-color: #E8E8E8;
-    border: 1px solid #D0D0D0;
-    border-radius: 0.25rem;
-    padding: 0.125rem 0.375rem;
-    margin: 0.125rem;
-    font-size: 0.7rem;
-    color: #666;
-    font-style: italic;
-}
-
-.no-ingredients {
-    color: #999;
-    font-style: italic;
-    font-size: 0.75rem;
-}
-
-.menu-item-tag {
-    display: inline-block;
-    background-color: #DCD0A8;
-    border-radius: 0.25rem;
-    padding: 0.25rem 0.5rem;
-    margin: 0.125rem;
-    font-size: 0.75rem;
-    color: #312929;
-}
-
 /* Toggle Switch Styles */
 .switch {
     position: relative;
@@ -2804,7 +2630,7 @@ body.tab-done .add-order-btn {
 #flavors-table td:not(:first-child):not(:last-child)::before,
 #inventory-table td:not(:first-child):not(:last-child)::before,
 #suggestions-table td:not(:first-child):not(:last-child)::before,
-#report-table td:not(:first-child):(:last-child)::before {
+#report-table td:not(:first-child):not(:last-child)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2814,7 +2640,7 @@ body.tab-done .add-order-btn {
     background-color: #F4F1E8;
 }
 
-/* #report-table td:last-child::before {
+#report-table td:last-child:not(:first-child)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2822,7 +2648,7 @@ body.tab-done .add-order-btn {
     width: 0.75rem;
     height: 100%;
     background-color: #F4F1E8;
-} */
+}
 
 #menu-table td:last-child,
 #flavors-table td:last-child,
@@ -4944,11 +4770,9 @@ body[data-page="login"] {
 
 /* Table Header Styles */
 .table-controls {
-    width: 100%; 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: center; 
+    display: flex;
     gap: 1rem;
+    align-items: center;
 }
 
 /* Search Container in Table */
@@ -5017,83 +4841,6 @@ body[data-page="login"] {
     box-shadow: 0 0 0 3px rgba(141, 114, 114, 0.1);
 }
 
-/* Suggestions Table Styles */
-#suggestions-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0.75rem;
-    text-align: center;
-}
-
-#suggestions-table th {
-    padding: 0.75rem 1rem;
-    text-align: center;
-    font-weight: bold;
-    color: #312929;
-    text-transform: uppercase;
-    font-size: 16px;
-    background-color: #CAB99D;
-    position: relative;
-}
-
-#suggestions-table th:first-child {
-    border-top-left-radius: 0.5rem;
-    border-bottom-left-radius: 0.5rem;
-    width: 80px;
-}
-
-#suggestions-table th:last-child {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-    width: 150px;
-}
-
-#suggestions-table th:not(:first-child):not(:last-child)::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -0.75rem;
-    width: 0.75rem;
-    height: 100%;
-    background-color: #CAB99D;
-}
-
-#suggestions-table td {
-    padding: 1rem;
-    vertical-align: middle;
-    background-color: #F4F1E8;
-    font-weight: 500;
-    color: #312929;
-}
-
-#suggestions-table td:first-child {
-    font-weight: 700;
-    color: #8D7272;
-    background-color: #F4F1E8;
-}
-
-#suggestions-table td:nth-child(2) {
-    font-weight: 600;
-    color: #685454;
-}
-
-#suggestions-table td:nth-child(3) {
-    font-weight: 500;
-    color: #8D7272;
-}
-
-#suggestions-table td:nth-child(4) {
-    font-weight: 500;
-    color: #685454;
-}
-
-#suggestions-table td:last-child {
-    background-color: #F4F1E8;
-    padding: 0.5rem;
-}
-
-/* Suggestions table styles are now handled by the table-specific CSS above */
-
 /* Loading and No Data States */
 .loading-spinner {
     text-align: center;
@@ -5124,54 +4871,6 @@ body[data-page="login"] {
     margin-bottom: 0.5rem;
 }
 
-/* Form Styles */
-.form-group {
-    margin-bottom: 1.5rem;
-}
-
-/* .form-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 500;
-    color: #685454;
-} */
-
-.form-input, .form-textarea {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid #dee2e6;
-    border-radius: 0.375rem;
-    font-size: 0.875rem;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.form-input:focus, .form-textarea:focus {
-    outline: none;
-    border-color: #DCD0A8;
-    box-shadow: 0 0 0 3px rgba(220, 208, 168, 0.1);
-}
-
-.form-textarea {
-    resize: vertical;
-    min-height: 100px;
-}
-
-.form-help {
-    display: block;
-    margin-top: 0.25rem;
-    font-size: 0.75rem;
-    color: #6c757d;
-}
-
-/* Modal Footer */
-.modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 1rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid #e9ecef;
-}
-
 /* Success and Error Icons */
 .success-icon, .error-icon {
     font-size: 3rem;
@@ -5188,144 +4887,6 @@ body[data-page="login"] {
 
 .text-center {
     text-align: center;
-}
-
-/* Suggestion Modal Styles */
-#suggestion-modal .modal-content {
-    max-width: 600px;
-    width: 90%;
-    padding: 2rem;
-}
-
-#suggestion-modal .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 2px solid #DCD0A8;
-}
-
-#suggestion-modal .modal-header h3 {
-    margin: 0;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #8D7272;
-    font-family: 'Inter', sans-serif;
-}
-
-#suggestion-modal .modal-close:hover {
-    background: #8D7272;
-    color: white;
-    border-color: #8D7272;
-    transform: scale(1.1);
-}
-
-#suggestion-modal .modal-body {
-    margin-bottom: 1.5rem;
-}
-
-#suggestion-modal .form-group {
-    margin-bottom: 1.5rem;
-}
-
-#suggestion-modal .form-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 600;
-    color: #8D7272;
-    font-family: 'Inter', sans-serif;
-    font-size: 0.95rem;
-}
-
-#suggestion-modal .form-input,
-#suggestion-modal .form-textarea {
-    width: 100%;
-    padding: 0.875rem;
-    border: 2px solid #DCD0A8;
-    border-radius: 0.5rem;
-    font-size: 0.95rem;
-    font-family: 'Inter', sans-serif;
-    color: #685454;
-    background: #F4F1E8;
-    transition: all 0.3s ease;
-}
-
-#suggestion-modal .form-input:focus,
-#suggestion-modal .form-textarea:focus {
-    outline: none;
-    border-color: #8D7272;
-    background: white;
-    box-shadow: 0 0 0 3px rgba(141, 114, 114, 0.1);
-    transform: translateY(-1px);
-}
-
-#suggestion-modal .form-input::placeholder,
-#suggestion-modal .form-textarea::placeholder {
-    color: #A8A8A8;
-    font-style: italic;
-}
-
-#suggestion-modal .form-textarea {
-    resize: vertical;
-    min-height: 120px;
-    line-height: 1.5;
-}
-
-#suggestion-modal .form-help {
-    display: block;
-    margin-top: 0.5rem;
-    font-size: 0.8rem;
-    color: #8D7272;
-    font-family: 'Inter', sans-serif;
-    font-style: italic;
-    line-height: 1.4;
-}
-
-#suggestion-modal .modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 1rem;
-    padding-top: 1.5rem;
-    border-top: 2px solid #DCD0A8;
-}
-
-#suggestion-modal .modal-footer .btn {
-    padding: 0.75rem 1.5rem;
-    border-radius: 0.5rem;
-    font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    font-size: 0.95rem;
-    transition: all 0.3s ease;
-    cursor: pointer;
-    border: none;
-    min-width: 120px;
-}
-
-#suggestion-modal .modal-footer .btn-secondary {
-    background: #F4F1E8;
-    color: #8D7272;
-    border: 2px solid #DCD0A8;
-}
-
-#suggestion-modal .modal-footer .btn-secondary:hover {
-    background: #DCD0A8;
-    color: #685454;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-#suggestion-modal .modal-footer .btn-primary {
-    background: linear-gradient(135deg, #8D7272 0%, #A8A8A8 100%);
-    color: white;
-    border: 2px solid #8D7272;
-}
-
-#suggestion-modal .modal-footer .btn-primary:hover {
-    background: linear-gradient(135deg, #685454 0%, #8D7272 100%);
-    border-color: #685454;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(141, 114, 114, 0.3);
 }
 
 /* Responsive Design */
@@ -5362,12 +4923,6 @@ body[data-page="login"] {
     }
     
     /* Responsive Table Header */
-    .table-header {
-        flex-direction: column;
-        gap: 1rem;
-        text-align: center;
-    }
-    
     .table-controls {
         flex-direction: column;
         gap: 0.75rem;
@@ -5383,359 +4938,37 @@ body[data-page="login"] {
         min-width: auto;
         width: 100%;
     }
-    
-    /* Responsive Suggestion Modal */
-    #suggestion-modal .modal-content {
-        max-width: 95%;
-        margin: 1rem;
-        padding: 1.5rem;
-    }
-    
-    #suggestion-modal .modal-header {
-        flex-direction: column;
-        text-align: center;
-        gap: 1rem;
-    }
-    
-    #suggestion-modal .modal-header h3 {
-        font-size: 1.25rem;
-    }
-    
-    #suggestion-modal .modal-footer {
-        flex-direction: column;
-        gap: 0.75rem;
-    }
-    
-    #suggestion-modal .modal-footer .btn {
-        width: 100%;
-        min-width: auto;
-    }
-    
+
     .stat-card {
         padding: 1rem;
     }
     
-    .table-controls {
-        flex-direction: column;
-        align-items: stretch;
+    .stat-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+        font-size: 1rem;
     }
     
-    .table-actions {
-        justify-content: center;
+    .stat-content h3 {
+        font-size: 1.5rem;
     }
 }
 
 @media (max-width: 480px) {
-    .search-filter-section {
+    .suggestions-container {
         padding: 1rem;
     }
     
-    .summary-details {
+    .suggestion-card {
         padding: 1rem;
     }
     
-    .table-header {
-        padding: 1rem;
+    .suggestion-actions {
+        flex-direction: column;
     }
     
     .btn {
         justify-content: center;
         width: 100%;
-    }
-    
-    .modal-footer {
-        flex-direction: column;
-    }
-    
-    .modal-footer .btn {
-        width: 100%;
-    }
-}
-
-/* ========== KITCHEN REPORT STYLES ========== */
-/* Menggunakan class yang sudah ada dan menambahkan style khusus untuk kitchen report */
-
-/* Kitchen Report specific styles */
-[data-page="report"].status-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.75rem;
-    margin-bottom: 0.5rem;
-    background-color: #F8F9FA;
-    border-radius: 0.5rem;
-    border-left: 4px solid #8D7272;
-}
-
-/* Ingredient Analysis specific styles */
-.ingredient-analysis-section {
-    background-color: #F8F9FA;
-    min-height: 100vh;
-    padding: 1rem;
-}
-
-.ingredient-analysis-section .summary-item {
-    background-color: white;
-    border-radius: 1rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    margin-bottom: 1rem;
-}
-
-.ingredient-analysis-section .summary-header {
-    background-color: #DCD0A8;
-    color: #312929;
-    padding: 1rem 1.5rem;
-    border-radius: 1rem 1rem 0 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.ingredient-analysis-section .summary-name {
-    font-weight: 600;
-    font-size: 1.1rem;
-}
-
-.ingredient-analysis-section .summary-close {
-    cursor: pointer;
-    font-size: 1.5rem;
-    color: #8D7272;
-    transition: color 0.2s ease;
-}
-
-.ingredient-analysis-section .summary-close:hover {
-    color: #503A3A;
-}
-
-[data-page="report"].status-label {
-    font-weight: 600;
-    color: #412E27;
-    font-size: 0.875rem;
-}
-
-[data-page="report"].status-count {
-    background-color: #8D7272;
-    color: white;
-    padding: 0.25rem 0.75rem;
-    border-radius: 1rem;
-    font-weight: 700;
-    font-size: 0.875rem;
-    min-width: 2rem;
-    text-align: center;
-}
-
-.ingredient-name {
-    font-weight: 600;
-    color: #412E27;
-    font-size: 0.875rem;
-}
-
-.ingredient-amount {
-    background-color: #DCD0A8;
-    color: #412E27;
-    padding: 0.25rem 0.75rem;
-    border-radius: 1rem;
-    font-weight: 600;
-    font-size: 0.875rem;
-    min-width: 4rem;
-    text-align: center;
-}
-
-.time-item {
-    padding: 0.75rem;
-}
-
-.time-metric {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid #E9ECEF;
-}
-
-.time-metric:last-child {
-    border-bottom: none;
-}
-
-.time-label {
-    font-weight: 600;
-    color: #412E27;
-    font-size: 0.875rem;
-}
-
-.time-value {
-    background-color: #F5EFE6;
-    color: #8D7272;
-    padding: 0.25rem 0.75rem;
-    border-radius: 0.5rem;
-    font-weight: 700;
-    font-size: 0.875rem;
-    min-width: 3rem;
-    text-align: center;
-}
-
-/* Kitchen Report Table Styles */
-.ingredient-detail-cell {
-    max-width: 200px;
-    font-size: 0.8rem;
-    line-height: 1.4;
-}
-
-.ingredient-detail-cell.hidden {
-    display: none;
-}
-
-#ingredient-header.hidden {
-    display: none;
-}
-
-/* Kitchen Report Loading States */
-.loading-text {
-    text-align: center;
-    color: #6C757D;
-    font-style: italic;
-    padding: 2rem;
-}
-
-.no-data {
-    text-align: center;
-    color: #6C757D;
-    font-style: italic;
-    padding: 1rem;
-}
-
-/* Kitchen Report Filter Section */
-#search-filter-section-report.search-filter-section {
-    background-color: white;
-    padding: 1.5rem;
-    border-radius: 0.75rem;
-    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.04);
-    margin-bottom: 1.5rem;
-    border: 1px solid #E9ECEF;
-}
-
-.filter-container {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-top: 1rem;
-    flex-wrap: wrap;
-}
-
-.filter-group {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-/* Kitchen Report Summary Details */
-[data-page="report"].summary-details {
-    display: flex;
-    gap: 2rem;
-    flex-wrap: wrap;
-    background-color: white;
-    padding: 1rem 1.5rem;
-    border-radius: 0.75rem;
-    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.04);
-    border: 1px solid #E9ECEF;
-}
-
-[data-page="report"].summary-detail--order {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: #6C757D;
-    font-size: 0.875rem;
-}
-
-[data-page="report"].summary-detail--order strong {
-    color: #412E27;
-    font-weight: 700;
-}
-
-/* Kitchen Report Dashboard Layout */
-[data-page="report"].dashboard-layout {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 1.5rem;
-}
-
-/* Kitchen Report Table Container */
-[data-page="report"].table-container {
-    margin-bottom: 1.5rem;
-}
-
-[data-page="report"].table-header {
-    background-color: #F8F9FA;
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid #E9ECEF;
-    border-radius: 0.75rem 0.75rem 0 0;
-}
-
-[data-page="report"].table-controls {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-    flex-wrap: wrap;
-}
-
-[data-page="report"].table-actions {
-    display: flex;
-    gap: 0.5rem;
-}
-
-/* Kitchen Report Responsive Design */
-@media (max-width: 768px) {
-    [data-page="report"].dashboard-layout {
-        grid-template-columns: 1fr;
-    }
-    
-    .summary-details {
-        flex-direction: column;
-        gap: 1rem;
-    }
-    
-    .filter-container {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .filter-group {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .table-controls {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .table-actions {
-        justify-content: center;
-    }
-}
-
-@media (max-width: 480px) {
-    .search-filter-section {
-        padding: 1rem;
-    }
-    
-    .summary-details {
-        padding: 1rem;
-    }
-    
-    .table-header {
-        padding: 1rem;
-    }
-    
-    .status-item,
-    .ingredient-item {
-        padding: 0.5rem;
-    }
-    
-    .time-metric {
-        padding: 0.25rem 0;
     }
 }
