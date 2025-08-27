@@ -12,6 +12,7 @@ class InventoryManager {
     
     this.initializeEventListeners();
     this.loadInventoryData();
+    this.startPolling();
   }
 
   initializeEventListeners() {
@@ -176,6 +177,14 @@ class InventoryManager {
       console.log('Loading sample data as fallback...');
       this.loadSampleData();
     }
+  }
+
+  startPolling() {
+    console.log("Memulai polling data inventaris setiap 10 detik...");
+    setInterval(() => {
+      console.log("Polling: Mengambil data inventaris terbaru...");
+      this.loadInventoryData();
+    }, 3000); 
   }
 
   loadSampleData() {
