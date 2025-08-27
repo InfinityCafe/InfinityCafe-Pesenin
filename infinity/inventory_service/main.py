@@ -115,14 +115,33 @@ class InventoryOutbox(Base):
     error_message = Column(Text, nullable=True)
 
 class ConsumptionLog(Base):
-    __tablename__ = "consumption_log"
+    __tablename__ = "consumption_logs"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     order_id = Column(String, index=True, unique=True)
-    per_menu_payload = Column(Text)                 
-    per_ingredient_payload = Column(Text, nullable=True)  
-    consumed = Column(Boolean, default=False)
-    rolled_back = Column(Boolean, default=False)    
+    menu_names = Column(Text, nullable=False)  
+    menu_summary = Column(Text, nullable=True)  
+    total_menu_items = Column(Integer, default=0)
+    total_ingredients_affected = Column(Integer, default=0)
+    status = Column(String, default='pending')  
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
+    rolled_back_at = Column(DateTime(timezone=True), nullable=True)
+    notes = Column(Text, nullable=True)
+
+class ConsumptionIngredientDetail(Base):
+    __tablename__ = "consumption_ingredient_details"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    consumption_log_id = Column(Integer, ForeignKey('consumption_logs.id'), nullable=False)
+    ingredient_id = Column(Integer, ForeignKey('inventories.id'), nullable=False)
+    ingredient_name = Column(String, nullable=False) 
+    quantity_consumed = Column(Float, nullable=False)
+    unit = Column(String, nullable=False)
+    stock_before = Column(Float, nullable=False)
+    stock_after = Column(Float, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
+    
+    consumption_log = relationship("ConsumptionLog", backref="ingredient_details")
+    ingredient = relationship("Inventory", backref="consumption_details")
 
 class FlavorMapping(Base):
     __tablename__ = "flavor_mapping"
@@ -219,6 +238,143 @@ def create_outbox_event(db: Session, event_type: str, payload: dict):
     )
     db.add(outbox_event)
     return outbox_event
+
+def create_consumption_log_simplified(db: Session, order_id: str, menu_items_data: list, ingredient_details_data: list = None, status: str = 'pending'):
+    """Create a new consumption log with simplified 2-table structure"""
+    try:
+        menu_names = []
+        menu_summary_parts = []
+        total_items = 0
+        
+        for menu_data in menu_items_data:
+            menu_name = menu_data.get('menu_name', 'Unknown')
+            qty = menu_data.get('requested_qty', 1)
+            menu_names.append(menu_name)
+            menu_summary_parts.append(f"{qty}x {menu_name}")
+            total_items += qty
+        
+        menu_names_json = json.dumps(menu_names)
+        menu_summary = ", ".join(menu_summary_parts[:5])  
+        if len(menu_summary_parts) > 5:
+            menu_summary += f" dan {len(menu_summary_parts) - 5} item lainnya"
+        
+        consumption_log = ConsumptionLog(
+            order_id=order_id,
+            menu_names=menu_names_json,
+            menu_summary=menu_summary,
+            total_menu_items=total_items,
+            status=status,
+            notes=f"Created via simplified 2-table structure"
+        )
+        db.add(consumption_log)
+        db.flush()  
+        
+        if ingredient_details_data:
+            for ingredient_data in ingredient_details_data:
+                ingredient_detail = ConsumptionIngredientDetail(
+                    consumption_log_id=consumption_log.id,
+                    ingredient_id=ingredient_data.get('ingredient_id', 0),
+                    ingredient_name=ingredient_data.get('ingredient_name', 'Unknown'),
+                    quantity_consumed=ingredient_data.get('deducted', 0),
+                    unit=ingredient_data.get('unit', ''),
+                    stock_before=ingredient_data.get('before', 0),
+                    stock_after=ingredient_data.get('after', 0)
+                )
+                db.add(ingredient_detail)
+        
+        consumption_log.total_ingredients_affected = len(ingredient_details_data) if ingredient_details_data else 0
+        
+        db.commit()
+        return consumption_log.id
+        
+    except Exception as e:
+        db.rollback()
+        logging.error(f"Error creating consumption log: {e}")
+        raise e
+
+    """Create a new consumption log with normalized structure"""
+    try:
+        consumption_log = ConsumptionLog(
+            order_id=order_id,
+            status=status,
+            notes=f"Created via normalized structure"
+        )
+        db.add(consumption_log)
+        db.flush()  
+        
+        for menu_data in menu_items_data:
+            menu_item = ConsumptionMenuItem(
+                consumption_log_id=consumption_log.id,
+                menu_name=menu_data.get('menu_name', 'Unknown'),
+                requested_quantity=menu_data.get('requested_qty', 1),
+                recipe_count=menu_data.get('recipe_count', 0),
+                preference=menu_data.get('preference')
+            )
+            db.add(menu_item)
+        
+        if ingredient_details_data:
+            for ingredient_data in ingredient_details_data:
+                ingredient_detail = ConsumptionIngredientDetail(
+                    consumption_log_id=consumption_log.id,
+                    ingredient_id=ingredient_data.get('ingredient_id', 0),
+                    ingredient_name=ingredient_data.get('ingredient_name', 'Unknown'),
+                    quantity_consumed=ingredient_data.get('deducted', 0),
+                    unit=ingredient_data.get('unit', ''),
+                    stock_before=ingredient_data.get('before', 0),
+                    stock_after=ingredient_data.get('after', 0)
+                )
+                db.add(ingredient_detail)
+        
+        consumption_log.total_menu_items = len(menu_items_data)
+        consumption_log.total_ingredients_affected = len(ingredient_details_data) if ingredient_details_data else 0
+        
+        db.commit()
+        return consumption_log.id
+        
+    except Exception as e:
+        db.rollback()
+        logging.error(f"Error creating consumption log: {e}")
+        raise e
+
+def update_consumption_status(db: Session, order_id: str, new_status: str, ingredient_details_data: list = None):
+    """Update consumption log status and add ingredient details if provided"""
+    try:
+        consumption_log = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
+        if not consumption_log:
+            return False
+        
+        consumption_log.status = new_status
+        if new_status == 'consumed':
+            consumption_log.consumed_at = datetime.now(jakarta_tz)
+        elif new_status == 'rolled_back':
+            consumption_log.rolled_back_at = datetime.now(jakarta_tz)
+        
+        if ingredient_details_data:
+            db.query(ConsumptionIngredientDetail).filter(
+                ConsumptionIngredientDetail.consumption_log_id == consumption_log.id
+            ).delete()
+            
+            for ingredient_data in ingredient_details_data:
+                ingredient_detail = ConsumptionIngredientDetail(
+                    consumption_log_id=consumption_log.id,
+                    ingredient_id=ingredient_data.get('ingredient_id', 0),
+                    ingredient_name=ingredient_data.get('ingredient_name', 'Unknown'),
+                    quantity_consumed=ingredient_data.get('deducted', 0),
+                    unit=ingredient_data.get('unit', ''),
+                    stock_before=ingredient_data.get('before', 0),
+                    stock_after=ingredient_data.get('after', 0)
+                )
+                db.add(ingredient_detail)
+            
+            consumption_log.total_ingredients_affected = len(ingredient_details_data)
+        
+        db.commit()
+        return True
+        
+    except Exception as e:
+        db.rollback()
+        logging.error(f"Error updating consumption status: {e}")
+        return False
 
 def process_outbox_events(db: Session):
     unprocessed = db.query(InventoryOutbox).filter(
@@ -934,12 +1090,24 @@ def check_and_consume(
     debug_info = []  
     
     existing = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == req.order_id).first()
-    if existing and existing.consumed and not existing.rolled_back:
+    if existing and existing.status == 'consumed':
+        menu_details = []
+        try:
+            menu_names = json.loads(existing.menu_names)
+            for menu_name in menu_names:
+                menu_details.append({
+                    "menu_name": menu_name,
+                    "recipe_count": 0,  
+                    "requested_qty": 1   
+                })
+        except (json.JSONDecodeError, AttributeError):
+            menu_details = [{"menu_name": "Unknown", "recipe_count": 0, "requested_qty": 1}]
+        
         return BatchStockResponse(
             can_fulfill=True,
             shortages=[],
             partial_suggestions=[],
-            details=json.loads(existing.per_menu_payload)
+            details=menu_details
         )
 
     try:
@@ -1099,12 +1267,7 @@ def check_and_consume(
 
     if not consume:
         if not existing:
-            db.add(ConsumptionLog(
-                order_id=req.order_id,
-                per_menu_payload=json.dumps(per_menu_detail),
-                consumed=False
-            ))
-            db.commit()
+            create_consumption_log_simplified(db, req.order_id, per_menu_detail, status='pending')
         last_debug_info = debug_info
         return BatchStockResponse(can_fulfill=True, shortages=[], partial_suggestions=[], details=per_menu_detail, debug_info=debug_info)
 
@@ -1136,17 +1299,10 @@ def check_and_consume(
                 "unit": data["unit"]
             })
         if existing:
-            existing.per_menu_payload = json.dumps(per_menu_detail)
-            existing.per_ingredient_payload = json.dumps(per_ing_detail)
-            existing.consumed = True
+            update_consumption_status(db, req.order_id, 'consumed', per_ing_detail)
         else:
-            db.add(ConsumptionLog(
-                order_id=req.order_id,
-                per_menu_payload=json.dumps(per_menu_detail),
-                per_ingredient_payload=json.dumps(per_ing_detail),
-                consumed=True
-            ))
-        db.commit()
+            consumption_log_id = create_consumption_log_simplified(db, req.order_id, per_menu_detail, per_ing_detail, 'consumed')
+        
         logging.info(f"✅ Stok berhasil dikonsumsi untuk order {req.order_id}: {len(per_ing_detail)} ingredients")
         last_debug_info = debug_info
         return BatchStockResponse(can_fulfill=True, shortages=[], partial_suggestions=[], details=per_menu_detail, debug_info=debug_info)
@@ -1160,25 +1316,27 @@ def rollback_stock(order_id: str, db: Session = Depends(get_db)):
     """Mengembalikan stok yang sudah dikonsumsi untuk order yang dibatalkan"""
     
     log = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
-    if not log or not log.consumed:
+    if not log or log.status != 'consumed':
         return {"success": False, "message": "Tidak ada konsumsi untuk order ini"}
-    if log.rolled_back:
+    if log.status == 'rolled_back':
         return {"success": True, "message": "Sudah pernah di-rollback"}
     
     try:
-        per_ing = json.loads(log.per_ingredient_payload or "[]")
+        ingredient_details = db.query(ConsumptionIngredientDetail).filter(
+            ConsumptionIngredientDetail.consumption_log_id == log.id
+        ).all()
+        
         restored_count = 0
         
-        for detail in per_ing:
+        for detail in ingredient_details:
             ingredient = db.query(Inventory).filter(
-                Inventory.id == detail["ingredient_id"]
+                Inventory.id == detail.ingredient_id
             ).first()
             if ingredient:
-                ingredient.current_quantity += detail["deducted"]
+                ingredient.current_quantity += detail.quantity_consumed
                 restored_count += 1
         
-        log.rolled_back = True
-        db.commit()
+        update_consumption_status(db, order_id, 'rolled_back')
         
         return {
             "success": True,
@@ -1313,20 +1471,23 @@ def get_stock_history(
     
     result = []
     for log in logs:
-        ingredient_count = 0
-        if log.per_ingredient_payload:
-            try:
-                ingredient_count = len(json.loads(log.per_ingredient_payload))
-            except:
-                ingredient_count = 0
+        ingredient_count = db.query(ConsumptionIngredientDetail).filter(
+            ConsumptionIngredientDetail.consumption_log_id == log.id
+        ).count()
+        
+        status_text = "PENDING"
+        if log.status == 'consumed':
+            status_text = "DIKONSUMSI"
+        elif log.status == 'rolled_back':
+            status_text = "DIBATALKAN"
         
         result.append({
             "order_id": log.order_id,
             "date": format_jakarta_time(log.created_at).replace("/", "/").replace(" ", " ")[:16],
-            "consumed": log.consumed,
-            "rolled_back": log.rolled_back,
+            "consumed": log.status == 'consumed',  
+            "rolled_back": log.status == 'rolled_back',  
             "ingredients_affected": ingredient_count,
-            "status": "DIKONSUMSI" if log.consumed else "PENDING"
+            "status": status_text
         })
     
     return {
@@ -1357,88 +1518,42 @@ def get_order_ingredients_detail(order_id: str, db: Session = Depends(get_db)):
         logging.info(f"🔍 DEBUG: Found log for {order_id}")
         
         menu_info = []
-        if log.per_menu_payload:
-            try:
-                menu_data = json.loads(log.per_menu_payload)
-                menu_info = menu_data if isinstance(menu_data, list) else []
-            except:
-                menu_info = []
+        try:
+            menu_names = json.loads(log.menu_names)
+            for menu_name in menu_names:
+                menu_info.append({
+                    "menu_name": menu_name,
+                    "recipe_count": 0,
+                    "requested_qty": 1
+                })
+        except (json.JSONDecodeError, AttributeError):
+            menu_info = [{"menu_name": "Unknown", "recipe_count": 0, "requested_qty": 1}]
         
-        ingredients_detail = []
-        total_ingredients_used = 0
-        debug_info = {
-            "per_ingredient_payload_exists": log.per_ingredient_payload is not None,
-            "per_ingredient_payload_length": len(log.per_ingredient_payload) if log.per_ingredient_payload else 0,
-            "per_ingredient_payload_preview": log.per_ingredient_payload[:100] + "..." if log.per_ingredient_payload and len(log.per_ingredient_payload) > 100 else log.per_ingredient_payload
-        }
-        
-        if log.per_ingredient_payload:
-            try:
-                logging.info(f"🔍 DEBUG: Starting to parse per_ingredient_payload for {order_id}")
-                logging.info(f"🔍 DEBUG: Raw per_ingredient_payload: {log.per_ingredient_payload}")
-                
-                ingredients_data = json.loads(log.per_ingredient_payload)
-                logging.info(f"🔍 DEBUG: Raw ingredients_data type: {type(ingredients_data)}")
-                logging.info(f"🔍 DEBUG: Raw ingredients_data: {ingredients_data}")
-                
-                if isinstance(ingredients_data, list):
-                    for ingredient_info in ingredients_data:
-                        ingredient = db.query(Inventory).filter(
-                            Inventory.id == ingredient_info.get('ingredient_id')
-                        ).first()
-                        
-                        if ingredient:
-                            ingredients_detail.append({
-                                "ingredient_id": ingredient_info.get('ingredient_id'),
-                                "ingredient_name": ingredient_info.get('ingredient_name', ingredient.name),
-                                "consumed_quantity": ingredient_info.get('deducted', 0),
-                                "unit": ingredient_info.get('unit', ingredient.unit.value),
-                                "category": ingredient.category.value,
-                                "current_stock": ingredient.current_quantity,
-                                "stock_before_consumption": ingredient_info.get('before', 0),
-                                "stock_after_consumption": ingredient_info.get('after', 0)
-                            })
-                            total_ingredients_used += 1
-                            
-                ingredients_detail.sort(key=lambda x: x['ingredient_name'])
-                
-            except Exception as e:
-                import traceback
-                logging.warning(f"Failed to parse ingredient payload for {order_id}: {e}")
-                logging.warning(f"Raw payload: {log.per_ingredient_payload}")
-                logging.warning(f"Traceback: {traceback.format_exc()}")
+        ingredient_details = db.query(ConsumptionIngredientDetail).filter(
+            ConsumptionIngredientDetail.consumption_log_id == log.id
+        ).all()
         
         ingredients_detail = []
         total_ingredients_used = 0
         
-        if log.per_ingredient_payload:
-            try:
-                ingredients_data = json.loads(log.per_ingredient_payload)
-                
-                if isinstance(ingredients_data, list):
-                    for ingredient_info in ingredients_data:
-                        ingredient = db.query(Inventory).filter(
-                            Inventory.id == ingredient_info.get('ingredient_id')
-                        ).first()
-                        
-                        if ingredient:
-                            ingredients_detail.append({
-                                "ingredient_id": ingredient_info.get('ingredient_id'),
-                                "ingredient_name": ingredient_info.get('ingredient_name', ingredient.name),
-                                "consumed_quantity": ingredient_info.get('deducted', 0),
-                                "unit": ingredient_info.get('unit', ingredient.unit.value),
-                                "category": ingredient.category.value,
-                                "current_stock": ingredient.current_quantity,
-                                "stock_before_consumption": ingredient_info.get('before', 0),
-                                "stock_after_consumption": ingredient_info.get('after', 0)
-                            })
-                            total_ingredients_used += 1
-                            
-                ingredients_detail.sort(key=lambda x: x['ingredient_name'])
-                
-            except Exception as e:
-                ingredients_detail = []
-                total_ingredients_used = 0
+        for ingredient_detail in ingredient_details:
+            ingredient = db.query(Inventory).filter(
+                Inventory.id == ingredient_detail.ingredient_id
+            ).first()
+            
+            ingredients_detail.append({
+                "ingredient_id": ingredient_detail.ingredient_id,
+                "ingredient_name": ingredient_detail.ingredient_name,
+                "consumed_quantity": ingredient_detail.quantity_consumed,
+                "unit": ingredient_detail.unit,
+                "category": ingredient.category.value if ingredient else "Unknown",
+                "current_stock": ingredient.current_quantity if ingredient else 0,
+                "stock_before_consumption": ingredient_detail.stock_before,
+                "stock_after_consumption": ingredient_detail.stock_after
+            })
+            total_ingredients_used += 1
+            
+        ingredients_detail.sort(key=lambda x: x['ingredient_name'])
 
         return JSONResponse(status_code=200, content={
             "status": "success",
@@ -1447,10 +1562,11 @@ def get_order_ingredients_detail(order_id: str, db: Session = Depends(get_db)):
                 "order_id": order_id,
                 "order_date": format_jakarta_time(log.created_at),
                 "consumption_status": {
-                    "consumed": log.consumed,
-                    "rolled_back": log.rolled_back,
-                    "status_text": "BERHASIL DIKONSUMSI" if log.consumed and not log.rolled_back else 
-                                  "DIBATALKAN" if log.rolled_back else "PENDING"
+                    "consumed": log.status == 'consumed',
+                    "rolled_back": log.status == 'rolled_back',
+                    "status": log.status,
+                    "status_text": "BERHASIL DIKONSUMSI" if log.status == 'consumed' else
+                                  "DIBATALKAN" if log.status == 'rolled_back' else "PENDING"
                 },
                 "ingredients_breakdown": {
                     "total_ingredients_used": total_ingredients_used,
@@ -1538,8 +1654,7 @@ def get_daily_consumption_history(
         
         consumption_logs = db.query(ConsumptionLog).filter(
             and_(
-                ConsumptionLog.consumed == True,
-                ConsumptionLog.rolled_back == False,
+                ConsumptionLog.status == 'consumed',
                 func.date(ConsumptionLog.created_at) >= query_start_date,
                 func.date(ConsumptionLog.created_at) <= query_end_date
             )
@@ -1548,12 +1663,11 @@ def get_daily_consumption_history(
         daily_consumption = {}
         
         for log in consumption_logs:
-            if not log.per_ingredient_payload:
-                continue
-                
-            try:
-                ingredient_data = json.loads(log.per_ingredient_payload)
-            except json.JSONDecodeError:
+            ingredient_details = db.query(ConsumptionIngredientDetail).filter(
+                ConsumptionIngredientDetail.consumption_log_id == log.id
+            ).all()
+            
+            if not ingredient_details:
                 continue
             
             log_date = log.created_at.astimezone(jakarta_tz).date()
@@ -1574,11 +1688,11 @@ def get_daily_consumption_history(
             
             daily_consumption[date_str]["total_orders"] += 1
             
-            for item in ingredient_data:
-                ingredient_id = item.get('ingredient_id')
-                ingredient_name = item.get('ingredient_name', 'Unknown')
-                quantity_consumed = item.get('deducted', 0) 
-                unit = item.get('unit', '')
+            for item in ingredient_details:
+                ingredient_id = item.ingredient_id
+                ingredient_name = item.ingredient_name
+                quantity_consumed = item.quantity_consumed
+                unit = item.unit
                 
                 if ingredient_id not in daily_consumption[date_str]["ingredients_consumed"]:
                     daily_consumption[date_str]["ingredients_consumed"][ingredient_id] = {

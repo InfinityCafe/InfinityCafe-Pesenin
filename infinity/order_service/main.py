@@ -173,9 +173,20 @@ def validate_order_items(order_items: List[OrderItemSchema]) -> Optional[str]:
         logging.error(f"Gagal menghubungi menu_service: {e}")
         return "Tidak dapat memvalidasi menu saat ini, layanan menu sedang OFF."
 
-    valid_menu_names = {
-        menu.get('base_name', menu.get('menu_name')) for menu in available_menus
-    }
+    # Menggunakan field dwi bahasa baru untuk validasi
+    valid_menu_names = set()
+    for menu in available_menus:
+        # Tambahkan nama bahasa Inggris dan Indonesia
+        if menu.get('base_name_en'):
+            valid_menu_names.add(menu.get('base_name_en'))
+        if menu.get('base_name_id'):
+            valid_menu_names.add(menu.get('base_name_id'))
+        # Fallback untuk compatibility dengan nama lama
+        if menu.get('base_name'):
+            valid_menu_names.add(menu.get('base_name'))
+        if menu.get('menu_name'):
+            valid_menu_names.add(menu.get('menu_name'))
+    
     valid_menu_names.discard(None)
 
     invalid_items = [
@@ -278,28 +289,143 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     if validation_error:
         return JSONResponse(status_code=200, content={"status": "error", "message": validation_error, "data": None})
     
-    flavor_required_menus = ["Caffe Latte", "Cappuccino", "Milk Shake", "Squash"]
+    # Menu yang memerlukan flavor (menggunakan nama dwi bahasa)
+    flavor_required_menus = [
+        "Caffe Latte", "Kafe Latte",  # Bahasa Inggris dan Indonesia
+        "Cappuccino", "Kapucino", 
+        "Milkshake", "Milkshake",
+        "Squash", "Skuas"
+    ]
     temp_order_id = req.order_id if req.order_id else generate_order_id()
 
     for item in req.orders:
-        if item.menu_name in flavor_required_menus:
+        # Jika item memiliki preference, validasi apakah menu tersebut boleh memiliki flavor
+        if item.preference and item.preference.strip():
             try:
                 flavor_url = f"{MENU_SERVICE_URL}/menu/by_name/{item.menu_name}/flavors"
                 logging.info(f"🔍 DEBUG: Validating flavor for menu '{item.menu_name}', preference: '{item.preference}'")
                 logging.info(f"🔍 DEBUG: Calling flavor endpoint: {flavor_url}")
                 flavor_response = requests.get(flavor_url, timeout=3)
                 logging.info(f"🔍 DEBUG: Flavor response status: {flavor_response.status_code}")
+                
                 if flavor_response.status_code != 200:
-                     return JSONResponse(status_code=200, content={"status": "error", "message": f"Gagal mendapatkan data rasa untuk {item.menu_name}", "data": None})
+                    return JSONResponse(status_code=200, content={"status": "error", "message": f"Gagal mendapatkan data rasa untuk {item.menu_name}", "data": None})
                 
                 available_flavors = flavor_response.json()
-                available_flavor_names = [f['flavor_name'] for f in available_flavors] if available_flavors else []
+                
+                # Jika menu tidak memiliki pasangan flavor sama sekali
+                if not available_flavors or len(available_flavors) == 0:
+                    logging.info(f"🚫 DEBUG: Menu '{item.menu_name}' tidak memiliki pasangan flavor, tapi preference diberikan: '{item.preference}'")
+                    return JSONResponse(
+                        status_code=200,
+                        content={
+                            "status": "error",
+                            "message": f"Menu '{item.menu_name}' tidak dapat diberikan pilihan rasa pada pesanan reguler. Silakan gunakan /custom_order jika ingin menambahkan rasa khusus.",
+                            "data": {
+                                "menu_item": item.menu_name,
+                                "invalid_preference": item.preference,
+                                "reason": "Menu tidak memiliki varian rasa standar"
+                            }
+                        }
+                    )
+                
+                # Jika menu memiliki pasangan flavor, validasi apakah preference valid
+                # Menggunakan field dwi bahasa baru untuk flavor
+                available_flavor_names = []
+                if available_flavors:
+                    for f in available_flavors:
+                        # Tambahkan nama bahasa Inggris dan Indonesia
+                        if f.get('flavor_name_en'):
+                            available_flavor_names.append(f.get('flavor_name_en'))
+                        if f.get('flavor_name_id'):
+                            available_flavor_names.append(f.get('flavor_name_id'))
+                        # Fallback untuk compatibility dengan nama lama
+                        if f.get('flavor_name'):
+                            available_flavor_names.append(f.get('flavor_name'))
+                # Remove duplicates
+                available_flavor_names = list(set(available_flavor_names))
                 logging.info(f"🔍 DEBUG: Available flavors for {item.menu_name}: {available_flavor_names}")
                 
-                if not item.preference:
-                    logging.info(f"🔍 DEBUG: No preference provided for {item.menu_name}")
+                # Validasi apakah preference yang diberikan valid
+                if item.preference not in available_flavor_names:
+                    logging.info(f"🚫 DEBUG: Invalid flavor '{item.preference}' for {item.menu_name}. Valid flavors: {available_flavor_names}")
+                    # Format untuk menampilkan flavor dwi bahasa
+                    flavor_names = []
+                    for i, flavor in enumerate(available_flavors):
+                        flavor_display = ""
+                        if flavor.get('flavor_name_en') and flavor.get('flavor_name_id'):
+                            flavor_display = f"{flavor['flavor_name_en']} / {flavor['flavor_name_id']}"
+                        elif flavor.get('flavor_name_en'):
+                            flavor_display = flavor['flavor_name_en']
+                        elif flavor.get('flavor_name_id'):
+                            flavor_display = flavor['flavor_name_id']
+                        elif flavor.get('flavor_name'):
+                            flavor_display = flavor['flavor_name']
+                        
+                        if flavor_display:
+                            flavor_names.append(f"{i+1}. {flavor_display}")
+                    
+                    flavor_list_str = "\n".join(flavor_names)
+                    message = (
+                        f"Rasa '{item.preference}' tidak tersedia untuk {item.menu_name}. Varian yang tersedia:\n\n"
+                        f"{flavor_list_str}\n\n"
+                        "Silakan pilih salah satu rasa yang tersedia, atau gunakan /custom_order untuk rasa khusus."
+                    )
+                    
+                    return JSONResponse(
+                        status_code=200,
+                        content={
+                            "status": "error",
+                            "message": message,
+                            "data": {
+                                "menu_item": item.menu_name,
+                                "invalid_flavor": item.preference,
+                                "available_flavors": available_flavor_names
+                            }
+                        }
+                    )
+                else:
+                    logging.info(f"✅ DEBUG: Valid flavor '{item.preference}' for {item.menu_name}")
+                    
+            except requests.RequestException as e:
+                logging.error(f"Gagal menghubungi menu_service untuk validasi flavor: {e}")
+                return JSONResponse(status_code=200, content={"status": "error", "message": "Tidak dapat memvalidasi pilihan rasa saat ini.", "data": None})
+        
+        # Menu yang wajib memiliki flavor tapi tidak ada preference
+        elif item.menu_name in flavor_required_menus and not item.preference:
+            try:
+                flavor_url = f"{MENU_SERVICE_URL}/menu/by_name/{item.menu_name}/flavors"
+                flavor_response = requests.get(flavor_url, timeout=3)
+                
+                if flavor_response.status_code == 200:
+                    available_flavors = flavor_response.json()
                     if available_flavors:
-                        flavor_names = [f"{i+1}. {flavor['flavor_name']}" for i, flavor in enumerate(available_flavors)]
+                        # Format untuk menampilkan flavor dwi bahasa
+                        flavor_names = []
+                        available_flavor_names = []
+                        for i, flavor in enumerate(available_flavors):
+                            flavor_display = ""
+                            if flavor.get('flavor_name_en') and flavor.get('flavor_name_id'):
+                                flavor_display = f"{flavor['flavor_name_en']} / {flavor['flavor_name_id']}"
+                            elif flavor.get('flavor_name_en'):
+                                flavor_display = flavor['flavor_name_en']
+                            elif flavor.get('flavor_name_id'):
+                                flavor_display = flavor['flavor_name_id']
+                            elif flavor.get('flavor_name'):
+                                flavor_display = flavor['flavor_name']
+                            
+                            if flavor_display:
+                                flavor_names.append(f"{i+1}. {flavor_display}")
+                                
+                            # Build available names list for validation
+                            if flavor.get('flavor_name_en'):
+                                available_flavor_names.append(flavor.get('flavor_name_en'))
+                            if flavor.get('flavor_name_id'):
+                                available_flavor_names.append(flavor.get('flavor_name_id'))
+                            if flavor.get('flavor_name'):
+                                available_flavor_names.append(flavor.get('flavor_name'))
+                        
+                        available_flavor_names = list(set(available_flavor_names))
                         flavor_list_str = "\n".join(flavor_names)
                         message = (
                             f"Anda memesan {item.menu_name}, pilihan rasa wajib diisi. Varian yang tersedia:\n\n"
@@ -320,34 +446,7 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
                                 }
                             }
                         )
-                
-                elif item.preference and available_flavor_names and item.preference not in available_flavor_names:
-                    logging.info(f"🚫 DEBUG: Invalid flavor '{item.preference}' for {item.menu_name}. Valid flavors: {available_flavor_names}")
-                    flavor_names = [f"{i+1}. {flavor['flavor_name']}" for i, flavor in enumerate(available_flavors)]
-                    flavor_list_str = "\n".join(flavor_names)
-                    message = (
-                        f"Rasa '{item.preference}' tidak tersedia untuk {item.menu_name}. Varian yang tersedia:\n\n"
-                        f"{flavor_list_str}\n\n"
-                        "Silakan pilih salah satu rasa yang tersedia, atau gunakan /custom_order untuk rasa khusus."
-                    )
-                    
-                    return JSONResponse(
-                        status_code=200,
-                        content={
-                            "status": "error",
-                            "message": f"Rasa '{item.preference}' tidak tersedia untuk menu {item.menu_name}.",
-                            "data": {
-                                "guidance": message,
-                                "menu_item": item.menu_name,
-                                "invalid_flavor": item.preference,
-                                "available_flavors": available_flavor_names,
-                                "order_id_suggestion": temp_order_id 
-                            }
-                        }
-                    )
-                else:
-                    logging.info(f"✅ DEBUG: Valid flavor '{item.preference}' for {item.menu_name}")
-                    
+                        
             except requests.RequestException as e:
                 logging.error(f"Gagal menghubungi menu_service untuk validasi flavor: {e}")
                 return JSONResponse(status_code=200, content={"status": "error", "message": "Tidak dapat memvalidasi pilihan rasa saat ini.", "data": None})
@@ -480,7 +579,13 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     if validation_error:
         return JSONResponse(status_code=200, content={"status": "error", "message": validation_error, "data": None})
 
-    flavor_required_menus = ["Caffe Latte", "Cappuccino", "Milk Shake", "Squash"]
+    # Menu yang memerlukan flavor (menggunakan nama dwi bahasa)  
+    flavor_required_menus = [
+        "Caffe Latte", "Kafe Latte",  # Bahasa Inggris dan Indonesia
+        "Cappuccino", "Kapucino", 
+        "Milkshake", "Milkshake",
+        "Squash", "Skuas"
+    ]
     temp_order_id = req.order_id if req.order_id else generate_order_id()
 
     for item in req.orders:
@@ -494,7 +599,22 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
                 
                 available_flavors = flavor_response.json()
                 if available_flavors:
-                    flavor_names = [f"{i+1}. {flavor['flavor_name']}" for i, flavor in enumerate(available_flavors)]
+                    # Format untuk menampilkan flavor dwi bahasa
+                    flavor_names = []
+                    for i, flavor in enumerate(available_flavors):
+                        flavor_display = ""
+                        if flavor.get('flavor_name_en') and flavor.get('flavor_name_id'):
+                            flavor_display = f"{flavor['flavor_name_en']} / {flavor['flavor_name_id']}"
+                        elif flavor.get('flavor_name_en'):
+                            flavor_display = flavor['flavor_name_en']
+                        elif flavor.get('flavor_name_id'):
+                            flavor_display = flavor['flavor_name_id']
+                        elif flavor.get('flavor_name'):
+                            flavor_display = flavor['flavor_name']
+                        
+                        if flavor_display:
+                            flavor_names.append(f"{i+1}. {flavor_display}")
+                    
                     flavor_list_str = "\n".join(flavor_names)
                     message = (
                         f"Anda memesan {item.menu_name} via custom order, pilihan rasa tetap wajib diisi. Varian yang tersedia:\n\n"
@@ -810,10 +930,19 @@ def estimate_order_time(order_id: str, db: Session = Depends(get_db)):
         resp = requests.get(f"{MENU_SERVICE_URL}/menu", timeout=5)
         resp.raise_for_status()
         menus = resp.json() or []
-        time_map = {
-            (m.get("base_name") or m.get("menu_name").strip()): float(m.get("making_time_minutes", 0) or 0)
-            for m in menus
-        }
+        time_map = {}
+        for m in menus:
+            making_time = float(m.get("making_time_minutes", 0) or 0)
+            # Menggunakan field dwi bahasa baru
+            if m.get("base_name_en"):
+                time_map[m.get("base_name_en")] = making_time
+            if m.get("base_name_id"):
+                time_map[m.get("base_name_id")] = making_time
+            # Fallback untuk compatibility dengan nama lama
+            if m.get("base_name"):
+                time_map[m.get("base_name")] = making_time
+            if m.get("menu_name"):
+                time_map[m.get("menu_name").strip()] = making_time
     except Exception as e:
         logging.error(f"Error fetching menus for estimation: {e}")
         time_map = {}
