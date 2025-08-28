@@ -101,13 +101,13 @@ class InventoryManager {
     });
 
     // Pagination buttons
-    safeAddEventListener('prev-btn', 'click', () => {
-      this.changeStockPage(-1);
-    });
+    // safeAddEventListener('prev-btn', 'click', () => {
+    //   this.changeStockPage(-1);
+    // });
 
-    safeAddEventListener('next-btn', 'click', () => {
-      this.changeStockPage(1);
-    });
+    // safeAddEventListener('next-btn', 'click', () => {
+    //   this.changeStockPage(1);
+    // });
 
     // Delete confirmation
     safeAddEventListener('confirm-delete-btn', 'click', () => {
@@ -491,8 +491,8 @@ class InventoryManager {
     }
 
     // Update prev/next buttons
-    if (prevBtn) prevBtn.disabled = this.currentPage === 1;
-    if (nextBtn) nextBtn.disabled = this.currentPage === this.totalPages;
+    // if (prevBtn) prevBtn.disabled = this.currentPage === 1;
+    // if (nextBtn) nextBtn.disabled = this.currentPage === this.totalPages;
 
     // Generate page numbers
     if (!pageNumbers) return;
