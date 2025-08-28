@@ -482,17 +482,18 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         )
         stock_data = stock_resp.json()
         if not stock_data.get("can_fulfill", False):
-            msg = "Stok belum mencukupi."
+            msg = "Stok belum mencukupi. Stok berikut habis:"
             shortages = stock_data.get("shortages") or []
             if shortages:
-                detail_parts = []
-                for s in shortages[:5]:
-                    detail_parts.append(f"ID {s.get('ingredient_id')} perlu {s.get('required')} (ada {s.get('available')})")
-                msg += " Kekurangan: " + "; ".join(detail_parts)
+                shortage_list = []
+                for i, s in enumerate(shortages[:10], 1): 
+                    ingredient_name = s.get('ingredient_name', f"ID {s.get('ingredient_id')}")
+                    shortage_list.append(f"{i}. {ingredient_name}")
+                msg += "\n" + "\n".join(shortage_list)
             partial = stock_data.get("partial_suggestions")
             if partial:
                 sug_parts = [f"{p['menu_name']} bisa {p['can_make']}/{p['requested']}" for p in partial]
-                msg += " | Saran partial: " + ", ".join(sug_parts)
+                msg += "\n\nSaran partial: " + ", ".join(sug_parts)
             return JSONResponse(status_code=200, content={
                 "status": "error",
                 "message": msg,
@@ -706,13 +707,14 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         )
         stock_data = stock_resp.json()
         if not stock_data.get("can_fulfill", False):
-            msg = "Stok belum mencukupi."
+            msg = "Stok belum mencukupi. Stok berikut habis:"
             shortages = stock_data.get("shortages") or []
             if shortages:
-                detail_parts = []
-                for s in shortages[:5]:
-                    detail_parts.append(f"ID {s.get('ingredient_id')} perlu {s.get('required')} (ada {s.get('available')})")
-                msg += " Kekurangan: " + "; ".join(detail_parts)
+                shortage_list = []
+                for i, s in enumerate(shortages[:10], 1):
+                    ingredient_name = s.get('ingredient_name', f"ID {s.get('ingredient_id')}")
+                    shortage_list.append(f"{i}. {ingredient_name}")
+                msg += "\n" + "\n".join(shortage_list)
             return JSONResponse(status_code=200, content={
                 "status": "error",
                 "message": msg,
