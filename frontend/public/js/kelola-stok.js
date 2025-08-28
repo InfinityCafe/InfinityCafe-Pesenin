@@ -9,9 +9,13 @@ class InventoryManager {
     this.totalPages = 1;
     this.editingItem = null;
     this.viewingItemId = null;
-    
+    this.pollingInterval = null;
+    this.isUserInteracting = false;
+    this.currentFilters = { category: '', unit: '', status: '' };
+    this.currentSearchTerm = '';
+
     this.initializeEventListeners();
-    this.loadInventoryData();
+    this.initialLoad();
     this.startPolling();
   }
 
@@ -59,16 +63,34 @@ class InventoryManager {
       this.closeModal('delete-modal');
     });
 
-    // Search functionality
-    safeAddEventListener('search-input', 'input', (e) => {
-      this.handleSearch(e.target.value);
-    });
-
-    safeAddEventListener('table-search', 'input', (e) => {
-      this.handleSearch(e.target.value);
-    });
+    const searchInput = document.getElementById('table-search');
+    if (searchInput) {
+      searchInput.addEventListener('focus', () => {
+        this.isUserInteracting = true;
+      });
+      searchInput.addEventListener('blur', () => {
+        this.isUserInteracting = false;
+      });
+      searchInput.addEventListener('input', (e) => {
+        this.currentSearchTerm = e.target.value.toLowerCase().trim(); // Simpan pencarian
+        this.applyCurrentFiltersAndSearch();
+      });
+    }
 
     safeAddEventListener('filter-btn', 'click', () => {
+      this.isUserInteracting = !document.getElementById('filter-dropdown').classList.contains('show');
+      this.toggleFilterStock();
+    });
+
+    document.querySelector('.apply-filter-btn')?.addEventListener('click', () => {
+      this.isUserInteracting = false;
+      this.applyStockFilter();
+      this.toggleFilterStock();
+    });
+
+    document.querySelector('.clear-filter-btn')?.addEventListener('click', () => {
+      this.isUserInteracting = false;
+      this.clearStockFilter();
       this.toggleFilterStock();
     });
 
@@ -101,49 +123,21 @@ class InventoryManager {
       console.warn("Kitchen toggle not found in DOM");
     }
 
-    // Add stock button
-    safeAddEventListener('add-stock-btn', 'click', () => {
-      this.openAddStockModal();
-    });
-
-    // Consumption log button
-    safeAddEventListener('consumption-log-btn', 'click', () => {
-      this.openConsumptionLogModal();
-    });
-
-    // Add stock form
+    safeAddEventListener('add-stock-btn', 'click', () => this.openAddStockModal());
+    safeAddEventListener('consumption-log-btn', 'click', () => this.openConsumptionLogModal());
     safeAddEventListener('add-stock-form', 'submit', (e) => {
       e.preventDefault();
       this.handleAddStockSubmit();
     });
-
-    // Modal close buttons
-    safeAddEventListener('close-add-stock-modal', 'click', () => {
-      this.closeModal('add-stock-modal');
-    });
-
-    safeAddEventListener('close-consumption-log-modal', 'click', () => {
-      this.closeModal('consumption-log-modal');
-    });
-
-    // Cancel buttons
-    safeAddEventListener('cancel-add-stock-btn', 'click', () => {
-      this.closeModal('add-stock-modal');
-    });
-
-    // Refresh logs button
-    safeAddEventListener('refresh-logs-btn', 'click', () => {
-      this.loadConsumptionLogs();
-    });
-
-    // Log search
-    safeAddEventListener('log-search', 'input', (e) => {
-      this.filterConsumptionLogs(e.target.value);
-    });
+    safeAddEventListener('close-add-stock-modal', 'click', () => this.closeModal('add-stock-modal'));
+    safeAddEventListener('close-consumption-log-modal', 'click', () => this.closeModal('consumption-log-modal'));
+    safeAddEventListener('cancel-add-stock-btn', 'click', () => this.closeModal('add-stock-modal'));
+    safeAddEventListener('refresh-logs-btn', 'click', () => this.loadConsumptionLogs());
+    safeAddEventListener('log-search', 'input', (e) => this.filterConsumptionLogs(e.target.value));
   }
   
 
-  async loadInventoryData() {
+  async loadInventoryData(forceFullReload = false) {
     try {
       console.log('Attempting to load inventory data...');
       // Load inventory summary
@@ -165,12 +159,18 @@ class InventoryManager {
       
       console.log('Inventory data loaded:', listData);
       this.inventory = Array.isArray(listData.data) ? listData.data : Array.isArray(listData) ? listData : [];
-      this.filteredInventory = [...this.inventory];
+      
+      if (forceFullReload) {
+        this.filteredInventory = [...this.inventory];
+        this.currentFilters = { category: '', unit: '', status: '' };
+        this.currentSearchTerm = '';
+      } else {
+        this.applyCurrentFiltersAndSearch();
+      }
 
       this.populateDynamicFilters();
-      
-      console.log('Current inventory:', this.inventory);
-      this.updateOverviewCards();
+      // console.log('Current inventory:', this.inventory);
+      // this.updateOverviewCards();
       this.renderInventoryTable();
     } catch (error) {
       console.error('Error loading inventory data:', error);
@@ -179,12 +179,74 @@ class InventoryManager {
     }
   }
 
+  async loadAndRefreshData(forceFullReload = false) {
+    try {
+      const listResponse = await fetch('/inventory/list');
+      const listData = await listResponse.json();
+
+      this.inventory = Array.isArray(listData.data) ? listData.data : [];
+      
+      if (!forceFullReload) {
+        this.applyCurrentFiltersAndSearch();
+      } else {
+        this.filteredInventory = [...this.inventory];
+        this.currentFilters = { category: '', unit: '', status: '' };
+        this.currentSearchTerm = '';
+      }
+
+      this.renderInventoryTable();
+      this.updateOverviewCards();
+      if (forceFullReload) {
+        this.populateDynamicFilters();
+      }
+    } catch (error) {
+      console.error('Gagal memuat dan me-refresh data:', error);
+    }
+  }
+
+  async initialLoad() {
+    await this.loadAndRefreshData(true);
+  }
+
+  applyCurrentFiltersAndSearch() {
+    let tempInventory = [...this.inventory];
+
+    if (this.currentFilters.category) {
+      tempInventory = tempInventory.filter(i => i.category === this.currentFilters.category);
+    }
+    if (this.currentFilters.unit) {
+      tempInventory = tempInventory.filter(i => i.unit === this.currentFilters.unit);
+    }
+    if (this.currentFilters.status) {
+      tempInventory = tempInventory.filter(i => this.getStockStatus(i).value === this.currentFilters.status);
+    }
+
+    if (this.currentSearchTerm) {
+      tempInventory = tempInventory.filter(item =>
+        item.name.toLowerCase().includes(this.currentSearchTerm) ||
+        item.category.toLowerCase().includes(this.currentSearchTerm)
+      );
+    }
+
+    this.filteredInventory = tempInventory;
+    this.currentPage = 1;
+    this.renderInventoryTable();
+  }
+
   startPolling() {
-    console.log("Memulai polling data inventaris setiap 10 detik...");
-    setInterval(() => {
-      console.log("Polling: Mengambil data inventaris terbaru...");
-      this.loadInventoryData();
-    }, 3000); 
+    console.log("Memulai polling cerdas setiap 3 detik...");
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+    }
+
+    this.pollingInterval = setInterval(() => {
+      if (!this.isUserInteracting) {
+        console.log("Polling: Mengambil data inventaris terbaru...");
+        this.loadAndRefreshData();
+      } else {
+        console.log("Polling: Dilewati karena pengguna sedang berinteraksi.");
+      }
+    }, 3000);
   }
 
   loadSampleData() {
@@ -234,6 +296,8 @@ class InventoryManager {
 
     this.inventory = sampleInventory;
     this.filteredInventory = [...this.inventory];
+    this.currentFilters = { category: '', unit: '', status: '' };
+    this.currentSearchTerm = '';
 
     this.populateDynamicFilters();
     
@@ -249,12 +313,12 @@ class InventoryManager {
     console.log('Sample data loaded and table rendered');
   }
 
-  updateOverviewCards() {
+  updateOverviewCards(data = {}) {
     console.log('Updating overview cards with inventory:', this.inventory);
     
-    const totalItems = this.inventory.length;
-    const outOfStockCount = this.inventory.filter(item => item.current_quantity <= 0).length;
-    const lowStockCount = this.inventory.filter(
+    const totalItems = data.total_items || this.inventory.length;
+    const outOfStockCount = data.critical_count || this.inventory.filter(item => item.current_quantity <= 0).length;
+    const lowStockCount = data.low_stock_count || this.inventory.filter(
       item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity
     ).length;
 
@@ -285,16 +349,9 @@ class InventoryManager {
   }
 
   handleSearch(searchTerm) {
-    if (!searchTerm.trim()) {
-      this.filteredInventory = [...this.inventory];
-    } else {
-      this.filteredInventory = this.inventory.filter(item => 
-        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.category.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    this.currentPage = 1;
-    this.renderInventoryTable();
+    this.currentSearchTerm = searchTerm.toLowerCase().trim();
+    this.isUserInteracting = !!this.currentSearchTerm;
+    this.applyCurrentFiltersAndSearch();
   }
 
   renderInventoryTable() {
@@ -311,7 +368,7 @@ class InventoryManager {
     tbody.innerHTML = '';
 
     if (!this.filteredInventory.length) {
-        tbody.innerHTML = `
+      tbody.innerHTML = `
         <tr>
           <td colspan="8" style="text-align: center; padding: 2rem;">
             No inventory items found
@@ -326,8 +383,8 @@ class InventoryManager {
     } else {
       pageData.forEach((item, index) => {
         if (!item || typeof item.current_quantity === 'undefined' || typeof item.minimum_quantity === 'undefined') {
-            console.warn(`Invalid item data at index ${startIndex + index + 1}:`, item);
-            return;
+          console.warn(`Invalid item data at index ${startIndex + index + 1}:`, item);
+          return;
         }
         const row = this.createTableRow(item, startIndex + index + 1);
         tbody.appendChild(row);
@@ -458,15 +515,11 @@ class InventoryManager {
     const isShown = dropdown.classList.toggle('show');
 
     if (isShown) {
-        // Hitung tinggi dinamis saat dropdown muncul
-        const btnRect = filterBtn.getBoundingClientRect();
-        const availableHeight = window.innerHeight - btnRect.bottom - 20; // Minus 20px untuk margin safety
-        
-        // Set max-height ke tinggi tersedia (minimal 200px agar tidak terlalu kecil)
-        dropdown.style.maxHeight = Math.max(200, availableHeight) + 'px';
+      const btnRect = filterBtn.getBoundingClientRect();
+      const availableHeight = window.innerHeight - btnRect.bottom - 20;
+      dropdown.style.maxHeight = Math.max(200, availableHeight) + 'px';
     } else {
-        // Reset max-height saat ditutup (opsional)
-        dropdown.style.maxHeight = 'none';
+      dropdown.style.maxHeight = 'none';
     }
   }
 
@@ -481,56 +534,15 @@ class InventoryManager {
       return;
     }
 
-    const categoryValue = categoryFilter.value;
-    const unitValue = unitFilter.value;
-    const statusValue = statusFilter.value;
+    this.currentFilters = {
+      category: categoryFilter.value,
+      unit: unitFilter.value,
+      status: statusFilter.value
+    };
+
+    this.applyCurrentFiltersAndSearch();
+
     const sortValue = sortFilter.value;
-
-    // Debugging: Log filter values
-    console.log('Filter Values:', {
-      category: categoryValue,
-      unit: unitValue,
-      status: statusValue,
-      sort: sortValue
-    });
-    console.log('Status Filter Options:', Array.from(statusFilter.options).map(opt => ({
-      text: opt.text,
-      value: opt.value
-    })));
-
-    // Filter data
-    this.filteredInventory = this.inventory.filter(item => {
-      if (!item || typeof item.current_quantity === 'undefined' || typeof item.minimum_quantity === 'undefined') {
-        console.warn('Invalid item data:', item);
-        return false;
-      }
-
-      const categoryMatch = !categoryValue || item.category === categoryValue;
-      const unitMatch = !unitValue || item.unit === unitValue;
-      
-      // Status filter logic
-      let statusMatch = true;
-      if (statusValue) {
-        const status = this.getStockStatus(item);
-        statusMatch = status.value === statusValue;
-      }
-
-      const matches = categoryMatch && unitMatch && statusMatch;
-      if (!matches) {
-        console.log(`Item filtered out: ${item.name}`, {
-          categoryMatch,
-          unitMatch,
-          statusMatch,
-          itemCategory: item.category,
-          itemUnit: item.unit
-        });
-      }
-      return matches;
-    });
-
-    console.log('Filtered Inventory:', this.filteredInventory);
-
-    // Sort data
     if (sortValue === 'a-z') {
       this.filteredInventory.sort((a, b) => a.name.localeCompare(b.name));
     } else if (sortValue === 'z-a') {
@@ -553,11 +565,10 @@ class InventoryManager {
     if (statusFilter) statusFilter.value = '';
     if (sortFilter) sortFilter.value = '';
 
-    this.filteredInventory = [...this.inventory];
-    this.currentPage = 1;
-    this.renderInventoryTable();
-    this.toggleFilterStock();
-
+    this.currentFilters = { category: '', unit: '', status: '' };
+    this.currentSearchTerm = '';
+    this.isUserInteracting = false;
+    this.applyCurrentFiltersAndSearch();
   }
 
   changeStockPage(direction) {
@@ -579,7 +590,7 @@ class InventoryManager {
   }
 
   viewItem(itemId) {
-    const item= this.inventory.find(i => i.id === itemId);
+    const item = this.inventory.find(i => i.id === itemId);
     if (!item) {
       this.showError('Item not found');
       return;
@@ -607,7 +618,7 @@ class InventoryManager {
   }
 
   editFromView() {
-    const itemId = dosument.getElementById('view-item-modal').getAttribute('data-item-id');
+    const itemId = document.getElementById('view-item-modal').getAttribute('data-item-id');
     if (!itemId) {
       this.showError('No item selected for editing');
       return;
@@ -706,22 +717,20 @@ class InventoryManager {
       if (response.ok) {
         this.showSuccess(isEditing ? 'Item updated successfully' : 'Item added successfully');
         this.closeModal('item-modal');
-        this.loadInventoryData(); // Reload data
+        this.loadAndRefreshData();
       } else {
         const errorData = await response.json();
         this.showError(errorData.error || 'Failed to save item');
       }
     } catch (error) {
       console.error('Error saving item:', error);
-      // Fallback: add to local sample data for demonstration
-      this.handleLocalFormSubmission(itemData);
+      this.handleLocalFormSubmission(itemData, isEditing, itemId);
     }
   }
 
   handleLocalFormSubmission(itemData, isEditing, itemId) {
     if (isEditing) {
-      // Update existing item in local data
-      const index = this.inventory.findIndex(item => item.id === parseInt(item.id));
+      const index = this.inventory.findIndex(item => item.id === parseInt(itemId));
       if (index !== -1) {
         this.inventory[index] = { ...this.inventory[index], ...itemData };
         this.showSuccess('Item updated successfully (local demo)');
@@ -734,8 +743,7 @@ class InventoryManager {
       this.showSuccess('Item added successfully (local demo)');
     }
 
-    this.filteredInventory = [...this.inventory];
-    this.renderInventoryTable();
+    this.applyCurrentFiltersAndSearch();
     this.updateOverviewCards({
       total_items: this.inventory.length,
       critical_count: this.inventory.filter(item => item.current_quantity <= 0).length,
@@ -756,7 +764,7 @@ class InventoryManager {
       if (response.ok) {
         this.showSuccess('Item deleted successfully');
         this.closeModal('delete-modal');
-        this.loadInventoryData(); // Reload data
+        this.loadAndRefreshData();
       } else {
         const errorData = await response.json();
         this.showError(errorData.error || 'Failed to delete item');
@@ -774,9 +782,7 @@ class InventoryManager {
       this.inventory.splice(index, 1);
       this.showSuccess('Item deleted successfully (local demo)');
       this.closeModal('delete-modal');
-
-      this.filteredInventory = [...this.inventory];
-      this.renderInventoryTable();
+      this.applyCurrentFiltersAndSearch();
       this.updateOverviewCards({
         total_items: this.inventory.length,
         critical_count: this.inventory.filter(item => item.current_quantity <= 0).length,
@@ -924,13 +930,17 @@ class InventoryManager {
           statusFilter.appendChild(option);
       });
 
+      // Terapkan kembali nilai filter yang tersimpan
+      categoryFilter.value = this.currentFilters.category || '';
+      unitFilter.value = this.currentFilters.unit || '';
+      statusFilter.value = this.currentFilters.status || '';
     } catch (error) {
       console.error('Gagal membuat filter dinamis:', error);
     }
   }
 
   async handleAddStockSubmit() {
-    // const formData = new FormData(document.getElementById('add-stock-form'));const addStockForm = document.getElementById('add-stock-form');
+    const addStockForm = document.getElementById('add-stock-form');
     if (!addStockForm) {
       console.warn("Add stock form not found in DOM");
       return;
@@ -953,7 +963,7 @@ class InventoryManager {
       if (response.ok) {
         this.showSuccess('Stock added successfully');
         this.closeModal('add-stock-modal');
-        this.loadInventoryData();
+        this.loadAndRefreshData();
         document.getElementById('add-stock-form').reset();
       } else {
         const errorData = await response.json();
