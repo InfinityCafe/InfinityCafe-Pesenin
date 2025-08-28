@@ -73,7 +73,8 @@ class InventoryManager {
       });
       searchInput.addEventListener('input', (e) => {
         this.currentSearchTerm = e.target.value.toLowerCase().trim(); // Simpan pencarian
-        this.applyCurrentFiltersAndSearch();
+        this.isUserInteracting = !!this.currentSearchTerm;
+        this.applyCurrentFiltersAndSearch(true);
       });
     }
 
@@ -164,6 +165,7 @@ class InventoryManager {
         this.filteredInventory = [...this.inventory];
         this.currentFilters = { category: '', unit: '', status: '' };
         this.currentSearchTerm = '';
+        this.currentPage = 1;
       } else {
         this.applyCurrentFiltersAndSearch();
       }
@@ -185,13 +187,14 @@ class InventoryManager {
       const listData = await listResponse.json();
 
       this.inventory = Array.isArray(listData.data) ? listData.data : [];
-      
-      if (!forceFullReload) {
-        this.applyCurrentFiltersAndSearch();
-      } else {
+
+      if (forceFullReload) {
         this.filteredInventory = [...this.inventory];
         this.currentFilters = { category: '', unit: '', status: '' };
         this.currentSearchTerm = '';
+        this.currentPage = 1;
+      } else {
+        this.applyCurrentFiltersAndSearch();
       }
 
       this.renderInventoryTable();
@@ -208,7 +211,7 @@ class InventoryManager {
     await this.loadAndRefreshData(true);
   }
 
-  applyCurrentFiltersAndSearch() {
+  applyCurrentFiltersAndSearch(resetPage = false) {
     let tempInventory = [...this.inventory];
 
     if (this.currentFilters.category) {
@@ -229,7 +232,16 @@ class InventoryManager {
     }
 
     this.filteredInventory = tempInventory;
-    this.currentPage = 1;
+
+    if (resetPage) {
+      this.currentPage = 1;
+    } else {
+      this.totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage) || 1;
+      if (this.currentPage > this.totalPages) {
+        this.currentPage = this.totalPages;
+      }
+    }
+
     this.renderInventoryTable();
   }
 
@@ -298,6 +310,7 @@ class InventoryManager {
     this.filteredInventory = [...this.inventory];
     this.currentFilters = { category: '', unit: '', status: '' };
     this.currentSearchTerm = '';
+    this.currentPage = 1;
 
     this.populateDynamicFilters();
     
@@ -351,7 +364,7 @@ class InventoryManager {
   handleSearch(searchTerm) {
     this.currentSearchTerm = searchTerm.toLowerCase().trim();
     this.isUserInteracting = !!this.currentSearchTerm;
-    this.applyCurrentFiltersAndSearch();
+    this.applyCurrentFiltersAndSearch(true); // Reset halaman saat pencarian berubah
   }
 
   renderInventoryTable() {
@@ -461,7 +474,7 @@ class InventoryManager {
     this.totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
     if (this.totalPages === 0) this.totalPages = 1;
     if (this.currentPage > this.totalPages) {
-      this.currentPage = this.totalPages;
+      this.currentPage = this.totalPages; // Pastikan halaman tetap valid
     }
     this.renderPagination();
   }
@@ -511,7 +524,7 @@ class InventoryManager {
 
   toggleFilterStock() {
     const dropdown = document.getElementById('filter-dropdown');
-    const filterBtn = document.querySelector('.filter-btn'); // Sesuaikan selector jika perlu
+    const filterBtn = document.querySelector('.filter-btn');
     const isShown = dropdown.classList.toggle('show');
 
     if (isShown) {
@@ -540,7 +553,7 @@ class InventoryManager {
       status: statusFilter.value
     };
 
-    this.applyCurrentFiltersAndSearch();
+    this.applyCurrentFiltersAndSearch(true);
 
     const sortValue = sortFilter.value;
     if (sortValue === 'a-z') {
@@ -549,7 +562,7 @@ class InventoryManager {
       this.filteredInventory.sort((a, b) => b.name.localeCompare(a.name));
     }
 
-    this.currentPage = 1;
+    // this.currentPage = 1;
     this.renderInventoryTable();
     this.toggleFilterStock();
   }
@@ -568,7 +581,7 @@ class InventoryManager {
     this.currentFilters = { category: '', unit: '', status: '' };
     this.currentSearchTerm = '';
     this.isUserInteracting = false;
-    this.applyCurrentFiltersAndSearch();
+    this.applyCurrentFiltersAndSearch(true);
   }
 
   changeStockPage(direction) {
