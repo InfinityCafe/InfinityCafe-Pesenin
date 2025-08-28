@@ -115,7 +115,8 @@ INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VAL
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES
 ('MENU007', 1, 1, 'piece'),     -- Cup
 ('MENU007', 3, 1, 'piece'),     -- Sedotan
-('MENU007', 7, 120, 'milliliter'); -- Susu 120ml
+('MENU007', 7, 120, 'milliliter'), -- Susu 120ml
+('MENU007', 35, 80, 'gram');    -- Ice 80gr
 
 -- 8) esteh (MENU008)
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES

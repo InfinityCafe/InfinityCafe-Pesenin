@@ -19,78 +19,78 @@ BEGIN
 END $$;
 
 -- LANGKAH 1: ISI TABEL MASTER 'flavors' - disesuaikan dengan inventory yang tersedia
-INSERT INTO flavors (id, flavor_name, additional_price, "isAvail") VALUES
+INSERT INTO flavors (id, flavor_name_en, flavor_name_id, additional_price, "isAvail") VALUES
 -- Flavors untuk Caffe Latte
-('FLAV01', 'Caramel', 0, TRUE),           -- ID 8 di inventory
-('FLAV02', 'Macadamia Nut', 0, TRUE),     -- ID 10 di inventory
-('FLAV03', 'French Moca', 0, TRUE),       -- ID 11 di inventory  
-('FLAV04', 'Java Brown Sugar', 0, TRUE),  -- ID 12 di inventory
-('FLAV05', 'Chocolate', 0, TRUE),         -- ID 13 di inventory
-('FLAV06', 'Roasted Almond', 0, TRUE),    -- ID 15 di inventory
-('FLAV07', 'Creme Brulee', 0, TRUE),      -- ID 16 di inventory
-('FLAV08', 'Butter Scotch', 0, TRUE),     -- ID 17 di inventory
+('FLAV01', 'Caramel', 'Karamel', 0, TRUE),
+('FLAV02', 'Macadamia Nut', 'Kacang Makadamia', 0, TRUE),
+('FLAV03', 'French Moca', 'Moka Prancis', 0, TRUE),  
+('FLAV04', 'Java Brown Sugar', 'Gula Merah Jawa', 0, TRUE),
+('FLAV05', 'Chocolate', 'Coklat', 0, TRUE),
+('FLAV06', 'Roasted Almond', 'Almond Panggang', 0, TRUE),
+('FLAV07', 'Creme Brulee', 'Krim Brulee', 0, TRUE),
+('FLAV08', 'Butterscotch', 'Butterscotch', 0, TRUE),
 
 -- Flavors untuk Squash
-('FLAV09', 'Peach', 0, TRUE),             -- ID 9 di inventory
-('FLAV10', 'Passion Fruit', 0, TRUE),     -- ID 14 di inventory
-('FLAV11', 'Marjan Vanilla', 0, TRUE),    -- ID 18 di inventory
-('FLAV12', 'Marjan Grenadine', 0, TRUE),  -- ID 19 di inventory
-('FLAV13', 'Marjan Markisa', 0, TRUE),    -- ID 20 di inventory
-('FLAV14', 'Marjan Melon', 0, TRUE),      -- ID 21 di inventory
-('FLAV15', 'Marjan Nanas', 0, TRUE),      -- ID 22 di inventory
+('FLAV09', 'Peach', 'Persik', 0, TRUE),
+('FLAV10', 'Passion Fruit', 'Markisa', 0, TRUE),
+('FLAV11', 'Vanilla', 'Vanila', 0, TRUE),
+('FLAV12', 'Grenadine', 'Grenadine', 0, TRUE),
+('FLAV13', 'Passion Fruit', 'Markisa', 0, TRUE),
+('FLAV14', 'Melon', 'Melon', 0, TRUE),
+('FLAV15', 'Pineapple', 'Nanas', 0, TRUE),
 
--- Flavors untuk MilkShake (powder series)
-('FLAV16', 'Keju Vanilla', 0, TRUE),      -- ID 25 di inventory
-('FLAV17', 'Taro', 0, TRUE),              -- ID 26 di inventory
-('FLAV18', 'Banana', 0, TRUE),            -- ID 27 di inventory
-('FLAV19', 'Dark Chocolate', 0, TRUE),    -- ID 28 di inventory
-('FLAV20', 'Chocolate Hazelnut', 0, TRUE), -- ID 29 di inventory
-('FLAV21', 'Chocolate Malt', 0, TRUE),    -- ID 30 di inventory
-('FLAV22', 'Blackcurrant', 0, TRUE);      -- ID 31 di inventory   
+-- Flavors untuk MilkShake
+('FLAV16', 'Vanilla Cheese', 'Keju Vanila', 0, TRUE),
+('FLAV17', 'Taro', 'Talas', 0, TRUE),
+('FLAV18', 'Banana', 'Pisang', 0, TRUE),
+('FLAV19', 'Dark Chocolate', 'Coklat Hitam', 0, TRUE),
+('FLAV20', 'Chocolate Hazelnut', 'Coklat Hazelnut', 0, TRUE),
+('FLAV21', 'Chocolate Malt', 'Coklat Malt', 0, TRUE),
+('FLAV22', 'Blackcurrant', 'Blackcurrant', 0, TRUE);   
 
 -- LANGKAH 2: ISI TABEL MASTER 'menu_items'
-INSERT INTO menu_items (id, base_name, base_price, making_time_minutes, "isAvail") VALUES
-('MENU001', 'Caffe Latte', 20000, 5.0, TRUE),
-('MENU002', 'Es Kopi Susu', 20000, 5.0, TRUE),
-('MENU003', 'Kopi Late Gula Aren', 20000, 5.0, TRUE),
-('MENU004', 'Hot Cappucino', 20000, 5.0, TRUE),
-('MENU005', 'Vietnam Drive', 18000, 9.0, TRUE),
-('MENU006', 'Squash', 15000, 3.0, TRUE),
-('MENU007', 'Milk Shake', 18000, 6.0, TRUE),
-('MENU008', 'Esteh', 8000, 2.0, TRUE),
-('MENU009', 'Americano', 12000, 2.0, TRUE),
-('MENU010', 'Expreso Single', 10000, 2.0, TRUE),
-('MENU011', 'Expreso Double', 15000, 2.0, TRUE);
+INSERT INTO menu_items (id, base_name_en, base_name_id, base_price, making_time_minutes, "isAvail") VALUES
+('MENU001', 'Caffe Latte', 'Kafe Latte', 20000, 5.0, TRUE),
+('MENU002', 'Squash', 'Squash', 15000, 3.0, TRUE),
+('MENU003', 'Milkshake', 'Milkshake', 18000, 6.0, TRUE),
+('MENU004', 'Espresso Single', 'Espresso Tunggal', 10000, 2.0, TRUE),
+('MENU005', 'Vietnamese Drip Coffee', 'Kopi Vietnam', 18000, 9.0, TRUE),
+('MENU006', 'Palm Sugar Milk Coffee', 'Kopi Susu Gula Aren', 20000, 5.0, TRUE),
+('MENU007', 'Tea', 'Teh', 8000, 2.0, TRUE),
+('MENU008', 'Espresso Double', 'Espresso Ganda', 15000, 2.0, TRUE),
+('MENU009', 'Milk Coffee', 'Kopi Susu', 20000, 5.0, TRUE),
+('MENU010', 'Americano', 'Amerikano', 12000, 2.0, TRUE),
+('MENU011', 'Cappuccino', 'Kapucino', 20000, 5.0, TRUE);
 
 -- LANGKAH 3: HUBUNGKAN MENU DENGAN RASA DI TABEL PENGHUBUNG
 INSERT INTO menu_item_flavor_association (menu_item_id, flavor_id) VALUES
 -- Rasa untuk Caffe Latte (MENU001)
-('MENU001', 'FLAV01'), -- Caramel
-('MENU001', 'FLAV02'), -- Macadamia Nut
-('MENU001', 'FLAV03'), -- French Moca
-('MENU001', 'FLAV04'), -- Java Brown Sugar
-('MENU001', 'FLAV05'), -- Chocolate
-('MENU001', 'FLAV06'), -- Roasted Almond
-('MENU001', 'FLAV07'), -- Creme Brulee
-('MENU001', 'FLAV08'), -- Butter Scotch
+('MENU001', 'FLAV01'), -- Caramel / Karamel
+('MENU001', 'FLAV02'), -- Macadamia Nut / Kacang Makadamia
+('MENU001', 'FLAV03'), -- French Moca / Moka Prancis
+('MENU001', 'FLAV04'), -- Java Brown Sugar / Gula Merah Jawa
+('MENU001', 'FLAV05'), -- Chocolate / Coklat
+('MENU001', 'FLAV06'), -- Roasted Almond / Almond Panggang
+('MENU001', 'FLAV07'), -- Creme Brulee / Krim Brulee
+('MENU001', 'FLAV08'), -- Butterscotch / Butterscotch
 
--- Rasa untuk Squash (MENU006)
-('MENU006', 'FLAV09'), -- Peach
-('MENU006', 'FLAV10'), -- Passion Fruit
-('MENU006', 'FLAV11'), -- Marjan Vanilla
-('MENU006', 'FLAV12'), -- Marjan Grenadine
-('MENU006', 'FLAV13'), -- Marjan Markisa
-('MENU006', 'FLAV14'), -- Marjan Melon
-('MENU006', 'FLAV15'), -- Marjan Nanas
+-- Rasa untuk Squash (MENU002)
+('MENU002', 'FLAV09'), -- Peach / Persik
+('MENU002', 'FLAV10'), -- Passion Fruit / Markisa
+('MENU002', 'FLAV11'), -- Vanilla / Vanila
+('MENU002', 'FLAV12'), -- Grenadine / Grenadine
+('MENU002', 'FLAV13'), -- Passion Fruit / Markisa
+('MENU002', 'FLAV14'), -- Melon / Melon
+('MENU002', 'FLAV15'), -- Pineapple / Nanas
 
--- Rasa untuk MilkShake (MENU007) - Powder series
-('MENU007', 'FLAV16'), -- Keju Vanilla
-('MENU007', 'FLAV17'), -- Taro
-('MENU007', 'FLAV18'), -- Banana
-('MENU007', 'FLAV19'), -- Dark Chocolate
-('MENU007', 'FLAV20'), -- Chocolate Hazelnut
-('MENU007', 'FLAV21'), -- Chocolate Malt
-('MENU007', 'FLAV22'); -- Blackcurrant
+-- Rasa untuk MilkShake (MENU003)
+('MENU003', 'FLAV16'), -- Vanilla Cheese / Keju Vanila
+('MENU003', 'FLAV17'), -- Taro / Talas
+('MENU003', 'FLAV18'), -- Banana / Pisang
+('MENU003', 'FLAV19'), -- Dark Chocolate / Coklat Hitam
+('MENU003', 'FLAV20'), -- Chocolate Hazelnut / Coklat Hazelnut
+('MENU003', 'FLAV21'), -- Chocolate Malt / Coklat Malt
+('MENU003', 'FLAV22'); -- Blackcurrant / Blackcurrant
 
 -- LANGKAH 4: ISI TABEL 'menu_suggestions'
 INSERT INTO menu_suggestions (usulan_id, menu_name, customer_name, "timestamp") VALUES
