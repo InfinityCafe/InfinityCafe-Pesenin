@@ -2,7 +2,7 @@ from fastapi import Body, FastAPI, HTTPException, Depends, Request, Query
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, validator, Field, ValidationError
-from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Table, ForeignKey, Float
+from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, Table, ForeignKey, Float, Text, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship, joinedload
 from typing import List, Optional
@@ -153,6 +153,7 @@ class MenuSuggestion(Base):
     menu_name = Column(String)
     customer_name = Column(String)
     timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
+    description = Column(Text, nullable=True)
 
 
 class FlavorBase(BaseModel):
@@ -250,6 +251,7 @@ class MenuItemOut(MenuItemBase):
 class SuggestionItem(BaseModel):
     menu_name: str = Field(..., min_length=1, description="Nama menu usulan tidak boleh kosong")
     customer_name: str = Field(..., min_length=1, description="Nama customer tidak boleh kosong")
+    description: Optional[str] = None
     model_config = { "from_attributes": True }
     
     @validator('menu_name')
@@ -269,6 +271,7 @@ class SuggestionOut(BaseModel):
     menu_name: str
     customer_name: str
     timestamp: datetime
+    description: Optional[str] = None
     model_config = { "from_attributes": True }
 
 class SyncedInventory(Base):
@@ -294,6 +297,14 @@ class RecipeIngredient(Base):
     ingredient = relationship("SyncedInventory", back_populates="recipe_ingredients")
 
 Base.metadata.create_all(bind=engine)
+
+# Safe migration: add description column if it does not exist
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE menu_suggestions ADD COLUMN IF NOT EXISTS description TEXT"))
+        conn.commit()
+except Exception:
+    pass
     
 def get_db():
     db = SessionLocal()
@@ -659,7 +670,8 @@ def suggest_menu(item: SuggestionItem, db: Session = Depends(get_db)):
         suggestion = MenuSuggestion(
             usulan_id=generate_id("USL", 12), 
             menu_name=item.menu_name.strip(),
-            customer_name=item.customer_name.strip()
+            customer_name=item.customer_name.strip(),
+            description=(item.description.strip() if isinstance(item.description, str) and item.description.strip() != "" else None)
         )
         db.add(suggestion)
         db.commit()
@@ -670,7 +682,8 @@ def suggest_menu(item: SuggestionItem, db: Session = Depends(get_db)):
             "data": {
                 "usulan_id": suggestion.usulan_id,
                 "menu_name": suggestion.menu_name,
-                "customer_name": suggestion.customer_name
+                "customer_name": suggestion.customer_name,
+                "description": suggestion.description
             }
         }
     except Exception as e:
@@ -693,14 +706,20 @@ def get_suggestions(db: Session = Depends(get_db)):
             "data": []
         }
     
-    menu_names = []
+    suggestion_data = []
     for suggestion in suggestions:
-        menu_names.append(suggestion.menu_name)
+        suggestion_data.append({
+            "usulan_id": suggestion.usulan_id,
+            "menu_name": suggestion.menu_name,
+            "customer_name": suggestion.customer_name,
+            "timestamp": suggestion.timestamp.isoformat(),
+            "description": suggestion.description
+        })
     
     return {
         "status": "success", 
         "message": f" Hallo! Kami punya beberapa usulan menu yang baru nih dari pelanggan lain, coba cek siapa tahu ada yang cocok dengan anda:",
-        "data": menu_names
+        "data": suggestion_data
     }
 
 @app.get("/menu_suggestion/raw", summary="Raw Usulan untuk Report", tags=["Usulan Menu"], operation_id="list raw usulan menu")
