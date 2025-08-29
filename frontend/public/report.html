@@ -73,18 +73,27 @@
                     <i class="fa-solid fa-magnifying-glass search-icon"></i>
                     <input type="text" id="menu-filter" placeholder="Filter berdasarkan nama menu..." class="search-input">
                 </div>
-                <div class="filter-container">
-                    <label class="filter-group">
-                        <span style="color: #312929; font-weight: 600; margin-right: 8px;">Dari:</span>
-                        <input type="date" id="start_date" class="price-input" style="width: 200px;">
-                    </label>
-                    <label class="filter-group">
-                        <span style="color: #312929; font-weight: 600; margin-right: 8px;">Sampai:</span>
-                        <input type="date" id="end_date" class="price-input" style="width: 200px;">
-                    </label>
-                    <button onclick="exportCSV()" class="btn-secondary">⬇️ CSV</button>
-                    <button onclick="exportPDF()" class="btn-secondary">📄 PDF</button>
-                </div>
+                <div class="right-controls" style="display: flex; align-items: center; gap: 12px; margin-left: auto;">
+                     <!-- Ingredient view mode (visible when Analisis Bahan active) -->
+                    <div class="filter-container" id="ingredient-view-container" style="display:none; gap: 8px; align-items: center;">
+                        <label for="ingredient-view-select" style="color:#312929; font-weight:600;">Tampilan:</label>
+                        <select id="ingredient-view-select" class="form-select" onchange="onIngredientViewChange()">
+                            <option value="daily" selected>Harian</option>
+                            <option value="logs">Per-Order (Logs)</option>
+                        </select>
+                     </div>
+                    <div class="filter-container">
+                        <label class="filter-group">
+                            <span style="color: #312929; font-weight: 600; margin-right: 8px;">Dari:</span>
+                            <input type="date" id="start_date" class="price-input" style="width: 200px;">
+                        </label>
+                        <label class="filter-group">
+                            <span style="color: #312929; font-weight: 600; margin-right: 8px;">Sampai:</span>
+                            <input type="date" id="end_date" class="price-input" style="width: 200px;">
+                        </label>
+                        <button onclick="exportCSV()" class="btn-secondary">⬇️ CSV</button>
+                        <button onclick="exportPDF()" class="btn-secondary">📄 PDF</button>
+                    </div>
             </div>
 
             <!-- Summary Section -->
@@ -190,6 +199,32 @@
                             </select>
                             <span>entri</span>
                         </div>
+                    </div>
+
+                    <!-- Ingredient Details Panel (for Analisis Bahan mode) -->
+                    <div id="ingredient-details-panel" class="summary-item hidden" style="margin-top: 1rem;">
+                        <div class="summary-header">
+                            <span class="summary-name">🥤 Detail Konsumsi Bahan</span>
+                            <span class="summary-close" onclick="hideIngredientDetailsPanel()">×</span>
+                        </div>
+                        <div class="summary-details" style="margin-top: .5rem;">
+                            <span class="summary-detail--order">Order ID: <strong id="detail-order-id">-</strong></span>
+                            <span class="summary-detail--order">Tanggal: <strong id="detail-order-date">-</strong></span>
+                            <span class="summary-detail--order">Status: <strong id="detail-order-status">-</strong></span>
+                        </div>
+                        <table id="ingredient-details-table" class="flavour-table" style="margin-top: .5rem;">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Nama Bahan</th>
+                                    <th>Qty Terpakai</th>
+                                    <th>Unit</th>
+                                    <th>Stok Sebelum</th>
+                                    <th>Stok Sesudah</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ingredient-details-body"></tbody>
+                        </table>
                     </div>
                 </div>
             </div>
