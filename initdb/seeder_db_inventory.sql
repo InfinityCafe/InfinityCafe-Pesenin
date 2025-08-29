@@ -37,8 +37,12 @@ CREATE TABLE inventories (
     current_quantity FLOAT DEFAULT 0,
     minimum_quantity FLOAT DEFAULT 0,
     category stockcategory NOT NULL,
-    unit unittype NOT NULL
+    unit unittype NOT NULL,
+    is_available BOOLEAN NOT NULL DEFAULT TRUE
 );
+
+-- Buat index untuk performa query is_available
+CREATE INDEX idx_inventories_is_available ON inventories(is_available);
 
 -- Tabel inventory_outbox untuk event sourcing
 CREATE TABLE IF NOT EXISTS inventory_outbox (

@@ -279,10 +279,9 @@ def is_date_in_range(date_str: str, start_date: str, end_date: str) -> bool:
 @app.get("/report/best_seller", tags=["Report"])
 def get_best_seller(
     start_date: str = Query(..., description="Format: YYYY-MM-DD"),
-    end_date: str = Query(..., description="Format: YYYY-MM-DD"),
-    limit: int = Query(10, description="Number of best selling menus to display")
+    end_date: str = Query(..., description="Format: YYYY-MM-DD")
 ):
-    """Get best seller menus based on sold quantity from multiple services"""
+    """Get best seller menus based on sold quantity from multiple services (unlimited)"""
     # Simple validation
     if len(start_date) != 10 or len(end_date) != 10:
         raise HTTPException(status_code=400, detail="Date format must be YYYY-MM-DD")
@@ -422,22 +421,25 @@ def get_best_seller(
                 else:
                     logging.info(f"Order {order['order_id']} in date range but status is: {order_status}")
         
-        # Sort by total quantity (best seller) and take according to limit
-        best_sellers = sorted(menu_sales.values(), key=lambda x: x["total_quantity"], reverse=True)[:limit]
+        # Sort by total quantity (best seller) - show all data without limit
+        best_sellers = sorted(menu_sales.values(), key=lambda x: x["total_quantity"], reverse=True)
         
-        # Calculate totals for summary (dari best sellers saja)
+        # Calculate totals for summary (dari semua best sellers)
         total_base_revenue = sum(item["base_revenue"] for item in best_sellers)
         total_flavor_revenue = sum(item["flavor_revenue"] for item in best_sellers)
         total_combined_revenue = sum(item["total_revenue"] for item in best_sellers)
         
         logging.info(f"Date range: {start_date} to {end_date}")
-        logging.info(f"Processed {processed_orders} orders, found {len(best_sellers)} best sellers")
+        logging.info(f"Processed {processed_orders} orders, found {len(best_sellers)} best sellers (unlimited)")
         
         return {
             "start_date": start_date,
             "end_date": end_date,
             "total_orders_in_range": total_orders_in_range,
             "processed_orders": processed_orders,
+            "unlimited_mode": True,
+            "total_menus_found": len(best_sellers),
+            "message": f"Menampilkan semua {len(best_sellers)} menu best seller (tanpa limit)",
             "summary": {
                 "total_base_revenue": total_base_revenue,
                 "total_flavor_revenue": total_flavor_revenue,

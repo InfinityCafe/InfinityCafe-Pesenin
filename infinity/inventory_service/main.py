@@ -68,7 +68,7 @@ app.add_middleware(
 )
 
 mcp = FastApiMCP(app, name="Server MCP Infinity", description="Server MCP Infinity Descr",
-    include_operations=["add ingredient", "list ingredients", "update ingredient", "delete ingredient", "ingredient status", "ingredient stream"]
+    include_operations=["add ingredient", "list ingredients", "update ingredient", "toggle ingredient availability", "ingredient status", "ingredient stream"]
 )
 
 mcp.mount(mount_path="/mcp", transport="sse")
@@ -102,6 +102,7 @@ class Inventory(Base):
     minimum_quantity = Column(Float, default=0)
     category = Column(SQLEnum(StockCategory), index=True)
     unit = Column(SQLEnum(UnitType), index=True)
+    is_available = Column(Boolean, default=True, index=True)
 
 class InventoryOutbox(Base):
     __tablename__ = "inventory_outbox"
@@ -450,9 +451,13 @@ def outbox_status(db: Session = Depends(get_db)):
         })
 
 @app.get("/list_ingredients", summary="Daftar bahan", tags=["Inventory"], operation_id="list ingredients")
-def list_ingredients(db: Session = Depends(get_db)):
+def list_ingredients(db: Session = Depends(get_db), show_unavailable: bool = Query(False, description="Tampilkan ingredient yang unavailable juga")):
     try:
-        rows = db.query(Inventory).order_by(Inventory.id.asc()).all()
+        if show_unavailable:
+            rows = db.query(Inventory).order_by(Inventory.id.asc()).all()
+        else:
+            rows = db.query(Inventory).filter(Inventory.is_available == True).order_by(Inventory.id.asc()).all()
+        
         ingredients_data = [
             {
                 "id": r.id,
@@ -460,7 +465,8 @@ def list_ingredients(db: Session = Depends(get_db)):
                 "current_quantity": r.current_quantity,
                 "minimum_quantity": r.minimum_quantity,
                 "category": r.category.value,
-                "unit": r.unit.value
+                "unit": r.unit.value,
+                "is_available": r.is_available
             } for r in rows
         ]
         
@@ -487,7 +493,8 @@ def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)
             current_quantity=req.current_quantity,
             minimum_quantity=req.minimum_quantity,
             category=req.category,
-            unit=req.unit
+            unit=req.unit,
+            is_available=True
         )
         print(f"📝 DEBUG: Created inventory object: {ing.name} - {ing.category} - {ing.unit}")
         logging.info(f"📝 DEBUG: Created inventory object: {ing.name} - {ing.category} - {ing.unit}")
@@ -548,7 +555,8 @@ def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)
                 "current_quantity": ing.current_quantity,
                 "minimum_quantity": ing.minimum_quantity,
                 "category": ing.category.value,
-                "unit": ing.unit.value
+                "unit": ing.unit.value,
+                "is_available": ing.is_available
             }
         }
         
@@ -820,7 +828,8 @@ def update_ingredient(req: UpdateIngredientRequest, db: Session = Depends(get_db
                 "current_quantity": ing.current_quantity,
                 "minimum_quantity": ing.minimum_quantity,
                 "category": ing.category.value,
-                "unit": ing.unit.value
+                "unit": ing.unit.value,
+                "is_available": ing.is_available
             }
         })
         
@@ -832,8 +841,13 @@ def update_ingredient(req: UpdateIngredientRequest, db: Session = Depends(get_db
             "data": None
         })
 
-@app.delete("/delete_ingredient/{ingredient_id}", summary="Hapus bahan", tags=["Inventory"], operation_id="delete ingredient")
-def delete_ingredient(ingredient_id: int, db: Session = Depends(get_db)):
+@app.patch("/toggle_ingredient_availability/{ingredient_id}", summary="Toggle ketersediaan bahan (available/unavailable)", tags=["Inventory"], operation_id="toggle ingredient availability")
+def toggle_ingredient_availability(ingredient_id: int, db: Session = Depends(get_db)):
+    """
+    Toggle status ketersediaan ingredient antara available dan unavailable.
+    Ini menggantikan fungsi delete - ingredient tidak pernah benar-benar dihapus,
+    hanya disembunyikan dengan mengubah status is_available.
+    """
     try:
         ing = db.query(Inventory).filter(Inventory.id == ingredient_id).first()
         if not ing:
@@ -843,26 +857,39 @@ def delete_ingredient(ingredient_id: int, db: Session = Depends(get_db)):
                 "data": None
             })
         
-        name = ing.name
+        new_availability = not ing.is_available
+        old_status = "tersedia" if ing.is_available else "tidak tersedia"
+        new_status = "tersedia" if new_availability else "tidak tersedia"
+        
+        ing.is_available = new_availability
+        
         ingredient_data = {
             "id": ing.id,
             "name": ing.name,
             "current_quantity": ing.current_quantity,
             "minimum_quantity": ing.minimum_quantity,
             "category": ing.category.value,
-            "unit": ing.unit.value
+            "unit": ing.unit.value,
+            "is_available": ing.is_available,
+            "old_status": old_status,
+            "new_status": new_status
         }
         
-        db.delete(ing)
         db.commit()
         
-        create_outbox_event(db, "ingredient_deleted", {"id": ingredient_id, "name": name})
+        event_type = "ingredient_made_unavailable" if not new_availability else "ingredient_made_available"
+        create_outbox_event(db, event_type, {
+            "id": ingredient_id, 
+            "name": ing.name,
+            "old_availability": not new_availability,
+            "new_availability": new_availability
+        })
         db.commit()
         process_outbox_events(db)
         
         return JSONResponse(status_code=200, content={
             "status": "success", 
-            "message": f"Bahan '{name}' berhasil dihapus", 
+            "message": f"Bahan '{ing.name}' berhasil diubah dari {old_status} menjadi {new_status}", 
             "data": ingredient_data
         })
         
@@ -870,7 +897,77 @@ def delete_ingredient(ingredient_id: int, db: Session = Depends(get_db)):
         db.rollback()
         return JSONResponse(status_code=200, content={
             "status": "error", 
-            "message": f"Gagal menghapus bahan: {str(e)}", 
+            "message": f"Gagal mengubah status bahan: {str(e)}", 
+            "data": None
+        })
+
+@app.patch("/set_ingredient_availability/{ingredient_id}", summary="Set status ketersediaan bahan", tags=["Inventory"])
+def set_ingredient_availability(ingredient_id: int, is_available: bool = Query(..., description="True untuk available, False untuk unavailable"), db: Session = Depends(get_db)):
+    """
+    Set status ketersediaan ingredient ke available atau unavailable secara eksplisit.
+    """
+    try:
+        ing = db.query(Inventory).filter(Inventory.id == ingredient_id).first()
+        if not ing:
+            return JSONResponse(status_code=200, content={
+                "status": "error", 
+                "message": "Bahan tidak ditemukan", 
+                "data": None
+            })
+        
+        old_availability = ing.is_available
+        old_status = "tersedia" if old_availability else "tidak tersedia"
+        new_status = "tersedia" if is_available else "tidak tersedia"
+        
+        if old_availability == is_available:
+            return JSONResponse(status_code=200, content={
+                "status": "success", 
+                "message": f"Bahan '{ing.name}' sudah dalam status {new_status}", 
+                "data": {
+                    "id": ing.id,
+                    "name": ing.name,
+                    "is_available": ing.is_available,
+                    "status": new_status
+                }
+            })
+        
+        ing.is_available = is_available
+        
+        ingredient_data = {
+            "id": ing.id,
+            "name": ing.name,
+            "current_quantity": ing.current_quantity,
+            "minimum_quantity": ing.minimum_quantity,
+            "category": ing.category.value,
+            "unit": ing.unit.value,
+            "is_available": ing.is_available,
+            "old_status": old_status,
+            "new_status": new_status
+        }
+        
+        db.commit()
+        
+        event_type = "ingredient_made_unavailable" if not is_available else "ingredient_made_available"
+        create_outbox_event(db, event_type, {
+            "id": ingredient_id, 
+            "name": ing.name,
+            "old_availability": old_availability,
+            "new_availability": is_available
+        })
+        db.commit()
+        process_outbox_events(db)
+        
+        return JSONResponse(status_code=200, content={
+            "status": "success", 
+            "message": f"Bahan '{ing.name}' berhasil diubah dari {old_status} menjadi {new_status}", 
+            "data": ingredient_data
+        })
+        
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Gagal mengubah status bahan: {str(e)}", 
             "data": None
         })
 
@@ -912,7 +1009,7 @@ def check_stock(req: BatchStockRequest, db: Session = Depends(get_db)):
 
 @app.post("/stock/check_availability", summary="Cek ketersediaan stok untuk order (format baru)", tags=["Stock Management"])
 def check_availability(req: BatchStockRequest, db: Session = Depends(get_db)):
-    """Cek ketersediaan stok untuk pesanan dengan format response yang sesuai order_service"""
+    """Cek ketersediaan stok untuk pesanan"""
     try:
         result = check_and_consume(req, db, consume=False)
         
@@ -1177,30 +1274,59 @@ def check_and_consume(
     inv_map = {}
     if need_map:
         ids = list(need_map.keys())
-        invs = db.query(Inventory).filter(Inventory.id.in_(ids)).with_for_update().all()
+        invs = db.query(Inventory).filter(
+            and_(
+                Inventory.id.in_(ids),
+                Inventory.is_available == True
+            )
+        ).with_for_update().all()
         inv_map = {i.id: i for i in invs}
         
     out_of_stock_items = [] 
     for ing_id, data in need_map.items():
         inv = inv_map.get(ing_id)
-        available = inv.current_quantity if inv else 0
         
-        if available <= 0:
+        if not inv:
+            unavailable_ing = db.query(Inventory).filter(
+                and_(Inventory.id == ing_id, Inventory.is_available == False)
+            ).first()
+            
+            if unavailable_ing:
+                out_of_stock_items.append({
+                    "ingredient_id": ing_id,
+                    "ingredient_name": unavailable_ing.name,
+                    "required": data["needed"],
+                    "available": 0,
+                    "unit": data["unit"],
+                    "menus": list(data["menus"]),
+                    "status": "TIDAK TERSEDIA (UNAVAILABLE)"
+                })
+            else:
+                out_of_stock_items.append({
+                    "ingredient_id": ing_id,
+                    "ingredient_name": f"ID-{ing_id}",
+                    "required": data["needed"],
+                    "available": 0,
+                    "unit": data["unit"],
+                    "menus": list(data["menus"]),
+                    "status": "INGREDIENT TIDAK DITEMUKAN"
+                })
+        elif inv.current_quantity <= 0:
             out_of_stock_items.append({
                 "ingredient_id": ing_id,
-                "ingredient_name": inv.name if inv else f"ID-{ing_id}",
+                "ingredient_name": inv.name,
                 "required": data["needed"],
                 "available": 0,
                 "unit": data["unit"],
                 "menus": list(data["menus"]),
                 "status": "HABIS TOTAL"
             })
-        elif available < data["needed"]:
+        elif inv.current_quantity < data["needed"]:
             shortages.append({
                 "ingredient_id": ing_id,
-                "ingredient_name": inv.name if inv else f"ID-{ing_id}",
+                "ingredient_name": inv.name,
                 "required": data["needed"],
-                "available": available,
+                "available": inv.current_quantity,
                 "unit": data["unit"],
                 "menus": list(data["menus"]),
                 "status": "STOK KURANG"

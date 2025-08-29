@@ -28,7 +28,7 @@ INSERT INTO synced_inventory (id, name, current_quantity, minimum_quantity, cate
 (14, 'Passion Fruit',         530,   150,  'ingredient', 'milliliter'),
 (15, 'Roasted Almond',        585,   150,  'ingredient', 'milliliter'),
 (16, 'Creme Brulee',          280,   150,  'ingredient', 'milliliter'),
-(17, 'Butter Scotch',         500,   150,  'ingredient', 'milliliter'),
+(17, 'Butterscotch',         500,   150,  'ingredient', 'milliliter'),
 
 -- MARJAN SERIES
 (18, 'Marjan Vanilla',        230,   100,  'ingredient', 'milliliter'),
@@ -69,78 +69,78 @@ INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VAL
 ('MENU001', 7, 120, 'milliliter'), -- Susu cair (Susu Diamond) 120ml
 ('MENU001', 35, 80, 'gram');    -- Es batu 80gr
 
--- 2) Es Kopi Susu (MENU002)
+-- 2) Squash (MENU002) - Rasa 20-30ml akan ditambah dinamis
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES
 ('MENU002', 1, 1, 'piece'),     -- Cup
 ('MENU002', 3, 1, 'piece'),     -- Sedotan
-('MENU002', 5, 20, 'gram'),     -- Creamer 20gr
-('MENU002', 4, 17, 'gram'),     -- Kopi robusta 17gr
-('MENU002', 6, 30, 'milliliter'), -- SKM (Susu Kental Manis) 30ml
-('MENU002', 7, 120, 'milliliter'), -- Susu cair 120ml
+('MENU002', 36, 100, 'milliliter'), -- Sprite 100ml
+('MENU002', 37, 5, 'gram'),     -- Biji selasih 5gr
 ('MENU002', 35, 80, 'gram');    -- Es batu 80gr
 
--- 3) Kopi late gula aren (MENU003)
+-- 3) Milkshake (MENU003) - Rasa all varian 30gr akan ditambah dinamis
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES
 ('MENU003', 1, 1, 'piece'),     -- Cup
 ('MENU003', 3, 1, 'piece'),     -- Sedotan
-('MENU003', 5, 20, 'gram'),     -- Creamer 20gr
-('MENU003', 4, 17, 'gram'),     -- Kopi robusta 17gr
-('MENU003', 24, 30, 'milliliter'), -- Gula aren cair 30ml
 ('MENU003', 7, 120, 'milliliter'), -- Susu cair 120ml
 ('MENU003', 35, 80, 'gram');    -- Es batu 80gr
 
--- 4) Hot Cappucino (MENU004)
+-- 4) Espresso Single (MENU004)
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES
 ('MENU004', 1, 1, 'piece'),     -- Cup (default untuk semua menu)
-('MENU004', 5, 20, 'gram'),     -- Creamer 20gr
-('MENU004', 4, 17, 'gram'),     -- Kopi robusta 17gr
-('MENU004', 7, 200, 'milliliter'); -- Susu cair 200ml
+('MENU004', 4, 11, 'gram');     -- Kopi robusta 10-12gr (rata2: 11gr)
 
--- 5) vietnam drive (MENU005)
+-- 5) Vietnamese Drip Coffee (MENU005)
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES
 ('MENU005', 1, 1, 'piece'),     -- Cup
 ('MENU005', 3, 1, 'piece'),     -- Sedotan
 ('MENU005', 4, 18, 'gram'),     -- Kopi robusta 18gr
 ('MENU005', 7, 120, 'milliliter'); -- Susu cair 120ml
 
--- 6) squash/soda gembira (MENU006) - Rasa 20-30ml akan ditambah dinamis
+-- 6) Palm Sugar Milk Coffee (MENU006)
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES
 ('MENU006', 1, 1, 'piece'),     -- Cup
 ('MENU006', 3, 1, 'piece'),     -- Sedotan
-('MENU006', 36, 100, 'milliliter'), -- Sprite 100ml
-('MENU006', 37, 5, 'gram'),     -- Biji selasih 5gr
-('MENU006', 35, 80, 'gram');    -- Ice 80gr
+('MENU006', 5, 20, 'gram'),     -- Creamer 20gr
+('MENU006', 4, 17, 'gram'),     -- Kopi robusta 17gr
+('MENU006', 24, 30, 'milliliter'), -- Gula aren cair 30ml
+('MENU006', 7, 120, 'milliliter'), -- Susu cair 120ml
+('MENU006', 35, 80, 'gram');    -- Es batu 80gr
 
--- 7) milk shake (MENU007) - Rasa all varian 30gr akan ditambah dinamis
+-- 7) Tea (MENU007)
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES
 ('MENU007', 1, 1, 'piece'),     -- Cup
 ('MENU007', 3, 1, 'piece'),     -- Sedotan
-('MENU007', 7, 120, 'milliliter'), -- Susu 120ml
-('MENU007', 35, 80, 'gram');    -- Ice 80gr
+('MENU007', 33, 1, 'piece'),    -- Kantung teh 1 pc
+('MENU007', 23, 30, 'milliliter'), -- Gula Pasir Cair 30ml
+('MENU007', 35, 80, 'gram');    -- Es batu 80gr
 
--- 8) esteh (MENU008)
+-- 8) Espresso Double (MENU008)
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES
-('MENU008', 1, 1, 'piece'),     -- Cup
-('MENU008', 3, 1, 'piece'),     -- Sedotan
-('MENU008', 33, 1, 'piece'),    -- Kantung teh 1 pc
-('MENU008', 23, 30, 'milliliter'), -- Gula Pasir Cair 30ml
-('MENU008', 35, 80, 'gram');    -- Ice 80gr
+('MENU008', 1, 1, 'piece'),     -- Cup (default untuk semua menu)
+('MENU008', 4, 22, 'gram');     -- Kopi robusta 20-24gr (rata2: 22gr)
 
--- 9) americano (MENU009)
+-- 9) Milk Coffee (MENU009)
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES
-('MENU009', 1, 1, 'piece'),     -- Cup (default untuk semua menu)
-('MENU009', 4, 40, 'gram'),     -- Kopi robusta 40gr
-('MENU009', 23, 30, 'milliliter'); -- Gula Pasir Cair 30ml
+('MENU009', 1, 1, 'piece'),     -- Cup
+('MENU009', 3, 1, 'piece'),     -- Sedotan
+('MENU009', 5, 20, 'gram'),     -- Creamer 20gr
+('MENU009', 4, 17, 'gram'),     -- Kopi robusta 17gr
+('MENU009', 6, 30, 'milliliter'), -- SKM (Susu Kental Manis) 30ml
+('MENU009', 7, 120, 'milliliter'), -- Susu cair 120ml
+('MENU009', 35, 80, 'gram');    -- Es batu 80gr
 
--- 10) expreso single (MENU010)
+-- 10) Americano (MENU010)
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES
 ('MENU010', 1, 1, 'piece'),     -- Cup (default untuk semua menu)
-('MENU010', 4, 11, 'gram');     -- Kopi robusta 10-12gr (rata2: 11gr)
+('MENU010', 4, 40, 'gram'),     -- Kopi robusta 40gr
+('MENU010', 23, 30, 'milliliter'); -- Gula Pasir Cair 30ml
 
--- 11) expreso double (MENU011)
+-- 11) Cappuccino (MENU011)
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES
 ('MENU011', 1, 1, 'piece'),     -- Cup (default untuk semua menu)
-('MENU011', 4, 22, 'gram');     -- Kopi robusta 20-24gr (rata2: 22gr)
+('MENU011', 5, 20, 'gram'),     -- Creamer 20gr
+('MENU011', 4, 17, 'gram'),     -- Kopi robusta 17gr
+('MENU011', 7, 200, 'milliliter'); -- Susu cair 200ml
 
 -- Set sequence recipe_ingredients ke max id
 SELECT setval(pg_get_serial_sequence('recipe_ingredients','id'), (SELECT MAX(id) FROM recipe_ingredients));
