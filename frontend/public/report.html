@@ -170,20 +170,20 @@
                     <!-- Pagination -->
                     <div class="pagination-container">
                         <div class="pagination-info">
-                            Menampilkan <span id="pagination-start">1</span> - <span id="pagination-end">10</span> dari <span id="pagination-total">0</span> data
+                            <span id="report-pagination-info">Page 1 of 1</span>
                         </div>
                         <div class="pagination-controls">
-                            <button class="pagination-btn" id="prev-page" onclick="changePage(-1)">
+                            <button class="pagination-btn" id="report-prev-btn"">
                                 <i class="fas fa-chevron-left"></i>
                             </button>
-                            <div class="page-numbers" id="page-numbers"></div>
-                            <button class="pagination-btn" id="next-page" onclick="changePage(1)">
+                            <div class="page-numbers" id="report-page-numbers"></div>
+                            <button class="pagination-btn" id="report-next-btn">
                                 <i class="fas fa-chevron-right"></i>
                             </button>
                         </div>
-                        <div class="entries-per-page">
-                            <span>Tampilkan</span>
-                            <select id="entries-per-page" class="form-select">
+                        <div class="pagination-size">
+                            <label>Show:</label>
+                            <select id="report-page-size" class="form-select">
                                 <option value="10" selected>10</option>
                                 <option value="25">25</option>
                                 <option value="50">50</option>

@@ -12,9 +12,10 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 });
 
+// Global Variables
 let barChart, pieChart, ingredientChart;
 let currentReportData = null;
-let currentPage = 1;
+// let currentPage = 1;
 let itemsPerPage = 10;
 let filteredData = [];
 let baseData = [];
@@ -30,6 +31,11 @@ let menuOrderCount = {};   // { menuName: totalQuantityOrdered }
 let menuFlavorUsage = {};  // { menuName: { flavorNameLower: totalQty } }
 let variantConsumption = {}; // { key: { menuName, flavorName, orderQty, ingredients: { ingId: { totalQuantity, unit } } } }
 let menuValidFlavors = {}; // { menuName: Set(lowercase flavor names) }
+
+// Pagination Variables
+let reportCurrentPage = 1;
+let reportPageSize = 10;
+let reportTotalPages = 1;
 
 // ========== MODAL FUNCTIONS ==========
 function closePieModal() {
@@ -1121,9 +1127,9 @@ async function loadReport() {
             const tableSearch = document.getElementById('table-search-input');
             const term = tableSearch ? tableSearch.value : '';
             filteredData = term ? baseData.filter(i => (i.menu_name || '').toLowerCase().includes(term.toLowerCase())) : [...baseData];
-            currentPage = 1;
-            renderTablePage();
-            updatePagination();
+            reportCurrentPage = 1;
+            renderReportTable();
+            updateReportPagination();
             // Re-render charts only when data changed
             if (details.length > 0) {
                 // Reset table header to normal sales format
@@ -1199,9 +1205,9 @@ async function loadBestSellerData(start, end) {
                 const tableSearch = document.getElementById('table-search-input');
                 const term = tableSearch ? tableSearch.value : '';
                 filteredData = term ? baseData.filter(i => (i.menu_name || '').toLowerCase().includes(term.toLowerCase())) : [...baseData];
-                currentPage = 1;
-                renderTablePage();
-                updatePagination();
+                reportCurrentPage = 1;
+                renderReportTable();
+                updateReportPagination();
                 renderCharts(chartData);
                 // Update chart title to show it's best seller data
                 const chartTitle = document.querySelector('.column-title');
@@ -1224,8 +1230,8 @@ async function loadBestSellerData(start, end) {
             renderCharts([]);
             baseData = [];
             filteredData = [];
-            renderTablePage();
-            updatePagination();
+            renderReportTable();
+            updateReportPagination();
             document.getElementById("summary-income").textContent = `Rp 0`;
             document.getElementById("summary-orders").textContent = `0`;
             const statusEl2 = document.getElementById("summary-status-badge");
@@ -1360,27 +1366,100 @@ async function exportPDF() {
 }
 
 // ========== PAGINATION FUNCTIONS ==========
-function changePage(direction) {
-    const newPage = currentPage + direction;
-    const maxPage = Math.ceil(filteredData.length / itemsPerPage);
-    
-    if (newPage >= 1 && newPage <= maxPage) {
-        currentPage = newPage;
-        renderTablePage();
-        updatePagination();
+function initPagination() {
+    const prevBtn = document.getElementById('report-prev-btn');
+    const nextBtn = document.getElementById('report-next-btn');
+    const pageSizeSelect = document.getElementById('report-page-size');
+
+    prevBtn.addEventListener('click', () => changeReportPage(-1));
+    nextBtn.addEventListener('click', () => changeReportPage(1));
+    pageSizeSelect.addEventListener('change', changeReportPageSize);
+}
+
+async function changeReportPage(direction) {
+    const newPage = reportCurrentPage + direction;
+
+    if (newPage >= 1 && newPage <= reportTotalPages) {
+        reportCurrentPage = newPage;
+        renderReportTable();
+        renderReportPagination();
     }
 }
 
-function renderTablePage() {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const pageData = filteredData.slice(startIndex, endIndex);
-    
-    const tbody = document.getElementById("report-body");
-    tbody.innerHTML = "";
-    
-    if (pageData.length > 0) {
-        pageData.forEach((item, i) => {
+async function changeReportPageSize() {
+    reportPageSize = parseInt(document.getElementById('report-page-size').value);
+    reportCurrentPage = 1;
+    updateReportPagination();
+    renderReportTable();
+}
+
+function updateReportPagination() {
+    reportTotalPages = Math.ceil(filteredData.length / reportPageSize);
+    if (reportTotalPages === 0) reportTotalPages = 1;
+
+    if (reportCurrentPage > reportTotalPages) {
+        reportCurrentPage = reportTotalPages;
+    }
+
+    renderReportPagination();
+}
+
+function renderReportPagination() {
+    const pageNumbers = document.getElementById('report-page-numbers');
+    const prevBtn = document.getElementById('report-prev-btn');
+    const nextBtn = document.getElementById('report-next-btn');
+    const paginationInfo = document.getElementById('report-pagination-info');
+
+    paginationInfo.textContent = `Page ${reportCurrentPage} of ${reportTotalPages}`;
+
+    prevBtn.disabled = reportCurrentPage === 1;
+    nextBtn.disabled = reportCurrentPage === reportTotalPages;
+
+    pageNumbers.innerHTML = '';
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, reportCurrentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(reportTotalPages, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+        const pageBtn = document.createElement('button');
+        pageBtn.className = `page-number ${i === reportCurrentPage ? 'active' : ''}`;
+        pageBtn.textContent = i;
+        pageBtn.onclick = () => {
+            reportCurrentPage =i;
+            renderReportTable();
+            renderReportPagination();
+        };
+        pageNumbers.appendChild(pageBtn);
+    }
+}
+
+function updateReportTableInfo() {
+    const tableInfo = document.getElementById('report-table-info');
+    const startIndex = (reportCurrentPage -1) * reportPageSize + 1;
+    const endIndex = Math.min(reportCurrentPage * reportPageSize, filteredData.length);
+    const total = filteredData.length;
+
+    if (total === 0) {
+        tableInfo.textContent = "No entries available";
+    } else {
+        tableInfo.textContent = `Showing ${startIndex} to ${endIndex} of ${total} entries`;
+    }
+}
+
+function renderReportTable() {
+    const tbody = document.getElementById('report-body');
+    tbody.innerHTML = '';
+
+    const startIndex = (reportCurrentPage - 1) * reportPageSize;
+    const endIndex = startIndex + reportPageSize;
+    const currentPageData = filteredData.slice(startIndex, endIndex);
+
+    if (currentPageData.length > 0) {
+        currentPageData.forEach((item, i) => {
             const actualIndex = startIndex + i;
             tbody.innerHTML += `
                 <tr>
@@ -1394,59 +1473,121 @@ function renderTablePage() {
     } else {
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" style="text-align: center; padding: 1rem">
+                <td colspan="5" style ="text-align: center; padding: 1 rem">
                     There is no data for this page
                 </td>
             </tr>`;
-        }
-        
-        // Update pagination info
-        document.getElementById("pagination-start").textContent = startIndex + 1;
-        document.getElementById("pagination-end").textContent = Math.min(endIndex, filteredData.length);
-        document.getElementById("pagination-total").textContent = filteredData.length;
     }
+
+    updateReportTableInfo();
+}
+
+let elements = {};
+
+function init() {
+    initializeElements();
+    // setupEventListeners();
+    initPagination();
+    loadReport();
+    startAutoRefresh();
+}
+
+function initializeElements() {
+    elements.prevPageBtn = document.getElementById('report-prev-btn');
+    elements.nextPageBtn = document.getElementById('report-next-btn');
+    elements.pageSizeSelect = document.getElementById('report-page-size');
+    elements.pageNumbers = document.getElementById('report-page-numbers');
+    elements.paginationInfo = document.getElementById('report-pagination-info');
+    elements.reportBody = document.getElementById('report-body')
+};
+
+// function changePage(direction) {
+//     const newPage = currentPage + direction;
+//     const maxPage = Math.ceil(filteredData.length / itemsPerPage);
     
-    function updateReportTableInfo() {
-        const tableInfo = document.getElementById('report-table-info');
-        const startIndex = (reportCurrentPage - 1) * reportPageSize + 1;
-        const endIndex = Math.min(reportCurrentPage * reportPageSize, filteredReports.length);
-        const total = filteredReports.length;
+//     if (newPage >= 1 && newPage <= maxPage) {
+//         currentPage = newPage;
+//         renderTablePage();
+//         updatePagination();
+//     }
+// }
 
-        // Kalau tidak ada data, jangan tampilkan "Showing 1 to 0 of 0"
-        if (total === 0) {
-            tableInfo.textContent = "No entries available";
-        } else {
-            tableInfo.textContent = `Showing ${startIndex} to ${endIndex} of ${total} entries`;
-        }
-    }
+// function renderTablePage() {
+//     const startIndex = (currentPage - 1) * itemsPerPage;
+//     const endIndex = startIndex + itemsPerPage;
+//     const pageData = filteredData.slice(startIndex, endIndex);
+    
+//     const tbody = document.getElementById("report-body");
+//     tbody.innerHTML = "";
+    
+//     if (pageData.length > 0) {
+//         pageData.forEach((item, i) => {
+//             const actualIndex = startIndex + i;
+//             tbody.innerHTML += `
+//                 <tr>
+//                     <td>${actualIndex + 1}</td>
+//                     <td>${item.menu_name || 'N/A'}</td>
+//                     <td>${item.quantity || item.total_quantity || 0}</td>
+//                     <td>Rp ${(item.unit_price || 0).toLocaleString()}</td>
+//                     <td>Rp ${(item.total || item.total_revenue || 0).toLocaleString()}</td>
+//                 </tr>`;
+//         });
+//     } else {
+//         tbody.innerHTML = `
+//             <tr>
+//                 <td colspan="5" style="text-align: center; padding: 1rem">
+//                     There is no data for this page
+//                 </td>
+//             </tr>`;
+//         }
+        
+//         // Update pagination info
+//         document.getElementById("pagination-start").textContent = startIndex + 1;
+//         document.getElementById("pagination-end").textContent = Math.min(endIndex, filteredData.length);
+//         document.getElementById("pagination-total").textContent = filteredData.length;
+//     }
+    
+//     function updateReportTableInfo() {
+//         const tableInfo = document.getElementById('report-table-info');
+//         const startIndex = (reportCurrentPage - 1) * reportPageSize + 1;
+//         const endIndex = Math.min(reportCurrentPage * reportPageSize, filteredReports.length);
+//         const total = filteredReports.length;
 
-    function updatePagination() {
-        const maxPage = Math.ceil(filteredData.length / itemsPerPage);
-        const pageNumbers = document.getElementById("page-numbers");
-        const prevBtn = document.getElementById("prev-page");
-        const nextBtn = document.getElementById("next-page");
+//         // Kalau tidak ada data, jangan tampilkan "Showing 1 to 0 of 0"
+//         if (total === 0) {
+//             tableInfo.textContent = "No entries available";
+//         } else {
+//             tableInfo.textContent = `Showing ${startIndex} to ${endIndex} of ${total} entries`;
+//         }
+//     }
+
+//     function updatePagination() {
+//         const maxPage = Math.ceil(filteredData.length / itemsPerPage);
+//         const pageNumbers = document.getElementById("page-numbers");
+//         const prevBtn = document.getElementById("prev-page");
+//         const nextBtn = document.getElementById("next-page");
         
-        // Update button states
-        prevBtn.disabled = currentPage === 1;
-        nextBtn.disabled = currentPage === maxPage;
+//         // Update button states
+//         prevBtn.disabled = currentPage === 1;
+//         nextBtn.disabled = currentPage === maxPage;
         
-        // Generate page numbers
-        pageNumbers.innerHTML = "";
-        const startPage = Math.max(1, currentPage - 2);
-        const endPage = Math.min(maxPage, currentPage + 2);
+//         // Generate page numbers
+//         pageNumbers.innerHTML = "";
+//         const startPage = Math.max(1, currentPage - 2);
+//         const endPage = Math.min(maxPage, currentPage + 2);
         
-        for (let i = startPage; i <= endPage; i++) {
-            const pageBtn = document.createElement("button");
-            pageBtn.className = `page-number ${i === currentPage ? 'active' : ''}`;
-            pageBtn.textContent = i;
-            pageBtn.onclick = () => {
-                currentPage = i;
-                renderTablePage();
-                updatePagination();
-            };
-            pageNumbers.appendChild(pageBtn);
-        }
-    }
+//         for (let i = startPage; i <= endPage; i++) {
+//             const pageBtn = document.createElement("button");
+//             pageBtn.className = `page-number ${i === currentPage ? 'active' : ''}`;
+//             pageBtn.textContent = i;
+//             pageBtn.onclick = () => {
+//                 currentPage = i;
+//                 renderTablePage();
+//                 updatePagination();
+//             };
+//             pageNumbers.appendChild(pageBtn);
+//         }
+//     }
     
     // ========== SEARCH FUNCTIONS ==========
     function filterTableData(searchTerm) {
@@ -1457,9 +1598,9 @@ function renderTablePage() {
         ? source.filter(item => (item.menu_name || '').toLowerCase().includes(term))
         : [...source];
     
-    currentPage = 1;
-    renderTablePage();
-    updatePagination();
+    reportCurrentPage = 1;
+    renderReportTable();
+    updateReportPagination();
 }
 
 function filterIngredientTableData(searchTerm) {
@@ -1528,9 +1669,9 @@ function applyReportFilter() {
             }
             return 0;
         });
-        currentPage = 1;
-        renderTablePage();
-        updatePagination();
+        reportCurrentPage = 1;
+        renderReportTable();
+        updateReportPagination();
     }
     
     // Handle ingredient mode sorting
@@ -1783,14 +1924,14 @@ document.addEventListener('visibilitychange', () => {
         if (entriesSelect) {
             entriesSelect.addEventListener('change', function() {
                 itemsPerPage = parseInt(this.value, 10) || 10;
-                currentPage = 1;
+                reportCurrentPage = 1;
                 const dataType = document.getElementById('data-type-select')?.value || 'sales';
                 if (dataType === 'ingredient') {
                     // For ingredient mode, we don't use pagination, so just re-render the table
                     renderIngredientTable();
                 } else {
-                    renderTablePage();
-                    updatePagination();
+                    renderReportTable();
+                    updateReportPagination();
                 }
             });
         }
@@ -1843,7 +1984,7 @@ document.addEventListener('visibilitychange', () => {
         const startInput = document.getElementById('start_date');
         const endInput = document.getElementById('end_date');
         const onDateChange = () => {
-            currentPage = 1;
+            reportCurrentPage = 1;
             const dataType = document.getElementById('data-type-select')?.value || 'sales';
             if (dataType === 'best') {
                 loadBestSellerData(startInput.value, endInput.value);
@@ -1863,7 +2004,7 @@ window.onload = () => {
     document.getElementById("start_date").value = today;
     document.getElementById("end_date").value = today;
     loadReport();
-        startAutoRefresh();
+    startAutoRefresh();
 };
 
 function getItemFlavorRaw(item) {
@@ -1885,3 +2026,5 @@ function getItemFlavorRaw(item) {
 function normalizeFlavorForKey(raw) {
     return (raw || '').trim();
 }
+
+document.addEventListener('DOMContentLoaded', init);
