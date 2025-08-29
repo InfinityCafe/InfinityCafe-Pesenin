@@ -841,9 +841,9 @@ function renderOrderItemsList() {
     if (menuOptions && menuOptions.length > 0) {
       menuOptions.forEach(menu => {
         const opt = document.createElement('option');
-        opt.value = menu.base_name;
-        opt.textContent = menu.base_name;
-        if (item.menu_name === menu.base_name) opt.selected = true;
+        opt.value = menu.base_name_en;
+        opt.textContent = menu.base_name_en;
+        if (item.menu_name === menu.base_name_en) opt.selected = true;
         menuSelect.appendChild(opt);
       });
     } else {
@@ -852,7 +852,7 @@ function renderOrderItemsList() {
     
     block.appendChild(menuSelect);
     // Flavour
-    const selectedMenu = menuOptions.find(m => m.base_name === item.menu_name);
+    const selectedMenu = menuOptions.find(m => m.base_name_en === item.menu_name);
     if (selectedMenu && selectedMenu.flavors && selectedMenu.flavors.length > 0) {
       const flavorLabel = document.createElement('label');
       flavorLabel.textContent = 'Flavour';
@@ -869,9 +869,9 @@ function renderOrderItemsList() {
       selectedMenu.flavors.forEach(f => {
         const opt = document.createElement('option');
         // Fallback ke flavor_name jika tidak ada f.name
-        opt.value = f.name || f.flavor_name || '';
-        opt.textContent = f.name || f.flavor_name || '';
-        if ((item.preference || '') === (f.name || f.flavor_name || '')) opt.selected = true;
+        opt.value = f.name || f.flavor_name_en || '';
+        opt.textContent = f.name || f.flavor_name_en || '';
+        if ((item.preference || '') === (f.name || f.flavor_name_en || '')) opt.selected = true;
         flavorSelect.appendChild(opt);
       });
       flavorSelect.onchange = function() { orderItems[idx].preference = this.value; };
@@ -1020,9 +1020,9 @@ function renderCustomOrderItemsList() {
     if (menuOptions && menuOptions.length > 0) {
       menuOptions.forEach(menu => {
         const opt = document.createElement('option');
-        opt.value = menu.base_name;
-        opt.textContent = menu.base_name;
-        if (item.menu_name === menu.base_name) opt.selected = true;
+        opt.value = menu.base_name_en;
+        opt.textContent = menu.base_name_en;
+        if (item.menu_name === menu.base_name_en) opt.selected = true;
         menuSelect.appendChild(opt);
       });
     } else {
@@ -1090,10 +1090,10 @@ function renderCustomOrderItemsList() {
       // Add available flavors that aren't already selected
       if (allFlavors && allFlavors.length > 0) {
         allFlavors.forEach(flavor => {
-          if (flavor.isAvail && !item.preferences.includes(flavor.flavor_name)) {
+          if (flavor.isAvail && !item.preferences.includes(flavor.flavor_name_en)) {
             const opt = document.createElement('option');
-            opt.value = flavor.flavor_name;
-            opt.textContent = flavor.flavor_name;
+            opt.value = flavor.flavor_name_en;
+            opt.textContent = flavor.flavor_name_en;
             flavorSelect.appendChild(opt);
           }
         });
