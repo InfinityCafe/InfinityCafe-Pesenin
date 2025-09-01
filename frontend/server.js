@@ -715,10 +715,40 @@ app.get("/menu/list", async (req, res) => {
   }
 });
 
+// Order status endpoint
+app.get('/order_status/:order_id', async (req, res) => {
+  try {
+    const { order_id } = req.params;
+    const response = await fetch(`http://order_service:8002/order_status/${order_id}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    console.error('Failed to fetch order status:', err);
+    res.status(500).json({ error: 'Failed to fetch order status' });
+  }
+});
+
 // User endpoints
 app.post('/login', async (req, res) => {
   try {
     const response = await fetch('http://user_service:8005/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/register', async (req, res) => {
+  try {
+    const response = await fetch('http://user_service:8005/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req.body)
