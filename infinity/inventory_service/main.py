@@ -2269,6 +2269,11 @@ def get_daily_consumption_history(
                 ing["total_consumed"] for ing in ingredients.values()
             )
             
+            detailed_consumption = []
+            for ing in ingredients.values():
+                detailed_consumption.append(f"total konsumsi {ing['ingredient_name']}: {ing['total_consumed']} {ing['unit']}")
+            
+            daily_consumption[date_str]["detailed_consumption"] = detailed_consumption
             daily_consumption[date_str]["ingredients_consumed"] = list(ingredients.values())
         
         sorted_daily_consumption = dict(sorted(daily_consumption.items(), reverse=True))
@@ -2276,9 +2281,26 @@ def get_daily_consumption_history(
         total_days_with_consumption = len(sorted_daily_consumption)
         total_orders_all_days = sum(day_data["total_orders"] for day_data in sorted_daily_consumption.values())
         all_ingredients_used = set()
+        overall_ingredient_totals = {}
+        
         for day_data in sorted_daily_consumption.values():
             for ing in day_data["ingredients_consumed"]:
                 all_ingredients_used.add(ing["ingredient_id"])
+                ingredient_name = ing["ingredient_name"]
+                unit = ing["unit"]
+                total_consumed = ing["total_consumed"]
+                
+                if ingredient_name not in overall_ingredient_totals:
+                    overall_ingredient_totals[ingredient_name] = {
+                        "total_consumed": 0,
+                        "unit": unit
+                    }
+                overall_ingredient_totals[ingredient_name]["total_consumed"] += total_consumed
+        
+        overall_detailed_consumption = []
+        for ingredient_name, data in overall_ingredient_totals.items():
+            overall_detailed_consumption.append(f"total konsumsi {ingredient_name}: {data['total_consumed']} {data['unit']}")
+        overall_detailed_consumption.sort()
         
         return JSONResponse(status_code=200, content={
             "status": "success",
@@ -2299,7 +2321,8 @@ def get_daily_consumption_history(
                     "total_days_with_consumption": total_days_with_consumption,
                     "total_orders_all_days": total_orders_all_days,
                     "unique_ingredients_used": len(all_ingredients_used),
-                    "date_range_formatted": f"{query_start_date.strftime('%d/%m/%Y')} - {query_end_date.strftime('%d/%m/%Y')}"
+                    "date_range_formatted": f"{query_start_date.strftime('%d/%m/%Y')} - {query_end_date.strftime('%d/%m/%Y')}",
+                    "overall_detailed_consumption": overall_detailed_consumption
                 },
                 "daily_consumption": list(sorted_daily_consumption.values())
             }
