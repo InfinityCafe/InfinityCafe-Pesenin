@@ -279,10 +279,9 @@ def is_date_in_range(date_str: str, start_date: str, end_date: str) -> bool:
 @app.get("/report/best_seller", tags=["Report"])
 def get_best_seller(
     start_date: str = Query(..., description="Format: YYYY-MM-DD"),
-    end_date: str = Query(..., description="Format: YYYY-MM-DD"),
-    limit: int = Query(10, description="Number of best selling menus to display")
+    end_date: str = Query(..., description="Format: YYYY-MM-DD")
 ):
-    """Get best seller menus based on sold quantity from multiple services"""
+    """Get best seller menus based on sold quantity from multiple services (unlimited)"""
     # Simple validation
     if len(start_date) != 10 or len(end_date) != 10:
         raise HTTPException(status_code=400, detail="Date format must be YYYY-MM-DD")
@@ -422,22 +421,25 @@ def get_best_seller(
                 else:
                     logging.info(f"Order {order['order_id']} in date range but status is: {order_status}")
         
-        # Sort by total quantity (best seller) and take according to limit
-        best_sellers = sorted(menu_sales.values(), key=lambda x: x["total_quantity"], reverse=True)[:limit]
+        # Sort by total quantity (best seller) - show all data without limit
+        best_sellers = sorted(menu_sales.values(), key=lambda x: x["total_quantity"], reverse=True)
         
-        # Calculate totals for summary (dari best sellers saja)
+        # Calculate totals for summary (dari semua best sellers)
         total_base_revenue = sum(item["base_revenue"] for item in best_sellers)
         total_flavor_revenue = sum(item["flavor_revenue"] for item in best_sellers)
         total_combined_revenue = sum(item["total_revenue"] for item in best_sellers)
         
         logging.info(f"Date range: {start_date} to {end_date}")
-        logging.info(f"Processed {processed_orders} orders, found {len(best_sellers)} best sellers")
+        logging.info(f"Processed {processed_orders} orders, found {len(best_sellers)} best sellers (unlimited)")
         
         return {
             "start_date": start_date,
             "end_date": end_date,
             "total_orders_in_range": total_orders_in_range,
             "processed_orders": processed_orders,
+            "unlimited_mode": True,
+            "total_menus_found": len(best_sellers),
+            "message": f"Menampilkan semua {len(best_sellers)} menu best seller (tanpa limit)",
             "summary": {
                 "total_base_revenue": total_base_revenue,
                 "total_flavor_revenue": total_flavor_revenue,
@@ -449,95 +451,6 @@ def get_best_seller(
     except Exception as e:
         logging.error(f"Error in best_seller endpoint: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-@app.get("/report/top_customers", tags=["Report"])
-def get_top_customers(
-    start_date: str = Query(...),
-    end_date: str = Query(...)
-):
-    """Ambil top customers dari order data"""
-    try:
-        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Format tanggal tidak valid")
-    
-    # Get data dari services
-    orders = make_request(f"{ORDER_SERVICE_URL}/order")
-    kitchen_orders = make_request(f"{KITCHEN_SERVICE_URL}/kitchen/orders")
-    menus = make_request(f"{MENU_SERVICE_URL}/menu")
-    
-    # Create lookups - gunakan field yang benar
-    menu_prices = {}
-    for menu in menus:
-        if 'base_name' in menu and 'base_price' in menu:
-            menu_prices[menu['base_name']] = menu['base_price']
-        elif 'menu_name' in menu and 'menu_price' in menu:
-            # Fallback untuk struktur data lama
-            menu_prices[menu['menu_name']] = menu['menu_price']
-        else:
-            logging.warning(f"Menu item missing required fields: {menu}")
-            continue
-    
-    if not menu_prices:
-        logging.error("No valid menu prices found in top_customers. Available fields in first menu:")
-        if menus:
-            logging.error(f"Available fields: {list(menus[0].keys())}")
-        # Return empty list instead of error
-        return []
-        
-    completed_order_ids = {order['order_id'] for order in kitchen_orders if order['status'] == 'done'}
-    
-    # Process customer data
-    customer_stats = {}
-    
-    for order in orders:
-        # Handle different date field names
-        created_at = order.get('created_at') or order.get('time_receive')
-        if not created_at:
-            continue
-            
-        try:
-            # Handle different date formats
-            if 'Z' in str(created_at):
-                order_date = datetime.fromisoformat(str(created_at).replace('Z', '+00:00')).date()
-            else:
-                order_date = datetime.fromisoformat(str(created_at)).date()
-        except (ValueError, TypeError):
-            logging.warning(f"Invalid date format for order {order.get('order_id')}: {created_at}")
-            continue
-        
-        if (start_dt.date() <= order_date <= end_dt.date() and 
-            order['order_id'] in completed_order_ids):
-            
-            customer_name = order.get('customer_name', '')
-            if not customer_name:
-                continue
-                
-            if customer_name not in customer_stats:
-                customer_stats[customer_name] = {
-                    "customer_name": customer_name,
-                    "total_orders": 0,
-                    "total_spent": 0
-                }
-            
-            customer_stats[customer_name]["total_orders"] += 1
-            
-            # Calculate spending
-            for item in order.get('items', []):
-                menu_name = item.get('menu_name', '')
-                quantity = item.get('quantity', 0)
-                
-                if not menu_name or not quantity:
-                    continue
-                    
-                unit_price = menu_prices.get(menu_name, 0)
-                customer_stats[customer_name]["total_spent"] += quantity * unit_price
-    
-    # Sort by total spent and return top 5
-    top_customers = sorted(customer_stats.values(), key=lambda x: x["total_spent"], reverse=True)[:5]
-    
-    return top_customers
 
 
 @app.get("/report/financial_sales", tags=["Report"], summary="Laporan Keuangan Penjualan Menu")

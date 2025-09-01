@@ -25,7 +25,7 @@ INSERT INTO orders (order_id, queue_number, customer_name, room_name, status, cr
 ('ORD-001', 1, 'Fahri', 'VIP 1', 'done', NOW() - INTERVAL '3 hour', false);
 
 INSERT INTO order_items (order_id, telegram_id, menu_name, quantity, preference, notes) VALUES
-('ORD-001', '1414144124', 'Caffe Latte', 1, 'Iris', NULL),
+('ORD-001', '1414144124', 'Caffe Latte', 1, 'Caramel', NULL),
 ('ORD-001', '1414141412', 'Americano', 1, NULL, 'Less Ice');
 
 -- === Pesanan 2: Sedang Dibuat (Making) ===
@@ -41,7 +41,7 @@ INSERT INTO orders (order_id, queue_number, customer_name, room_name, status, cr
 
 INSERT INTO order_items (order_id, telegram_id, menu_name, quantity, preference, notes) VALUES
 ('ORD-003', '1414141414', 'Milkshake', 1, 'Banana', 'Less Sugar'),
-('ORD-003', '1414141415', 'Squash', 1, 'Stroberi', NULL);
+('ORD-003', '1414141415', 'Squash', 1, 'Strawberry', NULL);
 
 -- === Pesanan 4: Dibatalkan (Cancelled) ===
 INSERT INTO orders (order_id, queue_number, customer_name, room_name, status, created_at, cancel_reason, is_custom) VALUES
