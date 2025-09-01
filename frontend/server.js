@@ -53,6 +53,29 @@ app.post("/create_order", async (req, res) => {
   }
 });
 
+app.post("/custom_order", async (req, res) => {
+  try {
+    const body = req.body;
+    console.log('Received custom order request:', body);
+    const resp = await fetch("http://order_service:8002/custom_order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+
+    if (!resp.ok) {
+      const errorData = await resp.text(); // Ambil response error dari service
+      throw new Error(`Service error: ${resp.status} - ${errorData}`);
+    }
+
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to create custom order ", err);
+    res.status(500).json({ error: "Failed to create custom order" });
+  }
+});
+
 app.post("/cancel_order", async (req, res) => {
   try {
     const body = req.body;

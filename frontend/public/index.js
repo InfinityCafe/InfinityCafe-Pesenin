@@ -1290,6 +1290,7 @@ addOrderForm.onsubmit = async function(e) {
   
   // Determine which items to use based on current tab
   let orders = [];
+  let endpoint = '/create_order'
   let is_custom = false;
   
   if (currentOrderTab === 'regular') {
@@ -1302,6 +1303,7 @@ addOrderForm.onsubmit = async function(e) {
     }));
   } else {
     // Custom order tab
+    endpoint = '/custom_order'
     orders = customOrderItems.filter(i => i.menu_name && i.quantity > 0).map(i => {
       // Jika preferences adalah array dan tidak kosong, gabungkan menjadi string dengan koma
       let preference = '';
@@ -1314,7 +1316,7 @@ addOrderForm.onsubmit = async function(e) {
         quantity: i.quantity,
         preference: preference, // Kirim preferences sebagai string dengan pemisah koma
         notes: i.notes,
-        custom_flavour: true, // Pastikan flag custom_flavour tetap ada
+        // custom_flavour: true, // Pastikan flag custom_flavour tetap ada
         telegram_id: "0" // Otomatis mengisi telegram_id dengan "0"
       };
     });
@@ -1404,7 +1406,7 @@ addOrderForm.onsubmit = async function(e) {
   submitBtn.textContent = 'Saving...';
   
   try {
-    const res = await fetch('/create_order', {
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -1415,6 +1417,11 @@ addOrderForm.onsubmit = async function(e) {
         is_custom // Mengirim flag untuk menandai apakah ini custom order
       })
     });
+
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.error || `Gagal membuat pesanan: ${res.statusText}`);
+    }
     
     const data = await res.json();
     if (data.status === 'success') {
