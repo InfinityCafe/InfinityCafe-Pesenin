@@ -9,6 +9,11 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, 
 from sqlalchemy.orm import sessionmaker, declarative_base, Session, relationship
 from sqlalchemy.exc import SQLAlchemyError
 from pytz import timezone as pytz_timezone
+import os
+import json
+import logging
+import socket
+import enum
 
 last_debug_info = []
 from datetime import datetime
@@ -155,6 +160,21 @@ class FlavorMapping(Base):
     
     ingredient = relationship("Inventory", backref="flavor_mappings")
 
+class StockHistory(Base):
+    __tablename__ = "stock_history"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    ingredient_id = Column(Integer, ForeignKey('inventories.id'), nullable=False)
+    action_type = Column(String, nullable=False)  # 'restock', 'edit', 'consume', 'rollback'
+    quantity_before = Column(Float, nullable=False)
+    quantity_after = Column(Float, nullable=False)
+    quantity_changed = Column(Float, nullable=False)  # bisa positif atau negatif
+    performed_by = Column(String, nullable=False)  # nama user yang melakukan
+    notes = Column(Text, nullable=True)  # catatan/alasan
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
+    order_id = Column(String, nullable=True)  # jika terkait dengan order tertentu
+    
+    ingredient = relationship("Inventory", backref="stock_histories")
+
 class ValidateIngredientRequest(BaseModel):
     name: str
     current_quantity: float
@@ -232,6 +252,50 @@ class BatchStockResponse(BaseModel):
     details: list = Field(default_factory=list)
     debug_info: list = Field(default_factory=list)
 
+class StockAddRequestWithAudit(BaseModel):
+    ingredient_id: int = Field(..., description="ID ingredient yang akan ditambah stoknya")
+    add_quantity: float = Field(..., gt=0, description="Jumlah stok yang akan ditambahkan (harus positif)")
+    performed_by: str = Field(..., min_length=1, description="Nama yang melakukan restock")
+    notes: Optional[str] = Field("Penambahan stok manual", description="Alasan/catatan penambahan stok")
+
+class UpdateIngredientRequestWithAudit(BaseModel):
+    id: int = Field(..., description="ID bahan yang akan diupdate")
+    name: str
+    current_quantity: float
+    minimum_quantity: float
+    category: StockCategory
+    unit: UnitType
+    performed_by: str = Field(..., min_length=1, description="Nama yang melakukan update")
+    notes: Optional[str] = Field("Update data ingredient", description="Alasan/catatan update")
+
+    @field_validator('category', 'unit', mode='before')
+    @classmethod
+    def normalize_enum(cls, v):
+        if isinstance(v, str):
+            return v.lower().strip()
+        return v
+    
+    @field_validator('name', 'performed_by')
+    @classmethod
+    def name_not_blank(cls, v: str):
+        if not v or not v.strip():
+            raise ValueError("Field tidak boleh kosong")
+        return v.strip()
+
+    @model_validator(mode='after')
+    def validate_qty(self):
+        if self.current_quantity is None or self.minimum_quantity is None:
+            raise ValueError("Jumlah harus diisi")
+        if self.current_quantity < 0 or self.minimum_quantity < 0:
+            raise ValueError("Jumlah tidak boleh negatif")
+        return self
+
+class MinimumStockRequestWithAudit(BaseModel):
+    ingredient_id: int = Field(..., description="ID ingredient")
+    new_minimum: float = Field(..., ge=0, description="Batas minimum baru (tidak boleh negatif)")
+    performed_by: str = Field(..., min_length=1, description="Nama yang melakukan update")
+    notes: Optional[str] = Field("Update batas minimum", description="Alasan perubahan batas minimum")
+
 def create_outbox_event(db: Session, event_type: str, payload: dict):
     outbox_event = InventoryOutbox(
         event_type=event_type,
@@ -239,6 +303,29 @@ def create_outbox_event(db: Session, event_type: str, payload: dict):
     )
     db.add(outbox_event)
     return outbox_event
+
+def create_stock_history(db: Session, ingredient_id: int, action_type: str, 
+                        quantity_before: float, quantity_after: float,
+                        performed_by: str, notes: str = None, order_id: str = None):
+    """Buat record history perubahan stock"""
+    try:
+        quantity_changed = quantity_after - quantity_before
+        
+        history = StockHistory(
+            ingredient_id=ingredient_id,
+            action_type=action_type,
+            quantity_before=quantity_before,
+            quantity_after=quantity_after,
+            quantity_changed=quantity_changed,
+            performed_by=performed_by,
+            notes=notes or f"Action: {action_type}",
+            order_id=order_id
+        )
+        db.add(history)
+        return history
+    except Exception as e:
+        logging.error(f"Error creating stock history: {e}")
+        raise e
 
 def create_consumption_log_simplified(db: Session, order_id: str, menu_items_data: list, ingredient_details_data: list = None, status: str = 'pending'):
     """Create a new consumption log with simplified 2-table structure"""
@@ -795,7 +882,7 @@ def update_ingredient(req: UpdateIngredientRequest, db: Session = Depends(get_db
     ing = db.query(Inventory).filter(Inventory.id == req.id).first()
     if not ing:
         return JSONResponse(status_code=200, content={
-            "status": "error", 
+            "status": "error",
             "message": "Bahan tidak ditemukan", 
             "data": None
         })
@@ -1167,6 +1254,322 @@ def update_ingredient_stock(
         db.rollback()
         return {"success": False, "message": f"Error: {str(e)}"}
 
+@app.post("/stock/add", summary="Tambah stok ingredient (dengan audit)", tags=["Stock Management"])
+def add_ingredient_stock(req: StockAddRequestWithAudit, db: Session = Depends(get_db)):
+    """Menambah stok ingredient dengan tracking audit"""
+    try:
+        ingredient = db.query(Inventory).filter(Inventory.id == req.ingredient_id).first()
+        if not ingredient:
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": "Ingredient tidak ditemukan",
+                "data": None
+            })
+        
+        old_quantity = ingredient.current_quantity
+        new_quantity = old_quantity + req.add_quantity
+        
+        # Update stock
+        ingredient.current_quantity = new_quantity
+        
+        # Buat history record
+        create_stock_history(
+            db=db,
+            ingredient_id=req.ingredient_id,
+            action_type="restock",
+            quantity_before=old_quantity,
+            quantity_after=new_quantity,
+            performed_by=req.performed_by,
+            notes=req.notes
+        )
+        
+        db.commit()
+        
+        return JSONResponse(status_code=200, content={
+            "status": "success",
+            "message": f"Stok {ingredient.name} berhasil ditambahkan oleh {req.performed_by}",
+            "data": {
+                "ingredient_id": ingredient.id,
+                "ingredient_name": ingredient.name,
+                "old_quantity": old_quantity,
+                "added_quantity": req.add_quantity,
+                "new_quantity": new_quantity,
+                "unit": ingredient.unit.value,
+                "performed_by": req.performed_by,
+                "notes": req.notes,
+                "timestamp": datetime.now(jakarta_tz).isoformat()
+            }
+        })
+        
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": f"Gagal menambah stok: {str(e)}",
+            "data": None
+        })
+
+@app.put("/stock/minimum", summary="Update minimum stock (dengan audit)", tags=["Stock Management"])
+def update_minimum_stock(req: MinimumStockRequestWithAudit, db: Session = Depends(get_db)):
+    """Update minimum stock dengan tracking audit"""
+    try:
+        ingredient = db.query(Inventory).filter(Inventory.id == req.ingredient_id).first()
+        if not ingredient:
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": "Ingredient tidak ditemukan",
+                "data": None
+            })
+        
+        old_minimum = ingredient.minimum_quantity
+        
+        # Update minimum stock
+        ingredient.minimum_quantity = req.new_minimum
+        
+        # Buat history record (untuk minimum stock, kita track sebagai 'edit_minimum')
+        create_stock_history(
+            db=db,
+            ingredient_id=req.ingredient_id,
+            action_type="edit_minimum",
+            quantity_before=old_minimum,
+            quantity_after=req.new_minimum,
+            performed_by=req.performed_by,
+            notes=f"Update minimum stock: {req.notes}"
+        )
+        
+        db.commit()
+        
+        return JSONResponse(status_code=200, content={
+            "status": "success",
+            "message": f"Minimum stock {ingredient.name} berhasil diupdate oleh {req.performed_by}",
+            "data": {
+                "ingredient_id": ingredient.id,
+                "ingredient_name": ingredient.name,
+                "old_minimum": old_minimum,
+                "new_minimum": req.new_minimum,
+                "unit": ingredient.unit.value,
+                "performed_by": req.performed_by,
+                "notes": req.notes,
+                "timestamp": datetime.now(jakarta_tz).isoformat()
+            }
+        })
+        
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": f"Gagal update minimum stock: {str(e)}",
+            "data": None
+        })
+
+@app.put("/update_ingredient_with_audit", summary="Update bahan (dengan audit)", tags=["Inventory"])
+def update_ingredient_with_audit(req: UpdateIngredientRequestWithAudit, db: Session = Depends(get_db)):
+    """Update ingredient dengan tracking audit lengkap"""
+    ing = db.query(Inventory).filter(Inventory.id == req.id).first()
+    if not ing:
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": "Bahan tidak ditemukan", 
+            "data": None
+        })
+    
+    try:
+        # Simpan data lama
+        old_quantity = ing.current_quantity
+        old_minimum = ing.minimum_quantity
+        old_name = ing.name
+        
+        # Update data
+        ing.name = req.name
+        ing.current_quantity = req.current_quantity
+        ing.minimum_quantity = req.minimum_quantity
+        ing.category = req.category
+        ing.unit = req.unit
+        
+        # Buat history jika ada perubahan quantity
+        if old_quantity != req.current_quantity:
+            create_stock_history(
+                db=db,
+                ingredient_id=req.id,
+                action_type="edit_stock",
+                quantity_before=old_quantity,
+                quantity_after=req.current_quantity,
+                performed_by=req.performed_by,
+                notes=f"Edit stock: {req.notes} (nama: {old_name} → {req.name})"
+            )
+        
+        # Buat history jika ada perubahan minimum
+        if old_minimum != req.minimum_quantity:
+            create_stock_history(
+                db=db,
+                ingredient_id=req.id,
+                action_type="edit_minimum",
+                quantity_before=old_minimum,
+                quantity_after=req.minimum_quantity,
+                performed_by=req.performed_by,
+                notes=f"Edit minimum: {req.notes} (nama: {old_name} → {req.name})"
+            )
+        
+        db.commit()
+        
+        create_outbox_event(db, "ingredient_updated", {
+            "id": ing.id,
+            "name": ing.name,
+            "current_quantity": ing.current_quantity,
+            "minimum_quantity": ing.minimum_quantity,
+            "category": ing.category.value,
+            "unit": ing.unit.value
+        })
+        db.commit()
+        
+        return JSONResponse(status_code=200, content={
+            "status": "success", 
+            "message": f"Bahan '{ing.name}' berhasil diupdate oleh {req.performed_by}", 
+            "data": {
+                "id": ing.id,
+                "name": ing.name,
+                "current_quantity": ing.current_quantity,
+                "minimum_quantity": ing.minimum_quantity,
+                "category": ing.category.value,
+                "unit": ing.unit.value,
+                "is_available": ing.is_available,
+                "performed_by": req.performed_by,
+                "notes": req.notes,
+                "changes": {
+                    "quantity_changed": old_quantity != req.current_quantity,
+                    "minimum_changed": old_minimum != req.minimum_quantity,
+                    "name_changed": old_name != req.name
+                }
+            }
+        })
+        
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Gagal mengupdate bahan: {str(e)}", 
+            "data": None
+        })
+
+@app.get("/stock/history/{ingredient_id}", summary="History perubahan stock ingredient", tags=["Stock Management"])
+def get_ingredient_stock_history(
+    ingredient_id: int, 
+    limit: int = Query(50, description="Jumlah record maksimal"),
+    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback"),
+    db: Session = Depends(get_db)
+):
+    """Menampilkan history perubahan stock untuk ingredient tertentu"""
+    try:
+        ingredient = db.query(Inventory).filter(Inventory.id == ingredient_id).first()
+        if not ingredient:
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": "Ingredient tidak ditemukan",
+                "data": None
+            })
+        
+        query = db.query(StockHistory).filter(StockHistory.ingredient_id == ingredient_id)
+        
+        if action_type:
+            query = query.filter(StockHistory.action_type == action_type)
+        
+        histories = query.order_by(StockHistory.created_at.desc()).limit(limit).all()
+        
+        history_data = []
+        for history in histories:
+            history_data.append({
+                "id": history.id,
+                "action_type": history.action_type,
+                "quantity_before": history.quantity_before,
+                "quantity_after": history.quantity_after,
+                "quantity_changed": history.quantity_changed,
+                "performed_by": history.performed_by,
+                "notes": history.notes,
+                "created_at": format_jakarta_time(history.created_at),
+                "order_id": history.order_id
+            })
+        
+        return JSONResponse(status_code=200, content={
+            "status": "success",
+            "message": f"History stock untuk {ingredient.name}",
+            "data": {
+                "ingredient_info": {
+                    "id": ingredient.id,
+                    "name": ingredient.name,
+                    "current_quantity": ingredient.current_quantity,
+                    "minimum_quantity": ingredient.minimum_quantity,
+                    "unit": ingredient.unit.value
+                },
+                "total_records": len(history_data),
+                "filter_applied": action_type if action_type else "None",
+                "history": history_data
+            }
+        })
+        
+    except Exception as e:
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": f"Gagal mengambil history: {str(e)}",
+            "data": None
+        })
+
+@app.get("/stock/history", summary="History perubahan stock semua ingredient", tags=["Stock Management"])
+def get_all_stock_history(
+    limit: int = Query(100, description="Jumlah record maksimal"),
+    action_type: Optional[str] = Query(None, description="Filter by action type"),
+    performed_by: Optional[str] = Query(None, description="Filter by user name"),
+    db: Session = Depends(get_db)
+):
+    """Menampilkan history perubahan stock untuk semua ingredient"""
+    try:
+        query = db.query(StockHistory, Inventory.name.label('ingredient_name')).join(
+            Inventory, StockHistory.ingredient_id == Inventory.id
+        )
+        
+        if action_type:
+            query = query.filter(StockHistory.action_type == action_type)
+            
+        if performed_by:
+            query = query.filter(StockHistory.performed_by.ilike(f"%{performed_by}%"))
+        
+        results = query.order_by(StockHistory.created_at.desc()).limit(limit).all()
+        
+        history_data = []
+        for history, ingredient_name in results:
+            history_data.append({
+                "id": history.id,
+                "ingredient_id": history.ingredient_id,
+                "ingredient_name": ingredient_name,
+                "action_type": history.action_type,
+                "quantity_before": history.quantity_before,
+                "quantity_after": history.quantity_after,
+                "quantity_changed": history.quantity_changed,
+                "performed_by": history.performed_by,
+                "notes": history.notes,
+                "created_at": format_jakarta_time(history.created_at),
+                "order_id": history.order_id
+            })
+        
+        return JSONResponse(status_code=200, content={
+            "status": "success",
+            "message": f"History stock semua ingredient",
+            "data": {
+                "total_records": len(history_data),
+                "filters_applied": {
+                    "action_type": action_type if action_type else "None",
+                    "performed_by": performed_by if performed_by else "None"
+                },
+                "history": history_data
+            }
+        })
+        
+    except Exception as e:
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": f"Gagal mengambil history: {str(e)}",
+            "data": None
+        })
+
 class StockRequestPayload(BaseModel):
     order_id: str
     items: list[BatchStockItem]
@@ -1416,6 +1819,18 @@ def check_and_consume(
             if inv.current_quantity < 0:
                 raise ValueError(f"❌ FATAL: Stok {inv.name} menjadi negatif ({inv.current_quantity}) setelah dikurangi {deducted}")
             
+            # Tambahkan tracking history untuk consumption
+            create_stock_history(
+                db=db,
+                ingredient_id=ing_id,
+                action_type="consume",
+                quantity_before=before,
+                quantity_after=inv.current_quantity,
+                performed_by="SYSTEM",
+                notes=f"Konsumsi untuk order {req.order_id}",
+                order_id=req.order_id
+            )
+            
             per_ing_detail.append({
                 "ingredient_id": ing_id,
                 "ingredient_name": inv.name,
@@ -1459,7 +1874,22 @@ def rollback_stock(order_id: str, db: Session = Depends(get_db)):
                 Inventory.id == detail.ingredient_id
             ).first()
             if ingredient:
+                before_rollback = ingredient.current_quantity
                 ingredient.current_quantity += detail.quantity_consumed
+                after_rollback = ingredient.current_quantity
+                
+                # Tambahkan tracking history untuk rollback
+                create_stock_history(
+                    db=db,
+                    ingredient_id=detail.ingredient_id,
+                    action_type="rollback",
+                    quantity_before=before_rollback,
+                    quantity_after=after_rollback,
+                    performed_by="SYSTEM",
+                    notes=f"Rollback konsumsi untuk order {order_id} - dikembalikan {detail.quantity_consumed}",
+                    order_id=order_id
+                )
+                
                 restored_count += 1
         
         update_consumption_status(db, order_id, 'rolled_back')
