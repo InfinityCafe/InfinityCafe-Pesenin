@@ -237,29 +237,31 @@
                         </div>
                     </div>
                     <!-- Ingredient Details Panel (for Analisis Bahan mode) -->
-                    <div id="ingredient-details-panel" class="summary-item hidden" style="margin-top: 1rem;">
+                    <div id="ingredient-details-panel" class="summary-item hidden" style="margin-top: 1.5rem;">
                         <div class="summary-header">
                             <span class="summary-name">🥤 Detail Konsumsi Bahan</span>
                             <span class="summary-close" onclick="hideIngredientDetailsPanel()">×</span>
                         </div>
-                        <div class="summary-details" style="margin-top: .5rem;">
+                        <div class="summary-details" style="margin: 1rem 0 1.5rem 0;">
                             <span class="summary-detail--order">Order ID: <strong id="detail-order-id">-</strong></span>
                             <span class="summary-detail--order">Tanggal: <strong id="detail-order-date">-</strong></span>
                             <span class="summary-detail--order">Status: <strong id="detail-order-status">-</strong></span>
                         </div>
-                        <table id="ingredient-details-table" class="flavour-table" style="margin-top: .5rem;">
-                            <thead>
-                                <tr>
-                                    <th>No</th>
-                                    <th>Nama Bahan</th>
-                                    <th>Qty Terpakai</th>
-                                    <th>Unit</th>
-                                    <th>Stok Sebelum</th>
-                                    <th>Stok Sesudah</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ingredient-details-body"></tbody>
-                        </table>
+                        <div class="table-container" style="margin-top: 0;">
+                            <table id="ingredient-details-table" class="flavour-table" style="margin-top: 0;">
+                                <thead>
+                                    <tr>
+                                        <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">No</th>
+                                        <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Nama Bahan</th>
+                                        <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Qty Terpakai</th>
+                                        <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Unit</th>
+                                        <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Stok Sebelum</th>
+                                        <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Stok Sesudah</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ingredient-details-body"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -463,9 +465,8 @@
 
     <!-- Ingredient Detail Modal -->
     <div id="ingredient-modal" class="modal hidden">
-        <div class="modal-content view-modal">
+        <div class="modal-content view-modal" style="max-width: 800px; width: 800px;">
             <button onclick="closeIngredientModal()" class="modal-close">×</button>
-            <div class="modal-title">🥤 Detail Bahan Menu</div>
             <div id="ingredient-modal-content" class="view-content">
                 <div id="ingredient-modal-body"></div>
             </div>
@@ -518,6 +519,8 @@ let menuOrderCount = {};   // { menuName: totalQuantityOrdered }
 let menuFlavorUsage = {};  // { menuName: { flavorNameLower: totalQty } }
 let variantConsumption = {}; // { key: { menuName, flavorName, orderQty, ingredients: { ingId: { totalQuantity, unit } } } }
 let menuValidFlavors = {}; // { menuName: Set(lowercase flavor names) }
+let kitchenOrdersCache = [];
+let globalFlavorMap = {};
 
 // ========== MODAL FUNCTIONS ==========
 function closePieModal() {
@@ -657,6 +660,7 @@ async function loadIngredientAnalysisData() {
             kitchenResponse.json(),
             flavorMapResp.json()
         ]);
+        kitchenOrdersCache = Array.isArray(kitchenOrders) ? kitchenOrders : [];
         
         // Build flavor mapping: flavor_name (lower) -> list of {ingredient_id, quantity_per_serving, unit}
         let flavorMap = {};
@@ -675,6 +679,7 @@ async function loadIngredientAnalysisData() {
                 flavorMap[fname].push({ ingredient_id: ingId, quantity_per_serving: qty, unit });
             }
         }
+        globalFlavorMap = flavorMap;
         
         // Normalize menus (may be empty; we will derive from orders anyway)
         let menusArray = Array.isArray(menuData) ? menuData : (menuData && Array.isArray(menuData.data) ? menuData.data : []);
@@ -1100,13 +1105,13 @@ async function viewConsumptionDetails(orderId, dateStr, statusText) {
             const stockAfter = d?.stock_after_consumption || 0;
             
             return `
-                <tr>
-                    <td>${idx + 1}</td>
-                    <td>${ingredientName}</td>
-                    <td>${Number(quantityConsumed).toLocaleString()}</td>
-                    <td>${unit}</td>
-                    <td>${Number(stockBefore).toLocaleString()}</td>
-                    <td>${Number(stockAfter).toLocaleString()}</td>
+                <tr style="border-bottom: 1px solid #F3F4F6;">
+                    <td style="padding: 0.75rem; color: #1F2937; font-weight: 500;">${idx + 1}</td>
+                    <td style="padding: 0.75rem; color: #1F2937; font-weight: 600;">${ingredientName}</td>
+                    <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${Number(quantityConsumed).toLocaleString()}</td>
+                    <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${unit}</td>
+                    <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${Number(stockBefore).toLocaleString()}</td>
+                    <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${Number(stockAfter).toLocaleString()}</td>
                 </tr>
             `;
         }).join('');
@@ -1117,7 +1122,7 @@ async function viewConsumptionDetails(orderId, dateStr, statusText) {
         // Show error message in the table
         const body = document.getElementById('ingredient-details-body');
         if (body) {
-            body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #ef4444;">Failed to load ingredient details</td></tr>';
+            body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 1.5rem; font-weight: 500;">Failed to load ingredient details</td></tr>';
         }
     }
 }
@@ -2061,7 +2066,7 @@ function renderTablePage() {
                     console.log('Using logs view format');
                     // Logs view - show menu, flavor, and detail button
                     tbody.innerHTML += `
-                        <tr onclick="viewConsumptionDetails('${item.order_ids && item.order_ids.length > 0 ? item.order_ids[0] : ''}', '${item.date || ''}', '${item.status_text || ''}')" style="cursor: pointer;">
+                        <tr onclick="openGroupedConsumptionModal('${(item.order_ids || []).join(',')}', '${item.date || ''}', '${item.status_text || ''}', '${item.menu_name || ''}', '${item.flavor || ''}')" style="cursor: pointer;">
                             <td>${actualIndex + 1}</td>
                             <td>${item.menu_name || '-'}</td>
                             <td>${item.flavor || 'Default'}</td>
@@ -2069,7 +2074,7 @@ function renderTablePage() {
                             <td>${item.status_text || '-'}</td>
                             <td>${(item.ingredients_affected ?? 0).toLocaleString()}</td>
                             <td>
-                                <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); viewConsumptionDetails('${item.order_ids && item.order_ids.length > 0 ? item.order_ids[0] : ''}', '${item.date || ''}', '${item.status_text || ''}')" title="Lihat Detail">
+                                <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); openGroupedConsumptionModal('${(item.order_ids || []).join(',')}', '${item.date || ''}', '${item.status_text || ''}', '${item.menu_name || ''}', '${item.flavor || ''}')" title="Lihat Detail">
                                     <i class="fas fa-eye"></i> Detail
                                 </button>
                             </td>
@@ -2634,5 +2639,99 @@ function getItemFlavorRaw(item) {
 
 function normalizeFlavorForKey(raw) {
     return (raw || '').trim();
+}
+
+async function openGroupedConsumptionModal(orderIdsCsv, dateStr, statusText, menuName, flavorName) {
+    try {
+        console.log('openGroupedConsumptionModal called with:', { orderIdsCsv, dateStr, statusText, menuName, flavorName });
+        const orderIds = String(orderIdsCsv || '').split(',').map(s => s.trim()).filter(Boolean);
+        console.log('Parsed order IDs:', orderIds);
+        const matches = (kitchenOrdersCache || []).filter(o => orderIds.includes(String(o.order_id)));
+        console.log('Found matches:', matches);
+        console.log('kitchenOrdersCache length:', kitchenOrdersCache.length);
+
+        const modal = document.getElementById('ingredient-modal');
+        const modalBody = document.getElementById('ingredient-modal-body');
+        if (!modal || !modalBody) {
+            console.error('Modal elements not found:', { modal: !!modal, modalBody: !!modalBody });
+            return;
+        }
+
+        // Build table rows for orders
+        const tableRows = matches.map((o, idx) => {
+            const ts = o.time_done || o.time_receive || '';
+            const items = (o.items || []).map(it => `${it.menu_name}${it.preference ? ' (' + it.preference + ')' : ''} x${it.quantity}`).join(', ');
+            const displayDate = new Date(ts).toLocaleString('id-ID') || '-';
+            
+            return `
+                <tr style="border-bottom: 1px solid #F3F4F6;">
+                    <td style="padding: 0.75rem; color: #1F2937; font-weight: 500; text-align: center;">${idx + 1}</td>
+                    <td style="padding: 0.75rem; color: #1F2937; font-weight: 600; font-family: 'Courier New', monospace;">Order ${o.order_id}</td>
+                    <td style="padding: 0.75rem; color: #1F2937; font-weight: 500; text-align: center;">${displayDate}</td>
+                    <td style="padding: 0.75rem; color: #1F2937; font-weight: 500; line-height: 1.4;">${items || '-'}</td>
+                    <td style="padding: 0.75rem; color: #1F2937; text-align: center;">
+                        <button class="btn-secondary btn-sm" onclick="closeModalAndViewConsumption('${o.order_id}', '${dateStr || ''}', '${statusText || ''}')" style="white-space: nowrap;">
+                            🔍 Lihat Log Konsumsi
+                        </button>
+                    </td>
+                </tr>`;
+        }).join('');
+
+        modalBody.innerHTML = `
+            <div class="modal-title" style="margin-bottom: 1.5rem; font-size: 22px; font-weight: 700; color: #312929; text-align: center; padding-bottom: 1rem; border-bottom: 2px dashed rgba(68, 45, 29, 0.52);">
+                🥤 ${menuName || 'Detail Pesanan'}${flavorName ? ' • ' + flavorName : ''}
+            </div>
+            <div class="summary-details" style="margin: 1rem 0 1.5rem 0; justify-content: center;">
+                <span class="summary-detail--order">📅 Tanggal: <strong>${dateStr || '-'}</strong></span>
+                <span class="summary-detail--order">📊 Status: <strong>${statusText || '-'}</strong></span>
+            </div>
+            <div class="table-container" style="margin-top: 0; border: 2px solid #DCD0A8; border-radius: 1rem; padding: 1rem; overflow: hidden;">
+                <div style="overflow-x: auto;">
+                    <table class="flavour-table" style="min-width: 600px; width: 100%; border-collapse: collapse; margin-top: 0;">
+                        <thead>
+                            <tr>
+                                <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6; white-space: nowrap;">No</th>
+                                <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6; white-space: nowrap;">Order ID</th>
+                                <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6; white-space: nowrap;">Waktu</th>
+                                <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Items</th>
+                                <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6; white-space: nowrap;">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows || '<tr><td colspan="5" style="text-align:center; color:#615a5a; padding: 1.5rem; font-weight: 500;">Tidak ada order yang cocok.</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+        modal.classList.remove('hidden');
+    } catch (e) {
+        console.error('openGroupedConsumptionModal error:', e);
+    }
+}
+
+function closeModalAndViewConsumption(orderId, dateStr, statusText) {
+    // Close the modal first
+    const modal = document.getElementById('ingredient-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    
+    // Then show consumption details and scroll to the panel
+    setTimeout(() => {
+        viewConsumptionDetails(orderId, dateStr, statusText);
+        
+        // Scroll to the ingredient details panel after it's shown
+        setTimeout(() => {
+            const panel = document.getElementById('ingredient-details-panel');
+            if (panel && !panel.classList.contains('hidden')) {
+                panel.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'start',
+                    inline: 'nearest'
+                });
+            }
+        }, 200);
+    }, 100);
 }
 </script>
