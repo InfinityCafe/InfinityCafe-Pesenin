@@ -36,7 +36,7 @@ class InventoryManager {
     });
 
     safeAddEventListener('close-view-modal', 'click', () => {
-      this.closeViewItemModal();
+      this.closeModal('view-item-modal');
     });
 
     // Modal close buttons
@@ -423,7 +423,7 @@ class InventoryManager {
       <td>${this.capitalizeFirst(item.unit)}</td>
       <td>${item.minimum_quantity.toFixed(2)}</td>
       <td>
-        <span class="status-label ${status.class}">${status.text}</span>
+        <span><span class="${status.class}">${status.text}</span></span>
       </td>
       <td class="action-header">
         <button class="table-action-btn" onclick="inventoryManager.viewItem(${item.id})"><i class="fas fa-eye"></i></button>
@@ -617,41 +617,10 @@ class InventoryManager {
 
     const status = this.getStockStatus(item);
     const statusElement = document.getElementById('view-item-status');
-    statusElement.textContent = status.text;
-    statusElement.className = `status-label ${status.class.replace('status-badge', '')}`;
-
-    document.getElementById('view-item-modal').setAttribute('data-item-id', itemId);
-
+    statusElement.innerHTML = `<span class="${status.class}">${status.text}</span>`;
     this.showModal('view-item-modal');
-  }
-
-  closeViewItemModal() {
-    this.closeModal('view-item-modal');
-    document.getElementById('view-item-modal').removeAttribute('data-item-id');
-  }
-
-  editFromView() {
-    const itemId = document.getElementById('view-item-modal').getAttribute('data-item-id');
-    if (!itemId) {
-      this.showError('No item selected for editing');
-      return;
-    }
-
-    this.closeViewItemModal();
-
-    setTimeout(() => {
-      this.editItem(parseInt(itemId));
-    }, 50);
-  }
-
-  openAddItemModal() {
-    this.editingItem = null;
-    const modalTitle = document.getElementById('modal-title');
-    const itemForm = document.getElementById('item-form');
-    if (modalTitle) modalTitle.textContent = 'Add New Item';
-    if (itemForm) itemForm.reset();
-    this.showModal('item-modal');
-  }
+  ;
+}
 
   editItem(itemId) {
     const item = this.inventory.find(i => i.id === itemId);
