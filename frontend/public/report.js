@@ -1,3 +1,14 @@
+// Login guard
+if (!localStorage.getItem('access_token')) {
+  window.location.href = '/login';
+}
+
+// Fungsi logout
+function logout() {
+  localStorage.removeItem('access_token');
+  window.location.href = '/login';
+}
+
 // Tambahkan tombol logout ke header setelah DOM siap
 window.addEventListener('DOMContentLoaded', function () {
   const headerRight = document.querySelector('.header-right');
@@ -12,10 +23,9 @@ window.addEventListener('DOMContentLoaded', function () {
   }
 });
 
-// Global Variables
 let barChart, pieChart, ingredientChart;
 let currentReportData = null;
-// let currentPage = 1;
+let currentPage = 1;
 let itemsPerPage = 10;
 let filteredData = [];
 let baseData = [];
@@ -31,11 +41,8 @@ let menuOrderCount = {};   // { menuName: totalQuantityOrdered }
 let menuFlavorUsage = {};  // { menuName: { flavorNameLower: totalQty } }
 let variantConsumption = {}; // { key: { menuName, flavorName, orderQty, ingredients: { ingId: { totalQuantity, unit } } } }
 let menuValidFlavors = {}; // { menuName: Set(lowercase flavor names) }
-
-// Pagination Variables
-let reportCurrentPage = 1;
-let reportPageSize = 10;
-let reportTotalPages = 1;
+let kitchenOrdersCache = [];
+let globalFlavorMap = {};
 
 // ========== MODAL FUNCTIONS ==========
 function closePieModal() {
@@ -175,6 +182,7 @@ async function loadIngredientAnalysisData() {
             kitchenResponse.json(),
             flavorMapResp.json()
         ]);
+        kitchenOrdersCache = Array.isArray(kitchenOrders) ? kitchenOrders : [];
         
         // Build flavor mapping: flavor_name (lower) -> list of {ingredient_id, quantity_per_serving, unit}
         let flavorMap = {};
@@ -193,6 +201,7 @@ async function loadIngredientAnalysisData() {
                 flavorMap[fname].push({ ingredient_id: ingId, quantity_per_serving: qty, unit });
             }
         }
+        globalFlavorMap = flavorMap;
         
         // Normalize menus (may be empty; we will derive from orders anyway)
         let menusArray = Array.isArray(menuData) ? menuData : (menuData && Array.isArray(menuData.data) ? menuData.data : []);
@@ -235,19 +244,8 @@ async function loadIngredientAnalysisData() {
                     ingredientData = {};
                 }
                 
-                // Load valid flavors per menu (best-effort)
+                // Skip remote flavor fetch; rely on order preference/flavor mapping only
                 menuValidFlavors = {};
-                try {
-                    const flavorFetches = menuNames.map(name => fetch(`/menu/by_name/${encodeURIComponent(name)}/flavors`).then(r => r.ok ? r.json() : []));
-                    const flavorsPerMenu = await Promise.all(flavorFetches);
-                    menuNames.forEach((name, idx) => {
-                        const arr = Array.isArray(flavorsPerMenu[idx]) ? flavorsPerMenu[idx] : [];
-                        const set = new Set(arr.map(f => (f.flavor_name || f.name || '').toLowerCase()).filter(Boolean));
-                        menuValidFlavors[name] = set;
-                    });
-                } catch (_) {
-                    // ignore if menu service not available for flavors
-                }
                 
                 // Compute consumption from done orders (base recipe + flavor mapping)
                 menuConsumption = {};
@@ -320,22 +318,27 @@ async function loadIngredientAnalysisData() {
                     }
                 }
                 
-                renderIngredientAnalysis();
+                                renderIngredientAnalysis();
                 updateIngredientSummary();
 
                 // Integrate into main report table and pagination/search
                 currentDataType = 'ingredient';
+                
                 // Determine ingredient view mode: daily vs logs
                 const viewSelect = document.getElementById('ingredient-view-select');
                 const viewMode = viewSelect ? viewSelect.value : 'daily';
                 const startParam = startDate ? startDate.toISOString().slice(0,10) : null;
                 const endParam = endDate ? endDate.toISOString().slice(0,10) : null;
                 let ingredientRows = [];
+                let menuFlavorGroups = {}; // Initialize menuFlavorGroups for both view modes
+                
                 if (viewMode === 'daily') {
-                    // Build from logs: group by date
-                    const logsRes = await fetch('/inventory/history');
+                    // Build from logs: group by date with better daily aggregation
+                    const logsRes = await fetch('/inventory/history?limit=500');
                     const logsJson = await logsRes.json().catch(() => ({ history: [] }));
                     const logs = Array.isArray(logsJson.history) ? logsJson.history : [];
+                    
+                    // Group logs by date with more comprehensive data
                     const byDate = {};
                     logs.forEach(l => {
                         const d = (l.date || '').slice(0,10);
@@ -343,20 +346,95 @@ async function loadIngredientAnalysisData() {
                         if (startParam && endParam) {
                             if (d < startParam || d > endParam) return;
                         }
-                        if (!byDate[d]) byDate[d] = { total_orders: 0, ingredients_affected: 0 };
+                        if (!byDate[d]) {
+                            byDate[d] = { 
+                                total_orders: 0, 
+                                ingredients_affected: 0,
+                                unique_menus: new Set(),
+                                total_consumption: 0,
+                                order_ids: new Set()
+                            };
+                        }
                         byDate[d].total_orders += 1;
                         byDate[d].ingredients_affected += (l.ingredients_affected || 0);
+                        byDate[d].total_consumption += (l.ingredients_affected || 0);
+                        byDate[d].order_ids.add(l.order_id);
+                        
+                        // Try to get menu details from kitchen orders for menu count
+                        const kitchenOrder = kitchenOrdersCache.find(o => o.order_id === l.order_id);
+                        if (kitchenOrder && kitchenOrder.items && kitchenOrder.items.length > 0) {
+                            kitchenOrder.items.forEach(item => {
+                                if (item.menu_name) {
+                                    byDate[d].unique_menus.add(item.menu_name);
+                                }
+                            });
+                        }
                     });
+                    
+                    // Create daily rows with better information
                     ingredientRows = Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0])).map(([d, v]) => ({
                         order_id: `Daily ${d}`,
                         date: d,
-                        status_text: `${v.total_orders} order`,
-                        ingredients_affected: v.ingredients_affected,
-                        total_qty: v.ingredients_affected
+                        status_text: `${v.total_orders} pesanan • ${v.unique_menus.size} menu`,
+                        ingredients_affected: v.total_consumption,
+                        total_qty: v.total_consumption,
+                        daily_summary: {
+                            total_orders: v.total_orders,
+                            unique_menus: v.unique_menus.size,
+                            total_consumption: v.total_consumption,
+                            order_ids: Array.from(v.order_ids)
+                        }
                     }));
+                    
+                    // For daily view, also create menuFlavorGroups from the same logs data
+                    // This allows us to show detailed breakdown when clicking detail button
+                    for (const log of logs) {
+                        const orderId = log.order_id;
+                        const dateKey = (log.date || '').slice(0,10);
+                        if (!dateKey) continue;
+                        
+                        // Try to get menu details from kitchen orders
+                        const kitchenOrder = kitchenOrdersCache.find(o => o.order_id === orderId);
+                        if (kitchenOrder && kitchenOrder.items && kitchenOrder.items.length > 0) {
+                            for (const menuItem of kitchenOrder.items) {
+                                const menuName = menuItem.menu_name || 'Unknown Menu';
+                                const flavor = menuItem.preference || 'Default';
+                                const key = `${menuName}|${flavor}`;
+                                
+                                if (!menuFlavorGroups[key]) {
+                                    menuFlavorGroups[key] = {
+                                        menu_name: menuName,
+                                        flavor: flavor,
+                                        total_orders: 0,
+                                        total_ingredients: 0,
+                                        order_ids: new Set(),
+                                        date: dateKey,
+                                        status_text: 'DIKONSUMSI'
+                                    };
+                                }
+                                
+                                menuFlavorGroups[key].total_orders += 1;
+                                menuFlavorGroups[key].total_ingredients += (log.ingredients_affected || 0);
+                                menuFlavorGroups[key].order_ids.add(orderId);
+                            }
+                        } else {
+                            // Fallback: create a generic entry for this order
+                            const key = `Order-${orderId}`;
+                            if (!menuFlavorGroups[key]) {
+                                menuFlavorGroups[key] = {
+                                    menu_name: `Order ${orderId}`,
+                                    flavor: 'Unknown',
+                                    total_orders: 1,
+                                    total_ingredients: log.ingredients_affected || 0,
+                                    order_ids: new Set([orderId]),
+                                    date: dateKey,
+                                    status_text: 'DIKONSUMSI'
+                                };
+                            }
+                        }
+                    }
                 } else {
-                    // Logs view: fetch recent consumption logs
-                    // If date range is provided, fall back to daily endpoint to filter, else use /history limited list
+                    // Logs view: fetch recent consumption logs and group by menu/flavor
                     let logsUrl = '/inventory/history?limit=100';
                     const logsRes = await fetch(logsUrl);
                     const logsJson = await logsRes.json().catch(() => ({ history: [] }));
@@ -366,37 +444,192 @@ async function loadIngredientAnalysisData() {
                         // date format already formatted, cannot reliably filter; keep all when not exact
                         return true;
                     });
-                    ingredientRows = filteredLogs.map(l => ({
-                        order_id: l.order_id,
-                        date: l.date,
-                        status_text: l.status,
-                        ingredients_affected: l.ingredients_affected,
-                        total_qty: l.ingredients_affected
+                    
+                    // Use actual order data from kitchen service to get real menu names and flavors
+                    // This data comes from the dashboard and contains the actual menu items ordered
+                    const orderDetails = {};
+                    
+                    // First, get the kitchen orders data that was already fetched
+                    const kitchenOrdersResponse = await fetch('/kitchen/orders');
+                    let kitchenOrdersData = [];
+                    if (kitchenOrdersResponse.ok) {
+                        kitchenOrdersData = await kitchenOrdersResponse.json();
+                    }
+                    
+                    console.log('Kitchen orders data:', kitchenOrdersData);
+                    
+                    // Create a mapping from order_id to kitchen order data
+                    const orderIdToKitchenOrder = {};
+                    for (const order of kitchenOrdersData) {
+                        if (order.items && Array.isArray(order.items)) {
+                            orderIdToKitchenOrder[order.order_id] = order;
+                            console.log(`Order ${order.order_id} has items:`, order.items);
+                        }
+                    }
+                    
+                    console.log('Order ID to kitchen order mapping:', orderIdToKitchenOrder);
+                    
+                    // Now process consumption logs and match with kitchen order data
+                    for (const log of filteredLogs) {
+                        const orderId = log.order_id;
+                        const kitchenOrder = orderIdToKitchenOrder[orderId];
+                        
+                        if (!orderDetails[orderId]) {
+                            orderDetails[orderId] = {
+                                order_id: orderId,
+                                date: log.date,
+                                status: log.status,
+                                status_text: log.status === 'consumed' ? 'DIKONSUMSI' : 
+                                             log.status === 'rolled_back' ? 'DIBATALKAN' : 'PENDING',
+                                ingredients_affected: log.ingredients_affected || 0,
+                                menu_items: kitchenOrder ? kitchenOrder.items : []
+                            };
+                        }
+                        
+                        console.log(`Log ${orderId} matched with kitchen order:`, kitchenOrder ? 'YES' : 'NO');
+                        if (kitchenOrder) {
+                            console.log(`Kitchen order items for ${orderId}:`, kitchenOrder.items);
+                        }
+                    }
+                    
+                    // Group by actual menu name and flavor from kitchen orders
+                    for (const orderId in orderDetails) {
+                        const order = orderDetails[orderId];
+                        
+                        if (order.menu_items && order.menu_items.length > 0) {
+                            // Process each menu item with its actual name and flavor from dashboard
+                            for (const menuItem of order.menu_items) {
+                                const menuName = menuItem.menu_name || 'Unknown Menu';
+                                const flavor = menuItem.preference || 'Default';
+                                const key = `${menuName}|${flavor}`;
+                                
+                                console.log(`Processing menu item: ${menuName} with flavor: ${flavor}`);
+                                
+                                if (!menuFlavorGroups[key]) {
+                                    menuFlavorGroups[key] = {
+                                        menu_name: menuName,
+                                        flavor: flavor,
+                                        total_orders: 0,
+                                        total_ingredients: 0,
+                                        order_ids: new Set(),
+                                        date: order.date,
+                                        status_text: order.status_text
+                                    };
+                                }
+                                
+                                menuFlavorGroups[key].total_orders += 1;
+                                menuFlavorGroups[key].total_ingredients += order.ingredients_affected;
+                                menuFlavorGroups[key].order_ids.add(orderId);
+                            }
+                        } else {
+                            // Fallback: if no menu details available from kitchen orders
+                            const key = `Order-${orderId}`;
+                            if (!menuFlavorGroups[key]) {
+                                menuFlavorGroups[key] = {
+                                    menu_name: `Order ${orderId}`,
+                                    flavor: 'Unknown',
+                                    total_orders: 1,
+                                    total_ingredients: order.ingredients_affected,
+                                    order_ids: new Set([orderId]),
+                                    date: order.date,
+                                    status_text: order.status_text
+                                };
+                            }
+                        }
+                    }
+                    
+                    console.log('Final menu flavor groups:', menuFlavorGroups);
+                    
+                    // Convert grouped data to table rows
+                    ingredientRows = Object.values(menuFlavorGroups).map(group => ({
+                        menu_name: group.menu_name,
+                        flavor: group.flavor,
+                        date: group.date,
+                        status_text: `${group.total_orders} pesanan`,
+                        ingredients_affected: group.total_ingredients,
+                        total_qty: group.total_ingredients,
+                        order_ids: Array.from(group.order_ids),
+                        // Add order_id for compatibility with daily view
+                        order_id: Array.from(group.order_ids)[0] || ''
                     }));
+                    
+                    // Debug: log the data structure
+                    console.log('Ingredient rows data:', ingredientRows);
+                    console.log('Sample item structure:', ingredientRows[0]);
                 }
-                baseData = ingredientRows;
+                
+                // Also create daily aggregated data for daily view
+                const dailyGroups = {};
+                for (const group of Object.values(menuFlavorGroups)) {
+                    const dateKey = group.date;
+                    if (!dailyGroups[dateKey]) {
+                        dailyGroups[dateKey] = {
+                            date: dateKey,
+                            total_ingredients: 0,
+                            total_orders: 0,
+                            order_ids: new Set(),
+                            status_text: 'DIKONSUMSI'
+                        };
+                    }
+                    dailyGroups[dateKey].total_ingredients += group.total_ingredients;
+                    dailyGroups[dateKey].total_orders += group.total_orders;
+                    group.order_ids.forEach(id => dailyGroups[dateKey].order_ids.add(id));
+                }
+                
+                // Create daily rows
+                const dailyRows = Object.values(dailyGroups).map(group => ({
+                    date: group.date,
+                    status_text: `${group.total_orders} pesanan`,
+                    ingredients_affected: group.total_ingredients,
+                    order_id: Array.from(group.order_ids)[0] || '',
+                    // For daily view, we don't need menu_name and flavor
+                    menu_name: undefined,
+                    flavor: undefined,
+                    order_ids: Array.from(group.order_ids)
+                }));
+                
+                // Debug: log the data structure
+                console.log('Ingredient rows data:', ingredientRows);
+                console.log('Daily rows data:', dailyRows);
+                console.log('Sample item structure:', ingredientRows[0]);
+                
+                // Store both data sets
+                baseData = {
+                    logs: ingredientRows,
+                    daily: dailyRows
+                };
+                
+                // Get current view mode and set appropriate data
+                const currentViewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
+                const currentViewData = baseData[currentViewMode] || [];
+                
                 const tableSearch = document.getElementById('table-search-input');
                 const term = tableSearch ? tableSearch.value.toLowerCase() : '';
                 filteredData = term
-                    ? baseData.filter(i => (i.order_id || '').toLowerCase().includes(term) || (i.date || '').toLowerCase().includes(term) || (i.status_text || '').toLowerCase().includes(term))
-                    : [...baseData];
+                    ? currentViewData.filter(i => 
+                        (i.menu_name || '').toLowerCase().includes(term) || 
+                        (i.flavor || '').toLowerCase().includes(term) || 
+                        (i.order_id || '').toLowerCase().includes(term) || 
+                        (i.date || '').toLowerCase().includes(term) || 
+                        (i.status_text || '').toLowerCase().includes(term)
+                    )
+                    : [...currentViewData];
                 currentPage = 1;
-                renderReportTable();
-                updateReportPagination();
+                renderTablePage();
+                updatePagination();
             } else {
                 // On failure, clear
                 menuRecipes = {};
                 menuConsumption = {};
                 const details = document.getElementById('ingredient-details');
                 if (details) details.innerHTML = '<div class="ingredient-menu-item">Tidak ada data resep untuk dianalisis.</div>';
-                // const tbody = document.getElementById('ingredient-table-body');
-                // if (tbody) tbody.innerHTML = '';
+                // Clear main table data when failure in ingredient mode
                 if (currentDataType === 'ingredient') {
                     baseData = [];
                     filteredData = [];
-                    currentReportPage = 1;
-                    renderReportTable();
-                    updateReportPagination();
+                    currentPage = 1;
+                    renderTablePage();
+                    updatePagination();
                 }
             }
         } else {
@@ -404,14 +637,12 @@ async function loadIngredientAnalysisData() {
             menuConsumption = {};
             const details = document.getElementById('ingredient-details');
             if (details) details.innerHTML = '<div class="ingredient-menu-item">Tidak ada data pesanan selesai pada periode ini.</div>';
-            // const tbody = document.getElementById('ingredient-table-body');
-            // if (tbody) tbody.innerHTML = '';
             if (currentDataType === 'ingredient') {
                 baseData = [];
                 filteredData = [];
-                currentReportPage = 1;
-                renderReportTable();
-                updateReportPagination();
+                currentPage = 1;
+                renderTablePage();
+                updatePagination();
             }
         }
         
@@ -433,7 +664,7 @@ function renderIngredientConsumptionChart() {
     const ctx = document.getElementById('ingredientChart');
     if (!ctx) return;
     if (ingredientChart) ingredientChart.destroy();
-    // total ingredients used per menu (sum of quantities)
+    // Adapt to daily history summary if baseData present
     const rows = Array.isArray(baseData) ? baseData : [];
     const labels = rows.map(r => r.date || r.order_id || '-');
     const totals = rows.map(r => Number(r.total_qty || 0));
@@ -448,92 +679,22 @@ function renderIngredientConsumptionDetails() {
     const container = document.getElementById('ingredient-details');
     if (!container) return;
     container.innerHTML = '';
-
-    // const html = Object.entries(menuConsumption).map(([menuName, ingMap]) => {
-    //     const list = Object.entries(ingMap).map(([ingId, v]) => {
-    //         const ing = ingredientData[ingId];
-    //         const name = ing ? ing.name : `ID ${ingId}`;
-    //         return `${name} (${(v.totalQuantity || 0).toFixed(2)} ${v.unit || ''})`;
-    //     }).join(', ');
-    //     const flavorMapForMenu = menuFlavorUsage[menuName] || {};
-    //     const flavorsList = Object.entries(flavorMapForMenu).map(([f, q]) => `${f} (${q})`).join(', ');
-    //     const totalOrders = menuOrderCount[menuName] || 0;
-    //     return `
-    //         <div class="ingredient-menu-item">
-    //             <h5>${menuName}</h5>
-    //             <p><strong>Total Pesanan:</strong> ${totalOrders}</p>
-    //             <p><strong>Flavor Terpakai:</strong> ${flavorsList || 'Tidak ada'}</p>
-    //             <p><strong>Bahan Terpakai:</strong> ${list || 'Tidak ada data'}</p>
-    //             <button onclick="viewMenuIngredients('${menuName}')" class="btn-secondary btn-sm">📋 Detail Lengkap</button>
-    //         </div>
-    //     `;
-    // }).join('');
-    // container.innerHTML = html || '<div class="ingredient-menu-item">Tidak ada data konsumsi bahan.</div>';
 }
 
 function renderIngredientConsumptionTable() {
     const tbody = document.getElementById('ingredient-table-body');
     if (!tbody) return;
     tbody.innerHTML = '';
-
-    const rows = Object.values(variantConsumption).map((v, idx) => {
-        const ingList = Object.entries(v.ingredients).map(([ingId, info]) => {
-            const ing = ingredientData[ingId];
-            const name = ing ? ing.name : `ID ${ingId}`;
-            return `${name} (${(info.totalQuantity || 0).toFixed(2)} ${info.unit || ''})`;
-        }).join(', ');
-        return `
-            <tr>
-                <td>${idx + 1}</td>
-                <td>${v.menuName}</td>
-                <td>${v.flavorName}</td>
-                <td>${v.orderQty}</td>
-                <td>${ingList || '-'}</td>
-            </tr>
-        `;
-    }).join('');
-    tbody.innerHTML = rows;
 }
 
 function updateIngredientSummary() {
+    // Adapt summary to ingredient mode table (daily)
     const totalMenu = 0;
-    const allIngredients = (Array.isArray(baseData) ? baseData : []).reduce((s,r) => s + (r.ingredients_affected ?? 0), 0);
-    // const totalMenu = Object.keys(menuRecipes).length;
-    // const allIngredients = new Set();
-    // let mostIngredientsMenu = '';
-    // let maxIngredients = 0;
-    // let mostUsedIngredient = '';
-    // let maxUsage = 0;
-    // const ingredientUsage = {};
-    
-    // Object.entries(menuRecipes).forEach(([menuName, recipes]) => {
-    //     // Count ingredients per menu
-    //     if (recipes.length > maxIngredients) {
-    //         maxIngredients = recipes.length;
-    //         mostIngredientsMenu = menuName;
-    //     }
-        
-    //     // Count ingredient usage across all menus
-    //     recipes.forEach(recipe => {
-    //         const ingredientId = recipe.ingredient_id;
-    //         allIngredients.add(ingredientId);
-            
-    //         if (!ingredientUsage[ingredientId]) {
-    //             ingredientUsage[ingredientId] = 0;
-    //         }
-    //         ingredientUsage[ingredientId]++;
-            
-    //         if (ingredientUsage[ingredientId] > maxUsage) {
-    //             maxUsage = ingredientUsage[ingredientId];
-    //             mostUsedIngredient = ingredientData[ingredientId] ? ingredientData[ingredientId].name : `ID ${ingredientId}`;
-    //         }
-    //     });
-    // });
-    
-    document.getElementById('ingredient-total-menu').textContent = baseData ? baseData.length: 0;
+    const allIngredients = (Array.isArray(baseData) ? baseData : []).reduce((s, r) => s + (r.ingredients_affected ?? 0), 0);
+    document.getElementById('ingredient-total-menu').textContent = baseData ? baseData.length : 0;
     document.getElementById('ingredient-total-ingredients').textContent = allIngredients;
     document.getElementById('ingredient-most-ingredients').textContent = '-';
-    document.getElementById('ingredient-most-used').textContent = '-  ';
+    document.getElementById('ingredient-most-used').textContent = '-';
 }
 
 function hideIngredientDetailsPanel() {
@@ -541,44 +702,164 @@ function hideIngredientDetailsPanel() {
     if (panel) panel.classList.add('hidden');
 }
 
-async function viewConsumptionDetails(orderId, dateStr, statusText) {
-    try {
-        // If orderId looks like aggregated daily row, just show panel header
-        const isAggregated = (orderId || '').toLowerCase().startsWith('daily');
-        const panel = document.getElementById('ingredient-details-panel');
-        const body = document.getElementById('ingredient-details-body');
-        document.getElementById('detail-order-id').textContent = orderId || '-';
-        document.getElementById('detail-order-date').textContent = dateStr || '-';
-        document.getElementById('detail-order-status').textContent = statusText || '-';
-        body.innerHTML = '';
-        if (panel) panel.classList.remove('hidden');
-        if (isAggregated) return;
+ async function viewConsumptionDetails(orderId, dateStr, statusText) {
+     try {
+         // If orderId looks like aggregated daily row, show aggregated data
+         const isAggregated = (orderId || '').toLowerCase().startsWith('daily');
+         const panel = document.getElementById('ingredient-details-panel');
+         const body = document.getElementById('ingredient-details-body');
+         document.getElementById('detail-order-id').textContent = isAggregated ? `Harian - ${dateStr}` : (orderId || '-');
+         document.getElementById('detail-order-date').textContent = dateStr || '-';
+         document.getElementById('detail-order-status').textContent = statusText || '-';
+         body.innerHTML = '';
+         if (panel) panel.classList.remove('hidden');
+         
+         if (isAggregated) {
+             // Show aggregated daily consumption data
+             await showDailyAggregatedConsumption(dateStr, statusText);
+             return;
+         }
 
         const res = await fetch(`/inventory/order/${encodeURIComponent(orderId)}/ingredients`);
+        
+        // Check if response is ok
+        if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        
         const json = await res.json();
-        const details = json && json.data && json.data.ingredients_breakdown && Array.isArray(json.data.ingredients_breakdown.details)
-            ? json.data.ingredients_breakdown.details
-            : [];
-        body.innerHTML = details.map((d, idx) => `
-            <tr>
-                <td>${idx + 1}</td>
-                <td>${d.ingredient_name || '-'}</td>
-                <td>${(d.quantity_consumed ?? 0).toLocaleString()}</td>
-                <td>${d.unit || '-'}</td>
-                <td>${(d.stock_before ?? 0).toLocaleString()}</td>
-                <td>${(d.stock_after ?? 0).toLocaleString()}</td>
-            </tr>
-        `).join('');
+        
+        // Handle different possible response structures
+        const details = json?.data?.ingredients_breakdown?.details || 
+                       json?.ingredients_breakdown?.details || 
+                       json?.details || 
+                       [];
+
+        if (!Array.isArray(details)) {
+            console.warn('Expected array of details but got:', details);
+            body.innerHTML = '<tr><td colspan="6">No ingredient details available</td></tr>';
+            return;
+        }
+
+        // Debug: Log the actual data structure
+        console.log('Raw API response:', json);
+        console.log('Details array:', details);
+        console.log('First detail item:', details[0]);
+
+        // Generate table rows with correct field mapping
+        body.innerHTML = details.map((d, idx) => {
+            // Use correct field names based on API response
+            const ingredientName = d?.ingredient_name || '-';
+            const quantityConsumed = d?.consumed_quantity || 0;
+            const unit = d?.unit || '-';
+            const stockBefore = d?.stock_before_consumption || 0;
+            const stockAfter = d?.stock_after_consumption || 0;
+            
+            return `
+                <tr style="border-bottom: 1px solid #F3F4F6;">
+                    <td style="padding: 0.75rem; color: #1F2937; font-weight: 500;">${idx + 1}</td>
+                    <td style="padding: 0.75rem; color: #1F2937; font-weight: 600;">${ingredientName}</td>
+                    <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${Number(quantityConsumed).toLocaleString()}</td>
+                    <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${unit}</td>
+                    <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${Number(stockBefore).toLocaleString()}</td>
+                    <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${Number(stockAfter).toLocaleString()}</td>
+                </tr>
+            `;
+        }).join('');
+        
     } catch (e) {
-        console.error('Failed loading consumption details', e);
-    }
-}
-
-function refreshIngredientAnalysis() {
-    loadIngredientAnalysisData();
-}
-
-function exportIngredientCSV() {
+        console.error('Failed loading consumption details for orderId:', orderId, 'Error:', e);
+        
+        // Show error message in the table
+        const body = document.getElementById('ingredient-details-body');
+        if (body) {
+            body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 1.5rem; font-weight: 500;">Failed to load ingredient details</td></tr>';
+        }
+         }
+ }
+ 
+ async function showDailyAggregatedConsumption(dateStr, statusText) {
+     try {
+         const body = document.getElementById('ingredient-details-body');
+         
+         // Get the daily summary data for the specific date
+         const dailyItem = filteredData.find(item => 
+             item.date === dateStr && item.daily_summary
+         );
+         
+         if (!dailyItem || !dailyItem.daily_summary) {
+             body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #615a5a; padding: 1.5rem; font-weight: 500;">Tidak ada data detail untuk tanggal ini</td></tr>';
+             return;
+         }
+         
+         const dailySummary = dailyItem.daily_summary;
+         
+         // Create a summary header row
+         const summaryRow = `
+             <tr style="background-color: #F9FAFB; border-bottom: 2px solid #E5E7EB;">
+                 <td colspan="6" style="padding: 1rem; text-align: center;">
+                     <div style="font-size: 1.1rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;">
+                         📅 Ringkasan Konsumsi Harian - ${dateStr}
+                     </div>
+                     <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
+                         <div style="text-align: center;">
+                             <div style="font-size: 1.5rem; font-weight: 700; color: #059669;">${dailySummary.total_orders}</div>
+                             <div style="font-size: 0.9rem; color: #6B7280;">Total Pesanan</div>
+                         </div>
+                         <div style="text-align: center;">
+                             <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">${dailySummary.unique_menus}</div>
+                             <div style="font-size: 0.9rem; color: #6B7280;">Menu Unik</div>
+                         </div>
+                         <div style="text-align: center;">
+                             <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${dailySummary.total_consumption.toLocaleString()}</div>
+                             <div style="font-size: 0.9rem; color: #6B7280;">Total Bahan</div>
+                         </div>
+                     </div>
+                 </td>
+             </tr>
+         `;
+         
+         // Filter menuFlavorGroups for the specific date
+         const dateMenuData = Object.values(menuFlavorGroups).filter(group => 
+             group.date === dateStr
+         );
+         
+         if (dateMenuData.length === 0) {
+             body.innerHTML = summaryRow + `
+                 <tr>
+                     <td colspan="6" style="text-align: center; color: #6B7280; padding: 1.5rem; font-weight: 500;">
+                         Tidak ada detail menu untuk tanggal ini
+                     </td>
+                 </tr>
+             `;
+             return;
+         }
+         
+         // Generate table rows for menu breakdown
+         const menuRows = dateMenuData.map((group, idx) => `
+             <tr style="border-bottom: 1px solid #F3F4F6;">
+                 <td style="padding: 0.75rem; color: #1F2937; font-weight: 500; text-align: center;">${idx + 1}</td>
+                 <td style="padding: 0.75rem; color: #1F2937; font-weight: 600;">${group.menu_name}</td>
+                 <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${group.flavor}</td>
+                 <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${group.total_ingredients.toLocaleString()}</td>
+                 <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${group.total_orders}</td>
+                 <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">-</td>
+             </tr>
+         `).join('');
+         
+         body.innerHTML = summaryRow + menuRows;
+         
+     } catch (e) {
+         console.error('Failed to load daily aggregated consumption:', e);
+         const body = document.getElementById('ingredient-details-body');
+         if (body) {
+             body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 1.5rem; font-weight: 500;">Gagal memuat data konsumsi harian</td></tr>';
+         }
+     }
+ }
+ 
+ function exportIngredientCSV() {
+    // Export aligned with ingredient mode (daily history aggregation)
     const rows = (Array.isArray(baseData) ? baseData : []).map(r => [
         r.order_id || '-',
         r.date || '-',
@@ -596,24 +877,6 @@ function exportIngredientCSV() {
     a.href = url;
     a.download = `ingredient_consumption_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
-    // const rows = Object.values(variantConsumption).map(v => {
-    //     const ingList = Object.entries(v.ingredients).map(([ingId, info]) => {
-    //         const ing = ingredientData[ingId];
-    //         const name = ing ? ing.name : `ID ${ingId}`;
-    //         return `${name} (${(info.totalQuantity || 0).toFixed(2)} ${info.unit || ''})`;
-    //     }).join('; ');
-    //     return [v.menuName, v.flavorName, v.orderQty, ingList];
-    // });
-    // const csvContent = [
-    //     ['Nama Menu', 'Flavor', 'Qty Pesanan', 'Detail Bahan (Terpakai)'],
-    //     ...rows
-    // ].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
-    // const blob = new Blob([csvContent], { type: 'text/csv' });
-    // const url = window.URL.createObjectURL(blob);
-    // const a = document.createElement('a');
-    // a.href = url;
-    // a.download = `ingredient_consumption_${new Date().toISOString().split('T')[0]}.csv`;
-    // a.click();
     window.URL.revokeObjectURL(url);
 }
 
@@ -1263,9 +1526,9 @@ async function loadReport() {
             const tableSearch = document.getElementById('table-search-input');
             const term = tableSearch ? tableSearch.value : '';
             filteredData = term ? baseData.filter(i => (i.menu_name || '').toLowerCase().includes(term.toLowerCase())) : [...baseData];
-            reportCurrentPage = 1;
-            renderReportTable();
-            updateReportPagination();
+            currentPage = 1;
+            renderTablePage();
+            updatePagination();
             // Re-render charts only when data changed
             if (details.length > 0) {
                 // Reset table header to normal sales format
@@ -1341,9 +1604,9 @@ async function loadBestSellerData(start, end) {
                 const tableSearch = document.getElementById('table-search-input');
                 const term = tableSearch ? tableSearch.value : '';
                 filteredData = term ? baseData.filter(i => (i.menu_name || '').toLowerCase().includes(term.toLowerCase())) : [...baseData];
-                reportCurrentPage = 1;
-                renderReportTable();
-                updateReportPagination();
+                currentPage = 1;
+                renderTablePage();
+                updatePagination();
                 renderCharts(chartData);
                 // Update chart title to show it's best seller data
                 const chartTitle = document.querySelector('.column-title');
@@ -1366,8 +1629,8 @@ async function loadBestSellerData(start, end) {
             renderCharts([]);
             baseData = [];
             filteredData = [];
-            renderReportTable();
-            updateReportPagination();
+            renderTablePage();
+            updatePagination();
             document.getElementById("summary-income").textContent = `Rp 0`;
             document.getElementById("summary-orders").textContent = `0`;
             const statusEl2 = document.getElementById("summary-status-badge");
@@ -1457,7 +1720,7 @@ async function fetchSuggestedMenu() {
 // ========== EXPORT FUNCTIONS ==========
 function exportCSV() {
     const rows = [["No", "Menu", "Qty", "Price", "Total"]];
-    document.querySelectorAll("#report-body tr").forEach((tr, i) => {
+    document.querySelectorAll("#report-tbody tr").forEach((tr, i) => {
         const cols = [...tr.children].map(td => td.innerText);
         if (cols.length > 1 && !cols[0].includes("Tidak ada data")) {
         rows.push([i + 1, ...cols.slice(1)]);
@@ -1502,101 +1765,81 @@ async function exportPDF() {
 }
 
 // ========== PAGINATION FUNCTIONS ==========
-function initPagination() {
-    const prevBtn = document.getElementById('report-prev-btn');
-    const nextBtn = document.getElementById('report-next-btn');
-    const pageSizeSelect = document.getElementById('report-page-size');
-
-    prevBtn.addEventListener('click', () => changeReportPage(-1));
-    nextBtn.addEventListener('click', () => changeReportPage(1));
-    pageSizeSelect.addEventListener('change', changeReportPageSize);
-}
-
-async function changeReportPage(direction) {
-    const newPage = reportCurrentPage + direction;
-
-    if (newPage >= 1 && newPage <= reportTotalPages) {
-        reportCurrentPage = newPage;
-        renderReportTable();
-        renderReportPagination();
+function changePage(direction) {
+    const newPage = currentPage + direction;
+    const maxPage = Math.ceil(filteredData.length / itemsPerPage);
+    
+    if (newPage >= 1 && newPage <= maxPage) {
+        currentPage = newPage;
+        renderTablePage();
+        updatePagination();
     }
 }
 
-async function changeReportPageSize() {
-    reportPageSize = parseInt(document.getElementById('report-page-size').value);
-    reportCurrentPage = 1;
-    updateReportPagination();
-    renderReportTable();
-}
-
-function updateReportPagination() {
-    reportTotalPages = Math.ceil(filteredData.length / reportPageSize);
-    if (reportTotalPages === 0) reportTotalPages = 1;
-
-    if (reportCurrentPage > reportTotalPages) {
-        reportCurrentPage = reportTotalPages;
-    }
-
-    renderReportPagination();
-}
-
-function renderReportPagination() {
-    const pageNumbers = document.getElementById('report-page-numbers');
-    const prevBtn = document.getElementById('report-prev-btn');
-    const nextBtn = document.getElementById('report-next-btn');
-    const paginationInfo = document.getElementById('report-pagination-info');
-
-    paginationInfo.textContent = `Page ${reportCurrentPage} of ${reportTotalPages}`;
-
-    prevBtn.disabled = reportCurrentPage === 1;
-    nextBtn.disabled = reportCurrentPage === reportTotalPages;
-
-    pageNumbers.innerHTML = '';
-    const maxVisiblePages = 5;
-    let startPage = Math.max(1, reportCurrentPage - Math.floor(maxVisiblePages / 2));
-    let endPage = Math.min(reportTotalPages, startPage + maxVisiblePages - 1);
-
-    if (endPage - startPage + 1 < maxVisiblePages) {
-        startPage = Math.max(1, endPage - maxVisiblePages + 1);
-    }
-
-    for (let i = startPage; i <= endPage; i++) {
-        const pageBtn = document.createElement('button');
-        pageBtn.className = `page-number ${i === reportCurrentPage ? 'active' : ''}`;
-        pageBtn.textContent = i;
-        pageBtn.onclick = () => {
-            reportCurrentPage =i;
-            renderReportTable();
-            renderReportPagination();
-        };
-        pageNumbers.appendChild(pageBtn);
-    }
-}
-
-function updateReportTableInfo() {
-    const tableInfo = document.getElementById('report-table-info');
-    const startIndex = (reportCurrentPage -1) * reportPageSize + 1;
-    const endIndex = Math.min(reportCurrentPage * reportPageSize, filteredData.length);
-    const total = filteredData.length;
-
-    if (total === 0) {
-        tableInfo.textContent = "No entries available";
-    } else {
-        tableInfo.textContent = `Showing ${startIndex} to ${endIndex} of ${total} entries`;
-    }
-}
-
-function renderReportTable() {
-    const tbody = document.getElementById('report-body');
-    tbody.innerHTML = '';
-
-    const startIndex = (reportCurrentPage - 1) * reportPageSize;
-    const endIndex = startIndex + reportPageSize;
-    const currentPageData = filteredData.slice(startIndex, endIndex);
-
-    if (currentPageData.length > 0) {
-        currentPageData.forEach((item, i) => {
+function renderTablePage() {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const pageData = filteredData.slice(startIndex, endIndex);
+    
+    const tbody = document.getElementById("report-tbody");
+    tbody.innerHTML = "";
+    
+    if (pageData.length > 0) {
+        pageData.forEach((item, i) => {
             const actualIndex = startIndex + i;
+            if (currentDataType === 'ingredient') {
+                // Debug: log the item being rendered
+                console.log('Rendering ingredient item:', item);
+                console.log('Item has menu_name:', !!item.menu_name, 'Item has flavor:', !!item.flavor);
+                
+                // Check if this is logs view (has menu_name and flavor) or daily view
+                if (item.menu_name && item.flavor !== undefined) {
+                    console.log('Using logs view format');
+                    // Logs view - show menu, flavor, and detail button
+                    tbody.innerHTML += `
+                        <tr onclick="openGroupedConsumptionModal('${(item.order_ids || []).join(',')}', '${item.date || ''}', '${item.status_text || ''}', '${item.menu_name || ''}', '${item.flavor || ''}')" style="cursor: pointer;">
+                            <td>${actualIndex + 1}</td>
+                            <td>${item.menu_name || '-'}</td>
+                            <td>${item.flavor || 'Default'}</td>
+                            <td>${item.date || '-'}</td>
+                            <td>${item.status_text || '-'}</td>
+                            <td>${(item.ingredients_affected ?? 0).toLocaleString()}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); openGroupedConsumptionModal('${(item.order_ids || []).join(',')}', '${item.date || ''}', '${item.status_text || ''}', '${item.menu_name || ''}', '${item.flavor || ''}')" title="Lihat Detail">
+                                    <i class="fas fa-eye"></i> Detail
+                                </button>
+                            </td>
+                        </tr>`;
+                                 } else {
+                     console.log('Using daily view format');
+                     // Daily view - show aggregated data with detail button
+                     const dailySummary = item.daily_summary || {};
+                     const totalOrders = dailySummary.total_orders || 0;
+                     const uniqueMenus = dailySummary.unique_menus || 0;
+                     const totalConsumption = dailySummary.total_consumption || 0;
+                     
+                     tbody.innerHTML += `
+                         <tr onclick="viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="cursor: pointer;">
+                             <td>${actualIndex + 1}</td>
+                             <td style="font-weight: 600; color: #1F2937;">${item.date || '-'}</td>
+                             <td style="color: #6B7280; line-height: 1.4;">
+                                 <div style="margin-bottom: 0.25rem;">
+                                     <span style="color: #059669; font-weight: 600;">📊 ${totalOrders} pesanan</span>
+                                 </div>
+                                 <div style="font-size: 0.9rem; color: #6B7280;">
+                                     <span style="color: #7C3AED; font-weight: 500;">🍽️ ${uniqueMenus} menu unik</span>
+                                 </div>
+                             </td>
+                             <td style="text-align: center; font-weight: 600; color: #059669;">${totalOrders.toLocaleString()}</td>
+                             <td style="text-align: center; font-weight: 600; color: #DC2626;">${totalConsumption.toLocaleString()}</td>
+                             <td>
+                                 <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="white-space: nowrap; min-width: 80px;">
+                                     🔍 Detail
+                                 </button>
+                             </td>
+                         </tr>`;
+                 }
+            } else {
             tbody.innerHTML += `
                 <tr>
                     <td>${actualIndex + 1}</td>
@@ -1605,138 +1848,75 @@ function renderReportTable() {
                     <td>Rp ${(item.unit_price || 0).toLocaleString()}</td>
                     <td>Rp ${(item.total || item.total_revenue || 0).toLocaleString()}</td>
                 </tr>`;
+            }
         });
     } else {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="5" style ="text-align: center; padding: 1 rem">
-                    There is no data for this page
-                </td>
-            </tr>`;
+                 tbody.innerHTML = `
+             <tr>
+                 <td colspan="6" style="text-align: center; padding: 2rem; border-top-right-radius: 0.5rem; border-bottom-right-radius: 0.5rem;">
+                     Tidak ada data untuk halaman ini
+                 </td>
+             </tr>`;
+        }
+        
+        // Update pagination info
+        document.getElementById("pagination-start").textContent = startIndex + 1;
+        document.getElementById("pagination-end").textContent = Math.min(endIndex, filteredData.length);
+        document.getElementById("pagination-total").textContent = filteredData.length;
     }
-
-    updateReportTableInfo();
-}
-
-let elements = {};
-
-function init() {
-    initializeElements();
-    // setupEventListeners();
-    initPagination();
-    loadReport();
-    startAutoRefresh();
-}
-
-function initializeElements() {
-    elements.prevPageBtn = document.getElementById('report-prev-btn');
-    elements.nextPageBtn = document.getElementById('report-next-btn');
-    elements.pageSizeSelect = document.getElementById('report-page-size');
-    elements.pageNumbers = document.getElementById('report-page-numbers');
-    elements.paginationInfo = document.getElementById('report-pagination-info');
-    elements.reportBody = document.getElementById('report-body')
-};
-
-// function changePage(direction) {
-//     const newPage = currentPage + direction;
-//     const maxPage = Math.ceil(filteredData.length / itemsPerPage);
     
-//     if (newPage >= 1 && newPage <= maxPage) {
-//         currentPage = newPage;
-//         renderTablePage();
-//         updatePagination();
-//     }
-// }
-
-// function renderTablePage() {
-//     const startIndex = (currentPage - 1) * itemsPerPage;
-//     const endIndex = startIndex + itemsPerPage;
-//     const pageData = filteredData.slice(startIndex, endIndex);
-    
-//     const tbody = document.getElementById("report-body");
-//     tbody.innerHTML = "";
-    
-//     if (pageData.length > 0) {
-//         pageData.forEach((item, i) => {
-//             const actualIndex = startIndex + i;
-//             tbody.innerHTML += `
-//                 <tr>
-//                     <td>${actualIndex + 1}</td>
-//                     <td>${item.menu_name || 'N/A'}</td>
-//                     <td>${item.quantity || item.total_quantity || 0}</td>
-//                     <td>Rp ${(item.unit_price || 0).toLocaleString()}</td>
-//                     <td>Rp ${(item.total || item.total_revenue || 0).toLocaleString()}</td>
-//                 </tr>`;
-//         });
-//     } else {
-//         tbody.innerHTML = `
-//             <tr>
-//                 <td colspan="5" style="text-align: center; padding: 1rem">
-//                     There is no data for this page
-//                 </td>
-//             </tr>`;
-//         }
+    function updatePagination() {
+        const maxPage = Math.ceil(filteredData.length / itemsPerPage);
+        const pageNumbers = document.getElementById("page-numbers");
+        const prevBtn = document.getElementById("prev-page");
+        const nextBtn = document.getElementById("next-page");
         
-//         // Update pagination info
-//         document.getElementById("pagination-start").textContent = startIndex + 1;
-//         document.getElementById("pagination-end").textContent = Math.min(endIndex, filteredData.length);
-//         document.getElementById("pagination-total").textContent = filteredData.length;
-//     }
-    
-//     function updateReportTableInfo() {
-//         const tableInfo = document.getElementById('report-table-info');
-//         const startIndex = (reportCurrentPage - 1) * reportPageSize + 1;
-//         const endIndex = Math.min(reportCurrentPage * reportPageSize, filteredReports.length);
-//         const total = filteredReports.length;
-
-//         // Kalau tidak ada data, jangan tampilkan "Showing 1 to 0 of 0"
-//         if (total === 0) {
-//             tableInfo.textContent = "No entries available";
-//         } else {
-//             tableInfo.textContent = `Showing ${startIndex} to ${endIndex} of ${total} entries`;
-//         }
-//     }
-
-//     function updatePagination() {
-//         const maxPage = Math.ceil(filteredData.length / itemsPerPage);
-//         const pageNumbers = document.getElementById("page-numbers");
-//         const prevBtn = document.getElementById("prev-page");
-//         const nextBtn = document.getElementById("next-page");
+        // Update button states
+        prevBtn.disabled = currentPage === 1;
+        nextBtn.disabled = currentPage === maxPage;
         
-//         // Update button states
-//         prevBtn.disabled = currentPage === 1;
-//         nextBtn.disabled = currentPage === maxPage;
+        // Generate page numbers
+        pageNumbers.innerHTML = "";
+        const startPage = Math.max(1, currentPage - 2);
+        const endPage = Math.min(maxPage, currentPage + 2);
         
-//         // Generate page numbers
-//         pageNumbers.innerHTML = "";
-//         const startPage = Math.max(1, currentPage - 2);
-//         const endPage = Math.min(maxPage, currentPage + 2);
-        
-//         for (let i = startPage; i <= endPage; i++) {
-//             const pageBtn = document.createElement("button");
-//             pageBtn.className = `page-number ${i === currentPage ? 'active' : ''}`;
-//             pageBtn.textContent = i;
-//             pageBtn.onclick = () => {
-//                 currentPage = i;
-//                 renderTablePage();
-//                 updatePagination();
-//             };
-//             pageNumbers.appendChild(pageBtn);
-//         }
-//     }
+        for (let i = startPage; i <= endPage; i++) {
+            const pageBtn = document.createElement("button");
+            pageBtn.className = `page-number ${i === currentPage ? 'active' : ''}`;
+            pageBtn.textContent = i;
+            pageBtn.onclick = () => {
+                currentPage = i;
+                renderTablePage();
+                updatePagination();
+            };
+            pageNumbers.appendChild(pageBtn);
+        }
+    }
     
     // ========== SEARCH FUNCTIONS ==========
     function filterTableData(searchTerm) {
     if (!baseData) return;
     const source = Array.isArray(baseData) ? baseData : [];
     const term = (searchTerm || '').toLowerCase();
+    if (currentDataType === 'ingredient') {
+        filteredData = term
+            ? source.filter(item => 
+                (item.menu_name || '').toLowerCase().includes(term) || 
+                (item.flavor || '').toLowerCase().includes(term) ||
+                (item.order_id || '').toLowerCase().includes(term) || 
+                (item.date || '').toLowerCase().includes(term) || 
+                (item.status_text || '').toLowerCase().includes(term)
+            )
+            : [...source];
+    } else {
     filteredData = term
         ? source.filter(item => (item.menu_name || '').toLowerCase().includes(term))
         : [...source];
+    }
     
-    reportCurrentPage = 1;
-    renderReportTable();
-    updateReportPagination();
+    currentPage = 1;
+    renderTablePage();
+    updatePagination();
 }
 
 function filterIngredientTableData(searchTerm) {
@@ -1789,6 +1969,14 @@ function applyReportFilter() {
     
     if (sortSelect && filteredData && filteredData.length) {
         const val = sortSelect.value;
+        if (currentDataType === 'ingredient') {
+            filteredData.sort((a, b) => {
+                if (val === 'name') return (a.order_id || '').localeCompare(b.order_id || '');
+                if (val === 'qty') return (b.ingredients_affected ?? 0) - (a.ingredients_affected ?? 0);
+                if (val === 'total') return (b.total_qty ?? 0) - (a.total_qty ?? 0);
+                return 0;
+            });
+        } else {
         filteredData.sort((a, b) => {
             if (val === 'name') {
                 return (a.menu_name || '').localeCompare(b.menu_name || '');
@@ -1805,9 +1993,10 @@ function applyReportFilter() {
             }
             return 0;
         });
-        reportCurrentPage = 1;
-        renderReportTable();
-        updateReportPagination();
+        }
+        currentPage = 1;
+        renderTablePage();
+        updatePagination();
     }
     
     // Handle ingredient mode sorting
@@ -1887,33 +2076,46 @@ function applyIngredientModeLayout() {
         statusEl.className = 'status-badge status-making';
     }
 
-    if (tableHeader) {
-        tableHeader.innerHTML = `
-            <th>No</th>
-            <th>Order ID</th>
-            <th>Tanggal</th>
-            <th>Status</th>
-            <th>Total Bahan</th>
-        `;
-    }
+    // Show ingredient view mode selector
+    const viewContainer = document.getElementById('ingredient-view-container');
+    if (viewContainer) viewContainer.style.display = 'flex';
+
+    // Update table header based on view mode
+    updateIngredientTableHeader();
 
     if (chartBar) chartBar.style.display = 'block';
     if (chartPie) chartPie.style.display = 'block';
     if (loyal) loyal.style.display = 'none';
     if (usulan) usulan.style.display = 'none';
-    const ingredientSection = document.getElementById('ingredient-analysis-section');
-    if (ingredientSection) ingredientSection.classList.add('hidden');
-    const summaryEl = document.getElementById('summary');
-    if (summaryEl) summaryEl.classList.remove('hidden');
-    const insightEl = document.getElementById('insight-box');
-    if (insightEl) insightEl.classList.add('hidden');
-    const mainTableContainer = document.querySelector('.table-container');
-    if (mainTableContainer) mainTableContainer.classList.remove('hidden');
-    document.querySelectorAll('.dashboard-layout').forEach(el => el.classList.remove('hidden'));
+}
 
-    // Show ingredient view mode selector
-    const viewContainer = document.getElementById('ingredient-view-container');
-    if (viewContainer) viewContainer.style.display = 'flex';
+function updateIngredientTableHeader() {
+    const tableHeader = document.querySelector('#report-table thead tr');
+        const viewSelect = document.getElementById('ingredient-view-select');
+        const viewMode = viewSelect ? viewSelect.value : 'daily';
+        
+    if (tableHeader) {
+        if (viewMode === 'logs') {
+            tableHeader.innerHTML = `
+                <th>No</th>
+                <th>Nama Menu</th>
+                <th>Flavor</th>
+                <th>Tanggal</th>
+                <th>Status</th>
+                <th>Total Bahan</th>
+                <th>Aksi</th>
+            `;
+                 } else {
+             tableHeader.innerHTML = `
+                 <th>No</th>
+                 <th>Tanggal</th>
+                 <th>Ringkasan Harian</th>
+                 <th>Total Pesanan</th>
+                 <th>Total Bahan Terpakai</th>
+                 <th>Aksi</th>
+             `;
+         }
+    }
 }
 
 function applyModeLayout(mode) {
@@ -1956,6 +2158,10 @@ function applyModeLayout(mode) {
         `;
     }
 
+    // Hide ingredient view selector when not in ingredient mode
+    const viewContainer = document.getElementById('ingredient-view-container');
+    if (viewContainer) viewContainer.style.display = 'none';
+
     // Layout visibility
     if (chartBar) chartBar.style.display = 'flex';
     if (chartPie) chartPie.style.display = isBest ? 'none' : 'flex';
@@ -1982,6 +2188,15 @@ function applyModeLayout(mode) {
         } catch (_) {}
     }, 0);
 }
+
+function onIngredientViewChange() {
+    if (currentDataType === 'ingredient') {
+        // Update table header first
+        updateIngredientTableHeader();
+        // Then reload data
+        loadIngredientAnalysisData();
+    }
+}
     
 // Real-time auto refresh (~5s) with visibility + in-flight guard
 let autoRefreshTimer = null;
@@ -1999,6 +2214,11 @@ function performRefresh() {
     } else {
         loadReport().finally(done);
     }
+    // Update chart titles for clarity in ingredient mode
+    const barTitleEl = document.querySelector('#chart-bar-card .column-title');
+    if (barTitleEl) barTitleEl.textContent = '📊 Konsumsi Bahan Harian';
+    const pieTitleEl = document.querySelector('#chart-pie-card .column-title');
+    if (pieTitleEl) pieTitleEl.textContent = '🥧 Komposisi Konsumsi';
 }
 function startAutoRefresh() {
     if (autoRefreshTimer) clearInterval(autoRefreshTimer);
@@ -2067,14 +2287,14 @@ document.addEventListener('visibilitychange', () => {
         if (entriesSelect) {
             entriesSelect.addEventListener('change', function() {
                 itemsPerPage = parseInt(this.value, 10) || 10;
-                reportCurrentPage = 1;
+                currentPage = 1;
                 const dataType = document.getElementById('data-type-select')?.value || 'sales';
                 if (dataType === 'ingredient') {
                     // For ingredient mode, we don't use pagination, so just re-render the table
                     renderIngredientTable();
                 } else {
-                    renderReportTable();
-                    updateReportPagination();
+                    renderTablePage();
+                    updatePagination();
                 }
             });
         }
@@ -2127,7 +2347,7 @@ document.addEventListener('visibilitychange', () => {
         const startInput = document.getElementById('start_date');
         const endInput = document.getElementById('end_date');
         const onDateChange = () => {
-            reportCurrentPage = 1;
+            currentPage = 1;
             const dataType = document.getElementById('data-type-select')?.value || 'sales';
             if (dataType === 'best') {
                 loadBestSellerData(startInput.value, endInput.value);
@@ -2147,7 +2367,7 @@ window.onload = () => {
     document.getElementById("start_date").value = today;
     document.getElementById("end_date").value = today;
     loadReport();
-    startAutoRefresh();
+        startAutoRefresh();
 };
 
 function getItemFlavorRaw(item) {
@@ -2170,4 +2390,96 @@ function normalizeFlavorForKey(raw) {
     return (raw || '').trim();
 }
 
-document.addEventListener('DOMContentLoaded', init);
+async function openGroupedConsumptionModal(orderIdsCsv, dateStr, statusText, menuName, flavorName) {
+    try {
+        console.log('openGroupedConsumptionModal called with:', { orderIdsCsv, dateStr, statusText, menuName, flavorName });
+        const orderIds = String(orderIdsCsv || '').split(',').map(s => s.trim()).filter(Boolean);
+        console.log('Parsed order IDs:', orderIds);
+        const matches = (kitchenOrdersCache || []).filter(o => orderIds.includes(String(o.order_id)));
+        console.log('Found matches:', matches);
+        console.log('kitchenOrdersCache length:', kitchenOrdersCache.length);
+
+        const modal = document.getElementById('ingredient-modal');
+        const modalBody = document.getElementById('ingredient-modal-body');
+        if (!modal || !modalBody) {
+            console.error('Modal elements not found:', { modal: !!modal, modalBody: !!modalBody });
+            return;
+        }
+
+        // Build table rows for orders
+        const tableRows = matches.map((o, idx) => {
+            const ts = o.time_done || o.time_receive || '';
+            const items = (o.items || []).map(it => `${it.menu_name}${it.preference ? ' (' + it.preference + ')' : ''} x${it.quantity}`).join(', ');
+            const displayDate = new Date(ts).toLocaleString('id-ID') || '-';
+            
+            return `
+                <tr style="border-bottom: 1px solid #F3F4F6;">
+                    <td style="padding: 0.75rem; color: #1F2937; font-weight: 500; text-align: center; min-width: 50px;">${idx + 1}</td>
+                    <td style="padding: 0.75rem; color: #1F2937; font-weight: 600; font-family: 'Courier New', monospace; min-width: 120px; word-break: break-all;">Order ${o.order_id}</td>
+                    <td style="padding: 0.75rem; color: #1F2937; font-weight: 500; text-align: center; min-width: 140px; white-space: nowrap;">${displayDate}</td>
+                    <td style="padding: 0.75rem; color: #1F2937; font-weight: 500; line-height: 1.4; min-width: 200px; word-wrap: break-word;">${items || '-'}</td>
+                    <td style="padding: 0.75rem; color: #1F2937; text-align: center; min-width: 150px;">
+                        <button class="btn-secondary btn-sm" onclick="closeModalAndViewConsumption('${o.order_id}', '${dateStr || ''}', '${statusText || ''}')" style="white-space: nowrap; min-width: 120px;">
+                            🔍 Lihat Log
+                        </button>
+                    </td>
+                </tr>`;
+        }).join('');
+
+        modalBody.innerHTML = `
+            <div class="modal-title" style="margin-bottom: 1.5rem; font-size: 22px; font-weight: 700; color: #312929; text-align: center; padding-bottom: 1rem; border-bottom: 2px dashed rgba(68, 45, 29, 0.52); word-wrap: break-word;">
+                🥤 ${menuName || 'Detail Pesanan'}${flavorName ? ' • ' + flavorName : ''}
+            </div>
+            <div class="summary-details" style="margin: 1rem 0 1.5rem 0; justify-content: center; flex-wrap: wrap; gap: 0.5rem;">
+                <span class="summary-detail--order">📅 Tanggal: <strong>${dateStr || '-'}</strong></span>
+                <span class="summary-detail--order">📊 Status: <strong>${statusText || ''}</strong></span>
+            </div>
+            <div class="table-container" style="margin-top: 0; border: 2px solid #DCD0A8; border-radius: 1rem; padding: 1rem; overflow: hidden;">
+                <div style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+                    <table class="flavour-table" style="min-width: 600px; width: 100%; border-collapse: collapse; margin-top: 0;">
+                        <thead>
+                            <tr>
+                                <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6; white-space: nowrap; min-width: 50px;">No</th>
+                                <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6; white-space: nowrap; min-width: 120px;">Order ID</th>
+                                <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6; white-space: nowrap; min-width: 140px;">Waktu</th>
+                                <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6; min-width: 200px;">Items</th>
+                                <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6; white-space: nowrap; min-width: 150px;">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows || '<tr><td colspan="5" style="text-align:center; color:#615a5a; padding: 1.5rem; font-weight: 500;">Tidak ada order yang cocok.</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+        modal.classList.remove('hidden');
+    } catch (e) {
+        console.error('openGroupedConsumptionModal error:', e);
+    }
+}
+
+function closeModalAndViewConsumption(orderId, dateStr, statusText) {
+    // Close the modal first
+    const modal = document.getElementById('ingredient-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    
+    // Then show consumption details and scroll to the panel
+    setTimeout(() => {
+        viewConsumptionDetails(orderId, dateStr, statusText);
+        
+        // Scroll to the ingredient details panel after it's shown
+        setTimeout(() => {
+            const panel = document.getElementById('ingredient-details-panel');
+            if (panel && !panel.classList.contains('hidden')) {
+                panel.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'start',
+                    inline: 'nearest'
+                });
+            }
+        }, 200);
+    }, 100);
+}
