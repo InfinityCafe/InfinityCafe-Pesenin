@@ -781,7 +781,7 @@ class InventoryManager {
       unit: (formData.get('unit') || '').toString().trim().toLowerCase(),
       current_quantity: parseFloat(formData.get('current_quantity')),
       minimum_quantity: parseFloat(formData.get('minimum_quantity')),
-      notes: 'Stock opname update'
+      notes: (formData.get('notes') || 'Stock opname update').toString()
     };
 
     const itemId = itemForm.getAttribute('data-item-id');
@@ -818,7 +818,7 @@ class InventoryManager {
           await fetch('/inventory/stock/add', {
             method: 'POST',
             headers,
-            body: JSON.stringify({ ingredient_id: newId, quantity: itemData.current_quantity, notes: 'Initial stock (opname) on create' })
+            body: JSON.stringify({ ingredient_id: newId, quantity: itemData.current_quantity, notes: itemData.notes || 'Initial stock (opname) on create' })
           });
         }
         response = new Response(JSON.stringify({ status: 'success' }), { status: 200 });
