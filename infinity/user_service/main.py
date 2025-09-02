@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String
@@ -95,10 +95,61 @@ def get_db():
     finally:
         db.close()
 
+def get_current_user(token: str, db: Session):
+    """
+    Fungsi untuk memverifikasi JWT token dan mendapatkan user
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+        token_data = TokenData(username=username)
+    except JWTError:
+        raise credentials_exception
+    
+    user = db.query(User).filter(User.username == token_data.username).first()
+    if user is None:
+        raise credentials_exception
+    return user
+
 @app.get("/health", tags=["Utility"])
 def health_check():
     """Endpoint untuk cek status service."""
     return {"status": "ok", "service": "user_service"}
+
+@app.post("/auth/verify_token", summary="Verifikasi JWT Token", tags=["Authentication"])
+def verify_token(authorization: str = Header(None), db: Session = Depends(get_db)):
+    """
+    Endpoint untuk memverifikasi JWT token dari header Authorization
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token tidak ditemukan atau format salah"
+        )
+    
+    token = authorization.split(" ")[1] if len(authorization.split(" ")) > 1 else None
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token tidak valid"
+        )
+    
+    user = get_current_user(token, db)
+    return {
+        "status": "success",
+        "message": "Token valid",
+        "data": {
+            "id": user.id,
+            "username": user.username
+        }
+    }
 
 @app.post("/register", summary="Registrasi Pengguna Baru", tags=["Authentication"])
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
@@ -123,7 +174,6 @@ def login_for_access_token(form_data: UserLogin, db: Session = Depends(get_db)):
     Endpoint untuk login. Memverifikasi username dan password,
     lalu mengembalikan JWT token jika berhasil.
     """
-    # 1. Cari user di database
     user = db.query(User).filter(User.username == form_data.username).first()
     if not user:
         raise HTTPException(
