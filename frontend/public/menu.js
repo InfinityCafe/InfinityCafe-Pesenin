@@ -57,7 +57,16 @@ async function loadMenus() {
         throw new Error('Invalid JSON response from server');
     }
     
-    allMenus = menus || [];
+    // Normalize menu data to use base_name_en as primary display name
+    allMenus = (menus || []).map(menu => ({
+      id: menu.id,
+      base_name_en: menu.base_name_en,
+      base_name_id: menu.base_name_id,
+      base_price: menu.base_price,
+      isAvail: menu.isAvail,
+      making_time_minutes: menu.making_time_minutes,
+      flavors: menu.flavors || []
+    }));
     filteredMenus = [...allMenus];
     menusLoaded = true;
     
@@ -113,21 +122,21 @@ async function renderMenuTable() {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${startIndex + index + 1}</td>
-            <td>${menu.base_name}</td>
-            <td>${menu.base_price}</td>
+            <td>${menu.base_name_en}</td>
+            <td>Rp ${menu.base_price.toLocaleString()}</td>
             <td>
-            ${menu.isAvail ? '<span class="status-badge status-available">Available</span>' : '<span class="status-badge status-unavailable">Unavailable</span>'}
+              ${menu.isAvail ? '<span class="status-badge status-available">Available</span>' : '<span class="status-badge status-unavailable">Unavailable</span>'}
             </td>
             <td class="action-header">
-            <button class="table-action-btn" onclick="viewMenu('${menu.id}')"><i class="fas fa-eye"></i></button>
-            <button class="table-action-btn" onclick="editMenu('${menu.id}')"><i class="fas fa-edit"></i></button>
-            <button class="table-action-btn" onclick="deleteMenu('${menu.id}')"><i class="fas fa-trash"></i></button>
+                <button class="table-action-btn" onclick="viewMenu('${menu.id}')"><i class="fas fa-eye"></i></button>
+                <button class="table-action-btn" onclick="editMenu('${menu.id}')"><i class="fas fa-edit"></i></button>
+                <button class="table-action-btn" onclick="deleteMenu('${menu.id}')"><i class="fas fa-trash"></i></button>
             </td>
         `;
         tbody.appendChild(row);
-        });
+    });
     } else {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No menus found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 1rem">No menus found</td></tr>';
     }
     
     updateMenuTableInfo();
@@ -154,12 +163,11 @@ function renderMenuPagination() {
     
     // Update pagination info
     paginationInfo.textContent = `Page ${menuCurrentPage} of ${menuTotalPages}`;
-    
     // Update prev/next buttons
+    
     prevBtn.disabled = menuCurrentPage === 1;
     nextBtn.disabled = menuCurrentPage === menuTotalPages;
     
-    // Generate page numbers
     pageNumbers.innerHTML = '';
     const maxVisiblePages = 5;
     let startPage = Math.max(1, menuCurrentPage - Math.floor(maxVisiblePages / 2));
@@ -170,15 +178,15 @@ function renderMenuPagination() {
     }
     
     for (let i = startPage; i <= endPage; i++) {
-    const pageBtn = document.createElement('button');
-    pageBtn.className = `page-number ${i === menuCurrentPage ? 'active' : ''}`;
-    pageBtn.textContent = i;
-    pageBtn.onclick = () => {
-        menuCurrentPage = i;
-        renderMenuTable();
-        renderMenuPagination();
-    };
-    pageNumbers.appendChild(pageBtn);
+        const pageBtn = document.createElement('button');
+        pageBtn.className = `page-number ${i === menuCurrentPage ? 'active' : ''}`;
+        pageBtn.textContent = i;
+        pageBtn.onclick = () => {
+            menuCurrentPage = i;
+            renderMenuTable();
+            renderMenuPagination();
+        };
+        pageNumbers.appendChild(pageBtn);
     }
 }
 
@@ -196,9 +204,9 @@ function updateMenuTableInfo() {
 async function changeMenuPage(direction) {
     const newPage = menuCurrentPage + direction;
     if (newPage >= 1 && newPage <= menuTotalPages) {
-    menuCurrentPage = newPage;
-    await renderMenuTable();
-    renderMenuPagination();
+        menuCurrentPage = newPage;
+        await renderMenuTable();
+        renderMenuPagination();
     }
 }
 
@@ -213,59 +221,60 @@ async function changeMenuPageSize() {
 // Ensure data is loaded
 async function ensureDataLoaded() {
     try {
-    if (!menusLoaded) {
-        await loadMenus();
-    }
-    // Only load flavors if needed for flavor selector
-    if (!flavorsLoaded) {
-        await loadFlavors();
-    }
+        if (!menusLoaded) {
+            await loadMenus();
+        }
+        if (!flavorsLoaded) {
+            await loadFlavors();
+        }
     } catch (error) {
-    console.error('Error ensuring data is loaded:', error);
-    // Set flags to false to allow retry
-    menusLoaded = false;
-    flavorsLoaded = false;
-    throw error;
+        console.error('Error ensuring data is loaded:', error);
+        menusLoaded = false;
+        flavorsLoaded = false;
+        throw error;
     }
 }
 
 // Load flavors with pagination
 async function loadFlavors() {
     try {
-    // Use /flavors/all endpoint to get all flavors (including unavailable ones) for admin view
-    const response = await fetch(`${BASE_URL}/flavors/all`);
-    if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    
-    let flavors;
-    try {
-        flavors = await response.json();
-    } catch (parseError) {
-        throw new Error('Invalid JSON response from server');
-    }
-    
-    allFlavors = flavors || [];
-    filteredFlavors = [...allFlavors];
-    flavorsLoaded = true;
-    
-    // Reset pagination to first page when data changes
-    flavorCurrentPage = 1;
-    
-    renderFlavorTable();
-    updateFlavorPagination();
-    
-    // Also update flavor checkboxes in menu modal if it's open
-    if (document.getElementById('add-menu-modal').classList.contains('hidden') === false) {
-        populateFlavorCheckboxes();
-    }
-    
-    return allFlavors; // Return flavors for promise chaining
+        const response = await fetch(`${BASE_URL}/flavors/all`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        let flavors;
+        try {
+            flavors = await response.json();
+        } catch (parseError) {
+            throw new Error('Invalid JSON response from server');
+        }
+        
+        // Normalize flavor data to use flavor_name_en as primary display name
+        allFlavors = (flavors || []).map(flavor => ({
+            id: flavor.id,
+            flavor_name_en: flavor.flavor_name_en,
+            flavor_name_id: flavor.flavor_name_id,
+            additional_price: flavor.additional_price,
+            isAvail: flavor.isAvail
+        }));
+        filteredFlavors = [...allFlavors];
+        flavorsLoaded = true;
+        
+        flavorCurrentPage = 1;
+        renderFlavorTable();
+        updateFlavorPagination();
+        
+        if (document.getElementById('add-menu-modal').classList.contains('hidden') === false) {
+            populateFlavorCheckboxes();
+        }
+        
+        return allFlavors;
     } catch (error) {
-    console.error('Error loading flavors:', error);
-    const tbody = document.querySelector('#flavors-table tbody');
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Error loading flavors: ' + error.message + '</td></tr>';
-    throw error;
+        console.error('Error loading flavors:', error);
+        const tbody = document.querySelector('#flavors-table tbody');
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Error loading flavors: ' + error.message + '</td></tr>';
+        throw error;
     }
 }
 
@@ -279,23 +288,23 @@ function renderFlavorTable() {
     const currentPageData = filteredFlavors.slice(startIndex, endIndex);
     
     if (currentPageData.length > 0) {
-    currentPageData.forEach((flavor, index) => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-        <td>${startIndex + index + 1}</td>
-            <td>${flavor.flavor_name}</td>
-            <td>${flavor.additional_price}</td>
-            <td>${flavor.isAvail ? '<span class="status-badge status-available">Available</span>' : '<span class="status-badge status-unavailable">Unavailable</span>'}</td>
-            <td class="action-header">
-            <button class="table-action-btn" onclick="viewFlavor('${flavor.id}')"><i class="fas fa-eye"></i></button>
-            <button class="table-action-btn" onclick="editFlavor('${flavor.id}')"><i class="fas fa-edit"></i></button>
-            <button class="table-action-btn" onclick="deleteFlavor('${flavor.id}')"><i class="fas fa-trash"></i></button>
-            </td>
-        `;
-        tbody.appendChild(row);
+        currentPageData.forEach((flavor, index) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${startIndex + index + 1}</td>
+                <td>${flavor.flavor_name_en}</td>
+                <td>Rp ${flavor.additional_price.toLocaleString()}</td>
+                <td>${flavor.isAvail ? '<span class="status-badge status-available">Available</span>' : '<span class="status-badge status-unavailable">Unavailable</span>'}</td>
+                <td class="action-header">
+                    <button class="table-action-btn" onclick="viewFlavor('${flavor.id}')"><i class="fas fa-eye"></i></button>
+                    <button class="table-action-btn" onclick="editFlavor('${flavor.id}')"><i class="fas fa-edit"></i></button>
+                    <button class="table-action-btn" onclick="deleteFlavor('${flavor.id}')"><i class="fas fa-trash"></i></button>
+                </td>
+            `;
+            tbody.appendChild(row);
         });
     } else {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No flavors found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 1rem;">No flavors found</td></tr>';
     }
     
     updateFlavorTableInfo();
@@ -307,7 +316,7 @@ function updateFlavorPagination() {
     if (flavorTotalPages === 0) flavorTotalPages = 1;
     
     if (flavorCurrentPage > flavorTotalPages) {
-    flavorCurrentPage = flavorTotalPages;
+        flavorCurrentPage = flavorTotalPages;
     }
     
     renderFlavorPagination();
@@ -334,19 +343,19 @@ function renderFlavorPagination() {
     let endPage = Math.min(flavorTotalPages, startPage + maxVisiblePages - 1);
     
     if (endPage - startPage + 1 < maxVisiblePages) {
-    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
     }
     
     for (let i = startPage; i <= endPage; i++) {
-    const pageBtn = document.createElement('button');
-    pageBtn.className = `page-number ${i === flavorCurrentPage ? 'active' : ''}`;
-    pageBtn.textContent = i;
-    pageBtn.onclick = () => {
-        flavorCurrentPage = i;
-        renderFlavorTable();
-        renderFlavorPagination();
-    };
-    pageNumbers.appendChild(pageBtn);
+        const pageBtn = document.createElement('button');
+        pageBtn.className = `page-number ${i === flavorCurrentPage ? 'active' : ''}`;
+        pageBtn.textContent = i;
+        pageBtn.onclick = () => {
+            flavorCurrentPage = i;
+            renderFlavorTable();
+            renderFlavorPagination();
+        };
+        pageNumbers.appendChild(pageBtn);
     }
 }
 
@@ -364,9 +373,9 @@ function updateFlavorTableInfo() {
 function changeFlavorPage(direction) {
     const newPage = flavorCurrentPage + direction;
     if (newPage >= 1 && newPage <= flavorTotalPages) {
-    flavorCurrentPage = newPage;
-    renderFlavorTable();
-    renderFlavorPagination();
+        flavorCurrentPage = newPage;
+        renderFlavorTable();
+        renderFlavorPagination();
     }
 }
 
@@ -396,20 +405,18 @@ async function applyMenuFilter() {
     const priceMax = document.getElementById('menu-price-max').value;
     
     filteredMenus = allMenus.filter(menu => {
-    // Search filter
-    const matchesSearch = menu.base_name.toLowerCase().includes(searchTerm) ||
-                        menu.base_price.toString().includes(searchTerm);
-    
-    // Status filter
-    const matchesStatus = !statusFilter || 
-                        (statusFilter === 'Yes' && menu.isAvail) ||
-                        (statusFilter === 'No' && !menu.isAvail);
-    
-    // Price filter
-    const matchesPrice = (!priceMin || menu.base_price >= parseInt(priceMin)) &&
-                        (!priceMax || menu.base_price <= parseInt(priceMax));
-    
-    return matchesSearch && matchesStatus && matchesPrice;
+        const matchesSearch = menu.base_name_en.toLowerCase().includes(searchTerm) ||
+                             menu.base_name_id.toLowerCase().includes(searchTerm) ||
+                             menu.base_price.toString().includes(searchTerm);
+        
+        const matchesStatus = !statusFilter || 
+                             (statusFilter === 'Yes' && menu.isAvail) ||
+                             (statusFilter === 'No' && !menu.isAvail);
+        
+        const matchesPrice = (!priceMin || menu.base_price >= parseInt(priceMin)) &&
+                            (!priceMax || menu.base_price <= parseInt(priceMax));
+        
+        return matchesSearch && matchesStatus && matchesPrice;
     });
     
     menuCurrentPage = 1;
@@ -442,20 +449,18 @@ function applyFlavorFilter() {
     const priceMax = document.getElementById('flavor-price-max').value;
     
     filteredFlavors = allFlavors.filter(flavor => {
-    // Search filter
-    const matchesSearch = flavor.flavor_name.toLowerCase().includes(searchTerm) ||
-                        flavor.additional_price.toString().includes(searchTerm);
-    
-    // Status filter
-    const matchesStatus = !statusFilter || 
-                        (statusFilter === 'Yes' && flavor.isAvail) ||
-                        (statusFilter === 'No' && !flavor.isAvail);
-    
-    // Price filter
-    const matchesPrice = (!priceMin || flavor.additional_price >= parseInt(priceMin)) &&
-                        (!priceMax || flavor.additional_price <= parseInt(priceMax));
-    
-    return matchesSearch && matchesStatus && matchesPrice;
+        const matchesSearch = flavor.flavor_name_en.toLowerCase().includes(searchTerm) ||
+                             flavor.flavor_name_id.toLowerCase().includes(searchTerm) ||
+                             flavor.additional_price.toString().includes(searchTerm);
+        
+        const matchesStatus = !statusFilter || 
+                             (statusFilter === 'Yes' && flavor.isAvail) ||
+                             (statusFilter === 'No' && !flavor.isAvail);
+        
+        const matchesPrice = (!priceMin || flavor.additional_price >= parseInt(priceMin)) &&
+                            (!priceMax || flavor.additional_price <= parseInt(priceMax));
+        
+        return matchesSearch && matchesStatus && matchesPrice;
     });
     
     flavorCurrentPage = 1;
@@ -481,240 +486,232 @@ function clearFlavorFilter() {
     document.getElementById('flavor-filter-dropdown').classList.remove('show');
 }
 
-// Close filter dropdowns when clicking outside
 document.addEventListener('click', function(event) {
     const menuFilterDropdown = document.getElementById('menu-filter-dropdown');
     const flavorFilterDropdown = document.getElementById('flavor-filter-dropdown');
     
     if (!event.target.closest('.filter-container')) {
-    menuFilterDropdown.classList.remove('show');
-    flavorFilterDropdown.classList.remove('show');
+        menuFilterDropdown.classList.remove('show');
+        flavorFilterDropdown.classList.remove('show');
     }
 });
 
 // Save or update menu
 async function saveMenu() {
     const menuId = document.getElementById('add-menu-form').getAttribute('data-menu-id') || null;
-    const baseName = document.getElementById('base-name').value;
+    const baseNameEn = document.getElementById('base-name-en').value;
+    const baseNameId = document.getElementById('base-name-id').value;
     const basePrice = parseInt(document.getElementById('base-price').value);
     const isAvail = document.querySelector('input[name="is-avail"]:checked').value === 'true';
+    const makingTimeMinutes = parseFloat(document.getElementById('making-time-minutes').value) || 0;
+    const recipeIngredients = []; // Add logic to collect recipe ingredients if needed
 
-    // Client-side validation for non-negative price
-    if (isNaN(basePrice) || basePrice < 0) {
-    	showErrorModal('Harga menu tidak boleh negatif.');
-    	return;
+    if (isNaN(basePrice) || basePrice <= 0) {
+        showErrorModal('Harga menu harus lebih dari 0.');
+        return;
+    }
+
+    if (!baseNameEn || !baseNameId) {
+        showErrorModal('Nama menu (EN dan ID) tidak boleh kosong.');
+        return;
     }
 
     const data = {
-    base_name: baseName,
-    base_price: basePrice,
-    isAvail: isAvail,
-    flavor_ids: selectedFlavorIds
+        base_name_en: baseNameEn.trim(),
+        base_name_id: baseNameId.trim(),
+        base_price: basePrice,
+        isAvail: isAvail,
+        making_time_minutes: makingTimeMinutes,
+        flavor_ids: selectedFlavorIds,
+        recipe_ingredients: recipeIngredients
     };
 
     try {
-    let response;
-    if (menuId) {
-        response = await fetch(`${BASE_URL}/menu/${menuId}`, {
-        method: "PUT",
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-        });
-    } else {
-        response = await fetch(`${BASE_URL}/menu`, {
-        method: "POST",
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-        });
-    }
-
-    if (!response.ok) {
-        let errorMessage = 'Failed to save menu';
-        try {
-        const errorData = await response.json();
-        console.log('Menu save error response:', errorData);
-        // Backend returns error message in 'message' field, not 'detail'
-        errorMessage = errorData.message || errorData.detail || errorData.error || errorMessage;
-        } catch (parseError) {
-        // If response is not JSON (e.g., HTML error page)
-        errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        let response;
+        if (menuId) {
+            response = await fetch(`${BASE_URL}/menu/${menuId}`, {
+                method: "PUT",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+        } else {
+            response = await fetch(`${BASE_URL}/menu`, {
+                method: "POST",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
         }
-        throw new Error(errorMessage);
-    }
-    
-    let result;
-    try {
-        result = await response.json();
+
+        if (!response.ok) {
+            let errorMessage = 'Failed to save menu';
+            try {
+                const errorData = await response.json();
+                console.log('Menu save error response:', errorData);
+                errorMessage = errorData.message || errorData.detail || errorData.error || errorMessage;
+            } catch (parseError) {
+                errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+            }
+            throw new Error(errorMessage);
+        }
+        
+        const result = await response.json();
         console.log('Menu saved successfully:', result);
-    } catch (parseError) {
-        console.log('Menu saved successfully (no JSON response)');
-    }
-    
-    // Reset selectedFlavorIds before closing modal
-    selectedFlavorIds = [];
-    closeAddMenuModal();
-    await loadMenus();
-    
-    // Menu table will be re-rendered automatically by loadMenus
-    
-    // Show success message
-    showSuccessModal(result.message || 'Menu berhasil disimpan');
+        
+        selectedFlavorIds = [];
+        closeAddMenuModal();
+        await loadMenus();
+        
+        showSuccessModal(result.message || 'Menu berhasil disimpan');
     } catch (error) {
-    console.error('Error saving menu:', error);
-    showErrorModal('Error saving menu: ' + error.message);
+        console.error('Error saving menu:', error);
+        showErrorModal('Error saving menu: ' + error.message);
     }
 }
 
 // Edit menu
 function editMenu(menuId) {
     fetch(`${BASE_URL}/menu/${menuId}`)
-    .then(response => response.json())
-    .then(menu => {
-        document.getElementById('base-name').value = menu.base_name;
-        document.getElementById('base-price').value = menu.base_price;
-        
-        // Set radio button based on isAvail value
-        if (menu.isAvail) {
-        document.getElementById('is-avail-true').checked = true;
-        } else {
-        document.getElementById('is-avail-false').checked = true;
-        }
-        
-        // Set selected flavors
-        selectedFlavorIds = menu.flavors ? menu.flavors.map(f => f.id) : [];
-        console.log('Selected flavor IDs for edit:', selectedFlavorIds);
-        
-        document.getElementById('add-menu-form').setAttribute('data-menu-id', menuId);
-        openAddMenuModal();
-    })
-    .catch(error => {
-        console.error('Error loading menu for edit:', error);
-        showErrorModal('Error loading menu for edit: ' + error.message);
-    });
+        .then(response => response.json())
+        .then(menu => {
+            document.getElementById('base-name-en').value = menu.base_name_en;
+            document.getElementById('base-name-id').value = menu.base_name_id;
+            document.getElementById('base-price').value = menu.base_price;
+            document.getElementById('making-time-minutes').value = menu.making_time_minutes;
+            
+            if (menu.isAvail) {
+                document.getElementById('is-avail-true').checked = true;
+            } else {
+                document.getElementById('is-avail-false').checked = true;
+            }
+            
+            selectedFlavorIds = menu.flavors ? menu.flavors.map(f => f.id) : [];
+            console.log('Selected flavor IDs for edit:', selectedFlavorIds);
+            
+            document.getElementById('add-menu-form').setAttribute('data-menu-id', menuId);
+            openAddMenuModal();
+        })
+        .catch(error => {
+            console.error('Error loading menu for edit:', error);
+            showErrorModal('Error loading menu for edit: ' + error.message);
+        });
 }
 
 // Delete menu
 async function deleteMenu(menuId) {
     // Get menu name for confirmation message
     const menu = allMenus.find(m => m.id === menuId);
-    const menuName = menu ? menu.base_name : 'this menu';
+    const menuName = menu ? `${menu.base_name_en} / ${menu.base_name_id}` : 'this menu';
     
     showDeleteConfirmModal(
-    `Apakah Anda yakin ingin menghapus menu "${menuName}"?`,
-    async () => {
-        try {
-        const response = await fetch(`${BASE_URL}/menu/${menuId}`, {
-            method: "DELETE"
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.log('Menu delete error response:', errorData);
-            
-            // Backend returns error message in 'message' field, not 'detail'
-            const errorMessage = errorData.message || errorData.detail || 'Gagal menghapus menu';
-            showErrorModal(errorMessage);
-            return;
+        `Apakah Anda yakin ingin menghapus menu "${menuName}"?`,
+        async () => {
+            try {
+                const response = await fetch(`${BASE_URL}/menu/${menuId}`, {
+                    method: "DELETE"
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.log('Menu delete error response:', errorData);
+                    const errorMessage = errorData.message || errorData.detail || 'Gagal menghapus menu';
+                    showErrorModal(errorMessage);
+                    return;
+                }
+                
+                const result = await response.json();
+                await loadMenus();
+                
+                showSuccessModal(result.message || 'Menu berhasil dihapus');
+            } catch (error) {
+                console.error('Error deleting menu:', error);
+                showErrorModal('Error deleting menu: ' + error.message);
+            }
         }
-        
-        const result = await response.json();
-        await loadMenus();
-        
-        showSuccessModal(result.message || 'Menu berhasil dihapus');
-        } catch (error) {
-        console.error('Error deleting menu:', error);
-        showErrorModal('Error deleting menu: ' + error.message);
-        }
-    }
     );
 }
 
 // View menu
 async function viewMenu(menuId) {
     try {
-    const response = await fetch(`${BASE_URL}/menu/${menuId}`);
-    if (!response.ok) throw new Error('Failed to fetch menu details');
-    
-    const menu = await response.json();
-    
-    document.getElementById('view-menu-name').textContent = menu.base_name;
-    document.getElementById('view-menu-price').textContent = `Rp ${menu.base_price.toLocaleString()}`;
-    document.getElementById('view-menu-available').innerHTML =
-    `<span class="status-badge ${menu.isAvail ? 'status-available' : 'status-unavailable'}">
-        ${menu.isAvail ? 'Available' : 'Unavailable'}
-    </span>`;
-    
-    // Display available flavors
-    let flavorsText = 'None';
-    console.log('viewMenu menu.flavors:', menu.flavors);
-    if (menu.flavors && menu.flavors.length > 0) {
-        const flavorItems = [];
-        for (const flavor of menu.flavors) {
-        flavorItems.push(`<div class="flavor-item">${flavor.flavor_name}<span class="flavor-price">(+Rp ${flavor.additional_price.toLocaleString()})</span></div>`);
+        const response = await fetch(`${BASE_URL}/menu/${menuId}`);
+        if (!response.ok) throw new Error('Failed to fetch menu details');
+        
+        const menu = await response.json();
+        
+        document.getElementById('view-menu-name').textContent = `${menu.base_name_en} / ${menu.base_name_id}`;
+        document.getElementById('view-menu-price').textContent = `Rp ${menu.base_price.toLocaleString()}`;
+        document.getElementById('view-menu-available').innerHTML =
+            `<span class="status-badge ${menu.isAvail ? 'status-available' : 'status-unavailable'}">
+                ${menu.isAvail ? 'Available' : 'Unavailable'}
+            </span>`;
+        
+        let flavorsText = 'None';
+        if (menu.flavors && menu.flavors.length > 0) {
+            const flavorItems = menu.flavors.map(flavor => 
+                `<div class="flavor-item">${flavor.flavor_name_en} / ${flavor.flavor_name_id}<span class="flavor-price">(+Rp ${flavor.additional_price.toLocaleString()})</span></div>`
+            );
+            flavorsText = flavorItems.join('');
         }
-        flavorsText = flavorItems.join('');
-    }
-    document.getElementById('view-menu-flavors').innerHTML = flavorsText;
-    
-    // Store the menu ID for edit functionality
-    document.getElementById('view-menu-modal').setAttribute('data-menu-id', menuId);
-    
-    document.getElementById('view-menu-modal').classList.remove('hidden');
+        document.getElementById('view-menu-flavors').innerHTML = flavorsText;
+        
+        document.getElementById('view-menu-modal').setAttribute('data-menu-id', menuId);
+        
+        document.getElementById('view-menu-modal').classList.remove('hidden');
     } catch (error) {
-    console.error('Error viewing menu:', error);
-    showErrorModal('Error loading menu details: ' + error.message);
+        console.error('Error viewing menu:', error);
+        showErrorModal('Error loading menu details: ' + error.message);
     }
 }
 
 // View flavor
 async function viewFlavor(flavorId) {
     try {
-    const response = await fetch(`${BASE_URL}/flavors/${flavorId}`);
-    if (!response.ok) throw new Error('Failed to fetch flavor details');
-    
-    const flavor = await response.json();
-    
-    document.getElementById('view-flavor-name').textContent = flavor.flavor_name;
-    document.getElementById('view-flavor-price').textContent = `Rp ${flavor.additional_price.toLocaleString()}`;
-    document.getElementById('view-flavor-available').innerHTML =
-    `<span class="status-badge ${flavor.isAvail ? 'status-available' : 'status-unavailable'}">
-        ${flavor.isAvail ? 'Available' : 'Unavailable'}
-    </span>`;
-    
-    // Store the flavor ID for edit functionality
-    document.getElementById('view-flavor-modal').setAttribute('data-flavor-id', flavorId);
-    
-    document.getElementById('view-flavor-modal').classList.remove('hidden');
+        const response = await fetch(`${BASE_URL}/flavors/${flavorId}`);
+        if (!response.ok) throw new Error('Failed to fetch flavor details');
+        
+        const flavor = await response.json();
+        
+        document.getElementById('view-flavor-name').textContent = `${flavor.flavor_name_en} / ${flavor.flavor_name_id}`;
+        document.getElementById('view-flavor-price').textContent = `Rp ${flavor.additional_price.toLocaleString()}`;
+        document.getElementById('view-flavor-available').innerHTML =
+            `<span class="status-badge ${flavor.isAvail ? 'status-available' : 'status-unavailable'}">
+                ${flavor.isAvail ? 'Available' : 'Unavailable'}
+            </span>`;
+        
+        document.getElementById('view-flavor-modal').setAttribute('data-flavor-id', flavorId);
+        
+        document.getElementById('view-flavor-modal').classList.remove('hidden');
     } catch (error) {
-    console.error('Error viewing flavor:', error);
-    showErrorModal('Error loading flavor details: ' + error.message);
+        console.error('Error viewing flavor:', error);
+        showErrorModal('Error loading flavor details: ' + error.message);
     }
 }
 
 // Edit flavor
 async function editFlavor(flavorId) {
     try {
-    const response = await fetch(`${BASE_URL}/flavors/${flavorId}`);
-    if (!response.ok) throw new Error('Failed to fetch flavor details');
-    
-    const flavor = await response.json();
-    
-    document.getElementById('flavour-name').value = flavor.flavor_name;
-    document.getElementById('additional-price').value = flavor.additional_price;
-    // Set radio button berdasarkan isAvail
-    if (flavor.isAvail) {
-        document.getElementById('is-flavour-avail-true').checked = true;
-    } else {
-        document.getElementById('is-flavour-avail-false').checked = true;
-    }
-    // Ubah judul modal menjadi Edit Flavour
-    const modalTitle = document.querySelector('#add-flavour-modal .modal-title');
-    if (modalTitle) modalTitle.textContent = 'Edit Flavour';
-    document.getElementById('add-flavour-form').setAttribute('data-flavour-id', flavorId);
-    openAddFlavourModal();
+        const response = await fetch(`${BASE_URL}/flavors/${flavorId}`);
+        if (!response.ok) throw new Error('Failed to fetch flavor details');
+        
+        const flavor = await response.json();
+        
+        document.getElementById('flavour-name-en').value = flavor.flavor_name_en;
+        document.getElementById('flavour-name-id').value = flavor.flavor_name_id;
+        document.getElementById('additional-price').value = flavor.additional_price;
+        
+        if (flavor.isAvail) {
+            document.getElementById('is-flavour-avail-true').checked = true;
+        } else {
+            document.getElementById('is-flavour-avail-false').checked = true;
+        }
+        
+        const modalTitle = document.querySelector('#add-flavour-modal .modal-title');
+        if (modalTitle) modalTitle.textContent = 'Edit Flavour';
+        document.getElementById('add-flavour-form').setAttribute('data-flavour-id', flavorId);
+        openAddFlavourModal();
     } catch (error) {
-    console.error('Error loading flavor for edit:', error);
-    showErrorModal('Error loading flavor for edit: ' + error.message);
+        console.error('Error loading flavor for edit:', error);
+        showErrorModal('Error loading flavor for edit: ' + error.message);
     }
 }
 
@@ -722,40 +719,34 @@ async function editFlavor(flavorId) {
 async function deleteFlavor(flavorId) {
     // Get flavor name for confirmation message
     const flavor = allFlavors.find(f => f.id === flavorId);
-    const flavorName = flavor ? flavor.flavor_name : 'this flavor';
+    const flavorName = flavor ? `${flavor.flavor_name_en} / ${flavor.flavor_name_id}` : 'this flavor';
     
     showDeleteConfirmModal(
-    `Apakah Anda yakin ingin menghapus varian rasa "${flavorName}"?`,
-    async () => {
-        try {
-        const response = await fetch(`${BASE_URL}/flavors/${flavorId}`, {
-            method: "DELETE"
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.log('Flavor delete error response:', errorData);
-            
-            // Backend returns error message in 'message' field, not 'detail'
-            const errorMessage = errorData.message || errorData.detail || 'Gagal menghapus varian rasa';
-            showErrorModal(errorMessage);
-            return;
+        `Apakah Anda yakin ingin menghapus varian rasa "${flavorName}"?`,
+        async () => {
+            try {
+                const response = await fetch(`${BASE_URL}/flavors/${flavorId}`, {
+                    method: "DELETE"
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.log('Flavor delete error response:', errorData);
+                    const errorMessage = errorData.message || errorData.detail || 'Gagal menghapus varian rasa';
+                    showErrorModal(errorMessage);
+                    return;
+                }
+                
+                const result = await response.json();
+                await loadFlavors();
+                await loadMenus();
+                
+                showSuccessModal(result.message || 'Varian rasa berhasil dihapus');
+            } catch (error) {
+                console.error('Error deleting flavor:', error);
+                showErrorModal('Error deleting flavor: ' + error.message);
+            }
         }
-        
-        const result = await response.json();
-        
-        // Refresh flavors data
-        await loadFlavors();
-        
-        // Also refresh menu data to update flavor associations
-        await loadMenus();
-        
-        showSuccessModal(result.message || 'Varian rasa berhasil dihapus');
-        } catch (error) {
-        console.error('Error deleting flavor:', error);
-        showErrorModal('Error deleting flavor: ' + error.message);
-        }
-    }
     );
 }
 
@@ -763,20 +754,20 @@ async function deleteFlavor(flavorId) {
 function openAddModal() {
     const activeTab = document.querySelector('.tab-btn.tab-active').id.replace('tab-', '');
     if (activeTab === 'flavors') {
-    openAddFlavourModal();
+        openAddFlavourModal();
     } else {
-    openAddMenuModal();
+        openAddMenuModal();
     }
 }
 
 function openAddMenuModal() {
     // Load flavors if not already loaded
     if (allFlavors.length === 0) {
-    loadFlavors().then(() => {
-        populateFlavorCheckboxes();
-    });
+        loadFlavors().then(() => {
+            populateFlavorCheckboxes();
+        });
     } else {
-    populateFlavorCheckboxes();
+        populateFlavorCheckboxes();
     }
     
     // Set modal title based on whether we're editing or adding
@@ -784,13 +775,11 @@ function openAddMenuModal() {
     const isEditing = document.getElementById('add-menu-form').hasAttribute('data-menu-id');
     modalTitle.textContent = isEditing ? 'Edit Menu' : 'Add New Menu';
     
-    // If editing, ensure selectedFlavorIds are preserved
     if (isEditing) {
-    console.log('Opening edit modal with selectedFlavorIds:', selectedFlavorIds);
-    // Re-populate checkboxes to ensure selected flavors are checked
-    setTimeout(() => {
-        populateFlavorCheckboxes();
-    }, 100);
+        console.log('Opening edit modal with selectedFlavorIds:', selectedFlavorIds);
+        setTimeout(() => {
+            populateFlavorCheckboxes();
+        }, 100);
     }
     
     document.getElementById('add-menu-modal').classList.remove('hidden');
@@ -801,13 +790,10 @@ function closeAddMenuModal() {
     document.getElementById('add-menu-form').removeAttribute('data-menu-id');
     document.getElementById('form-error').textContent = '';
     document.getElementById('form-error').style.color = '';
-    // Reset radio button to default (True)
     document.getElementById('is-avail-true').checked = true;
     // Reset flavor selection (only if not already reset)
-    if (selectedFlavorIds.length > 0) {
     selectedFlavorIds = [];
     populateFlavorCheckboxes();
-    }
     // Reset modal title
     const modalTitle = document.querySelector('#add-menu-modal .modal-title');
     modalTitle.textContent = 'Add New Menu';
@@ -863,82 +849,81 @@ function setupSearch() {
     const flavorSearch = document.getElementById('flavor-search');
 
     if (menuSearch) {
-    menuSearch.addEventListener('input', function() {
-        applyMenuFilter();
-    });
+        menuSearch.addEventListener('input', function() {
+            applyMenuFilter();
+        });
     }
 
     if (flavorSearch) {
-    flavorSearch.addEventListener('input', function() {
-        applyFlavorFilter();
-    });
+        flavorSearch.addEventListener('input', function() {
+            applyFlavorFilter();
+        });
     }
 }
 
 // Save or update flavour
 async function saveFlavour() {
     const flavourId = document.getElementById('add-flavour-form').getAttribute('data-flavour-id') || null;
-    const flavourName = document.getElementById('flavour-name').value;
+    const flavourNameEn = document.getElementById('flavour-name-en').value;
+    const flavourNameId = document.getElementById('flavour-name-id').value;
     const additionalPrice = parseInt(document.getElementById('additional-price').value);
     const isAvail = document.querySelector('input[name="flavour-is-avail"]:checked').value === 'true';
 
-    // Client-side validation for non-negative additional price
     if (isNaN(additionalPrice) || additionalPrice < 0) {
-    	showErrorModal('Harga tambahan tidak boleh negatif.');
-    	return;
+        showErrorModal('Harga tambahan tidak boleh negatif.');
+        return;
+    }
+
+    if (!flavourNameEn || !flavourNameId) {
+        showErrorModal('Nama rasa (EN dan ID) tidak boleh kosong.');
+        return;
     }
 
     const data = {
-    flavor_name: flavourName,
-    additional_price: additionalPrice,
-    isAvail: isAvail
+        flavor_name_en: flavourNameEn.trim(),
+        flavor_name_id: flavourNameId.trim(),
+        additional_price: additionalPrice,
+        isAvail: isAvail
     };
 
     try {
-    let response;
-    if (flavourId) {
-        response = await fetch(`${BASE_URL}/flavors/${flavourId}`, {
-        method: "PUT",
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-        });
-    } else {
-        response = await fetch(`${BASE_URL}/flavors`, {
-        method: "POST",
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-        });
-    }
-
-    if (!response.ok) {
-        let errorMessage = 'Failed to save flavour';
-        try {
-        const errorData = await response.json();
-        console.log('Flavour save error response:', errorData);
-        // Backend returns error message in 'message' field, not 'detail'
-        errorMessage = errorData.message || errorData.detail || errorData.error || errorMessage;
-        } catch (parseError) {
-        errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        let response;
+        if (flavourId) {
+            response = await fetch(`${BASE_URL}/flavors/${flavourId}`, {
+                method: "PUT",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+        } else {
+            response = await fetch(`${BASE_URL}/flavors`, {
+                method: "POST",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
         }
-        throw new Error(errorMessage);
-    }
-    
-    let result;
-    try {
-        result = await response.json();
+
+        if (!response.ok) {
+            let errorMessage = 'Failed to save flavour';
+            try {
+                const errorData = await response.json();
+                console.log('Flavour save error response:', errorData);
+                errorMessage = errorData.message || errorData.detail || errorData.error || errorMessage;
+            } catch (parseError) {
+                errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+            }
+            throw new Error(errorMessage);
+        }
+        
+        const result = await response.json();
         console.log('Flavour saved successfully:', result);
-    } catch (parseError) {
-        console.log('Flavour saved successfully (no JSON response)');
-    }
-    
-    closeAddFlavourModal();
-    loadFlavors();
-    
-    // Show success message
-    showSuccessModal(result.message || 'Varian rasa berhasil disimpan');
+        
+        closeAddFlavourModal();
+        await loadFlavors();
+        
+        showSuccessModal(result.message || 'Varian rasa berhasil disimpan');
     } catch (error) {
-    console.error('Error saving flavour:', error);
-    showErrorModal('Error saving flavour: ' + error.message);
+        console.error('Error saving flavour:', error);
+        showErrorModal('Error saving flavour: ' + error.message);
     }
 }
 
@@ -953,34 +938,30 @@ document.getElementById('add-flavour-form').addEventListener('submit', async (e)
     await saveFlavour();
 });
 
-// setupNavigation is provided globally by script.js; remove page-specific duplicate
-
-// Flavor Selector Functions
 function populateFlavorCheckboxes() {
     const flavorCheckboxes = document.getElementById('flavor-checkboxes');
     flavorCheckboxes.innerHTML = '';
     
     console.log('Populating flavor checkboxes with selectedFlavorIds:', selectedFlavorIds);
     
-    // Filter out any selected flavor IDs that no longer exist in allFlavors
     selectedFlavorIds = selectedFlavorIds.filter(id => 
-    allFlavors.some(flavor => flavor.id === id)
+        allFlavors.some(flavor => flavor.id === id)
     );
     
     allFlavors.forEach(flavor => {
-    const checkboxItem = document.createElement('div');
-    checkboxItem.className = 'flavor-checkbox-item';
-    const isChecked = selectedFlavorIds.includes(flavor.id);
-    checkboxItem.innerHTML = `
-        <input type="checkbox" id="flavor-${flavor.id}" value="${flavor.id}" 
-                ${isChecked ? 'checked' : ''} 
-                onchange="updateSelectedFlavors()">
-        <label for="flavor-${flavor.id}">
-        ${flavor.flavor_name}
-        <span class="flavor-price">(+Rp ${flavor.additional_price.toLocaleString()})</span>
-        </label>
-    `;
-    flavorCheckboxes.appendChild(checkboxItem);
+        const checkboxItem = document.createElement('div');
+        checkboxItem.className = 'flavor-checkbox-item';
+        const isChecked = selectedFlavorIds.includes(flavor.id);
+        checkboxItem.innerHTML = `
+            <input type="checkbox" id="flavor-${flavor.id}" value="${flavor.id}" 
+                   ${isChecked ? 'checked' : ''} 
+                   onchange="updateSelectedFlavors()">
+            <label for="flavor-${flavor.id}">
+                ${flavor.flavor_name_en} / ${flavor.flavor_name_id}
+                <span class="flavor-price">(+Rp ${flavor.additional_price.toLocaleString()})</span>
+            </label>
+        `;
+        flavorCheckboxes.appendChild(checkboxItem);
     });
 }
 
@@ -1020,8 +1001,8 @@ function showDeleteConfirmModal(message, onConfirm) {
     // Set up confirm button action
     const confirmBtn = document.getElementById('delete-confirm-btn');
     confirmBtn.onclick = () => {
-    closeDeleteConfirmModal();
-    onConfirm();
+        closeDeleteConfirmModal();
+        onConfirm();
     };
 }
 
@@ -1058,15 +1039,10 @@ window.addEventListener('load', async () => {
     try {
     // Load menus (flavors are included in menu data)
     await loadMenus();
-    
-    // Load flavors separately for flavor selector
     await loadFlavors();
+    setupNavigation();
+    setupSearch();
     
-    switchTab('menu'); // Set default tab
-    setupNavigation(); // Setup navigation
-    setupSearch(); // Setup search functionality
-    
-    // Ensure navigation is properly set up after DOM is fully loaded
     setTimeout(() => {
         setupNavigation();
     }, 100);

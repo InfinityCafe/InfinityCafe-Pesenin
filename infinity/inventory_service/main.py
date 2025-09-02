@@ -1935,6 +1935,7 @@ def rollback_stock(order_id: str, db: Session = Depends(get_db)):
                 Inventory.id == detail.ingredient_id
             ).first()
             if ingredient:
+                ingredient.current_quantity += detail.quantity_consumed
                 before_rollback = ingredient.current_quantity
                 ingredient.current_quantity += detail.quantity_consumed
                 after_rollback = ingredient.current_quantity

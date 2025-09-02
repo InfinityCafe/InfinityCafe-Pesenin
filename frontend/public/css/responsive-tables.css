@@ -90,20 +90,22 @@
     -webkit-overflow-scrolling: touch;
   }
   
-  #menu-table, #flavors-table {
+  #menu-table, #flavors-table, .log-table {
     min-width: 600px;
     font-size: 14px;
   }
   
   #menu-table th, #menu-table td,
-  #flavors-table th, #flavors-table td {
+  #flavors-table th, #flavors-table td,
+  .log-table th, .log-table td {
     white-space: nowrap;
     min-width: 120px;
     padding: 0.75rem 0.5rem;
   }
   
   #menu-table th:first-child, #menu-table td:first-child,
-  #flavors-table th:first-child, #flavors-table td:first-child {
+  #flavors-table th:first-child, #flavors-table td:first-child,
+  .log-table th:first-child, .log-table td:first-child {
     min-width: 60px;
   }
   
@@ -187,13 +189,14 @@
   }
   
   /* Make table even more compact on small screens */
-  #menu-table, #flavors-table {
+  #menu-table, #flavors-table, .log-table {
     min-width: 500px;
     font-size: 13px;
   }
   
   #menu-table th, #menu-table td,
-  #flavors-table th, #flavors-table td {
+  #flavors-table th, #flavors-table td,
+  .log-table th, .log-table td {
     padding: 0.5rem 0.25rem;
     min-width: 100px;
   }

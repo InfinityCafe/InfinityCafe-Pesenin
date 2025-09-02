@@ -289,6 +289,7 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     if validation_error:
         return JSONResponse(status_code=200, content={"status": "error", "message": validation_error, "data": None})
     
+    flavor_required_menus = ["Caffe Latte", "Cappuccino", "Milkshake", "Squash"]
     # Menu yang memerlukan flavor (menggunakan nama dwi bahasa)
     flavor_required_menus = [
         "Caffe Latte", "Kafe Latte",  # Bahasa Inggris dan Indonesia
@@ -580,6 +581,7 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     if validation_error:
         return JSONResponse(status_code=200, content={"status": "error", "message": validation_error, "data": None})
 
+    flavor_required_menus = ["Caffe Latte", "Cappuccino", "Milkshake", "Squash"]
     # Menu yang memerlukan flavor (menggunakan nama dwi bahasa)  
     flavor_required_menus = [
         "Caffe Latte", "Kafe Latte",  # Bahasa Inggris dan Indonesia

@@ -17,8 +17,8 @@ BEGIN
     END IF;
 END $$;
 
-INSERT INTO kitchen_orders (order_id, queue_number, status, detail, customer_name, room_name, time_receive, time_making, time_deliver, time_done) VALUES
-('ORD-001', 1, 'done', E'1x Cafe Latte (Less sugar)\n1x Nasi Goreng Infinity (Pedas)', 'Fahri', 'VIP 1', NOW() - INTERVAL '3 hour', NOW() - INTERVAL '2 hour 50 minutes', NOW() - INTERVAL '2 hour 45 minutes', NOW() - INTERVAL '2 hour 40 minutes');
+-- INSERT INTO kitchen_orders (order_id, queue_number, status, detail, customer_name, room_name, time_receive, time_making, time_deliver, time_done) VALUES
+-- ('ORD-001', 1, 'done', E'1x Cafe Latte (Less sugar)\n1x Nasi Goreng Infinity (Pedas)', 'Fahri', 'VIP 1', NOW() - INTERVAL '3 hour', NOW() - INTERVAL '2 hour 50 minutes', NOW() - INTERVAL '2 hour 45 minutes', NOW() - INTERVAL '2 hour 40 minutes');
 
 -- === Pesanan 2: Sedang Dibuat (Making) ===
 INSERT INTO kitchen_orders (order_id, queue_number, status, detail, customer_name, room_name, time_receive, time_making) VALUES
@@ -34,4 +34,4 @@ INSERT INTO kitchen_orders (order_id, queue_number, status, detail, customer_nam
 -- DIPERBAIKI: Menambahkan kolom `queue_number` dengan nilai 4
 
 INSERT INTO kitchen_orders (order_id, queue_number, status, detail, customer_name, room_name, time_receive, cancel_reason) VALUES
-('ORD-004', 4, 'cancel', E'2x Teh Manis (Hangat)', 'Sari', 'Outdoor', NOW() - INTERVAL '1 day', 'Stok bahan baku habis');
+('ORD-004', 4, 'cancelled', E'2x Teh Manis (Hangat)', 'Sari', 'Outdoor', NOW() - INTERVAL '1 day', 'Stok bahan baku habis');
