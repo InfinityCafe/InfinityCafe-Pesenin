@@ -292,7 +292,7 @@ def is_date_in_range(date_str: str, start_date: str, end_date: str) -> bool:
     except:
         return False
 
-@app.get("/report/best_seller", tags=["Report"])
+@app.get("/report/", tags=["Report"])
 def get_best_seller(
     start_date: str = Query(..., description="Format: YYYY-MM-DD"),
     end_date: str = Query(..., description="Format: YYYY-MM-DD")
