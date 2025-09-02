@@ -1564,10 +1564,7 @@ async function loadReport() {
             url += `&menu_name=${encodeURIComponent(menuFilter)}`;
         }
 
-        console.log('Fetching report data from:', url);
         const res = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeout);
-        
         if (!res.ok) {
             const errorData = await res.json();
             throw new Error(errorData.detail || "Gagal mengambil data laporan");
@@ -1576,6 +1573,8 @@ async function loadReport() {
         const data = await res.json();
         console.log('Report data received:', data);
         currentReportData = data;
+        // Set current type as early as possible to avoid stale state
+        const previousType = currentDataType;
         currentDataType = 'sales';
 
         // Update summary
@@ -1586,7 +1585,8 @@ async function loadReport() {
         console.log('Report details:', details);
         
         const newHash = computeDataHash(details);
-        if (newHash !== lastReportHash) {
+        // Force refresh if coming from a different data type to avoid stale ingredient/log rows
+        if (newHash !== lastReportHash || previousType !== 'sales') {
             lastReportHash = newHash;
             baseData = details;
             // preserve current search if any
@@ -1597,46 +1597,35 @@ async function loadReport() {
             renderTablePage();
             updatePagination();
             // Re-render charts only when data changed
-            if (details.length > 0) {
-                // Reset table header to normal sales format
-                const tableHeader = document.querySelector('#report-table thead tr');
-                if (tableHeader) {
-                    tableHeader.innerHTML = `
-                        <th>No</th>
-                        <th>Menu</th>
-                        <th>Qty</th>
-                        <th>Price</th>
-                        <th>Total</th>`;
-                }
-                renderCharts(details);
-            } else {
-                // Show empty state
-                renderCharts([]);
-                const tableHeader = document.querySelector('#report-table thead tr');
-                if (tableHeader) {
-                    tableHeader.innerHTML = `
-                        <th>No</th>
-                        <th>Menu</th>
-                        <th>Qty</th>
-                        <th>Price</th>
-                        <th>Total</th>`;
-                }
+            const chartData = details.map(item => ({
+                menu_name: item.menu_name || 'N/A',
+        quantity: item.quantity || 0,
+        unit_price: item.unit_price || 0,
+        total: item.total || 0
+            }));
+            renderCharts(chartData);
+        } else {
+            // Even if hash same, ensure header matches sales mode after returning from ingredient
+            const tableHeader = document.querySelector('#report-table thead tr');
+            if (tableHeader) {
+                tableHeader.innerHTML = `
+                    <th>No</th>
+                    <th>Menu</th>
+                    <th>Qty</th>
+                    <th>Price</th>
+                    <th>Total</th>
+                `;
             }
         }
 
-        if (details.length > 0) {
-            const topMenu = details.reduce((max, curr) => (curr.total || 0) > (max.total || 0) ? curr : max, details[0]);
-            await loadTopCustomers(start, end, data, topMenu);
-        } else {
+        if (details.length === 0) {
+            // When no sales data, try best seller as fallback
             console.log('No sales data found, loading best seller data instead');
             await loadBestSellerData(start, end);
         }
-        
-        await fetchSuggestedMenu();
-
     } catch (err) {
         console.error("Error loading report:", err);
-        alert(`⚠️ ${err.message || "Gagal memuat laporan. Periksa koneksi atau server."}`);
+        showEmptyState(err.message || 'Gagal memuat data laporan', 'error');
     } finally {
         clearTimeout(timeout);
     }
@@ -1654,6 +1643,9 @@ async function loadBestSellerData(start, end) {
         
         const data = await res.json();
         console.log('Best seller data received:', data);
+
+        const previousType = currentDataType;
+        currentDataType = 'best';
 
         if (data.best_sellers && data.best_sellers.length > 0) {
             console.log('Best sellers found:', data.best_sellers.length);
@@ -1674,7 +1666,8 @@ async function loadBestSellerData(start, end) {
 
             const best = data.best_sellers;
             const newHash = computeDataHash(best);
-            if (newHash !== lastBestHash) {
+            // Force refresh when switching from a different type
+            if (newHash !== lastBestHash || previousType !== 'best') {
                 lastBestHash = newHash;
                 baseData = best;
                 const tableSearch = document.getElementById('table-search-input');
@@ -1684,11 +1677,6 @@ async function loadBestSellerData(start, end) {
                 renderTablePage();
                 updatePagination();
                 renderCharts(chartData);
-                // Update chart title to show it's best seller data
-                const chartTitle = document.querySelector('.column-title');
-                if (chartTitle) {
-                    chartTitle.textContent = '🏆 Top Menu Terlaris (Best Seller)';
-                }
                 // Update table header for best seller data
                 const tableHeader = document.querySelector('#report-table thead tr');
                 if (tableHeader) {
@@ -1728,7 +1716,7 @@ async function loadBestSellerData(start, end) {
         filteredData = [];
         renderTablePage();
         updatePagination();
-        updateSummaryWithData({}, 'error');
+        showEmptyState(err.message || 'Gagal memuat data best seller', 'error');
     }
 }
 
@@ -2054,6 +2042,15 @@ function applyReportFilter() {
             applyIngredientModeLayout();
             toggleReportFilter();
             return;
+        } else {
+            // Reset to normal mode when switching from ingredient to sales/best
+            resetToNormalMode();
+            // Apply the correct mode layout based on data type
+            if (dataType === 'best') {
+                applyModeLayout('best');
+            } else {
+                applyModeLayout('sales');
+            }
         }
     }
     
@@ -2148,8 +2145,60 @@ function clearReportFilter() {
     // Re-load sales view by default
     const start = document.getElementById("start_date").value;
     const end = document.getElementById("end_date").value;
+    resetToNormalMode();
     loadReport(start, end);
+    applyModeLayout('sales');
     toggleReportFilter();
+}
+
+function resetToNormalMode() {
+    // Reset all UI elements to normal mode
+    const chartBar = document.getElementById('chart-bar-card');
+    const chartPie = document.getElementById('chart-pie-card');
+    const loyal = document.getElementById('loyal-card');
+    const usulan = document.getElementById('usulan-card');
+    const tableHeader = document.querySelector('#report-table thead tr');
+    const statusEl = document.getElementById('summary-status-badge');
+    const barTitle = document.querySelector('#chart-bar-card .column-title');
+    const pieTitle = document.querySelector('#chart-pie-card .column-title');
+    const ingredientViewContainer = document.getElementById('ingredient-view-container');
+    
+    // Show all cards with proper display style
+    if (chartBar) chartBar.style.display = 'flex';
+    if (chartPie) chartPie.style.display = 'flex';
+    if (loyal) loyal.style.display = 'flex';
+    if (usulan) usulan.style.display = 'flex';
+    
+    // Reset table header
+    if (tableHeader) {
+        tableHeader.innerHTML = `
+            <th>No</th>
+            <th>Menu</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th>Total</th>
+        `;
+    }
+    
+    // Reset titles
+    if (barTitle) barTitle.textContent = '📊 Top Menu Terlaris';
+    if (pieTitle) pieTitle.textContent = '🥧 Komposisi Penjualan';
+    
+    // Hide ingredient view container
+    if (ingredientViewContainer) ingredientViewContainer.style.display = 'none';
+    
+    // Reset status badge
+    if (statusEl) {
+        statusEl.textContent = 'Data Sales';
+        statusEl.className = 'status-badge status-deliver';
+    }
+    
+    // Clear ingredient details panel
+    const ingredientDetailsPanel = document.getElementById('ingredient-details-panel');
+    if (ingredientDetailsPanel) ingredientDetailsPanel.classList.add('hidden');
+    
+    // Reset current data type
+    currentDataType = 'sales';
 }
 
 function applyIngredientModeLayout() {
@@ -2173,8 +2222,8 @@ function applyIngredientModeLayout() {
     // Update table header based on view mode
     updateIngredientTableHeader();
 
-    if (chartBar) chartBar.style.display = 'block';
-    if (chartPie) chartPie.style.display = 'block';
+    if (chartBar) chartBar.style.display = 'flex';
+    if (chartPie) chartPie.style.display = 'flex';
     if (loyal) loyal.style.display = 'none';
     if (usulan) usulan.style.display = 'none';
 }
@@ -2396,12 +2445,14 @@ document.addEventListener('visibilitychange', () => {
                 const start = document.getElementById("start_date").value;
                 const end = document.getElementById("end_date").value;
                 if (this.value === 'best') {
+                    resetToNormalMode();
                     await loadBestSellerData(start, end);
                     applyModeLayout('best');
                 } else if (this.value === 'ingredient') {
                     await loadIngredientAnalysisData();
                     applyIngredientModeLayout();
                 } else {
+                    resetToNormalMode();
                     await loadReport();
                     applyModeLayout('sales');
                 }
