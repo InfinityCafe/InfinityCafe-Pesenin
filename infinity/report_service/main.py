@@ -154,11 +154,13 @@ def get_report(
     if menus:
         logging.info(f"Sample menu structure: {menus[0]}")
     
-    # Create menu price lookup - gunakan field yang benar dari menu service
-    # Menu service menggunakan 'base_name' dan 'base_price'
+    # Create menu price lookup - gunakan base_name_en untuk English name
     menu_prices = {}
     for menu in menus:
-        if 'base_name' in menu and 'base_price' in menu:
+        # Prioritaskan base_name_en untuk English name
+        if 'base_name_en' in menu and 'base_price' in menu:
+            menu_prices[menu['base_name_en']] = menu['base_price']
+        elif 'base_name' in menu and 'base_price' in menu:
             menu_prices[menu['base_name']] = menu['base_price']
         elif 'menu_name' in menu and 'menu_price' in menu:
             # Fallback untuk struktur data lama
@@ -261,7 +263,7 @@ def extract_date_from_datetime(datetime_str: str) -> str:
     Format: 2025-08-20 03:37:20.365929+00 -> 2025-08-20
     """
     try:
-        
+        # Simple string slicing untuk format YYYY-MM-DD
         return datetime_str[:10]
     except:
         return datetime_str
@@ -294,10 +296,13 @@ def get_best_seller(
         orders = make_request(f"{ORDER_SERVICE_URL}/order")
         menus = make_request(f"{MENU_SERVICE_URL}/menu")
         
-        # Create price lookup dictionary - gunakan field yang benar
+        # Create price lookup dictionary - gunakan base_name_en untuk English name
         menu_prices = {}
         for menu in menus:
-            if 'base_name' in menu and 'base_price' in menu:
+            # Prioritaskan base_name_en untuk English name
+            if 'base_name_en' in menu and 'base_price' in menu:
+                menu_prices[menu['base_name_en']] = menu['base_price']
+            elif 'base_name' in menu and 'base_price' in menu:
                 menu_prices[menu['base_name']] = menu['base_price']
             elif 'menu_name' in menu and 'menu_price' in menu:
                 # Fallback untuk struktur data lama
@@ -324,9 +329,15 @@ def get_best_seller(
         except:
             flavors = []  # Fallback jika endpoint flavor tidak ada
         
-        # Create price lookup dictionaries
-        menu_prices = {menu['base_name']: menu['base_price'] for menu in menus}
-        flavor_lookup = {flavor['flavor_name']: flavor for flavor in flavors} if flavors else {}
+        # Create flavor lookup dictionary - gunakan flavor_name_en untuk English name jika tersedia
+        flavor_lookup = {}
+        if flavors:
+            for flavor in flavors:
+                # Prioritaskan flavor_name_en untuk English name
+                if 'flavor_name_en' in flavor:
+                    flavor_lookup[flavor['flavor_name_en']] = flavor
+                elif 'flavor_name' in flavor:
+                    flavor_lookup[flavor['flavor_name']] = flavor
         
         # Process menu sales data
         menu_sales = {}
@@ -509,9 +520,23 @@ def get_financial_sales_report(
         except:
             flavors = []  # Fallback jika endpoint flavor tidak ada
         
-        # Create lookup dictionaries
-        menu_lookup = {menu['base_name']: menu for menu in menus}
-        flavor_lookup = {flavor['flavor_name']: flavor for flavor in flavors} if flavors else {}
+        # Create lookup dictionaries - gunakan base_name_en untuk English name
+        menu_lookup = {}
+        for menu in menus:
+            # Prioritaskan base_name_en untuk English name
+            if 'base_name_en' in menu:
+                menu_lookup[menu['base_name_en']] = menu
+            elif 'base_name' in menu:
+                menu_lookup[menu['base_name']] = menu
+        
+        # Untuk flavor, gunakan flavor_name_en jika tersedia
+        flavor_lookup = {}
+        if flavors:
+            for flavor in flavors:
+                if 'flavor_name_en' in flavor:
+                    flavor_lookup[flavor['flavor_name_en']] = flavor
+                elif 'flavor_name' in flavor:
+                    flavor_lookup[flavor['flavor_name']] = flavor
         
         logging.info(f"Loaded {len(orders)} orders, {len(menus)} menus, {len(flavors)} flavors")
         
