@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 from fastapi.responses import JSONResponse
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_mcp import FastApiMCP
 from pydantic import BaseModel, Field, model_validator, field_validator
@@ -50,6 +50,7 @@ def get_jakarta_isoformat(dt):
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL_INVENTORY")
 MENU_SERVICE_URL = os.getenv("MENU_SERVICE_URL", "http://menu_service:8003")
+USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://user_service:8001")
 
 if not DATABASE_URL:
     raise RuntimeError("Env DATABASE_URL_INVENTORY belum diset. Pastikan variabel environment tersedia di container.")
@@ -86,6 +87,58 @@ def get_db():
         yield db
     finally:
         db.close()
+
+def get_current_user(authorization: str = Header(None)):
+    """
+    Dependency untuk mendapatkan user yang sedang login dari user_service
+    Header format: Bearer <token>
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token tidak ditemukan atau format salah")
+    
+    token = authorization.split(" ")[1] if len(authorization.split(" ")) > 1 else None
+    if not token:
+        raise HTTPException(status_code=401, detail="Token tidak valid")
+    
+    try:
+        logging.info(f"Verifying token with user_service at: {USER_SERVICE_URL}/auth/verify_token")
+        response = requests.post(
+            f"{USER_SERVICE_URL}/auth/verify_token",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=5
+        )
+        
+        logging.info(f"User service response status: {response.status_code}")
+        
+        if response.status_code != 200:
+            logging.warning(f"Token verification failed with status {response.status_code}: {response.text}")
+            raise HTTPException(status_code=401, detail="Token tidak valid atau expired")
+        
+        user_data = response.json()
+        logging.info(f"User service response: {user_data}")
+        
+        if not user_data.get("status") == "success" or not user_data.get("data"):
+            logging.error(f"Invalid user_service response structure: {user_data}")
+            raise HTTPException(status_code=401, detail="Response user_service tidak valid")
+        
+        logging.info(f"Authentication successful for user: {user_data.get('data', {}).get('username', 'unknown')}")
+        return user_data["data"]  
+        
+    except requests.RequestException as e:
+        logging.error(f"Error connecting to user_service: {e}")
+        raise HTTPException(status_code=503, detail="Service authentication tidak tersedia")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error in authentication: {e}")
+        raise HTTPException(status_code=401, detail=f"Authentication error: {str(e)}")
+
+def get_current_username(current_user: dict = Depends(get_current_user)) -> str:
+    """Dependency untuk mendapatkan username user yang sedang login"""
+    username = current_user.get("username") or current_user.get("name") or current_user.get("user_name")
+    if not username:
+        raise HTTPException(status_code=401, detail="Username tidak ditemukan dalam token")
+    return username
 
 class StockCategory(str, enum.Enum):
     packaging = "packaging"
@@ -255,7 +308,6 @@ class BatchStockResponse(BaseModel):
 class StockAddRequestWithAudit(BaseModel):
     ingredient_id: int = Field(..., description="ID ingredient yang akan ditambah stoknya")
     add_quantity: float = Field(..., gt=0, description="Jumlah stok yang akan ditambahkan (harus positif)")
-    performed_by: str = Field(..., min_length=1, description="Nama yang melakukan restock")
     notes: Optional[str] = Field("Penambahan stok manual", description="Alasan/catatan penambahan stok")
 
 class UpdateIngredientRequestWithAudit(BaseModel):
@@ -265,7 +317,6 @@ class UpdateIngredientRequestWithAudit(BaseModel):
     minimum_quantity: float
     category: StockCategory
     unit: UnitType
-    performed_by: str = Field(..., min_length=1, description="Nama yang melakukan update")
     notes: Optional[str] = Field("Update data ingredient", description="Alasan/catatan update")
 
     @field_validator('category', 'unit', mode='before')
@@ -275,7 +326,7 @@ class UpdateIngredientRequestWithAudit(BaseModel):
             return v.lower().strip()
         return v
     
-    @field_validator('name', 'performed_by')
+    @field_validator('name')
     @classmethod
     def name_not_blank(cls, v: str):
         if not v or not v.strip():
@@ -293,7 +344,6 @@ class UpdateIngredientRequestWithAudit(BaseModel):
 class MinimumStockRequestWithAudit(BaseModel):
     ingredient_id: int = Field(..., description="ID ingredient")
     new_minimum: float = Field(..., ge=0, description="Batas minimum baru (tidak boleh negatif)")
-    performed_by: str = Field(..., min_length=1, description="Nama yang melakukan update")
     notes: Optional[str] = Field("Update batas minimum", description="Alasan perubahan batas minimum")
 
 def create_outbox_event(db: Session, event_type: str, payload: dict):
@@ -1255,8 +1305,12 @@ def update_ingredient_stock(
         return {"success": False, "message": f"Error: {str(e)}"}
 
 @app.post("/stock/add", summary="Tambah stok ingredient (dengan audit)", tags=["Stock Management"])
-def add_ingredient_stock(req: StockAddRequestWithAudit, db: Session = Depends(get_db)):
-    """Menambah stok ingredient dengan tracking audit"""
+def add_ingredient_stock(
+    req: StockAddRequestWithAudit, 
+    db: Session = Depends(get_db),
+    current_username: str = Depends(get_current_username)
+):
+    """Menambah stok ingredient dengan tracking audit - menggunakan user yang sedang login"""
     try:
         ingredient = db.query(Inventory).filter(Inventory.id == req.ingredient_id).first()
         if not ingredient:
@@ -1272,14 +1326,13 @@ def add_ingredient_stock(req: StockAddRequestWithAudit, db: Session = Depends(ge
         # Update stock
         ingredient.current_quantity = new_quantity
         
-        # Buat history record
         create_stock_history(
             db=db,
             ingredient_id=req.ingredient_id,
             action_type="restock",
             quantity_before=old_quantity,
             quantity_after=new_quantity,
-            performed_by=req.performed_by,
+            performed_by=current_username,  
             notes=req.notes
         )
         
@@ -1287,7 +1340,7 @@ def add_ingredient_stock(req: StockAddRequestWithAudit, db: Session = Depends(ge
         
         return JSONResponse(status_code=200, content={
             "status": "success",
-            "message": f"Stok {ingredient.name} berhasil ditambahkan oleh {req.performed_by}",
+            "message": f"Stok {ingredient.name} berhasil ditambahkan oleh {current_username}",
             "data": {
                 "ingredient_id": ingredient.id,
                 "ingredient_name": ingredient.name,
@@ -1295,7 +1348,7 @@ def add_ingredient_stock(req: StockAddRequestWithAudit, db: Session = Depends(ge
                 "added_quantity": req.add_quantity,
                 "new_quantity": new_quantity,
                 "unit": ingredient.unit.value,
-                "performed_by": req.performed_by,
+                "performed_by": current_username, 
                 "notes": req.notes,
                 "timestamp": datetime.now(jakarta_tz).isoformat()
             }
@@ -1310,8 +1363,12 @@ def add_ingredient_stock(req: StockAddRequestWithAudit, db: Session = Depends(ge
         })
 
 @app.put("/stock/minimum", summary="Update minimum stock (dengan audit)", tags=["Stock Management"])
-def update_minimum_stock(req: MinimumStockRequestWithAudit, db: Session = Depends(get_db)):
-    """Update minimum stock dengan tracking audit"""
+def update_minimum_stock(
+    req: MinimumStockRequestWithAudit, 
+    db: Session = Depends(get_db),
+    current_username: str = Depends(get_current_username)
+):
+    """Update minimum stock dengan tracking audit - menggunakan user yang sedang login"""
     try:
         ingredient = db.query(Inventory).filter(Inventory.id == req.ingredient_id).first()
         if not ingredient:
@@ -1333,7 +1390,7 @@ def update_minimum_stock(req: MinimumStockRequestWithAudit, db: Session = Depend
             action_type="edit_minimum",
             quantity_before=old_minimum,
             quantity_after=req.new_minimum,
-            performed_by=req.performed_by,
+            performed_by=current_username, 
             notes=f"Update minimum stock: {req.notes}"
         )
         
@@ -1341,14 +1398,14 @@ def update_minimum_stock(req: MinimumStockRequestWithAudit, db: Session = Depend
         
         return JSONResponse(status_code=200, content={
             "status": "success",
-            "message": f"Minimum stock {ingredient.name} berhasil diupdate oleh {req.performed_by}",
+            "message": f"Minimum stock {ingredient.name} berhasil diupdate oleh {current_username}",
             "data": {
                 "ingredient_id": ingredient.id,
                 "ingredient_name": ingredient.name,
                 "old_minimum": old_minimum,
                 "new_minimum": req.new_minimum,
                 "unit": ingredient.unit.value,
-                "performed_by": req.performed_by,
+                "performed_by": current_username,  
                 "notes": req.notes,
                 "timestamp": datetime.now(jakarta_tz).isoformat()
             }
@@ -1363,8 +1420,12 @@ def update_minimum_stock(req: MinimumStockRequestWithAudit, db: Session = Depend
         })
 
 @app.put("/update_ingredient_with_audit", summary="Update bahan (dengan audit)", tags=["Inventory"])
-def update_ingredient_with_audit(req: UpdateIngredientRequestWithAudit, db: Session = Depends(get_db)):
-    """Update ingredient dengan tracking audit lengkap"""
+def update_ingredient_with_audit(
+    req: UpdateIngredientRequestWithAudit, 
+    db: Session = Depends(get_db),
+    current_username: str = Depends(get_current_username)
+):
+    """Update ingredient dengan tracking audit lengkap - menggunakan user yang sedang login"""
     ing = db.query(Inventory).filter(Inventory.id == req.id).first()
     if not ing:
         return JSONResponse(status_code=200, content={
@@ -1394,7 +1455,7 @@ def update_ingredient_with_audit(req: UpdateIngredientRequestWithAudit, db: Sess
                 action_type="edit_stock",
                 quantity_before=old_quantity,
                 quantity_after=req.current_quantity,
-                performed_by=req.performed_by,
+                performed_by=current_username,  
                 notes=f"Edit stock: {req.notes} (nama: {old_name} → {req.name})"
             )
         
@@ -1406,7 +1467,7 @@ def update_ingredient_with_audit(req: UpdateIngredientRequestWithAudit, db: Sess
                 action_type="edit_minimum",
                 quantity_before=old_minimum,
                 quantity_after=req.minimum_quantity,
-                performed_by=req.performed_by,
+                performed_by=current_username,  
                 notes=f"Edit minimum: {req.notes} (nama: {old_name} → {req.name})"
             )
         
@@ -1424,7 +1485,7 @@ def update_ingredient_with_audit(req: UpdateIngredientRequestWithAudit, db: Sess
         
         return JSONResponse(status_code=200, content={
             "status": "success", 
-            "message": f"Bahan '{ing.name}' berhasil diupdate oleh {req.performed_by}", 
+            "message": f"Bahan '{ing.name}' berhasil diupdate oleh {current_username}", 
             "data": {
                 "id": ing.id,
                 "name": ing.name,
@@ -1433,7 +1494,7 @@ def update_ingredient_with_audit(req: UpdateIngredientRequestWithAudit, db: Sess
                 "category": ing.category.value,
                 "unit": ing.unit.value,
                 "is_available": ing.is_available,
-                "performed_by": req.performed_by,
+                "performed_by": current_username,  
                 "notes": req.notes,
                 "changes": {
                     "quantity_changed": old_quantity != req.current_quantity,

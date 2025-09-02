@@ -277,7 +277,7 @@ def extract_date_from_datetime(datetime_str: str) -> str:
     Format: 2025-08-20 03:37:20.365929+00 -> 2025-08-20
     """
     try:
-        
+        # Simple string slicing untuk format YYYY-MM-DD
         return datetime_str[:10]
     except:
         return datetime_str
@@ -316,7 +316,7 @@ def get_best_seller(
         else:
             menus = menu_response
         
-        # Create price lookup dictionary - gunakan field yang benar
+        # Create price lookup dictionary - gunakan base_name_en untuk English name
         menu_prices = {}
         menu_name_mapping = {}  # Map Indonesian names to English names
         for menu in menus:
