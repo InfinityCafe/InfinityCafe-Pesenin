@@ -217,6 +217,19 @@ app.post("/menu", async (req, res) => {
   }
 });
 
+// Proxy: flavors for a menu by base name
+app.get("/menu/by_name/:base_name/flavors", async (req, res) => {
+  try {
+    const { base_name } = req.params;
+    const resp = await fetch(`http://menu_service:8001/menu/by_name/${encodeURIComponent(base_name)}/flavors`);
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to fetch flavors for menu by name ", err);
+    res.status(500).json({ error: "Failed to fetch flavors for menu by name" });
+  }
+});
+
 // Menu suggestion endpoints - MUST COME BEFORE /menu/:menu_id to avoid route conflict
 app.get("/menu_suggestion", async (req, res) => {
   try {
@@ -441,6 +454,27 @@ app.get("/inventory/list", async (req, res) => {
   }
 });
 
+app.get("/inventory/order/:orderId/ingredients", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    
+    // Encode the orderId for the internal service call
+    const encodedOrderId = encodeURIComponent(orderId);
+    
+    const resp = await fetch(`http://inventory_service:8006/order/${encodedOrderId}/ingredients`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" }
+    });
+
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+
+  } catch (err) {
+    console.error("Failed to get order ingredients details", err);
+    res.status(500).json({ error: "Failed to get order ingredients details" });
+  }
+});
+
 app.get("/inventory/summary", async (req, res) => {
   try {
     const resp = await fetch("http://inventory_service:8006/stock/summary");
@@ -644,6 +678,25 @@ app.get("/inventory/flavor_mapping", async (req, res) => {
   }
 });
 
+// Proxy: inventory logs history
+app.get("/inventory/history", async (req, res) => {
+  try {
+    const { order_id, limit } = req.query;
+    const params = new URLSearchParams();
+    if (order_id) params.set("order_id", order_id);
+    if (limit) params.set("limit", limit);
+    const url = params.toString()
+      ? `http://inventory_service:8006/history?${params.toString()}`
+      : `http://inventory_service:8006/history`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to fetch inventory history ", err);
+    res.status(500).json({ error: "Failed to fetch inventory history" });
+  }
+});
+
 // Recipe endpoints
 app.post("/recipes/batch", async (req, res) => {
   try {
@@ -685,10 +738,40 @@ app.get("/menu/list", async (req, res) => {
   }
 });
 
+// Order status endpoint
+app.get('/order_status/:order_id', async (req, res) => {
+  try {
+    const { order_id } = req.params;
+    const response = await fetch(`http://order_service:8002/order_status/${order_id}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    console.error('Failed to fetch order status:', err);
+    res.status(500).json({ error: 'Failed to fetch order status' });
+  }
+});
+
 // User endpoints
 app.post('/login', async (req, res) => {
   try {
     const response = await fetch('http://user_service:8005/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/register', async (req, res) => {
+  try {
+    const response = await fetch('http://user_service:8005/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req.body)

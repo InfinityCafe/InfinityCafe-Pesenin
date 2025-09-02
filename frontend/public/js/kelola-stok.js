@@ -124,17 +124,38 @@ class InventoryManager {
       console.warn("Kitchen toggle not found in DOM");
     }
 
-    safeAddEventListener('add-stock-btn', 'click', () => this.openAddStockModal());
-    safeAddEventListener('consumption-log-btn', 'click', () => this.openConsumptionLogModal());
+    // Add stock button
+    safeAddEventListener('add-stock-btn', 'click', () => {
+      this.openAddStockModal();
+    });
+    // Consumption log button
+    safeAddEventListener('consumption-log-btn', 'click', () => {
+      this.openConsumptionLogModal();
+    });
+    // Add stock form
     safeAddEventListener('add-stock-form', 'submit', (e) => {
       e.preventDefault();
       this.handleAddStockSubmit();
     });
-    safeAddEventListener('close-add-stock-modal', 'click', () => this.closeModal('add-stock-modal'));
-    safeAddEventListener('close-consumption-log-modal', 'click', () => this.closeModal('consumption-log-modal'));
-    safeAddEventListener('cancel-add-stock-btn', 'click', () => this.closeModal('add-stock-modal'));
-    safeAddEventListener('refresh-logs-btn', 'click', () => this.loadConsumptionLogs());
-    safeAddEventListener('log-search', 'input', (e) => this.filterConsumptionLogs(e.target.value));
+    // Modal close buttons
+    safeAddEventListener('close-add-stock-modal', 'click', () => {
+      this.closeModal('add-stock-modal');
+    });
+    safeAddEventListener('close-consumption-log-modal', 'click', () => {
+      this.closeModal('consumption-log-modal');
+    });
+    // Cancel buttons
+    safeAddEventListener('cancel-add-stock-btn', 'click', () => {
+      this.closeModal('add-stock-modal');
+    });
+    // Refresh logs button
+    safeAddEventListener('refresh-logs-btn', 'click', () => {
+      this.loadConsumptionLogs();
+    });
+    // Log search
+    safeAddEventListener('log-search', 'input', (e) => {
+      this.filterConsumptionLogs(e.target.value);
+    });
   }
   
 
@@ -383,7 +404,7 @@ class InventoryManager {
     if (!this.filteredInventory.length) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="8" style="text-align: center; padding: 2rem;">
+          <td colspan="8" style="text-align: center; padding: 1rem;">
             No inventory items found
           </td>
         </tr>
@@ -620,7 +641,7 @@ class InventoryManager {
     statusElement.innerHTML = `<span class="${status.class}">${status.text}</span>`;
     this.showModal('view-item-modal');
   ;
-}
+  }
 
   editItem(itemId) {
     const item = this.inventory.find(i => i.id === itemId);
@@ -852,6 +873,16 @@ class InventoryManager {
   openAddStockModal() {
     this.populateIngredientSelect();
     this.showModal('add-stock-modal');
+  }
+
+  // Add New Item
+    openAddItemModal() {
+    this.editingItem = null;
+    const modalTitle = document.getElementById('modal-title');
+    const itemForm = document.getElementById('item-form');
+    if (modalTitle) modalTitle.textContent = 'Add New Item';
+    if (itemForm) itemForm.reset();
+    this.showModal('item-modal');
   }
 
   populateIngredientSelect() {
