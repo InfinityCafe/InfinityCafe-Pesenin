@@ -9,9 +9,14 @@ class InventoryManager {
     this.totalPages = 1;
     this.editingItem = null;
     this.viewingItemId = null;
-    
+    this.pollingInterval = null;
+    this.isUserInteracting = false;
+    this.currentFilters = { category: '', unit: '', status: '' };
+    this.currentSearchTerm = '';
+
     this.initializeEventListeners();
-    this.loadInventoryData();
+    this.initialLoad();
+    this.startPolling();
   }
 
   initializeEventListeners() {
@@ -31,7 +36,7 @@ class InventoryManager {
     });
 
     safeAddEventListener('close-view-modal', 'click', () => {
-      this.closeViewItemModal();
+      this.closeModal('view-item-modal');
     });
 
     // Modal close buttons
@@ -58,16 +63,35 @@ class InventoryManager {
       this.closeModal('delete-modal');
     });
 
-    // Search functionality
-    safeAddEventListener('search-input', 'input', (e) => {
-      this.handleSearch(e.target.value);
-    });
-
-    safeAddEventListener('table-search', 'input', (e) => {
-      this.handleSearch(e.target.value);
-    });
+    const searchInput = document.getElementById('table-search');
+    if (searchInput) {
+      searchInput.addEventListener('focus', () => {
+        this.isUserInteracting = true;
+      });
+      searchInput.addEventListener('blur', () => {
+        this.isUserInteracting = false;
+      });
+      searchInput.addEventListener('input', (e) => {
+        this.currentSearchTerm = e.target.value.toLowerCase().trim(); // Simpan pencarian
+        this.isUserInteracting = !!this.currentSearchTerm;
+        this.applyCurrentFiltersAndSearch(true);
+      });
+    }
 
     safeAddEventListener('filter-btn', 'click', () => {
+      this.isUserInteracting = !document.getElementById('filter-dropdown').classList.contains('show');
+      this.toggleFilterStock();
+    });
+
+    document.querySelector('.apply-filter-btn')?.addEventListener('click', () => {
+      this.isUserInteracting = false;
+      this.applyStockFilter();
+      this.toggleFilterStock();
+    });
+
+    document.querySelector('.clear-filter-btn')?.addEventListener('click', () => {
+      this.isUserInteracting = false;
+      this.clearStockFilter();
       this.toggleFilterStock();
     });
 
@@ -77,13 +101,13 @@ class InventoryManager {
     });
 
     // Pagination buttons
-    safeAddEventListener('prev-btn', 'click', () => {
-      this.changeStockPage(-1);
-    });
+    // safeAddEventListener('prev-btn', 'click', () => {
+    //   this.changeStockPage(-1);
+    // });
 
-    safeAddEventListener('next-btn', 'click', () => {
-      this.changeStockPage(1);
-    });
+    // safeAddEventListener('next-btn', 'click', () => {
+    //   this.changeStockPage(1);
+    // });
 
     // Delete confirmation
     safeAddEventListener('confirm-delete-btn', 'click', () => {
@@ -104,61 +128,30 @@ class InventoryManager {
     safeAddEventListener('add-stock-btn', 'click', () => {
       this.openAddStockModal();
     });
-
-    // Bulk stock button
-    // safeAddEventListener('bulk-stock-btn', 'click', () => {
-    //   this.openBulkStockModal();
-    // });
-
     // Consumption log button
     safeAddEventListener('consumption-log-btn', 'click', () => {
       this.openConsumptionLogModal();
     });
-
     // Add stock form
     safeAddEventListener('add-stock-form', 'submit', (e) => {
       e.preventDefault();
       this.handleAddStockSubmit();
     });
-
-    // Bulk stock form
-    // safeAddEventListener('bulk-stock-form', 'submit', (e) => {
-    //   e.preventDefault();
-    //   this.handleBulkStockSubmit();
-    // });
-
     // Modal close buttons
     safeAddEventListener('close-add-stock-modal', 'click', () => {
       this.closeModal('add-stock-modal');
     });
-
-    // safeAddEventListener('close-bulk-stock-modal', 'click', () => {
-    //   this.closeModal('bulk-stock-modal');
-    // });
-
     safeAddEventListener('close-consumption-log-modal', 'click', () => {
       this.closeModal('consumption-log-modal');
     });
-
     // Cancel buttons
     safeAddEventListener('cancel-add-stock-btn', 'click', () => {
       this.closeModal('add-stock-modal');
     });
-
-    // safeAddEventListener('cancel-bulk-stock-btn', 'click', () => {
-    //   this.closeModal('bulk-stock-modal');
-    // });
-
-    // Add bulk item button
-    // safeAddEventListener('add-bulk-item-btn', 'click', () => {
-    //   this.addBulkItem();
-    // });
-
     // Refresh logs button
     safeAddEventListener('refresh-logs-btn', 'click', () => {
       this.loadConsumptionLogs();
     });
-
     // Log search
     safeAddEventListener('log-search', 'input', (e) => {
       this.filterConsumptionLogs(e.target.value);
@@ -166,7 +159,7 @@ class InventoryManager {
   }
   
 
-  async loadInventoryData() {
+  async loadInventoryData(forceFullReload = false) {
     try {
       console.log('Attempting to load inventory data...');
       // Load inventory summary
@@ -179,6 +172,7 @@ class InventoryManager {
       } else {
         console.log('Summary API failed, loading sample data...');
         this.loadSampleData();
+        return;
       }
 
       // Load inventory list
@@ -187,16 +181,105 @@ class InventoryManager {
       
       console.log('Inventory data loaded:', listData);
       this.inventory = Array.isArray(listData.data) ? listData.data : Array.isArray(listData) ? listData : [];
-      this.filteredInventory = [...this.inventory];
       
-      console.log('Current inventory:', this.inventory);
-      this.updateOverviewCards();
+      if (forceFullReload) {
+        this.filteredInventory = [...this.inventory];
+        this.currentFilters = { category: '', unit: '', status: '' };
+        this.currentSearchTerm = '';
+        this.currentPage = 1;
+      } else {
+        this.applyCurrentFiltersAndSearch();
+      }
+
+      this.populateDynamicFilters();
+      // console.log('Current inventory:', this.inventory);
+      // this.updateOverviewCards();
       this.renderInventoryTable();
     } catch (error) {
       console.error('Error loading inventory data:', error);
       console.log('Loading sample data as fallback...');
       this.loadSampleData();
     }
+  }
+
+  async loadAndRefreshData(forceFullReload = false) {
+    try {
+      const listResponse = await fetch('/inventory/list');
+      const listData = await listResponse.json();
+
+      this.inventory = Array.isArray(listData.data) ? listData.data : [];
+
+      if (forceFullReload) {
+        this.filteredInventory = [...this.inventory];
+        this.currentFilters = { category: '', unit: '', status: '' };
+        this.currentSearchTerm = '';
+        this.currentPage = 1;
+      } else {
+        this.applyCurrentFiltersAndSearch();
+      }
+
+      this.renderInventoryTable();
+      this.updateOverviewCards();
+      if (forceFullReload) {
+        this.populateDynamicFilters();
+      }
+    } catch (error) {
+      console.error('Gagal memuat dan me-refresh data:', error);
+    }
+  }
+
+  async initialLoad() {
+    await this.loadAndRefreshData(true);
+  }
+
+  applyCurrentFiltersAndSearch(resetPage = false) {
+    let tempInventory = [...this.inventory];
+
+    if (this.currentFilters.category) {
+      tempInventory = tempInventory.filter(i => i.category === this.currentFilters.category);
+    }
+    if (this.currentFilters.unit) {
+      tempInventory = tempInventory.filter(i => i.unit === this.currentFilters.unit);
+    }
+    if (this.currentFilters.status) {
+      tempInventory = tempInventory.filter(i => this.getStockStatus(i).value === this.currentFilters.status);
+    }
+
+    if (this.currentSearchTerm) {
+      tempInventory = tempInventory.filter(item =>
+        item.name.toLowerCase().includes(this.currentSearchTerm) ||
+        item.category.toLowerCase().includes(this.currentSearchTerm)
+      );
+    }
+
+    this.filteredInventory = tempInventory;
+
+    if (resetPage) {
+      this.currentPage = 1;
+    } else {
+      this.totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage) || 1;
+      if (this.currentPage > this.totalPages) {
+        this.currentPage = this.totalPages;
+      }
+    }
+
+    this.renderInventoryTable();
+  }
+
+  startPolling() {
+    console.log("Memulai polling cerdas setiap 3 detik...");
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+    }
+
+    this.pollingInterval = setInterval(() => {
+      if (!this.isUserInteracting) {
+        console.log("Polling: Mengambil data inventaris terbaru...");
+        this.loadAndRefreshData();
+      } else {
+        console.log("Polling: Dilewati karena pengguna sedang berinteraksi.");
+      }
+    }, 3000);
   }
 
   loadSampleData() {
@@ -246,6 +329,11 @@ class InventoryManager {
 
     this.inventory = sampleInventory;
     this.filteredInventory = [...this.inventory];
+    this.currentFilters = { category: '', unit: '', status: '' };
+    this.currentSearchTerm = '';
+    this.currentPage = 1;
+
+    this.populateDynamicFilters();
     
     // Update overview cards with sample data
     this.updateOverviewCards({
@@ -259,12 +347,12 @@ class InventoryManager {
     console.log('Sample data loaded and table rendered');
   }
 
-  updateOverviewCards() {
+  updateOverviewCards(data = {}) {
     console.log('Updating overview cards with inventory:', this.inventory);
     
-    const totalItems = this.inventory.length;
-    const outOfStockCount = this.inventory.filter(item => item.current_quantity <= 0).length;
-    const lowStockCount = this.inventory.filter(
+    const totalItems = data.total_items || this.inventory.length;
+    const outOfStockCount = data.critical_count || this.inventory.filter(item => item.current_quantity <= 0).length;
+    const lowStockCount = data.low_stock_count || this.inventory.filter(
       item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity
     ).length;
 
@@ -295,16 +383,9 @@ class InventoryManager {
   }
 
   handleSearch(searchTerm) {
-    if (!searchTerm.trim()) {
-      this.filteredInventory = [...this.inventory];
-    } else {
-      this.filteredInventory = this.inventory.filter(item => 
-        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.category.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    this.currentPage = 1;
-    this.renderInventoryTable();
+    this.currentSearchTerm = searchTerm.toLowerCase().trim();
+    this.isUserInteracting = !!this.currentSearchTerm;
+    this.applyCurrentFiltersAndSearch(true); // Reset halaman saat pencarian berubah
   }
 
   renderInventoryTable() {
@@ -320,7 +401,7 @@ class InventoryManager {
 
     tbody.innerHTML = '';
 
-    if (pageData.length === 0) {
+    if (!this.filteredInventory.length) {
       tbody.innerHTML = `
         <tr>
           <td colspan="8" style="text-align: center; padding: 1rem;">
@@ -332,8 +413,13 @@ class InventoryManager {
       if (tableInfo) {
         tableInfo.textContent = 'Showing 0 of 0 entries';
       }
+      console.warn("Filtered inventory is empty");
     } else {
       pageData.forEach((item, index) => {
+        if (!item || typeof item.current_quantity === 'undefined' || typeof item.minimum_quantity === 'undefined') {
+          console.warn(`Invalid item data at index ${startIndex + index + 1}:`, item);
+          return;
+        }
         const row = this.createTableRow(item, startIndex + index + 1);
         tbody.appendChild(row);
       });
@@ -353,12 +439,12 @@ class InventoryManager {
     row.innerHTML = `
       <td>${rowNumber}</td>
       <td>${item.name}</td>
-      <td>${this.capitalizeFirst(item.category)}</td>
+      <td>${this.formatCategoryName(item.category)}</td>
       <td>${item.current_quantity.toFixed(2)}</td>
       <td>${this.capitalizeFirst(item.unit)}</td>
       <td>${item.minimum_quantity.toFixed(2)}</td>
       <td>
-        <span class="status-label ${status.class}">${status.text}</span>
+        <span><span class="${status.class}">${status.text}</span></span>
       </td>
       <td class="action-header">
         <button class="table-action-btn" onclick="inventoryManager.viewItem(${item.id})"><i class="fas fa-eye"></i></button>
@@ -372,12 +458,33 @@ class InventoryManager {
 
   getStockStatus(item) {
     if (item.current_quantity <= 0) {
-      return { class: 'status-badge status-out-of-stock', text: 'Out of Stock' };
+      return { 
+        value: 'out-of-stock', 
+        text: 'Out of Stock', 
+        class: 'status-badge status-out-of-stock' 
+      };
     } else if (item.current_quantity <= item.minimum_quantity) {
-      return { class: 'status-badge status-low-stock', text: 'Low Stock' };
+      return { 
+        value: 'low-stock', 
+        text: 'Low Stock', 
+        class: 'status-badge status-low-stock' 
+      };
     } else {
-      return { class: 'status-badge status-in-stock', text: 'In Stock' };
+      return { 
+        value: 'in-stock', 
+        text: 'In Stock', 
+        class: 'status-badge status-in-stock' 
+      };
     }
+  }
+
+  formatCategoryName(categoryStr) {
+    if (!categoryStr) return '';
+    return categoryStr
+      .replace(/_/g, ' ')
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   }
 
   capitalizeFirst(str) {
@@ -388,7 +495,7 @@ class InventoryManager {
     this.totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
     if (this.totalPages === 0) this.totalPages = 1;
     if (this.currentPage > this.totalPages) {
-      this.currentPage = this.totalPages;
+      this.currentPage = this.totalPages; // Pastikan halaman tetap valid
     }
     this.renderPagination();
   }
@@ -405,8 +512,8 @@ class InventoryManager {
     }
 
     // Update prev/next buttons
-    if (prevBtn) prevBtn.disabled = this.currentPage === 1;
-    if (nextBtn) nextBtn.disabled = this.currentPage === this.totalPages;
+    // if (prevBtn) prevBtn.disabled = this.currentPage === 1;
+    // if (nextBtn) nextBtn.disabled = this.currentPage === this.totalPages;
 
     // Generate page numbers
     if (!pageNumbers) return;
@@ -438,19 +545,15 @@ class InventoryManager {
 
   toggleFilterStock() {
     const dropdown = document.getElementById('filter-dropdown');
-    const filterBtn = document.querySelector('.filter-btn'); // Sesuaikan selector jika perlu
+    const filterBtn = document.querySelector('.filter-btn');
     const isShown = dropdown.classList.toggle('show');
 
     if (isShown) {
-        // Hitung tinggi dinamis saat dropdown muncul
-        const btnRect = filterBtn.getBoundingClientRect();
-        const availableHeight = window.innerHeight - btnRect.bottom - 20; // Minus 20px untuk margin safety
-        
-        // Set max-height ke tinggi tersedia (minimal 200px agar tidak terlalu kecil)
-        dropdown.style.maxHeight = Math.max(200, availableHeight) + 'px';
+      const btnRect = filterBtn.getBoundingClientRect();
+      const availableHeight = window.innerHeight - btnRect.bottom - 20;
+      dropdown.style.maxHeight = Math.max(200, availableHeight) + 'px';
     } else {
-        // Reset max-height saat ditutup (opsional)
-        dropdown.style.maxHeight = 'none';
+      dropdown.style.maxHeight = 'none';
     }
   }
 
@@ -465,34 +568,22 @@ class InventoryManager {
       return;
     }
 
-    const categoryValue = categoryFilter.value;
-    const unitValue = unitFilter.value;
-    const statusValue = statusFilter.value;
+    this.currentFilters = {
+      category: categoryFilter.value,
+      unit: unitFilter.value,
+      status: statusFilter.value
+    };
+
+    this.applyCurrentFiltersAndSearch(true);
+
     const sortValue = sortFilter.value;
-
-    // Filter data
-    this.filteredInventory = this.inventory.filter(item => {
-      const categoryMatch = !categoryValue || item.category === categoryValue;
-      const unitMatch = !unitValue || item.unit === unitValue;
-      
-      // Status filter logic
-      let statusMatch = true;
-      if (statusValue) {
-        const status = this.getStockStatus(item);
-        statusMatch = status.text.toLowerCase().replace(' ', '-') === statusValue;
-      }
-      
-      return categoryMatch && unitMatch && statusMatch;
-    });
-
-    // Sort data
     if (sortValue === 'a-z') {
       this.filteredInventory.sort((a, b) => a.name.localeCompare(b.name));
     } else if (sortValue === 'z-a') {
       this.filteredInventory.sort((a, b) => b.name.localeCompare(a.name));
     }
 
-    this.currentPage = 1;
+    // this.currentPage = 1;
     this.renderInventoryTable();
     this.toggleFilterStock();
   }
@@ -508,11 +599,10 @@ class InventoryManager {
     if (statusFilter) statusFilter.value = '';
     if (sortFilter) sortFilter.value = '';
 
-    this.filteredInventory = [...this.inventory];
-    this.currentPage = 1;
-    this.renderInventoryTable();
-    this.toggleFilterStock();
-
+    this.currentFilters = { category: '', unit: '', status: '' };
+    this.currentSearchTerm = '';
+    this.isUserInteracting = false;
+    this.applyCurrentFiltersAndSearch(true);
   }
 
   changeStockPage(direction) {
@@ -534,25 +624,21 @@ class InventoryManager {
   }
 
   viewItem(itemId) {
-    const item= this.inventory.find(i => i.id === itemId);
+    const item = this.inventory.find(i => i.id === itemId);
     if (!item) {
       this.showError('Item not found');
       return;
     }
 
     document.getElementById('view-item-name').textContent = item.name;
-    document.getElementById('view-item-category').textContent = this.capitalizeFirst(item.category);
+    document.getElementById('view-item-category').textContent = this.formatCategoryName(item.category);
     document.getElementById('view-item-current').textContent = `${item.current_quantity.toFixed(2)} ${item.unit}`;
     document.getElementById('view-item-unit').textContent = this.capitalizeFirst(item.unit);
     document.getElementById('view-item-minimum').textContent = `${item.minimum_quantity.toFixed(2)} ${item.unit}`;
 
     const status = this.getStockStatus(item);
     const statusElement = document.getElementById('view-item-status');
-    statusElement.textContent = status.text;
-    statusElement.className = `status-label ${status.class.replace('status-badge', '')}`;
-
-    document.getElementById('view-item-modal').setAttribute('data-item-id', itemId);
-
+    statusElement.innerHTML = `<span class="${status.class}">${status.text}</span>`;
     this.showModal('view-item-modal');
   }
 
@@ -575,7 +661,6 @@ class InventoryManager {
     }, 50);
   }
 
-  // Add New Item
   openAddItemModal() {
     this.editingItem = null;
     const modalTitle = document.getElementById('modal-title');
@@ -662,22 +747,20 @@ class InventoryManager {
       if (response.ok) {
         this.showSuccess(isEditing ? 'Item updated successfully' : 'Item added successfully');
         this.closeModal('item-modal');
-        this.loadInventoryData(); // Reload data
+        this.loadAndRefreshData();
       } else {
         const errorData = await response.json();
         this.showError(errorData.error || 'Failed to save item');
       }
     } catch (error) {
       console.error('Error saving item:', error);
-      // Fallback: add to local sample data for demonstration
-      this.handleLocalFormSubmission(itemData);
+      this.handleLocalFormSubmission(itemData, isEditing, itemId);
     }
   }
 
   handleLocalFormSubmission(itemData, isEditing, itemId) {
     if (isEditing) {
-      // Update existing item in local data
-      const index = this.inventory.findIndex(item => item.id === parseInt(item.id));
+      const index = this.inventory.findIndex(item => item.id === parseInt(itemId));
       if (index !== -1) {
         this.inventory[index] = { ...this.inventory[index], ...itemData };
         this.showSuccess('Item updated successfully (local demo)');
@@ -690,8 +773,7 @@ class InventoryManager {
       this.showSuccess('Item added successfully (local demo)');
     }
 
-    this.filteredInventory = [...this.inventory];
-    this.renderInventoryTable();
+    this.applyCurrentFiltersAndSearch();
     this.updateOverviewCards({
       total_items: this.inventory.length,
       critical_count: this.inventory.filter(item => item.current_quantity <= 0).length,
@@ -712,7 +794,7 @@ class InventoryManager {
       if (response.ok) {
         this.showSuccess('Item deleted successfully');
         this.closeModal('delete-modal');
-        this.loadInventoryData(); // Reload data
+        this.loadAndRefreshData();
       } else {
         const errorData = await response.json();
         this.showError(errorData.error || 'Failed to delete item');
@@ -730,9 +812,7 @@ class InventoryManager {
       this.inventory.splice(index, 1);
       this.showSuccess('Item deleted successfully (local demo)');
       this.closeModal('delete-modal');
-
-      this.filteredInventory = [...this.inventory];
-      this.renderInventoryTable();
+      this.applyCurrentFiltersAndSearch();
       this.updateOverviewCards({
         total_items: this.inventory.length,
         critical_count: this.inventory.filter(item => item.current_quantity <= 0).length,
@@ -822,6 +902,16 @@ class InventoryManager {
     this.showModal('add-stock-modal');
   }
 
+  // Add New Item
+    openAddItemModal() {
+    this.editingItem = null;
+    const modalTitle = document.getElementById('modal-title');
+    const itemForm = document.getElementById('item-form');
+    if (modalTitle) modalTitle.textContent = 'Add New Item';
+    if (itemForm) itemForm.reset();
+    this.showModal('item-modal');
+  }
+
   populateIngredientSelect() {
     const select = document.getElementById('stock-ingredient');
     if (!select) {
@@ -838,8 +928,59 @@ class InventoryManager {
     });
   }
 
+  // Dynamic Filters
+  populateDynamicFilters() {
+    try {
+      const categoryFilter = document.getElementById('category-filter');
+      const unitFilter = document.getElementById('unit-filter');
+      const statusFilter = document.getElementById('status-filter');
+
+      const uniqueCategories = [...new Set(this.inventory.map(item => item.category))];
+      const uniqueUnits = [...new Set(this.inventory.map(item => item.unit))];
+      const statuses = [
+          { value: 'in-stock', text: 'In Stock' },
+          { value: 'low-stock', text: 'Low Stock' },
+          { value: 'out-of-stock', text: 'Out of Stock' }
+      ];
+
+      categoryFilter.innerHTML = '<option value="">All Categories</option>';
+      unitFilter.innerHTML = '<option value="">All Units</option>';
+      statusFilter.innerHTML = '<option value="">All Status</option>';
+
+      uniqueCategories.sort();
+      uniqueCategories.forEach(category => {
+        const option = document.createElement('option');
+        option.value = category;
+        option.textContent = this.formatCategoryName(category);
+        categoryFilter.appendChild(option);
+      });
+
+      uniqueUnits.sort();
+      uniqueUnits.forEach(unit => {
+        const option = document.createElement('option');
+        option.value = unit;
+        option.textContent = this.capitalizeFirst(unit);
+        unitFilter.appendChild(option);
+      });
+      
+      statuses.forEach(status => {
+          const option = document.createElement('option');
+          option.value = status.value;
+          option.textContent = status.text;
+          statusFilter.appendChild(option);
+      });
+
+      // Terapkan kembali nilai filter yang tersimpan
+      categoryFilter.value = this.currentFilters.category || '';
+      unitFilter.value = this.currentFilters.unit || '';
+      statusFilter.value = this.currentFilters.status || '';
+    } catch (error) {
+      console.error('Gagal membuat filter dinamis:', error);
+    }
+  }
+
   async handleAddStockSubmit() {
-    // const formData = new FormData(document.getElementById('add-stock-form'));const addStockForm = document.getElementById('add-stock-form');
+    const addStockForm = document.getElementById('add-stock-form');
     if (!addStockForm) {
       console.warn("Add stock form not found in DOM");
       return;
@@ -862,7 +1003,7 @@ class InventoryManager {
       if (response.ok) {
         this.showSuccess('Stock added successfully');
         this.closeModal('add-stock-modal');
-        this.loadInventoryData();
+        this.loadAndRefreshData();
         document.getElementById('add-stock-form').reset();
       } else {
         const errorData = await response.json();
@@ -873,113 +1014,6 @@ class InventoryManager {
       this.showError('Failed to add stock');
     }
   }
-
-  // // Bulk Stock Modal Methods
-  // openBulkStockModal() {
-  //   this.populateBulkIngredientSelect();
-  //   this.showModal('bulk-stock-modal');
-  // }
-
-  // populateBulkIngredientSelect() {
-  //   const selects = document.querySelectorAll('#bulk-stock-items select[name="ingredient_id[]"]');
-  //   if (selects.length === 0) {
-  //     console.warn("Bulk stock select elements not found in DOM");
-  //   }
-  //   selects.forEach(select => {
-  //     select.innerHTML = '<option value="">Select Ingredient</option>';
-  //     this.inventory.forEach(item => {
-  //       const option = document.createElement('option');
-  //       option.value = item.id;
-  //       option.textContent = `${item.name} (${item.current_quantity.toFixed(2)} ${item.unit})`;
-  //       select.appendChild(option);
-  //     });
-  //   });
-  // }
-
-  // addBulkItem() {
-  //   const container = document.getElementById('bulk-stock-items');
-  //   // if (!container) {
-  //   //   console.warn("Bulk stock items container not found in DOM");
-  //   //   return;
-  //   // }
-  //   addStockForm.reset();
-  //   const newItem = document.createElement('div');
-  //   newItem.className = 'bulk-stock-item';
-  //   newItem.innerHTML = `
-  //     <select name="ingredient_id[]" required>
-  //       <option value="">Select Ingredient</option>
-  //     </select>
-  //     <input type="number" name="quantity[]" placeholder="Qty" min="0" step="0.01" required>
-  //     <button type="button" class="remove-bulk-item-btn" onclick="inventoryManager.removeBulkItem(this)">
-  //       <i class="fas fa-minus"></i>
-  //     </button>
-  //   `;
-    
-  //   container.appendChild(newItem);
-  //   this.populateBulkIngredientSelect();
-  // }
-
-  // removeBulkItem(button) {
-  //   button.parentElement.remove();
-  // }
-
-  // async handleBulkStockSubmit() {
-  //   // const formData = new FormData(document.getElementById('bulk-stock-form'));
-  //   const bulkStockForm = document.getElementById('bulk-stock-form');
-  //   if (!bulkStockForm) {
-  //     console.warn("Bulk stock form not found in DOM");
-  //     return;
-  //   }
-
-  //   const formData = new FormData(bulkStockForm);
-  //   const ingredientIds = formData.getAll('ingredient_id[]');
-  //   const quantities = formData.getAll('quantity[]');
-  //   const notes = formData.get('notes') || '';
-
-  //   const stockItems = ingredientIds.map((id, index) => ({
-  //     ingredient_id: parseInt(id),
-  //     quantity: parseFloat(quantities[index])
-  //   }));
-
-  //   const bulkData = {
-  //     stock_items: stockItems,
-  //     notes: notes
-  //   };
-
-  //   try {
-  //     const response = await fetch('/inventory/stock/bulk_add', {
-  //       method: 'POST',
-  //       headers: { 'Content-Type': 'application/json' },
-  //       body: JSON.stringify(bulkData)
-  //     });
-
-  //     if (response.ok) {
-  //       this.showSuccess('Bulk stock added successfully');
-  //       this.closeModal('bulk-stock-modal');
-  //       this.loadInventoryData();
-  //       // document.getElementById('bulk-stock-form').reset();
-  //       // Reset bulk items to single item
-  //       bulkStockForm.reset();
-  //       document.getElementById('bulk-stock-items').innerHTML = `
-  //         <div class="bulk-stock-item">
-  //           <select name="ingredient_id[]" required>
-  //             <option value="">Select Ingredient</option>
-  //           </select>
-  //           <input type="number" name="quantity[]" placeholder="Qty" min="0" step="0.01" required>
-  //           <button type="button" class="remove-bulk-item-btn" onclick="inventoryManager.removeBulkItem(this)">
-  //             <i class="fas fa-minus"></i>
-  //           </button>
-  //         </div>
-  //       `;
-  //     } else {
-  //       const errorData = await response.json();
-  //       this.showError(errorData.error || 'Failed to add bulk stock');
-  //     }
-  //   } catch (error) {
-  //     console.error('Error adding bulk stock:', error);
-  //     this.showError('Failed to add bulk stock');
-  //   }
-  // }
 
   // Consumption Log Modal Methods
   openConsumptionLogModal() {
@@ -1076,13 +1110,6 @@ class InventoryManager {
     });
   }
 }
-
-// Global functions for onclick handlers
-// window.removeBulkItem = function(button) {
-//   if (window.inventoryManager) {
-//     window.inventoryManager.removeBulkItem(button);
-//   }
-// };
 
 window.closeViewItemModal = function() {
   if (window.inventoryManager) {
