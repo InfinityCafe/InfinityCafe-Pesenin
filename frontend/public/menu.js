@@ -1040,7 +1040,6 @@ window.addEventListener('load', async () => {
     // Load menus (flavors are included in menu data)
     await loadMenus();
     await loadFlavors();
-    switchTab('menu');
     setupNavigation();
     setupSearch();
     

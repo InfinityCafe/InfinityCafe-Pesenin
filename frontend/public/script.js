@@ -302,22 +302,74 @@ function displayUserInfo() {
 }
 
 // Inisialisasi kode bersama saat DOM dimuat
+function switchTab(tabId) {
+    const page = document.body.getAttribute('data-page');
+    console.log('switchTab called with tabId:', tabId, 'on page:', page);
+
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('tab-active'));
+    document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+
+    if (page === 'menu') {
+        if (tabId === 'menu' || tabId === 'flavors') {
+            const tabButton = document.getElementById(`tab-${tabId}`);
+            const tabContent = document.getElementById(`tab-${tabId}-content`);
+            if (tabButton && tabContent) {
+                console.log(`Activating tab: ${tabId}`);
+                tabButton.classList.add('tab-active');
+                tabContent.classList.add('active');
+                // Update add button text
+                const addButton = document.getElementById('add-new-btn');
+                if (addButton) {
+                    addButton.textContent = tabId === 'flavors' ? 'ADD NEW FLAVOUR' : 'ADD NEW MENU';
+                    console.log('Updated add button text to:', addButton.textContent);
+                }
+                if (tabId === 'flavors' && typeof loadFlavors === 'function') {
+                    console.log('Calling loadFlavors');
+                    loadFlavors().catch(error => {
+                        console.error('Failed to load flavors:', error);
+                        showErrorModal('Gagal memuat data varian rasa: ' + error.message);
+                    });
+                } else if (tabId === 'menu' && typeof loadMenus === 'function') {
+                    console.log('Calling loadMenus');
+                    loadMenus().catch(error => {
+                        console.error('Failed to load menus:', error);
+                        showErrorModal('Gagal memuat data menu: ' + error.message);
+                    });
+                }
+            } else {
+                console.warn(`Tab element not found: tab-${tabId} or tab-${tabId}-content`);
+            }
+        } else {
+            console.warn(`Invalid tabId: ${tabId}, defaulting to menu`);
+            switchTab('menu');
+        }
+    } else if (page === 'menu_suggestion') {
+        const suggestionButton = document.getElementById('tab-menu-suggestion');
+        if (suggestionButton) {
+            suggestionButton.classList.add('tab-active');
+            console.log('Activated menu_suggestion tab');
+        }
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOMContentLoaded event triggered in script.js');
     checkAuth();
     updateGreetingDate();
 
     const page = document.body.getAttribute('data-page');
-    const urlParams = new URLSearchParams(window.location.search);
-    const tab = urlParams.get('tab');
+    const hash = window.location.hash.replace('#', '');
+    console.log('Current page:', page, 'Hash:', hash);
+
+    const validTabs = ['menu', 'flavors'];
 
     if (page === 'menu') {
-        // Default to 'menu' tab if no valid parameter
-        const activeTab = tab && ['menu', 'flavors'].includes(tab) ? tab : 'menu';
+        const activeTab = validTabs.includes(hash) ? hash : 'menu';
+        console.log('Active tab set to:', activeTab);
         switchTab(activeTab);
-        // Clear URL query parameters to prevent persistence
-        if (window.location.search) {
-            window.history.replaceState({}, document.title, 'menu-management');
+        if (validTabs.includes(hash)) {
+            console.log('Clearing hash from URL');
+            window.history.replaceState({}, document.title, '/menu-management');
         }
         // Ensure data is loaded for the active tab
         if (activeTab === 'flavors' && typeof loadFlavors === 'function') {
