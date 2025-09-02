@@ -575,6 +575,7 @@ class InventoryManager {
     }, 50);
   }
 
+  // Add New Item
   openAddItemModal() {
     this.editingItem = null;
     const modalTitle = document.getElementById('modal-title');
