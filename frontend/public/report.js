@@ -1280,6 +1280,76 @@ function getOrderIngredientUsage(order) {
     return Object.values(ingredientUsage);
 }
 
+// ========== UTILITY FUNCTIONS ==========
+function showEmptyState(message, type = 'info') {
+    const tbody = document.getElementById("report-tbody");
+    if (!tbody) return;
+    
+    const colspan = currentDataType === 'ingredient' ? 7 : 5;
+    const icon = type === 'error' ? '❌' : type === 'warning' ? '⚠️' : '📊';
+    const color = type === 'error' ? '#DC2626' : type === 'warning' ? '#F59E0B' : '#6B7280';
+    
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="${colspan}" style="text-align: center; padding: 2rem; color: ${color}; font-style: italic;">
+                <div style="margin-bottom: 0.5rem;">
+                    <span style="font-size: 2rem;">${icon}</span>
+                </div>
+                <div style="font-size: 1.1rem; font-weight: 500; margin-bottom: 0.5rem;">
+                    ${message}
+                </div>
+                <div style="font-size: 0.9rem; color: #9CA3AF;">
+                    Coba pilih periode tanggal yang berbeda atau periksa data pesanan
+                </div>
+            </td>
+        </tr>`;
+}
+
+function updateSummaryWithData(data, type = 'sales') {
+    const summaryPeriod = document.getElementById("summary-period");
+    const summaryIncome = document.getElementById("summary-income");
+    const summaryOrders = document.getElementById("summary-orders");
+    const statusEl = document.getElementById("summary-status-badge");
+    
+    if (summaryPeriod) {
+        summaryPeriod.textContent = `${data.start_date || 'N/A'} s/d ${data.end_date || 'N/A'}`;
+    }
+    
+    if (summaryIncome) {
+        if (type === 'sales') {
+            summaryIncome.textContent = `Rp ${(data.total_income || 0).toLocaleString()}`;
+        } else if (type === 'best') {
+            const totalRevenue = data.best_sellers ? 
+                data.best_sellers.reduce((sum, item) => sum + (item.total_revenue || 0), 0) : 0;
+            summaryIncome.textContent = `Rp ${totalRevenue.toLocaleString()}`;
+        }
+    }
+    
+    if (summaryOrders) {
+        if (type === 'sales') {
+            summaryOrders.textContent = `${data.total_order || 0}`;
+        } else if (type === 'best') {
+            summaryOrders.textContent = `${data.processed_orders || 0}`;
+        }
+    }
+    
+    if (statusEl) {
+        if (type === 'sales') {
+            statusEl.textContent = "Data Sales";
+            statusEl.className = 'status-badge status-deliver';
+        } else if (type === 'best') {
+            statusEl.textContent = "Best Seller";
+            statusEl.className = 'status-badge status-warning';
+        } else if (type === 'empty') {
+            statusEl.textContent = "Kosong";
+            statusEl.className = 'status-badge status-cancel';
+        } else if (type === 'error') {
+            statusEl.textContent = "Error";
+            statusEl.className = 'status-badge status-cancel';
+        }
+    }
+}
+
 // ========== CHART FUNCTIONS ==========
 function showPieModal(label, value, percent) {
     document.getElementById("pie-modal-content").innerHTML = `
@@ -1494,6 +1564,7 @@ async function loadReport() {
             url += `&menu_name=${encodeURIComponent(menuFilter)}`;
         }
 
+        console.log('Fetching report data from:', url);
         const res = await fetch(url, { signal: controller.signal });
         clearTimeout(timeout);
         
@@ -1503,21 +1574,17 @@ async function loadReport() {
         }
         
         const data = await res.json();
+        console.log('Report data received:', data);
         currentReportData = data;
         currentDataType = 'sales';
 
         // Update summary
-        document.getElementById("summary-period").textContent = `${data.start_date || 'N/A'} s/d ${data.end_date || 'N/A'}`;
-        document.getElementById("summary-income").textContent = `Rp ${(data.total_income || 0).toLocaleString()}`;
-        document.getElementById("summary-orders").textContent = `${data.total_order || 0}`;
-        const statusEl = document.getElementById("summary-status-badge");
-        if (statusEl) {
-            statusEl.textContent = "Data Sales";
-            statusEl.className = 'status-badge status-deliver';
-        }
+        updateSummaryWithData(data, 'sales');
         applyModeLayout('sales');
 
         const details = Array.isArray(data.details) ? data.details : [];
+        console.log('Report details:', details);
+        
         const newHash = computeDataHash(details);
         if (newHash !== lastReportHash) {
             lastReportHash = newHash;
@@ -1542,13 +1609,26 @@ async function loadReport() {
                         <th>Total</th>`;
                 }
                 renderCharts(details);
+            } else {
+                // Show empty state
+                renderCharts([]);
+                const tableHeader = document.querySelector('#report-table thead tr');
+                if (tableHeader) {
+                    tableHeader.innerHTML = `
+                        <th>No</th>
+                        <th>Menu</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                        <th>Total</th>`;
+                }
             }
         }
 
         if (details.length > 0) {
             const topMenu = details.reduce((max, curr) => (curr.total || 0) > (max.total || 0) ? curr : max, details[0]);
-        await loadTopCustomers(start, end, data, topMenu);
+            await loadTopCustomers(start, end, data, topMenu);
         } else {
+            console.log('No sales data found, loading best seller data instead');
             await loadBestSellerData(start, end);
         }
         
@@ -1564,7 +1644,8 @@ async function loadReport() {
 
 async function loadBestSellerData(start, end) {
     try {
-        const res = await fetch(`/report/best_seller?start_date=${start}&end_date=${end}&limit=10`);
+        console.log('Fetching best seller data for:', start, 'to', end);
+        const res = await fetch(`/report/best_seller?start_date=${start}&end_date=${end}`);
         
         if (!res.ok) {
             const errorData = await res.json();
@@ -1572,8 +1653,10 @@ async function loadBestSellerData(start, end) {
         }
         
         const data = await res.json();
+        console.log('Best seller data received:', data);
 
         if (data.best_sellers && data.best_sellers.length > 0) {
+            console.log('Best sellers found:', data.best_sellers.length);
             // Convert best seller data to chart format
             const chartData = data.best_sellers.map(item => ({
                 menu_name: item.menu_name || 'N/A',
@@ -1586,14 +1669,7 @@ async function loadBestSellerData(start, end) {
             const totalRevenue = data.best_sellers.reduce((sum, item) => sum + (item.total_revenue || 0), 0);
             
             // Update summary with best seller data
-            document.getElementById("summary-period").textContent = `${data.start_date || 'N/A'} s/d ${data.end_date || 'N/A'}`;
-            document.getElementById("summary-income").textContent = `Rp ${totalRevenue.toLocaleString()}`;
-            document.getElementById("summary-orders").textContent = `${data.processed_orders || 0}`;
-            const statusEl = document.getElementById("summary-status-badge");
-            if (statusEl) {
-                statusEl.textContent = "Best Seller";
-                statusEl.className = 'status-badge status-warning';
-            }
+            updateSummaryWithData(data, 'best');
             applyModeLayout('best');
 
             const best = data.best_sellers;
@@ -1625,24 +1701,34 @@ async function loadBestSellerData(start, end) {
                 }
             }
         } else {
+            console.log('No best seller data found');
             // Show empty chart and table
             renderCharts([]);
             baseData = [];
             filteredData = [];
             renderTablePage();
             updatePagination();
-            document.getElementById("summary-income").textContent = `Rp 0`;
-            document.getElementById("summary-orders").textContent = `0`;
-            const statusEl2 = document.getElementById("summary-status-badge");
-            if (statusEl2) {
-                statusEl2.textContent = "Kosong";
-                statusEl2.className = 'status-badge status-cancel';
+            updateSummaryWithData(data, 'empty');
+            // Update table header for empty state
+            const tableHeader = document.querySelector('#report-table thead tr');
+            if (tableHeader) {
+                tableHeader.innerHTML = `
+                    <th>No</th>
+                    <th>Menu</th>
+                    <th>Total Qty</th>
+                    <th>Unit Price</th>
+                    <th>Total Revenue</th>`;
             }
         }
 
     } catch (err) {
         console.error("Error loading best seller data:", err);
-        // Don't show alert, just log error
+        // Show error in table
+        baseData = [];
+        filteredData = [];
+        renderTablePage();
+        updatePagination();
+        updateSummaryWithData({}, 'error');
     }
 }
 
@@ -1810,60 +1896,64 @@ function renderTablePage() {
                                 </button>
                             </td>
                         </tr>`;
-                                 } else {
-                     console.log('Using daily view format');
-                     // Daily view - show aggregated data with detail button
-                     const dailySummary = item.daily_summary || {};
-                     const totalOrders = dailySummary.total_orders || 0;
-                     const uniqueMenus = dailySummary.unique_menus || 0;
-                     const totalConsumption = dailySummary.total_consumption || 0;
-                     
-                     tbody.innerHTML += `
-                         <tr onclick="viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="cursor: pointer;">
-                             <td>${actualIndex + 1}</td>
-                             <td style="font-weight: 600; color: #1F2937;">${item.date || '-'}</td>
-                             <td style="color: #6B7280; line-height: 1.4;">
-                                 <div style="margin-bottom: 0.25rem;">
-                                     <span style="color: #059669; font-weight: 600;">📊 ${totalOrders} pesanan</span>
-                                 </div>
-                                 <div style="font-size: 0.9rem; color: #6B7280;">
-                                     <span style="color: #7C3AED; font-weight: 500;">🍽️ ${uniqueMenus} menu unik</span>
-                                 </div>
-                             </td>
-                             <td style="text-align: center; font-weight: 600; color: #059669;">${totalOrders.toLocaleString()}</td>
-                             <td style="text-align: center; font-weight: 600; color: #DC2626;">${totalConsumption.toLocaleString()}</td>
-                             <td>
-                                 <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="white-space: nowrap; min-width: 80px;">
-                                     🔍 Detail
-                                 </button>
-                             </td>
-                         </tr>`;
-                 }
+                } else {
+                    console.log('Using daily view format');
+                    // Daily view - show aggregated data with detail button
+                    const dailySummary = item.daily_summary || {};
+                    const totalOrders = dailySummary.total_orders || 0;
+                    const uniqueMenus = dailySummary.unique_menus || 0;
+                    const totalConsumption = dailySummary.total_consumption || 0;
+                    
+                    tbody.innerHTML += `
+                        <tr onclick="viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="cursor: pointer;">
+                            <td>${actualIndex + 1}</td>
+                            <td style="font-weight: 600; color: #1F2937;">${item.date || '-'}</td>
+                            <td style="color: #6B7280; line-height: 1.4;">
+                                <div style="margin-bottom: 0.25rem;">
+                                    <span style="color: #059669; font-weight: 600;">📊 ${totalOrders} pesanan</span>
+                                </div>
+                                <div style="font-size: 0.9rem; color: #6B7280;">
+                                    <span style="color: #7C3AED; font-weight: 500;">🍽️ ${uniqueMenus} menu unik</span>
+                                </div>
+                            </td>
+                            <td style="text-align: center; font-weight: 600; color: #059669;">${totalOrders.toLocaleString()}</td>
+                            <td style="text-align: center; font-weight: 600; color: #DC2626;">${totalConsumption.toLocaleString()}</td>
+                            <td>
+                                <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="white-space: nowrap; min-width: 80px;">
+                                    🔍 Detail
+                                </button>
+                            </td>
+                        </tr>`;
+                }
             } else {
-            tbody.innerHTML += `
-                <tr>
-                    <td>${actualIndex + 1}</td>
-                    <td>${item.menu_name || 'N/A'}</td>
-                    <td>${item.quantity || item.total_quantity || 0}</td>
-                    <td>Rp ${(item.unit_price || 0).toLocaleString()}</td>
-                    <td>Rp ${(item.total || item.total_revenue || 0).toLocaleString()}</td>
-                </tr>`;
+                // Sales or Best Seller data
+                console.log('Rendering sales/best seller item:', item);
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${actualIndex + 1}</td>
+                        <td>${item.menu_name || 'N/A'}</td>
+                        <td>${item.quantity || item.total_quantity || 0}</td>
+                        <td>Rp ${(item.unit_price || 0).toLocaleString()}</td>
+                        <td>Rp ${(item.total || item.total_revenue || 0).toLocaleString()}</td>
+                    </tr>`;
             }
         });
     } else {
-                 tbody.innerHTML = `
-             <tr>
-                 <td colspan="6" style="text-align: center; padding: 2rem; border-top-right-radius: 0.5rem; border-bottom-right-radius: 0.5rem;">
-                     Tidak ada data untuk halaman ini
-                 </td>
-             </tr>`;
-        }
+        // No data to display
+        const message = currentDataType === 'ingredient' 
+            ? 'Tidak ada data konsumsi bahan untuk periode ini'
+            : currentDataType === 'best' 
+                ? 'Tidak ada data best seller untuk periode ini'
+                : 'Tidak ada data penjualan untuk periode ini';
         
-        // Update pagination info
-        document.getElementById("pagination-start").textContent = startIndex + 1;
-        document.getElementById("pagination-end").textContent = Math.min(endIndex, filteredData.length);
-        document.getElementById("pagination-total").textContent = filteredData.length;
+        showEmptyState(message, 'info');
     }
+    
+    // Update pagination info
+    document.getElementById("pagination-start").textContent = startIndex + 1;
+    document.getElementById("pagination-end").textContent = Math.min(endIndex, filteredData.length);
+    document.getElementById("pagination-total").textContent = filteredData.length;
+}
     
     function updatePagination() {
         const maxPage = Math.ceil(filteredData.length / itemsPerPage);
@@ -2363,11 +2453,26 @@ document.addEventListener('visibilitychange', () => {
     
     // ========== INITIALIZATION ==========
 window.onload = () => {
+    console.log('Window loaded, initializing report page...');
     const today = new Date().toISOString().split('T')[0];
-    document.getElementById("start_date").value = today;
-    document.getElementById("end_date").value = today;
-    loadReport();
-        startAutoRefresh();
+    const startDateInput = document.getElementById("start_date");
+    const endDateInput = document.getElementById("end_date");
+    
+    if (startDateInput && endDateInput) {
+        startDateInput.value = today;
+        endDateInput.value = today;
+        console.log('Set default dates:', today);
+        
+        // Load initial data
+        setTimeout(() => {
+            console.log('Loading initial report data...');
+            loadReport();
+        }, 100);
+    } else {
+        console.error('Date input elements not found');
+    }
+    
+    startAutoRefresh();
 };
 
 function getItemFlavorRaw(item) {

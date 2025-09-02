@@ -147,7 +147,13 @@ def get_report(
     
     # 3. Get menu data untuk price
     menu_url = f"{MENU_SERVICE_URL}/menu"
-    menus = make_request(menu_url)
+    menu_response = make_request(menu_url)
+    
+    # Handle different response structures from menu service
+    if isinstance(menu_response, dict) and 'value' in menu_response:
+        menus = menu_response['value']
+    else:
+        menus = menu_response
     
     # Debug logging
     logging.info(f"Retrieved {len(menus)} menus from menu service")
@@ -155,13 +161,20 @@ def get_report(
         logging.info(f"Sample menu structure: {menus[0]}")
     
     # Create menu price lookup - gunakan field yang benar dari menu service
-    # Menu service menggunakan 'base_name' dan 'base_price'
+    # Menu service menggunakan 'base_name_en' dan 'base_price'
     menu_prices = {}
+    menu_name_mapping = {}  # Map Indonesian names to English names
     for menu in menus:
-        if 'base_name' in menu and 'base_price' in menu:
+        if 'base_name_en' in menu and 'base_price' in menu:
+            menu_prices[menu['base_name_en']] = menu['base_price']
+            # Also map Indonesian name to English name for compatibility
+            if 'base_name_id' in menu:
+                menu_name_mapping[menu['base_name_id']] = menu['base_name_en']
+        elif 'base_name' in menu and 'base_price' in menu:
+            # Fallback untuk struktur data lama
             menu_prices[menu['base_name']] = menu['base_price']
         elif 'menu_name' in menu and 'menu_price' in menu:
-            # Fallback untuk struktur data lama
+            # Fallback untuk struktur data yang berbeda
             menu_prices[menu['menu_name']] = menu['menu_price']
         else:
             # Fallback untuk struktur data yang berbeda
@@ -229,21 +242,24 @@ def get_report(
                     if not menu_item_name or not quantity:
                         continue
                     
-                    unit_price = menu_prices.get(menu_item_name, 0)
+                    # Map Indonesian menu name to English name if available
+                    display_name = menu_name_mapping.get(menu_item_name, menu_item_name)
+                    
+                    unit_price = menu_prices.get(display_name, 0)
                     item_total = quantity * unit_price
                     
                     total_income += item_total
                     
-                    if menu_item_name not in menu_summary:
-                        menu_summary[menu_item_name] = {
-                            "menu_name": menu_item_name,
+                    if display_name not in menu_summary:
+                        menu_summary[display_name] = {
+                            "menu_name": display_name,
                             "quantity": 0,
                             "unit_price": unit_price,
                             "total": 0
                         }
                     
-                    menu_summary[menu_item_name]["quantity"] += quantity
-                    menu_summary[menu_item_name]["total"] += item_total
+                    menu_summary[display_name]["quantity"] += quantity
+                    menu_summary[display_name]["total"] += item_total
     
     # Sort by quantity descending
     details = sorted(menu_summary.values(), key=lambda x: x["quantity"], reverse=True)
@@ -292,12 +308,24 @@ def get_best_seller(
     try:
         # Get data from services
         orders = make_request(f"{ORDER_SERVICE_URL}/order")
-        menus = make_request(f"{MENU_SERVICE_URL}/menu")
+        menu_response = make_request(f"{MENU_SERVICE_URL}/menu")
+        
+        # Handle different response structures from menu service
+        if isinstance(menu_response, dict) and 'value' in menu_response:
+            menus = menu_response['value']
+        else:
+            menus = menu_response
         
         # Create price lookup dictionary - gunakan field yang benar
         menu_prices = {}
+        menu_name_mapping = {}  # Map Indonesian names to English names
         for menu in menus:
-            if 'base_name' in menu and 'base_price' in menu:
+            if 'base_name_en' in menu and 'base_price' in menu:
+                menu_prices[menu['base_name_en']] = menu['base_price']
+                # Also map Indonesian name to English name for compatibility
+                if 'base_name_id' in menu:
+                    menu_name_mapping[menu['base_name_id']] = menu['base_name_en']
+            elif 'base_name' in menu and 'base_price' in menu:
                 menu_prices[menu['base_name']] = menu['base_price']
             elif 'menu_name' in menu and 'menu_price' in menu:
                 # Fallback untuk struktur data lama
@@ -325,8 +353,26 @@ def get_best_seller(
             flavors = []  # Fallback jika endpoint flavor tidak ada
         
         # Create price lookup dictionaries
-        menu_prices = {menu['base_name']: menu['base_price'] for menu in menus}
-        flavor_lookup = {flavor['flavor_name']: flavor for flavor in flavors} if flavors else {}
+        menu_prices = {}
+        menu_name_mapping = {}
+        for menu in menus:
+            if 'base_name_en' in menu and 'base_price' in menu:
+                menu_prices[menu['base_name_en']] = menu['base_price']
+                if 'base_name_id' in menu:
+                    menu_name_mapping[menu['base_name_id']] = menu['base_name_en']
+            elif 'base_name' in menu and 'base_price' in menu:
+                menu_prices[menu['base_name']] = menu['base_price']
+        
+        # Create flavor lookup using both English and Indonesian names
+        flavor_lookup = {}
+        if flavors:
+            for flavor in flavors:
+                # Use English name as primary key
+                if 'flavor_name_en' in flavor:
+                    flavor_lookup[flavor['flavor_name_en']] = flavor
+                # Also map Indonesian name to the same flavor
+                if 'flavor_name_id' in flavor:
+                    flavor_lookup[flavor['flavor_name_id']] = flavor
         
         # Process menu sales data
         menu_sales = {}
@@ -345,7 +391,7 @@ def get_best_seller(
             if is_date_in_range(order_date, start_date, end_date):
                 total_orders_in_range += 1
                 
-                # Check order status directly from order data or get from detail endpoint
+                # Check order status directly from order data
                 order_status = order.get('status')  # Check if status field exists in order
                 
                 # If no status in order, get from order_status endpoint
@@ -385,22 +431,28 @@ def get_best_seller(
                                     quantity = item['quantity']
                                     preference = item.get('preference', '').strip() if item.get('preference') else ''
                                     
+                                    # Map Indonesian menu name to English name if available
+                                    display_name = menu_name_mapping.get(menu_name, menu_name)
+                                    
                                     # Calculate base price
-                                    unit_price = menu_prices.get(menu_name, 0)
+                                    unit_price = menu_prices.get(display_name, 0)
                                     
                                     # Calculate flavor additional cost
                                     flavor_additional_cost = 0
-                                    if preference and preference in flavor_lookup:
-                                        flavor_additional_cost = flavor_lookup[preference].get('additional_price', 0)
+                                    if preference:
+                                        # Try to find flavor by preference (could be Indonesian or English)
+                                        flavor_info = flavor_lookup.get(preference)
+                                        if flavor_info:
+                                            flavor_additional_cost = flavor_info.get('additional_price', 0)
                                     
                                     # Calculate total revenue including flavor
                                     base_revenue = quantity * unit_price
                                     flavor_revenue = quantity * flavor_additional_cost
                                     total_revenue = base_revenue + flavor_revenue
                                     
-                                    if menu_name not in menu_sales:
-                                        menu_sales[menu_name] = {
-                                            "menu_name": menu_name,
+                                    if display_name not in menu_sales:
+                                        menu_sales[display_name] = {
+                                            "menu_name": display_name,
                                             "total_quantity": 0,
                                             "total_orders": 0,
                                             "base_revenue": 0,
@@ -409,11 +461,11 @@ def get_best_seller(
                                             "unit_price": unit_price
                                         }
                                     
-                                    menu_sales[menu_name]["total_quantity"] += quantity
-                                    menu_sales[menu_name]["total_orders"] += 1
-                                    menu_sales[menu_name]["base_revenue"] += base_revenue
-                                    menu_sales[menu_name]["flavor_revenue"] += flavor_revenue
-                                    menu_sales[menu_name]["total_revenue"] += total_revenue
+                                    menu_sales[display_name]["total_quantity"] += quantity
+                                    menu_sales[display_name]["total_orders"] += 1
+                                    menu_sales[display_name]["base_revenue"] += base_revenue
+                                    menu_sales[display_name]["flavor_revenue"] += flavor_revenue
+                                    menu_sales[display_name]["total_revenue"] += total_revenue
                                     
                     except requests.exceptions.RequestException as e:
                         logging.error(f"Error getting order details for {order['order_id']}: {e}")
@@ -449,7 +501,9 @@ def get_best_seller(
         }
         
     except Exception as e:
+        import traceback
         logging.error(f"Error in best_seller endpoint: {e}")
+        logging.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
@@ -501,7 +555,13 @@ def get_financial_sales_report(
 
         # Get data dari semua services yang diperlukan
         orders = make_request(f"{ORDER_SERVICE_URL}/order")
-        menus = make_request(f"{MENU_SERVICE_URL}/menu")
+        menu_response = make_request(f"{MENU_SERVICE_URL}/menu")
+        
+        # Handle different response structures from menu service
+        if isinstance(menu_response, dict) and 'value' in menu_response:
+            menus = menu_response['value']
+        else:
+            menus = menu_response
         
         # Get flavor data dengan harga dari menu service
         try:
@@ -510,8 +570,26 @@ def get_financial_sales_report(
             flavors = []  # Fallback jika endpoint flavor tidak ada
         
         # Create lookup dictionaries
-        menu_lookup = {menu['base_name']: menu for menu in menus}
-        flavor_lookup = {flavor['flavor_name']: flavor for flavor in flavors} if flavors else {}
+        menu_lookup = {}
+        menu_name_mapping = {}
+        for menu in menus:
+            if 'base_name_en' in menu:
+                menu_lookup[menu['base_name_en']] = menu
+                if 'base_name_id' in menu:
+                    menu_name_mapping[menu['base_name_id']] = menu['base_name_en']
+            elif 'base_name' in menu:
+                menu_lookup[menu['base_name']] = menu
+        
+        # Create flavor lookup using both English and Indonesian names
+        flavor_lookup = {}
+        if flavors:
+            for flavor in flavors:
+                # Use English name as primary key
+                if 'flavor_name_en' in flavor:
+                    flavor_lookup[flavor['flavor_name_en']] = flavor
+                # Also map Indonesian name to the same flavor
+                if 'flavor_name_id' in flavor:
+                    flavor_lookup[flavor['flavor_name_id']] = flavor
         
         logging.info(f"Loaded {len(orders)} orders, {len(menus)} menus, {len(flavors)} flavors")
         
@@ -532,7 +610,7 @@ def get_financial_sales_report(
             if is_date_in_range(order_date, query_start_date, query_end_date):
                 total_orders_in_range += 1
                 
-                # Check order status - sama seperti best_seller
+                # Check order status directly from order data
                 order_status = order.get('status')  # Check if status field exists in order
                 
                 # If no status in order, get from order_status endpoint
@@ -573,16 +651,22 @@ def get_financial_sales_report(
                                     preference = item.get('preference', '').strip() if item.get('preference') else ''
                                     notes = item.get('notes', '').strip() if item.get('notes') else ''
                                     
+                                    # Map Indonesian menu name to English name if available
+                                    display_name = menu_name_mapping.get(menu_name, menu_name)
+                                    
                                     # Get menu data untuk base price
-                                    menu_data = menu_lookup.get(menu_name, {})
+                                    menu_data = menu_lookup.get(display_name, {})
                                     base_price = menu_data.get('base_price', 0)
                                     
                                     # Determine flavor dan harga flavor
                                     flavor_name = preference if preference else "-"
                                     flavor_additional_cost = 0
                                     
-                                    if preference and preference in flavor_lookup:
-                                        flavor_additional_cost = flavor_lookup[preference].get('additional_price', 0)
+                                    if preference:
+                                        # Try to find flavor by preference (could be Indonesian or English)
+                                        flavor_info = flavor_lookup.get(preference)
+                                        if flavor_info:
+                                            flavor_additional_cost = flavor_info.get('additional_price', 0)
                                     
                                     # Calculate total price for this item
                                     item_base_revenue = base_price * quantity
@@ -599,7 +683,7 @@ def get_financial_sales_report(
                                         "order_id": order['order_id'],
                                         "order_date": order_date,
                                         "customer_name": order.get('customer_name', 'Unknown'),
-                                        "menu_name": menu_name,
+                                        "menu_name": display_name,  # Use English name for display
                                         "flavor": flavor_name,
                                         "quantity": quantity,
                                         "base_price": base_price,

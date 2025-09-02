@@ -442,6 +442,59 @@ app.get("/report/suggested_menu", async (req, res) => {
   }
 });
 
+// Financial sales report endpoints
+app.get("/report/financial_sales", async (req, res) => {
+  const { start_date, end_date, today_only } = req.query;
+  try {
+    const params = new URLSearchParams();
+    if (start_date) params.append('start_date', start_date);
+    if (end_date) params.append('end_date', end_date);
+    if (today_only) params.append('today_only', today_only);
+    
+    const resp = await fetch(`http://report_service:8004/report/financial_sales?${params.toString()}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch financial sales report ", err);
+    res.status(500).json({ error: "Failed to fetch financial sales report" });
+  }
+});
+
+app.get("/report/financial_sales/summary", async (req, res) => {
+  const { start_date, end_date, today_only } = req.query;
+  try {
+    const params = new URLSearchParams();
+    if (start_date) params.append('start_date', start_date);
+    if (end_date) params.append('end_date', end_date);
+    if (today_only) params.append('today_only', today_only);
+    
+    const resp = await fetch(`http://report_service:8004/report/financial_sales/summary?${params.toString()}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch financial sales summary ", err);
+    res.status(500).json({ error: "Failed to fetch financial sales summary" });
+  }
+});
+
+app.get("/report/financial_sales/export", async (req, res) => {
+  const { start_date, end_date, today_only, format_type } = req.query;
+  try {
+    const params = new URLSearchParams();
+    if (start_date) params.append('start_date', start_date);
+    if (end_date) params.append('end_date', end_date);
+    if (today_only) params.append('today_only', today_only);
+    if (format_type) params.append('format_type', format_type);
+    
+    const resp = await fetch(`http://report_service:8004/report/financial_sales/export?${params.toString()}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to export financial sales report ", err);
+    res.status(500).json({ error: "Failed to export financial sales report" });
+  }
+});
+
 // Inventory endpoints
 app.get("/inventory/list", async (req, res) => {
   try {
