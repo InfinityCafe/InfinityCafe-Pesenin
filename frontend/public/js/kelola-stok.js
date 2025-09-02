@@ -44,8 +44,8 @@ class InventoryManager {
       this.closeModal('item-modal');
     });
 
-    safeAddEventListener('close-delete-modal', 'click', () => {
-      this.closeModal('delete-modal');
+    safeAddEventListener('close-change-status-modal', 'click', () => {
+      this.closeModal('change-status-modal');
     });
 
     // Form submission
@@ -54,13 +54,8 @@ class InventoryManager {
       this.handleFormSubmit();
     });
 
-    // Cancel buttons
-    safeAddEventListener('cancel-btn', 'click', () => {
-      this.closeModal('item-modal');
-    });
-
-    safeAddEventListener('cancel-delete-btn', 'click', () => {
-      this.closeModal('delete-modal');
+    safeAddEventListener('cancel-change-status-btn', 'click', () => {
+      this.closeModal('change-status-modal');
     });
 
     const searchInput = document.getElementById('table-search');
@@ -114,6 +109,10 @@ class InventoryManager {
       this.confirmDelete();
     });
 
+    safeAddEventListener('confirm-change-status-btn', 'click', () => {
+      this.confirmChangeStatus();
+    });
+
     // Kitchen toggle switch
     const kitchenToggle = document.getElementById('kitchen-toggle');
     if (kitchenToggle) {
@@ -128,11 +127,26 @@ class InventoryManager {
     safeAddEventListener('add-stock-btn', 'click', () => {
       this.openAddStockModal();
     });
+    // History button
+    safeAddEventListener('history-btn', 'click', () => {
+      this.openStockHistoryModal();
+    });
+    safeAddEventListener('close-stock-history-modal', 'click', () => {
+      this.closeModal('stock-history-modal');
+    });
+    safeAddEventListener('refresh-history-btn', 'click', () => {
+      this.loadStockHistory();
+    });
+    safeAddEventListener('history-search', 'input', (e) => {
+      this.filterStockHistory(e.target.value);
+    });
+    const actionFilter = document.getElementById('history-action-filter');
+    if (actionFilter) actionFilter.addEventListener('change', () => this.loadStockHistory());
     // Consumption log button
     safeAddEventListener('consumption-log-btn', 'click', () => {
       this.openConsumptionLogModal();
     });
-    // Add stock form
+
     safeAddEventListener('add-stock-form', 'submit', (e) => {
       e.preventDefault();
       this.handleAddStockSubmit();
@@ -141,6 +155,7 @@ class InventoryManager {
     safeAddEventListener('close-add-stock-modal', 'click', () => {
       this.closeModal('add-stock-modal');
     });
+
     safeAddEventListener('close-consumption-log-modal', 'click', () => {
       this.closeModal('consumption-log-modal');
     });
@@ -152,7 +167,7 @@ class InventoryManager {
     safeAddEventListener('refresh-logs-btn', 'click', () => {
       this.loadConsumptionLogs();
     });
-    // Log search
+
     safeAddEventListener('log-search', 'input', (e) => {
       this.filterConsumptionLogs(e.target.value);
     });
@@ -165,7 +180,7 @@ class InventoryManager {
       // Load inventory summary
       const summaryResponse = await fetch('/inventory/summary');
       const summaryData = await summaryResponse.json();
-      
+
       if (summaryResponse.ok) {
         console.log('Summary data loaded:', summaryData);
         this.updateOverviewCards(summaryData);
@@ -181,7 +196,7 @@ class InventoryManager {
       
       console.log('Inventory data loaded:', listData);
       this.inventory = Array.isArray(listData.data) ? listData.data : Array.isArray(listData) ? listData : [];
-      
+
       if (forceFullReload) {
         this.filteredInventory = [...this.inventory];
         this.currentFilters = { category: '', unit: '', status: '' };
@@ -291,7 +306,8 @@ class InventoryManager {
         category: "ingredient",
         current_quantity: 25.5,
         minimum_quantity: 10.0,
-        unit: "gram"
+        unit: "gram",
+        is_available: true
       },
       {
         id: 2,
@@ -299,7 +315,8 @@ class InventoryManager {
         category: "ingredient",
         current_quantity: 8.0,
         minimum_quantity: 15.0,
-        unit: "milliliter"
+        unit: "milliliter",
+        is_available: true
       },
       {
         id: 3,
@@ -307,7 +324,8 @@ class InventoryManager {
         category: "ingredient",
         current_quantity: 0.0,
         minimum_quantity: 5.0,
-        unit: "gram"
+        unit: "gram",
+        is_available: false
       },
       {
         id: 4,
@@ -315,7 +333,8 @@ class InventoryManager {
         category: "packaging",
         current_quantity: 50,
         minimum_quantity: 100,
-        unit: "piece"
+        unit: "piece",
+        is_available: true
       },
       {
         id: 5,
@@ -323,7 +342,8 @@ class InventoryManager {
         category: "packaging",
         current_quantity: 75,
         minimum_quantity: 200,
-        unit: "piece"
+        unit: "piece",
+        is_available: true
       }
     ];
 
@@ -340,7 +360,6 @@ class InventoryManager {
       total_items: sampleInventory.length,
       critical_count: sampleInventory.filter(item => item.current_quantity <= 0).length,
       low_stock_count: sampleInventory.filter(item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length,
-      // warning_count: sampleInventory.filter(item => item.current_quantity > item.minimum_quantity && item.current_quantity <= item.minimum_quantity * 1.5).length
     });
 
     this.renderInventoryTable();
@@ -385,7 +404,7 @@ class InventoryManager {
   handleSearch(searchTerm) {
     this.currentSearchTerm = searchTerm.toLowerCase().trim();
     this.isUserInteracting = !!this.currentSearchTerm;
-    this.applyCurrentFiltersAndSearch(true); // Reset halaman saat pencarian berubah
+    this.applyCurrentFiltersAndSearch(true);
   }
 
   renderInventoryTable() {
@@ -449,7 +468,7 @@ class InventoryManager {
       <td class="action-header">
         <button class="table-action-btn" onclick="inventoryManager.viewItem(${item.id})"><i class="fas fa-eye"></i></button>
         <button class="table-action-btn" onclick="inventoryManager.editItem(${item.id})"><i class="fas fa-edit"></i></button>
-        <button class="table-action-btn" onclick="inventoryManager.deleteItem(${item.id}, '${item.name}')"><i class="fas fa-trash"></i></button>
+        <button class="table-action-btn" onclick="inventoryManager.changeAvailability(${item.id}, '${item.name}', ${item.is_available})"><i class="fa-solid fa-ellipsis"></i></button>
       </td>
     `;
     
@@ -457,6 +476,13 @@ class InventoryManager {
   }
 
   getStockStatus(item) {
+    if (!item.is_available) {
+      return { 
+        value: 'unavailable', 
+        text: 'Unavailable', 
+        class: 'status-badge status-unavailable' 
+      };
+    }
     if (item.current_quantity <= 0) {
       return { 
         value: 'out-of-stock', 
@@ -495,7 +521,7 @@ class InventoryManager {
     this.totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
     if (this.totalPages === 0) this.totalPages = 1;
     if (this.currentPage > this.totalPages) {
-      this.currentPage = this.totalPages; // Pastikan halaman tetap valid
+      this.currentPage = this.totalPages;
     }
     this.renderPagination();
   }
@@ -511,9 +537,8 @@ class InventoryManager {
       paginationInfo.textContent = `Page ${this.currentPage} of ${this.totalPages}`;
     }
 
-    // Update prev/next buttons
-    // if (prevBtn) prevBtn.disabled = this.currentPage === 1;
-    // if (nextBtn) nextBtn.disabled = this.currentPage === this.totalPages;
+    if (prevBtn) prevBtn.disabled = this.currentPage === 1;
+    if (nextBtn) nextBtn.disabled = this.currentPage === this.totalPages;
 
     // Generate page numbers
     if (!pageNumbers) return;
@@ -635,6 +660,7 @@ class InventoryManager {
     document.getElementById('view-item-current').textContent = `${item.current_quantity.toFixed(2)} ${item.unit}`;
     document.getElementById('view-item-unit').textContent = this.capitalizeFirst(item.unit);
     document.getElementById('view-item-minimum').textContent = `${item.minimum_quantity.toFixed(2)} ${item.unit}`;
+    document.getElementById('view-item-availability').textContent = item.is_available ? 'Available' : 'Unavailable';
 
     const status = this.getStockStatus(item);
     const statusElement = document.getElementById('view-item-status');
@@ -672,11 +698,73 @@ class InventoryManager {
     this.showModal('item-modal');
   }
 
-  deleteItem(itemId, itemName) {
+  editItemFromView() {
+    if (this.viewingItemId) {
+      this.editItem(this.viewingItemId);
+      this.closeModal('view-item-modal');
+    }
+  }
+
+  changeAvailability(itemId, itemName, isAvailable) {
     this.editingItem = { id: itemId, name: itemName };
-    const deleteItemName = document.getElementById('delete-item-name');
-    if (deleteItemName) deleteItemName.textContent = itemName;
-    this.showModal('delete-modal');
+    const changeStatusItemName = document.getElementById('change-status-item-name');
+    const currentAvailability = document.getElementById('current-availability');
+    const isAvailTrue = document.getElementById('is-avail-true');
+    const isAvailFalse = document.getElementById('is-avail-false');
+
+    if (changeStatusItemName) changeStatusItemName.textContent = itemName;
+    if (currentAvailability) currentAvailability.textContent = isAvailable ? 'Available' : 'Unavailable';
+    if (isAvailTrue) isAvailTrue.checked = isAvailable;
+    if (isAvailFalse) isAvailFalse.checked = !isAvailable;
+
+    this.showModal('change-status-modal');
+  }
+
+  async confirmChangeStatus() {
+    if (!this.editingItem) return;
+
+    const isAvailTrue = document.getElementById('is-avail-true');
+    if (!isAvailTrue) {
+      console.warn("Radio button 'is-avail-true' not found in DOM");
+      return;
+    }
+
+    const isAvailable = isAvailTrue.checked;
+
+    try {
+      const response = await fetch(`/inventory/toggle/${this.editingItem.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_available: isAvailable })
+      });
+
+      if (response.ok) {
+        this.showSuccess(`Item availability changed to ${isAvailable ? 'Available' : 'Unavailable'}`);
+        this.closeModal('change-status-modal');
+        this.loadAndRefreshData();
+      } else {
+        const errorData = await response.json();
+        this.showError(errorData.error || 'Failed to change availability');
+      }
+    } catch (error) {
+      console.error('Error changing availability:', error);
+      this.handleLocalChangeAvailability(isAvailable);
+    }
+  }
+
+  handleLocalChangeAvailability(isAvailable) {
+    const index = this.inventory.findIndex(item => item.id === this.editingItem.id);
+    if (index !== -1) {
+      this.inventory[index].is_available = isAvailable;
+      this.showSuccess(`Item availability changed to ${isAvailable ? 'Available' : 'Unavailable'} (local demo)`);
+      this.closeModal('change-status-modal');
+      this.applyCurrentFiltersAndSearch();
+      this.updateOverviewCards({
+        total_items: this.inventory.length,
+        critical_count: this.inventory.filter(item => item.current_quantity <= 0).length,
+        low_stock_count: this.inventory.filter(item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length,
+      });
+    }
   }
 
   async handleFormSubmit() {
@@ -689,10 +777,11 @@ class InventoryManager {
     const formData = new FormData(itemForm);
     const itemData = {
       name: formData.get('name'),
-      category: formData.get('category'),
-      unit: formData.get('unit'),
+      category: (formData.get('category') || '').toString().trim().toLowerCase(),
+      unit: (formData.get('unit') || '').toString().trim().toLowerCase(),
       current_quantity: parseFloat(formData.get('current_quantity')),
-      minimum_quantity: parseFloat(formData.get('minimum_quantity'))
+      minimum_quantity: parseFloat(formData.get('minimum_quantity')),
+      notes: 'Stock opname update'
     };
 
     const itemId = itemForm.getAttribute('data-item-id');
@@ -700,21 +789,39 @@ class InventoryManager {
 
     try {
       let response;
+      const headers = { 'Content-Type': 'application/json' };
+      const token = localStorage.getItem('access_token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       if (isEditing) {
-        // Update existing item
+        // Update existing item with audit
         itemData.id = parseInt(itemId);
         response = await fetch('/inventory/update', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(itemData)
         });
       } else {
-        // Add new item
-        response = await fetch('/inventory/add', {
+        // Create new item, then add initial stock via audited restock to register history
+        const createResp = await fetch('/inventory/add', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers, // include Authorization when present
           body: JSON.stringify(itemData)
         });
+        if (!createResp.ok) {
+          const err = await createResp.json();
+          throw new Error(err.detail || 'Failed to create ingredient');
+        }
+        const created = await createResp.json();
+        const newId = created?.data?.id || created?.id;
+        if (newId && itemData.current_quantity > 0) {
+          await fetch('/inventory/stock/add', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ ingredient_id: newId, quantity: itemData.current_quantity, notes: 'Initial stock (opname) on create' })
+          });
+        }
+        response = new Response(JSON.stringify({ status: 'success' }), { status: 200 });
       }
 
       if (response.ok) {
@@ -741,7 +848,7 @@ class InventoryManager {
     } else {
       // Add new item to local data
       const newId = Math.max(...this.inventory.map(item => item.id), 0) + 1;
-      const newItem = { ...itemData, id: newId };
+      const newItem = { ...itemData, id: newId, is_available: true };
       this.inventory.push(newItem);
       this.showSuccess('Item added successfully (local demo)');
     }
@@ -751,7 +858,6 @@ class InventoryManager {
       total_items: this.inventory.length,
       critical_count: this.inventory.filter(item => item.current_quantity <= 0).length,
       low_stock_count: this.inventory.filter(item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length,
-      // warning_count: this.inventory.filter(item => item.current_quantity > item.minimum_quantity && item.current_quantity <= item.minimum_quantity * 1.5).length
     });
     this.closeModal('item-modal');
   }
@@ -1080,6 +1186,64 @@ class InventoryManager {
       } else {
         row.style.display = 'none';
       }
+    });
+  }
+
+  openStockHistoryModal() {
+    this.showModal('stock-history-modal');
+    this.loadStockHistory();
+  }
+
+  async loadStockHistory(ingredientId = null) {
+    try {
+      const actionFilter = document.getElementById('history-action-filter');
+      const params = new URLSearchParams();
+      if (actionFilter && actionFilter.value) params.append('action_type', actionFilter.value);
+      params.append('limit', '100');
+      const url = ingredientId ? `/inventory/stock/history/${ingredientId}` : `/inventory/stock/history?${params.toString()}`;
+      const resp = await fetch(url);
+      const json = await resp.json();
+      const rows = ingredientId ? (json?.data?.history || []) : (json?.data?.history || json?.history || []);
+      this.renderStockHistory(rows);
+    } catch (e) {
+      console.error('Failed to load stock history:', e);
+      this.showError('Failed to load stock history');
+    }
+  }
+
+  renderStockHistory(histories) {
+    const tbody = document.getElementById('stock-history-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (!histories || histories.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:1rem;">No history found</td></tr>`;
+      return;
+    }
+
+    histories.forEach(h => {
+      const before = (h.quantity_before ?? h.stock_before ?? 0).toLocaleString();
+      const after = (h.quantity_after ?? h.stock_after ?? 0).toLocaleString();
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td data-label="Date">${h.created_at || '-'}</td>
+        <td data-label="Ingredient">${h.ingredient_name || '-'}</td>
+        <td data-label="Action"><span class="status-badge status-deliver">${h.action_type}</span></td>
+        <td data-label="Before → After" style="text-align:center;">${before} → ${after}</td>
+        <td data-label="By">${h.performed_by || '-'}</td>
+        <td data-label="Notes">${h.notes || '-'}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  filterStockHistory(term) {
+    const tbody = document.getElementById('stock-history-tbody');
+    if (!tbody) return;
+    const q = (term || '').toLowerCase();
+    Array.from(tbody.rows).forEach(row => {
+      const match = Array.from(row.cells).some(td => td.textContent.toLowerCase().includes(q));
+      row.style.display = match ? '' : 'none';
     });
   }
 }
