@@ -445,7 +445,7 @@ app.get("/report/suggested_menu", async (req, res) => {
 // Inventory endpoints
 app.get("/inventory/list", async (req, res) => {
   try {
-    const resp = await fetch("http://inventory_service:8006/list_ingredients");
+    const resp = await fetch("http://inventory_service:8006/list_ingredients?show_unavailable=true");
     const data = await resp.json();
     res.json(data);
   } catch (err) {
@@ -694,6 +694,23 @@ app.get("/inventory/history", async (req, res) => {
   } catch (err) {
     console.error("Failed to fetch inventory history ", err);
     res.status(500).json({ error: "Failed to fetch inventory history" });
+  }
+});
+
+app.patch("/inventory/toggle/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const body = req.body;
+    const resp = await fetch(`http://inventory_service:8006/toggle_ingredient_availability/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to toggle ingredient availability ", err);
+    res.status(500).json({ error: "Failed to toggle ingredient availability" });
   }
 });
 
