@@ -141,11 +141,7 @@ def get_report(
     orders_url = f"{ORDER_SERVICE_URL}/order"
     orders = make_request(orders_url)
     
-    # 2. Get kitchen orders untuk status 'done'
-    kitchen_url = f"{KITCHEN_SERVICE_URL}/kitchen/orders"
-    kitchen_orders = make_request(kitchen_url)
-    
-    # 3. Get menu data untuk price
+    # 2. Get menu data untuk price
     menu_url = f"{MENU_SERVICE_URL}/menu"
     menu_response = make_request(menu_url)
     
@@ -194,72 +190,78 @@ def get_report(
             "details": []
         }
     
-    # Filter completed orders dalam date range
-    completed_order_ids = {
-        order['order_id'] for order in kitchen_orders 
-        if order['status'] == 'done'
-    }
-    
-    # Process orders
+    # Process orders — align logic with best_seller: use order status/items from order service
     total_income = 0
     menu_summary = {}
     total_transactions = 0
     
     for order in orders:
-        # Handle different date field names
         created_at = order.get('created_at') or order.get('time_receive')
         if not created_at:
             continue
-            
-        try:
-            # Handle different date formats
-            if 'Z' in str(created_at):
-                order_date = datetime.fromisoformat(str(created_at).replace('Z', '+00:00')).date()
-            else:
-                order_date = datetime.fromisoformat(str(created_at)).date()
-        except (ValueError, TypeError):
-            logging.warning(f"Invalid date format for order {order.get('order_id')}: {created_at}")
+        
+        order_date = extract_date_from_datetime(str(created_at))
+        # filter in range
+        if not is_date_in_range(order_date, start_date, end_date):
             continue
         
-        # Filter by date range and completion status
-        if (start_dt.date() <= order_date <= end_dt.date() and 
-            order['order_id'] in completed_order_ids):
+        # Resolve order status
+        order_status = order.get('status')
+        if not order_status:
+            try:
+                detail_resp = requests.get(f"{ORDER_SERVICE_URL}/order_status/{order['order_id']}", timeout=10)
+                if detail_resp.status_code == 200:
+                    detail_json = detail_resp.json()
+                    if detail_json.get('status') == 'success':
+                        order_info = detail_json.get('data', {})
+                        order_status = order_info.get('status')
+            except Exception as e:
+                logging.error(f"Error fetching order status {order.get('order_id')}: {e}")
+                continue
+        
+        if order_status != 'done':
+            continue
+        
+        # Fetch items reliably from order_status endpoint (same approach as best_seller)
+        order_items = []
+        try:
+            detail_resp = requests.get(f"{ORDER_SERVICE_URL}/order_status/{order['order_id']}", timeout=10)
+            if detail_resp.status_code == 200:
+                detail_json = detail_resp.json()
+                if detail_json.get('status') == 'success':
+                    order_items = detail_json['data'].get('orders', [])
+        except Exception as e:
+            logging.error(f"Error fetching order items {order.get('order_id')}: {e}")
+            continue
+        
+        # Optional filter by menu name
+        if menu_name:
+            order_items = [item for item in order_items if menu_name.lower() in item.get('menu_name', '').lower()]
+        
+        if not order_items:
+            continue
+        
+        total_transactions += 1
+        for item in order_items:
+            menu_item_name = item.get('menu_name', '')
+            quantity = item.get('quantity', 0)
+            if not menu_item_name or not quantity:
+                continue
             
-            # Filter by menu name if specified
-            if menu_name:
-                order_items = [item for item in order.get('items', []) 
-                             if menu_name.lower() in item.get('menu_name', '').lower()]
-            else:
-                order_items = order.get('items', [])
+            display_name = menu_name_mapping.get(menu_item_name, menu_item_name)
+            unit_price = menu_prices.get(display_name, 0)
+            item_total = quantity * unit_price
+            total_income += item_total
             
-            if order_items:  # Only count if has relevant items
-                total_transactions += 1
-                
-                for item in order_items:
-                    menu_item_name = item.get('menu_name', '')
-                    quantity = item.get('quantity', 0)
-                    
-                    if not menu_item_name or not quantity:
-                        continue
-                    
-                    # Map Indonesian menu name to English name if available
-                    display_name = menu_name_mapping.get(menu_item_name, menu_item_name)
-                    
-                    unit_price = menu_prices.get(display_name, 0)
-                    item_total = quantity * unit_price
-                    
-                    total_income += item_total
-                    
-                    if display_name not in menu_summary:
-                        menu_summary[display_name] = {
-                            "menu_name": display_name,
-                            "quantity": 0,
-                            "unit_price": unit_price,
-                            "total": 0
-                        }
-                    
-                    menu_summary[display_name]["quantity"] += quantity
-                    menu_summary[display_name]["total"] += item_total
+            if display_name not in menu_summary:
+                menu_summary[display_name] = {
+                    "menu_name": display_name,
+                    "quantity": 0,
+                    "unit_price": unit_price,
+                    "total": 0
+                }
+            menu_summary[display_name]["quantity"] += quantity
+            menu_summary[display_name]["total"] += item_total
     
     # Sort by quantity descending
     details = sorted(menu_summary.values(), key=lambda x: x["quantity"], reverse=True)
@@ -292,7 +294,8 @@ def is_date_in_range(date_str: str, start_date: str, end_date: str) -> bool:
     except:
         return False
 
-@app.get("/report/", tags=["Report"])
+# Fix route: expose best_seller at /report/best_seller
+@app.get("/report/best_seller", tags=["Report"])
 def get_best_seller(
     start_date: str = Query(..., description="Format: YYYY-MM-DD"),
     end_date: str = Query(..., description="Format: YYYY-MM-DD")
@@ -384,7 +387,7 @@ def get_best_seller(
             created_at = order.get('created_at') or order.get('time_receive')
             if not created_at:
                 continue
-                
+            
             order_date = extract_date_from_datetime(str(created_at))
             
             # Filter orders by date range
