@@ -379,6 +379,10 @@ def get_flavor_item(flavor_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Varian rasa tidak ditemukan")
     return flavor
 
+@app.options("/flavors/{flavor_id}")
+async def options_flavor_item(flavor_id: str):
+    return {"message": "OK"}
+
 @app.put("/flavors/{flavor_id}", summary="Update Varian Rasa", tags=["Flavor"], operation_id="update flavor")
 def update_flavor_item(flavor_id: str, flavor: FlavorCreate, db: Session = Depends(get_db)):
     """Memperbarui informasi dari varian rasa berdasarkan ID."""
@@ -428,17 +432,6 @@ def update_flavor_item(flavor_id: str, flavor: FlavorCreate, db: Session = Depen
         }
     }
 
-@app.delete("/flavors/{flavor_id}", summary="Hapus Varian Rasa", tags=["Flavor"], operation_id="delete flavor")
-def delete_flavor_item(flavor_id: str, db: Session = Depends(get_db)):
-    """Menghapus varian rasa berdasarkan ID."""
-    db_flavor = db.query(Flavor).filter(Flavor.id == flavor_id).first()
-    if not db_flavor:
-        raise HTTPException(status_code=404, detail="Varian rasa tidak ditemukan")
-    
-    menu_items_using_flavor = db.query(MenuItem).filter(
-        MenuItem.flavors.any(id=flavor_id)
-    ).all()
-    
 @app.delete("/flavors/{flavor_id}", summary="Hapus Varian Rasa", tags=["Flavor"], operation_id="delete flavor")
 def delete_flavor_item(flavor_id: str, db: Session = Depends(get_db)):
     """Menghapus varian rasa berdasarkan ID."""
