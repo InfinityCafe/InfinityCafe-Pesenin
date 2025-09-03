@@ -177,32 +177,54 @@ CREATE INDEX IF NOT EXISTS idx_flavor_mapping_flavor_name ON flavor_mapping(flav
 CREATE INDEX IF NOT EXISTS idx_flavor_mapping_ingredient_id ON flavor_mapping(ingredient_id);
 
 INSERT INTO flavor_mapping (flavor_name, ingredient_id, quantity_per_serving, unit) VALUES 
-    -- SYRUP & LIQUID FLAVORS
+    -- SYRUP & LIQUID FLAVORS (English + Indonesian names)
     ('Caramel', 8, 25, 'milliliter'),                    -- Caramel syrup
+    ('Karamel', 8, 25, 'milliliter'),                    -- Caramel syrup
     ('Peach', 9, 25, 'milliliter'),                      -- Peach syrup  
+    ('Persik', 9, 25, 'milliliter'),                     -- Peach syrup
     ('Macadamia Nut', 10, 25, 'milliliter'),             -- Macadamia Nut syrup
+    ('Kacang Makadamia', 10, 25, 'milliliter'),          -- Macadamia Nut syrup
     ('French Moca', 11, 25, 'milliliter'),               -- French Moca syrup
+    ('Moka Prancis', 11, 25, 'milliliter'),              -- French Moca syrup
     ('Java Brown Sugar', 12, 25, 'milliliter'),          -- Java Brown Sugar syrup
+    ('Gula Merah Jawa', 12, 25, 'milliliter'),           -- Java Brown Sugar syrup
     ('Chocolate', 13, 25, 'milliliter'),                 -- Chocolate syrup
+    ('Coklat', 13, 25, 'milliliter'),                    -- Chocolate syrup 
     ('Passion Fruit', 14, 25, 'milliliter'),             -- Passion Fruit syrup
+    ('Markisa', 14, 25, 'milliliter'),                   -- Passion Fruit syrup
     ('Roasted Almond', 15, 25, 'milliliter'),            -- Roasted Almond syrup
+    ('Almond Panggang', 15, 25, 'milliliter'),           -- Roasted Almond syrup
     ('Creme Brulee', 16, 25, 'milliliter'),              -- Creme Brulee syrup
-    ('Butter Scotch', 17, 25, 'milliliter'),             -- Butter Scotch syrup
+    ('Krim Brulee', 16, 25, 'milliliter'),               -- Creme Brulee syrup
+    ('Butterscotch', 17, 25, 'milliliter'),              -- Butterscotch syrup
+    ('Butter Scotch', 17, 25, 'milliliter'),             -- Butterscotch syrup
     
     -- MARJAN SERIES
     ('Marjan Vanilla', 18, 25, 'milliliter'),            -- Marjan Vanilla
+    ('Vanilla', 18, 25, 'milliliter'),                   -- Vanilla
+    ('Vanila', 18, 25, 'milliliter'),                    -- Vanilla
     ('Marjan Grenadine', 19, 25, 'milliliter'),          -- Marjan Grenadine
+    ('Grenadine', 19, 25, 'milliliter'),                 -- Grenadine
     ('Marjan Markisa', 20, 25, 'milliliter'),            -- Marjan Markisa
     ('Marjan Melon', 21, 25, 'milliliter'),              -- Marjan Melon
+    ('Melon', 21, 25, 'milliliter'),                     -- Melon
     ('Marjan Nanas', 22, 25, 'milliliter'),              -- Marjan Nanas
-    
+    ('Pineapple', 22, 25, 'milliliter'),                 -- Pineapple
+    ('Nanas', 22, 25, 'milliliter'),                     -- Nanas
+
     -- POWDER SERIES
     ('Keju Vanilla', 25, 30, 'gram'),                    -- Powder Keju Vanilla
+    ('Vanilla Cheese', 25, 30, 'gram'),                  -- Vanilla Cheese
     ('Taro', 26, 30, 'gram'),                            -- Powder Taro
+    ('Talas', 26, 30, 'gram'),                           -- Taro
     ('Banana', 27, 30, 'gram'),                          -- Powder Banana
+    ('Pisang', 27, 30, 'gram'),                          -- Banana
     ('Dark Chocolate', 28, 30, 'gram'),                  -- Powder Dark Chocolate
+    ('Coklat Hitam', 28, 30, 'gram'),                    -- Dark Chocolate
     ('Chocolate Hazelnut', 29, 30, 'gram'),              -- Powder Chocolate Hazelnut
+    ('Coklat Hazelnut', 29, 30, 'gram'),                 -- Chocolate Hazelnut
     ('Chocolate Malt', 30, 30, 'gram'),                  -- Powder Chocolate Malt
+    ('Coklat Malt', 30, 30, 'gram'),                     -- Chocolate Malt
     ('Blackcurrant', 31, 30, 'gram'),                    -- Powder Blackcurrant
     
     -- SPECIAL FLAVORS
