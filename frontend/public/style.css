@@ -692,7 +692,7 @@ input:checked + .slider:before {
 }
 
 .status-deliver, .status-available, .status-in-stock {
-    background-color: #BBF7D0;
+    background-color: #BBF7D0 !important;
     color: #207156 !important;
     font-weight: 600 !important;
 }

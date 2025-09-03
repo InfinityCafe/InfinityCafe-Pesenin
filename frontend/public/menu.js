@@ -864,8 +864,8 @@ function setupSearch() {
 // Save or update flavour
 async function saveFlavour() {
     const flavourId = document.getElementById('add-flavour-form').getAttribute('data-flavour-id') || null;
-    const flavourNameEn = document.getElementById('flavour-name-en').value;
-    const flavourNameId = document.getElementById('flavour-name-id').value;
+    const flavourNameEn = document.getElementById('flavour-name-en').value.trim();
+    const flavourNameId = document.getElementById('flavour-name-id').value.trim();
     const additionalPrice = parseInt(document.getElementById('additional-price').value);
     const isAvail = document.querySelector('input[name="flavour-is-avail"]:checked').value === 'true';
 
@@ -880,8 +880,8 @@ async function saveFlavour() {
     }
 
     const data = {
-        flavor_name_en: flavourNameEn.trim(),
-        flavor_name_id: flavourNameId.trim(),
+        flavor_name_en: flavourNameEn,
+        flavor_name_id: flavourNameId,
         additional_price: additionalPrice,
         isAvail: isAvail
     };
