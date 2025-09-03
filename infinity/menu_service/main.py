@@ -428,17 +428,7 @@ def update_flavor_item(flavor_id: str, flavor: FlavorCreate, db: Session = Depen
         }
     }
 
-@app.delete("/flavors/{flavor_id}", summary="Hapus Varian Rasa", tags=["Flavor"], operation_id="delete flavor")
-def delete_flavor_item(flavor_id: str, db: Session = Depends(get_db)):
-    """Menghapus varian rasa berdasarkan ID."""
-    db_flavor = db.query(Flavor).filter(Flavor.id == flavor_id).first()
-    if not db_flavor:
-        raise HTTPException(status_code=404, detail="Varian rasa tidak ditemukan")
-    
-    menu_items_using_flavor = db.query(MenuItem).filter(
-        MenuItem.flavors.any(id=flavor_id)
-    ).all()
-    
+# Note: Duplicate endpoint definition removed. See the complete implementation below.
 @app.delete("/flavors/{flavor_id}", summary="Hapus Varian Rasa", tags=["Flavor"], operation_id="delete flavor")
 def delete_flavor_item(flavor_id: str, db: Session = Depends(get_db)):
     """Menghapus varian rasa berdasarkan ID."""
@@ -466,6 +456,7 @@ def delete_flavor_item(flavor_id: str, db: Session = Depends(get_db)):
     db.delete(db_flavor)
     db.commit()
     
+    # Return explicit non-null JSON response
     return {
         "status": "success",
         "message": "Varian rasa berhasil dihapus",

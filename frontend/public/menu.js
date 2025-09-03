@@ -46,8 +46,9 @@ function switchTab(tab) {
 // Load all menus with pagination
 async function loadMenus() {
     try {
+    const cb = Date.now();
     // Use /menu/all endpoint to get all menus (including unavailable ones) for admin view
-    const response = await fetch(`${BASE_URL}/menu/all`);
+    const response = await fetch(`${BASE_URL}/menu/all?cb=${cb}`, { cache: 'no-store' });
     if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -240,7 +241,8 @@ async function ensureDataLoaded() {
 // Load flavors with pagination
 async function loadFlavors() {
     try {
-        const response = await fetch(`${BASE_URL}/flavors/all`);
+        const cb = Date.now();
+        const response = await fetch(`${BASE_URL}/flavors/all?cb=${cb}`, { cache: 'no-store' });
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -1090,43 +1092,65 @@ async function deleteFlavor(flavorId) {
         return;
     }
     const flavorName = `${flavor.flavor_name_en} / ${flavor.flavor_name_id}`;
-    
+
+    // Pre-check usage: prevent deletion if still used by any menu for better UX
+    const menusUsingFlavor = (allMenus || []).filter(m => Array.isArray(m.flavors) && m.flavors.some(f => f.id === flavorId));
+    if (menusUsingFlavor.length > 0) {
+        const usedBy = menusUsingFlavor.map(m => `${m.base_name_en} / ${m.base_name_id}`).join(', ');
+        showErrorModal(`Varian rasa tidak dapat dihapus karena masih digunakan oleh menu: ${usedBy}`);
+        return;
+    }
+
     showDeleteConfirmModal(
         `Apakah Anda yakin ingin menghapus varian rasa "${flavorName}"?`,
         async () => {
+            const confirmBtn = document.getElementById('delete-confirm-btn');
+            const originalText = confirmBtn ? confirmBtn.textContent : '';
+            if (confirmBtn) {
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Deleting...';
+            }
             try {
                 const response = await fetch(`${BASE_URL}/flavors/${flavorId}`, {
                     method: "DELETE"
                 });
-                
-                console.log('Delete flavor response:', {
-                    status: response.status,
-                    statusText: response.statusText,
-                    headers: [...response.headers.entries()]
-                });
-                
+
                 if (!response.ok) {
                     let errorMessage = 'Gagal menghapus varian rasa';
                     try {
                         const errorData = await response.json();
-                        console.log('Flavor delete error response:', errorData);
                         errorMessage = errorData?.message || errorData?.detail || `HTTP ${response.status}: ${response.statusText}`;
-                    } catch (parseError) {
-                        console.error('Error parsing error response:', parseError);
+                    } catch (_) {
                         errorMessage = `HTTP ${response.status}: ${response.statusText}`;
                     }
                     showErrorModal(errorMessage);
                     return;
                 }
-                
-                const result = await response.json();
+
+                let result;
+                try { result = await response.json(); } catch (_) { result = null; }
+
+                // Update UI lists - optimistic update
+                allFlavors = allFlavors.filter(f => f.id !== flavorId);
+                filteredFlavors = filteredFlavors.filter(f => f.id !== flavorId);
+                renderFlavorTable();
+
+                // Also refresh from server to be safe
                 await loadFlavors();
                 await loadMenus();
-                
-                showSuccessModal(result.message || 'Varian rasa berhasil dihapus');
+
+                const successMsg = (result && (result.message || (result.data && result.data.message))) || 'Varian rasa berhasil dihapus';
+                showSuccessModal(successMsg);
             } catch (error) {
-                console.error('Error deleting flavor:', error);
-                showErrorModal('Error deleting flavor: ' + (error.message || 'Unknown error'));
+                let errorMessage = 'Unknown error occurred';
+                if (error && typeof error === 'object' && error.message) errorMessage = error.message;
+                else if (typeof error === 'string') errorMessage = error;
+                showErrorModal('Error deleting flavor: ' + errorMessage);
+            } finally {
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = originalText;
+                }
             }
         }
     );
