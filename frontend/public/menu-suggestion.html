@@ -20,6 +20,7 @@
       <button class="nav-btn active" id="nav-menu" onclick="window.location.href = '/menu-management';">Menu Management</button>
       <!-- <button class="nav-btn" id="nav-suggestion" onclick="window.location.href = '/menu-suggestion';">Usulan Menu</button> -->
       <button class="nav-btn" id="nav-stok" onclick="window.location.href = '/stock-management';">Stock Management</button>
+      <button class="nav-btn" id="nav-report" onclick="window.location.href = '/reportKitchen';">Reports</button>
     </div>
          <div class="header-right">
        <!-- Search moved to table area -->
@@ -55,8 +56,8 @@
 
       <!-- Tab Navigation -->
       <div class="tab-navigation">
-        <button id="tab-menu" class="tab-btn" onclick="window.location.href = 'menu-management?tab=menu';">MENU</button>
-        <button id="tab-flavors" class="tab-btn" onclick="window.location.href = 'menu-management?tab=flavors';">FLAVORS</button>
+        <button id="tab-menu" class="tab-btn" onclick="window.location.href = 'menu-management#menu';">MENU</button>
+        <button id="tab-flavors" class="tab-btn" onclick="window.location.href = 'menu-management#flavors';">FLAVORS</button>
         <button id="tab-menu-suggestion" class="tab-btn tab-active tab-menu-suggestion" onclick="switchTab('menu_suggestion')">MENU SUGGESTION</button>
         <button class="add-order-btn menu-suggestion" onclick="openSuggestionModal()">ADD NEW MENU SUGGESTION</button>
       </div>

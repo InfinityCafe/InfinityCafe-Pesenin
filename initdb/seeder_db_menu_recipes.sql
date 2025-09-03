@@ -18,19 +18,19 @@ INSERT INTO synced_inventory (id, name, current_quantity, minimum_quantity, cate
 (6,  'Susu Kental Manis',    1605,   540,  'ingredient', 'milliliter'),
 (7,  'Susu Diamond',         6000,  3000,  'ingredient', 'milliliter'),
 
--- SYRUP & FLAVOR LIQUID
+-- SYRUP & FLAVOR LIQUID (COFFEE FLAVORS)
 (8,  'Caramel',               435,   150,  'ingredient', 'milliliter'),
 (9,  'Peach',                 600,   150,  'ingredient', 'milliliter'),
 (10, 'Macadamia Nut',         460,   150,  'ingredient', 'milliliter'),
 (11, 'French Moca',           400,   150,  'ingredient', 'milliliter'),
 (12, 'Java Brown Sugar',      400,   150,  'ingredient', 'milliliter'),
 (13, 'Chocolate',             470,   150,  'ingredient', 'milliliter'),
-(14, 'Passion Fruit',         530,   150,  'ingredient', 'milliliter'),
 (15, 'Roasted Almond',        585,   150,  'ingredient', 'milliliter'),
 (16, 'Creme Brulee',          280,   150,  'ingredient', 'milliliter'),
-(17, 'Butterscotch',         500,   150,  'ingredient', 'milliliter'),
+(17, 'Butter Scotch',         500,   150,  'ingredient', 'milliliter'),
 
--- MARJAN SERIES
+-- SQUASH FLAVORS
+(14, 'Passion Fruit',         530,   150,  'ingredient', 'milliliter'),
 (18, 'Marjan Vanilla',        230,   100,  'ingredient', 'milliliter'),
 (19, 'Marjan Grenadine',      367,   100,  'ingredient', 'milliliter'),
 (20, 'Marjan Markisa',        294,   100,  'ingredient', 'milliliter'),
@@ -41,7 +41,7 @@ INSERT INTO synced_inventory (id, name, current_quantity, minimum_quantity, cate
 (23, 'Gula Pasir Cair',       300,   200,  'ingredient', 'milliliter'),
 (24, 'Gula Aren Cair',        337,   200,  'ingredient', 'milliliter'),
 
--- POWDER SERIES
+-- MILK SHAKE FLAVORS (POWDER SERIES)
 (25, 'Powder Keju Vanilla',   197,   300,  'ingredient', 'gram'),
 (26, 'Powder Taro',           187,   300,  'ingredient', 'gram'),
 (27, 'Powder Banana',         377,   300,  'ingredient', 'gram'),

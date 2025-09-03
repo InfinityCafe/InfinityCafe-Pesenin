@@ -841,9 +841,9 @@ function renderOrderItemsList() {
     if (menuOptions && menuOptions.length > 0) {
       menuOptions.forEach(menu => {
         const opt = document.createElement('option');
-        opt.value = menu.base_name;
-        opt.textContent = menu.base_name;
-        if (item.menu_name === menu.base_name) opt.selected = true;
+        opt.value = menu.base_name_en;
+        opt.textContent = menu.base_name_en;
+        if (item.menu_name === menu.base_name_en) opt.selected = true;
         menuSelect.appendChild(opt);
       });
     } else {
@@ -852,7 +852,7 @@ function renderOrderItemsList() {
     
     block.appendChild(menuSelect);
     // Flavour
-    const selectedMenu = menuOptions.find(m => m.base_name === item.menu_name);
+    const selectedMenu = menuOptions.find(m => m.base_name_en === item.menu_name);
     if (selectedMenu && selectedMenu.flavors && selectedMenu.flavors.length > 0) {
       const flavorLabel = document.createElement('label');
       flavorLabel.textContent = 'Flavour';
@@ -869,9 +869,9 @@ function renderOrderItemsList() {
       selectedMenu.flavors.forEach(f => {
         const opt = document.createElement('option');
         // Fallback ke flavor_name jika tidak ada f.name
-        opt.value = f.name || f.flavor_name || '';
-        opt.textContent = f.name || f.flavor_name || '';
-        if ((item.preference || '') === (f.name || f.flavor_name || '')) opt.selected = true;
+        opt.value = f.name || f.flavor_name_en || '';
+        opt.textContent = f.name || f.flavor_name_en || '';
+        if ((item.preference || '') === (f.name || f.flavor_name_en || '')) opt.selected = true;
         flavorSelect.appendChild(opt);
       });
       flavorSelect.onchange = function() { orderItems[idx].preference = this.value; };
@@ -1020,9 +1020,9 @@ function renderCustomOrderItemsList() {
     if (menuOptions && menuOptions.length > 0) {
       menuOptions.forEach(menu => {
         const opt = document.createElement('option');
-        opt.value = menu.base_name;
-        opt.textContent = menu.base_name;
-        if (item.menu_name === menu.base_name) opt.selected = true;
+        opt.value = menu.base_name_en;
+        opt.textContent = menu.base_name_en;
+        if (item.menu_name === menu.base_name_en) opt.selected = true;
         menuSelect.appendChild(opt);
       });
     } else {
@@ -1090,10 +1090,10 @@ function renderCustomOrderItemsList() {
       // Add available flavors that aren't already selected
       if (allFlavors && allFlavors.length > 0) {
         allFlavors.forEach(flavor => {
-          if (flavor.isAvail && !item.preferences.includes(flavor.flavor_name)) {
+          if (flavor.isAvail && !item.preferences.includes(flavor.flavor_name_en)) {
             const opt = document.createElement('option');
-            opt.value = flavor.flavor_name;
-            opt.textContent = flavor.flavor_name;
+            opt.value = flavor.flavor_name_en;
+            opt.textContent = flavor.flavor_name_en;
             flavorSelect.appendChild(opt);
           }
         });
@@ -1290,6 +1290,7 @@ addOrderForm.onsubmit = async function(e) {
   
   // Determine which items to use based on current tab
   let orders = [];
+  let endpoint = '/create_order'
   let is_custom = false;
   
   if (currentOrderTab === 'regular') {
@@ -1302,6 +1303,7 @@ addOrderForm.onsubmit = async function(e) {
     }));
   } else {
     // Custom order tab
+    endpoint = '/custom_order'
     orders = customOrderItems.filter(i => i.menu_name && i.quantity > 0).map(i => {
       // Jika preferences adalah array dan tidak kosong, gabungkan menjadi string dengan koma
       let preference = '';
@@ -1314,7 +1316,7 @@ addOrderForm.onsubmit = async function(e) {
         quantity: i.quantity,
         preference: preference, // Kirim preferences sebagai string dengan pemisah koma
         notes: i.notes,
-        custom_flavour: true, // Pastikan flag custom_flavour tetap ada
+        // custom_flavour: true, // Pastikan flag custom_flavour tetap ada
         telegram_id: "0" // Otomatis mengisi telegram_id dengan "0"
       };
     });
@@ -1404,7 +1406,7 @@ addOrderForm.onsubmit = async function(e) {
   submitBtn.textContent = 'Saving...';
   
   try {
-    const res = await fetch('/create_order', {
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -1415,6 +1417,11 @@ addOrderForm.onsubmit = async function(e) {
         is_custom // Mengirim flag untuk menandai apakah ini custom order
       })
     });
+
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.error || `Gagal membuat pesanan: ${res.statusText}`);
+    }
     
     const data = await res.json();
     if (data.status === 'success') {
