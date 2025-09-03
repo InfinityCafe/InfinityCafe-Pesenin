@@ -442,10 +442,63 @@ app.get("/report/suggested_menu", async (req, res) => {
   }
 });
 
+// Financial sales report endpoints
+app.get("/report/financial_sales", async (req, res) => {
+  const { start_date, end_date, today_only } = req.query;
+  try {
+    const params = new URLSearchParams();
+    if (start_date) params.append('start_date', start_date);
+    if (end_date) params.append('end_date', end_date);
+    if (today_only) params.append('today_only', today_only);
+    
+    const resp = await fetch(`http://report_service:8004/report/financial_sales?${params.toString()}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch financial sales report ", err);
+    res.status(500).json({ error: "Failed to fetch financial sales report" });
+  }
+});
+
+app.get("/report/financial_sales/summary", async (req, res) => {
+  const { start_date, end_date, today_only } = req.query;
+  try {
+    const params = new URLSearchParams();
+    if (start_date) params.append('start_date', start_date);
+    if (end_date) params.append('end_date', end_date);
+    if (today_only) params.append('today_only', today_only);
+    
+    const resp = await fetch(`http://report_service:8004/report/financial_sales/summary?${params.toString()}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch financial sales summary ", err);
+    res.status(500).json({ error: "Failed to fetch financial sales summary" });
+  }
+});
+
+app.get("/report/financial_sales/export", async (req, res) => {
+  const { start_date, end_date, today_only, format_type } = req.query;
+  try {
+    const params = new URLSearchParams();
+    if (start_date) params.append('start_date', start_date);
+    if (end_date) params.append('end_date', end_date);
+    if (today_only) params.append('today_only', today_only);
+    if (format_type) params.append('format_type', format_type);
+    
+    const resp = await fetch(`http://report_service:8004/report/financial_sales/export?${params.toString()}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to export financial sales report ", err);
+    res.status(500).json({ error: "Failed to export financial sales report" });
+  }
+});
+
 // Inventory endpoints
 app.get("/inventory/list", async (req, res) => {
   try {
-    const resp = await fetch("http://inventory_service:8006/list_ingredients");
+    const resp = await fetch("http://inventory_service:8006/list_ingredients?show_unavailable=true");
     const data = await resp.json();
     res.json(data);
   } catch (err) {
@@ -500,9 +553,10 @@ app.get("/inventory/alerts", async (req, res) => {
 app.post("/inventory/add", async (req, res) => {
   try {
     const body = req.body;
+    const auth = req.headers["authorization"] || "";
     const resp = await fetch("http://inventory_service:8006/add_ingredient", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(auth ? { Authorization: auth } : {}) },
       body: JSON.stringify(body)
     });
     const data = await resp.json();
@@ -516,9 +570,10 @@ app.post("/inventory/add", async (req, res) => {
 app.put("/inventory/update", async (req, res) => {
   try {
     const body = req.body;
-    const resp = await fetch("http://inventory_service:8006/update_ingredient", {
+    const auth = req.headers["authorization"] || "";
+    const resp = await fetch("http://inventory_service:8006/update_ingredient_with_audit", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(auth ? { Authorization: auth } : {}) },
       body: JSON.stringify(body)
     });
     const data = await resp.json();
@@ -547,9 +602,10 @@ app.delete("/inventory/delete/:id", async (req, res) => {
 app.post("/inventory/stock/add", async (req, res) => {
   try {
     const body = req.body;
+    const auth = req.headers["authorization"] || "";
     const resp = await fetch("http://inventory_service:8006/stock/add", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(auth ? { Authorization: auth } : {}) },
       body: JSON.stringify(body)
     });
     const data = await resp.json();
@@ -579,9 +635,10 @@ app.post("/inventory/stock/add", async (req, res) => {
 app.put("/inventory/stock/minimum", async (req, res) => {
   try {
     const body = req.body;
+    const auth = req.headers["authorization"] || "";
     const resp = await fetch("http://inventory_service:8006/stock/minimum", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(auth ? { Authorization: auth } : {}) },
       body: JSON.stringify(body)
     });
     const data = await resp.json();
@@ -589,6 +646,35 @@ app.put("/inventory/stock/minimum", async (req, res) => {
   } catch (err) {
     console.error("Failed to update minimum stock ", err);
     res.status(500).json({ error: "Failed to update minimum stock" });
+  }
+});
+
+// Stock history proxies
+app.get("/inventory/stock/history/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const url = `http://inventory_service:8006/stock/history/${id}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to fetch stock history by id ", err);
+    res.status(500).json({ error: "Failed to fetch stock history" });
+  }
+});
+
+app.get("/inventory/stock/history", async (req, res) => {
+  try {
+    const params = new URLSearchParams();
+    if (req.query.action_type) params.append('action_type', req.query.action_type);
+    if (req.query.performed_by) params.append('performed_by', req.query.performed_by);
+    if (req.query.limit) params.append('limit', req.query.limit);
+    const resp = await fetch(`http://inventory_service:8006/stock/history?${params.toString()}`);
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to fetch all stock history ", err);
+    res.status(500).json({ error: "Failed to fetch all stock history" });
   }
 });
 
@@ -694,6 +780,23 @@ app.get("/inventory/history", async (req, res) => {
   } catch (err) {
     console.error("Failed to fetch inventory history ", err);
     res.status(500).json({ error: "Failed to fetch inventory history" });
+  }
+});
+
+app.patch("/inventory/toggle/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const body = req.body;
+    const resp = await fetch(`http://inventory_service:8006/toggle_ingredient_availability/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to toggle ingredient availability ", err);
+    res.status(500).json({ error: "Failed to toggle ingredient availability" });
   }
 });
 

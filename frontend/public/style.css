@@ -5268,3 +5268,41 @@ body[data-page="login"] {
         padding: 0.25rem 0;
     }
 }
+
+/* Stock History modal responsive adjustments */
+#stock-history-modal .modal-content {
+  max-width: 960px;
+  width: 95%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#stock-history-modal .table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#stock-history-modal .log-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#stock-history-modal .log-table th,
+#stock-history-modal .log-table td {
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+#stock-history-modal .log-table td:last-child {
+  max-width: 320px;
+  white-space: normal;
+}
+
+@media (max-width: 768px) {
+  #stock-history-modal .modal-content {
+    max-width: 98vw;
+    width: 98vw;
+  }
+}

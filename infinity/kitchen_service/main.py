@@ -392,17 +392,34 @@ def get_kitchen_orders(db: Session = Depends(get_db)):
                     notes = notesPart[0].strip() if notesPart else ''
                     name = main
                     variant = ''
-                    qty = ''
+                    qty = 1  # Default quantity
+                    
+                    # Pattern 1: "2x Menu Name (variant)"
                     variantMatch = re.match(r'^(\d+)x ([^(]+) \(([^)]+)\)$', main)
                     if variantMatch:
                         qty = int(variantMatch.group(1))
                         name = variantMatch.group(2).strip()
                         variant = variantMatch.group(3).strip()
                     else:
+                        # Pattern 2: "2x Menu Name" (no variant)
                         noVarMatch = re.match(r'^(\d+)x ([^(]+)$', main)
                         if noVarMatch:
                             qty = int(noVarMatch.group(1))
                             name = noVarMatch.group(2).strip()
+                        else:
+                            # Pattern 3: "Menu Name (variant)" (no quantity, default to 1)
+                            simpleVariantMatch = re.match(r'^([^(]+) \(([^)]+)\)$', main)
+                            if simpleVariantMatch:
+                                name = simpleVariantMatch.group(1).strip()
+                                variant = simpleVariantMatch.group(2).strip()
+                            else:
+                                # Pattern 4: Just "Menu Name" (no quantity, no variant)
+                                name = main.strip()
+                    
+                    # Clean up empty variant
+                    if variant == '':
+                        variant = None
+                    
                     items.append({
                         'menu_name': name,
                         'quantity': qty,

@@ -43,6 +43,7 @@ let variantConsumption = {}; // { key: { menuName, flavorName, orderQty, ingredi
 let menuValidFlavors = {}; // { menuName: Set(lowercase flavor names) }
 let kitchenOrdersCache = [];
 let globalFlavorMap = {};
+let ingredientMenuFlavorGroups = {}; // global store for menu+flavor groups per date
 
 // ========== MODAL FUNCTIONS ==========
 function closePieModal() {
@@ -341,13 +342,19 @@ async function loadIngredientAnalysisData() {
                     // Group logs by date with more comprehensive data
                     const byDate = {};
                     logs.forEach(l => {
-                        const d = (l.date || '').slice(0,10);
-                        if (!d) return;
-                        if (startParam && endParam) {
-                            if (d < startParam || d > endParam) return;
+                        // Normalize date for range filtering: backend returns dd/mm/yyyy HH:MM
+                        const rawDisplay = (l.date || '').slice(0,10); // dd/mm/yyyy
+                        let iso = rawDisplay;
+                        if (/^\d{2}\/\d{2}\/\d{4}$/.test(rawDisplay)) {
+                            const [dd, mm, yyyy] = rawDisplay.split('/');
+                            iso = `${yyyy}-${mm}-${dd}`; // yyyy-mm-dd
                         }
-                        if (!byDate[d]) {
-                            byDate[d] = { 
+                        if (!rawDisplay) return;
+                        if (startParam && endParam) {
+                            if (iso < startParam || iso > endParam) return;
+                        }
+                        if (!byDate[rawDisplay]) {
+                            byDate[rawDisplay] = { 
                                 total_orders: 0, 
                                 ingredients_affected: 0,
                                 unique_menus: new Set(),
@@ -355,26 +362,31 @@ async function loadIngredientAnalysisData() {
                                 order_ids: new Set()
                             };
                         }
-                        byDate[d].total_orders += 1;
-                        byDate[d].ingredients_affected += (l.ingredients_affected || 0);
-                        byDate[d].total_consumption += (l.ingredients_affected || 0);
-                        byDate[d].order_ids.add(l.order_id);
+                        byDate[rawDisplay].total_orders += 1;
+                        byDate[rawDisplay].ingredients_affected += (l.ingredients_affected || 0);
+                        byDate[rawDisplay].total_consumption += (l.ingredients_affected || 0);
+                        byDate[rawDisplay].order_ids.add(l.order_id);
                         
                         // Try to get menu details from kitchen orders for menu count
                         const kitchenOrder = kitchenOrdersCache.find(o => o.order_id === l.order_id);
                         if (kitchenOrder && kitchenOrder.items && kitchenOrder.items.length > 0) {
                             kitchenOrder.items.forEach(item => {
                                 if (item.menu_name) {
-                                    byDate[d].unique_menus.add(item.menu_name);
+                                    byDate[rawDisplay].unique_menus.add(item.menu_name);
                                 }
                             });
                         }
                     });
                     
                     // Create daily rows with better information
-                    ingredientRows = Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0])).map(([d, v]) => ({
-                        order_id: `Daily ${d}`,
-                        date: d,
+                    ingredientRows = Object.entries(byDate).sort((a,b)=>{
+                        // sort by ISO date descending using conversion
+                        const [ad] = a; const [bd] = b;
+                        const toIso = (s) => /^\d{2}\/\d{2}\/\d{4}$/.test(s) ? `${s.split('/')[2]}-${s.split('/')[1]}-${s.split('/')[0]}` : s;
+                        return toIso(bd).localeCompare(toIso(ad));
+                    }).map(([displayDate, v]) => ({
+                        order_id: `Daily ${displayDate}`,
+                        date: displayDate, // keep dd/mm/yyyy for UI
                         status_text: `${v.total_orders} pesanan • ${v.unique_menus.size} menu`,
                         ingredients_affected: v.total_consumption,
                         total_qty: v.total_consumption,
@@ -389,12 +401,10 @@ async function loadIngredientAnalysisData() {
                     // For daily view, also create menuFlavorGroups from the same logs data
                     // This allows us to show detailed breakdown when clicking detail button
                     for (const log of logs) {
-                        const orderId = log.order_id;
-                        const dateKey = (log.date || '').slice(0,10);
-                        if (!dateKey) continue;
-                        
+                        const rawDisplay = (log.date || '').slice(0,10); // dd/mm/yyyy
+                        if (!rawDisplay) continue;
                         // Try to get menu details from kitchen orders
-                        const kitchenOrder = kitchenOrdersCache.find(o => o.order_id === orderId);
+                        const kitchenOrder = kitchenOrdersCache.find(o => o.order_id === log.order_id);
                         if (kitchenOrder && kitchenOrder.items && kitchenOrder.items.length > 0) {
                             for (const menuItem of kitchenOrder.items) {
                                 const menuName = menuItem.menu_name || 'Unknown Menu';
@@ -408,29 +418,17 @@ async function loadIngredientAnalysisData() {
                                         total_orders: 0,
                                         total_ingredients: 0,
                                         order_ids: new Set(),
-                                        date: dateKey,
+                                        date: rawDisplay,
                                         status_text: 'DIKONSUMSI'
                                     };
                                 }
                                 
                                 menuFlavorGroups[key].total_orders += 1;
                                 menuFlavorGroups[key].total_ingredients += (log.ingredients_affected || 0);
-                                menuFlavorGroups[key].order_ids.add(orderId);
+                                menuFlavorGroups[key].order_ids.add(log.order_id);
                             }
                         } else {
-                            // Fallback: create a generic entry for this order
-                            const key = `Order-${orderId}`;
-                            if (!menuFlavorGroups[key]) {
-                                menuFlavorGroups[key] = {
-                                    menu_name: `Order ${orderId}`,
-                                    flavor: 'Unknown',
-                                    total_orders: 1,
-                                    total_ingredients: log.ingredients_affected || 0,
-                                    order_ids: new Set([orderId]),
-                                    date: dateKey,
-                                    status_text: 'DIKONSUMSI'
-                                };
-                            }
+                            // Fallback removed to keep table clean
                         }
                     }
                 } else {
@@ -497,10 +495,14 @@ async function loadIngredientAnalysisData() {
                         const order = orderDetails[orderId];
                         
                         if (order.menu_items && order.menu_items.length > 0) {
+                            // Calculate per-item share to prevent inflating totals
+                            const itemsCount = Math.max(1, order.menu_items.length);
+                            const perItemIngredients = Math.max(0, Math.round((order.ingredients_affected || 0) / itemsCount));
+
                             // Process each menu item with its actual name and flavor from dashboard
                             for (const menuItem of order.menu_items) {
                                 const menuName = menuItem.menu_name || 'Unknown Menu';
-                                const flavor = menuItem.preference || 'Default';
+                                const flavor = (menuItem.preference && menuItem.preference.trim()) ? menuItem.preference : 'Default';
                                 const key = `${menuName}|${flavor}`;
                                 
                                 console.log(`Processing menu item: ${menuName} with flavor: ${flavor}`);
@@ -518,23 +520,13 @@ async function loadIngredientAnalysisData() {
                                 }
                                 
                                 menuFlavorGroups[key].total_orders += 1;
-                                menuFlavorGroups[key].total_ingredients += order.ingredients_affected;
+                                // Add only the per-item share to avoid duplication across items
+                                menuFlavorGroups[key].total_ingredients += perItemIngredients;
                                 menuFlavorGroups[key].order_ids.add(orderId);
                             }
                         } else {
-                            // Fallback: if no menu details available from kitchen orders
-                            const key = `Order-${orderId}`;
-                            if (!menuFlavorGroups[key]) {
-                                menuFlavorGroups[key] = {
-                                    menu_name: `Order ${orderId}`,
-                                    flavor: 'Unknown',
-                                    total_orders: 1,
-                                    total_ingredients: order.ingredients_affected,
-                                    order_ids: new Set([orderId]),
-                                    date: order.date,
-                                    status_text: order.status_text
-                                };
-                            }
+                            // If we cannot map to a menu item, skip creating generic rows to keep table clean
+                            continue;
                         }
                     }
                     
@@ -585,7 +577,15 @@ async function loadIngredientAnalysisData() {
                     // For daily view, we don't need menu_name and flavor
                     menu_name: undefined,
                     flavor: undefined,
-                    order_ids: Array.from(group.order_ids)
+                    order_ids: Array.from(group.order_ids),
+                    total_qty: group.total_ingredients,
+                    // Provide summary for table and detail panel
+                    daily_summary: {
+                        total_orders: group.total_orders,
+                        unique_menus: group.unique_menus ? group.unique_menus.size || group.unique_menus : 0,
+                        total_consumption: group.total_ingredients,
+                        order_ids: Array.from(group.order_ids)
+                    }
                 }));
                 
                 // Debug: log the data structure
@@ -598,10 +598,14 @@ async function loadIngredientAnalysisData() {
                     logs: ingredientRows,
                     daily: dailyRows
                 };
+                // Expose groups globally for details panel usage
+                ingredientMenuFlavorGroups = menuFlavorGroups;
                 
                 // Get current view mode and set appropriate data
                 const currentViewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
                 const currentViewData = baseData[currentViewMode] || [];
+                // Update header/badge for clarity
+                setIngredientViewHeader(currentViewMode);
                 
                 const tableSearch = document.getElementById('table-search-input');
                 const term = tableSearch ? tableSearch.value.toLowerCase() : '';
@@ -631,6 +635,8 @@ async function loadIngredientAnalysisData() {
                     renderTablePage();
                     updatePagination();
                 }
+                // Clear global groups when failing
+                ingredientMenuFlavorGroups = {};
             }
         } else {
             menuRecipes = {};
@@ -644,6 +650,7 @@ async function loadIngredientAnalysisData() {
                 renderTablePage();
                 updatePagination();
             }
+            ingredientMenuFlavorGroups = {};
         }
         
         hideLoading();
@@ -702,23 +709,44 @@ function hideIngredientDetailsPanel() {
     if (panel) panel.classList.add('hidden');
 }
 
- async function viewConsumptionDetails(orderId, dateStr, statusText) {
-     try {
-         // If orderId looks like aggregated daily row, show aggregated data
-         const isAggregated = (orderId || '').toLowerCase().startsWith('daily');
-         const panel = document.getElementById('ingredient-details-panel');
-         const body = document.getElementById('ingredient-details-body');
-         document.getElementById('detail-order-id').textContent = isAggregated ? `Harian - ${dateStr}` : (orderId || '-');
-         document.getElementById('detail-order-date').textContent = dateStr || '-';
-         document.getElementById('detail-order-status').textContent = statusText || '-';
-         body.innerHTML = '';
-         if (panel) panel.classList.remove('hidden');
-         
-         if (isAggregated) {
-             // Show aggregated daily consumption data
-             await showDailyAggregatedConsumption(dateStr, statusText);
-             return;
-         }
+async function viewConsumptionDetails(orderId, dateStr, statusText) {
+    try {
+        // If orderId looks like aggregated daily row, show aggregated data
+        const isAggregated = (orderId || '').toLowerCase().startsWith('daily');
+        const panel = document.getElementById('ingredient-details-panel');
+        const body = document.getElementById('ingredient-details-body');
+        const headRow = document.querySelector('#ingredient-details-table thead tr');
+        document.getElementById('detail-order-id').textContent = isAggregated ? `Harian - ${dateStr}` : (orderId || '-');
+        document.getElementById('detail-order-date').textContent = dateStr || '-';
+        document.getElementById('detail-order-status').textContent = statusText || '-';
+        body.innerHTML = '';
+        if (panel) panel.classList.remove('hidden');
+        
+        if (isAggregated) {
+            // Switch header to menu breakdown for daily view (5 columns)
+            if (headRow) {
+                headRow.innerHTML = `
+                    <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">No</th>
+                    <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Menu</th>
+                    <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Flavor</th>
+                    <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Total Bahan</th>
+                    <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Total Pesanan</th>`;
+            }
+            // Show aggregated daily consumption data
+            await showDailyAggregatedConsumption(dateStr, statusText);
+            return;
+        } else {
+            // Restore header for per-order ingredient details (6 columns)
+            if (headRow) {
+                headRow.innerHTML = `
+                    <th style=\"background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;\">No</th>
+                    <th style=\"background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;\">Nama Bahan</th>
+                    <th style=\"background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;\">Qty Terpakai</th>
+                    <th style=\"background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;\">Unit</th>
+                    <th style=\"background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;\">Stok Sebelum</th>
+                    <th style=\"background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;\">Stok Sesudah</th>`;
+            }
+        }
 
         const res = await fetch(`/inventory/order/${encodeURIComponent(orderId)}/ingredients`);
         
@@ -776,89 +804,88 @@ function hideIngredientDetailsPanel() {
             body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 1.5rem; font-weight: 500;">Failed to load ingredient details</td></tr>';
         }
          }
- }
- 
- async function showDailyAggregatedConsumption(dateStr, statusText) {
-     try {
-         const body = document.getElementById('ingredient-details-body');
-         
-         // Get the daily summary data for the specific date
-         const dailyItem = filteredData.find(item => 
-             item.date === dateStr && item.daily_summary
-         );
-         
-         if (!dailyItem || !dailyItem.daily_summary) {
-             body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #615a5a; padding: 1.5rem; font-weight: 500;">Tidak ada data detail untuk tanggal ini</td></tr>';
-             return;
-         }
-         
-         const dailySummary = dailyItem.daily_summary;
-         
-         // Create a summary header row
-         const summaryRow = `
-             <tr style="background-color: #F9FAFB; border-bottom: 2px solid #E5E7EB;">
-                 <td colspan="6" style="padding: 1rem; text-align: center;">
-                     <div style="font-size: 1.1rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;">
-                         📅 Ringkasan Konsumsi Harian - ${dateStr}
-                     </div>
-                     <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
-                         <div style="text-align: center;">
-                             <div style="font-size: 1.5rem; font-weight: 700; color: #059669;">${dailySummary.total_orders}</div>
-                             <div style="font-size: 0.9rem; color: #6B7280;">Total Pesanan</div>
-                         </div>
-                         <div style="text-align: center;">
-                             <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">${dailySummary.unique_menus}</div>
-                             <div style="font-size: 0.9rem; color: #6B7280;">Menu Unik</div>
-                         </div>
-                         <div style="text-align: center;">
-                             <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${dailySummary.total_consumption.toLocaleString()}</div>
-                             <div style="font-size: 0.9rem; color: #6B7280;">Total Bahan</div>
-                         </div>
-                     </div>
-                 </td>
-             </tr>
-         `;
-         
-         // Filter menuFlavorGroups for the specific date
-         const dateMenuData = Object.values(menuFlavorGroups).filter(group => 
-             group.date === dateStr
-         );
-         
-         if (dateMenuData.length === 0) {
-             body.innerHTML = summaryRow + `
-                 <tr>
-                     <td colspan="6" style="text-align: center; color: #6B7280; padding: 1.5rem; font-weight: 500;">
-                         Tidak ada detail menu untuk tanggal ini
-                     </td>
-                 </tr>
-             `;
-             return;
-         }
-         
-         // Generate table rows for menu breakdown
-         const menuRows = dateMenuData.map((group, idx) => `
-             <tr style="border-bottom: 1px solid #F3F4F6;">
-                 <td style="padding: 0.75rem; color: #1F2937; font-weight: 500; text-align: center;">${idx + 1}</td>
-                 <td style="padding: 0.75rem; color: #1F2937; font-weight: 600;">${group.menu_name}</td>
-                 <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${group.flavor}</td>
-                 <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${group.total_ingredients.toLocaleString()}</td>
-                 <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${group.total_orders}</td>
-                 <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">-</td>
-             </tr>
-         `).join('');
-         
-         body.innerHTML = summaryRow + menuRows;
-         
-     } catch (e) {
-         console.error('Failed to load daily aggregated consumption:', e);
-         const body = document.getElementById('ingredient-details-body');
-         if (body) {
-             body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 1.5rem; font-weight: 500;">Gagal memuat data konsumsi harian</td></tr>';
-         }
-     }
- }
- 
- function exportIngredientCSV() {
+}
+
+async function showDailyAggregatedConsumption(dateStr, statusText) {
+    try {
+        const body = document.getElementById('ingredient-details-body');
+        
+        // Get the daily summary data for the specific date
+        const dailyItem = filteredData.find(item => 
+            item.date === dateStr && item.daily_summary
+        );
+        
+        if (!dailyItem || !dailyItem.daily_summary) {
+            body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #615a5a; padding: 1.5rem; font-weight: 500;">Tidak ada data detail untuk tanggal ini</td></tr>';
+            return;
+        }
+        
+        const dailySummary = dailyItem.daily_summary;
+        
+        // Create a summary header row
+        const summaryRow = `
+            <tr style="background-color: #F9FAFB; border-bottom: 2px solid #E5E7EB;">
+                <td colspan="5" style="padding: 1rem; text-align: center;">
+                    <div style="font-size: 1.1rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;">
+                        📅 Ringkasan Konsumsi Harian - ${dateStr}
+                    </div>
+                    <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
+                        <div style="text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #059669;">${dailySummary.total_orders}</div>
+                            <div style="font-size: 0.9rem; color: #6B7280;">Total Pesanan</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">${dailySummary.unique_menus}</div>
+                            <div style="font-size: 0.9rem; color: #6B7280;">Menu Unik</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${dailySummary.total_consumption.toLocaleString()}</div>
+                            <div style="font-size: 0.9rem; color: #6B7280;">Total Bahan</div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        `;
+        
+        // Use global groups captured during load
+        const dateMenuData = Object.values(ingredientMenuFlavorGroups).filter(group => 
+            group.date === dateStr
+        );
+        
+        if (dateMenuData.length === 0) {
+            body.innerHTML = summaryRow + `
+                <tr>
+                    <td colspan="5" style="text-align: center; color: #6B7280; padding: 1.5rem; font-weight: 500;">
+                        Tidak ada detail menu untuk tanggal ini
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        // Generate table rows for menu breakdown (5 columns)
+        const menuRows = dateMenuData.map((group, idx) => `
+            <tr style="border-bottom: 1px solid #F3F4F6;">
+                <td style="padding: 0.75rem; color: #1F2937; font-weight: 500; text-align: center;">${idx + 1}</td>
+                <td style="padding: 0.75rem; color: #1F2937; font-weight: 600;">${group.menu_name}</td>
+                <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${group.flavor}</td>
+                <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${group.total_ingredients.toLocaleString()}</td>
+                <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${group.total_orders}</td>
+            </tr>
+        `).join('');
+        
+        body.innerHTML = summaryRow + menuRows;
+        
+    } catch (e) {
+        console.error('Failed to load daily aggregated consumption:', e);
+        const body = document.getElementById('ingredient-details-body');
+        if (body) {
+            body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #ef4444; padding: 1.5rem; font-weight: 500;">Gagal memuat data konsumsi harian</td></tr>';
+        }
+    }
+}
+
+function exportIngredientCSV() {
     // Export aligned with ingredient mode (daily history aggregation)
     const rows = (Array.isArray(baseData) ? baseData : []).map(r => [
         r.order_id || '-',
@@ -1280,6 +1307,76 @@ function getOrderIngredientUsage(order) {
     return Object.values(ingredientUsage);
 }
 
+// ========== UTILITY FUNCTIONS ==========
+function showEmptyState(message, type = 'info') {
+    const tbody = document.getElementById("report-tbody");
+    if (!tbody) return;
+    
+    const colspan = currentDataType === 'ingredient' ? 7 : 5;
+    const icon = type === 'error' ? '❌' : type === 'warning' ? '⚠️' : '📊';
+    const color = type === 'error' ? '#DC2626' : type === 'warning' ? '#F59E0B' : '#6B7280';
+    
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="${colspan}" style="text-align: center; padding: 2rem; color: ${color}; font-style: italic;">
+                <div style="margin-bottom: 0.5rem;">
+                    <span style="font-size: 2rem;">${icon}</span>
+                </div>
+                <div style="font-size: 1.1rem; font-weight: 500; margin-bottom: 0.5rem;">
+                    ${message}
+                </div>
+                <div style="font-size: 0.9rem; color: #9CA3AF;">
+                    Coba pilih periode tanggal yang berbeda atau periksa data pesanan
+                </div>
+            </td>
+        </tr>`;
+}
+
+function updateSummaryWithData(data, type = 'sales') {
+    const summaryPeriod = document.getElementById("summary-period");
+    const summaryIncome = document.getElementById("summary-income");
+    const summaryOrders = document.getElementById("summary-orders");
+    const statusEl = document.getElementById("summary-status-badge");
+    
+    if (summaryPeriod) {
+        summaryPeriod.textContent = `${data.start_date || 'N/A'} s/d ${data.end_date || 'N/A'}`;
+    }
+    
+    if (summaryIncome) {
+        if (type === 'sales') {
+            summaryIncome.textContent = `Rp ${(data.total_income || 0).toLocaleString()}`;
+        } else if (type === 'best') {
+            const totalRevenue = data.best_sellers ? 
+                data.best_sellers.reduce((sum, item) => sum + (item.total_revenue || 0), 0) : 0;
+            summaryIncome.textContent = `Rp ${totalRevenue.toLocaleString()}`;
+        }
+    }
+    
+    if (summaryOrders) {
+        if (type === 'sales') {
+            summaryOrders.textContent = `${data.total_order || 0}`;
+        } else if (type === 'best') {
+            summaryOrders.textContent = `${data.processed_orders || 0}`;
+        }
+    }
+    
+    if (statusEl) {
+        if (type === 'sales') {
+            statusEl.textContent = "Data Sales";
+            statusEl.className = 'status-badge status-deliver';
+        } else if (type === 'best') {
+            statusEl.textContent = "Best Seller";
+            statusEl.className = 'status-badge status-warning';
+        } else if (type === 'empty') {
+            statusEl.textContent = "Kosong";
+            statusEl.className = 'status-badge status-cancel';
+        } else if (type === 'error') {
+            statusEl.textContent = "Error";
+            statusEl.className = 'status-badge status-cancel';
+        }
+    }
+}
+
 // ========== CHART FUNCTIONS ==========
 function showPieModal(label, value, percent) {
     document.getElementById("pie-modal-content").innerHTML = `
@@ -1495,31 +1592,28 @@ async function loadReport() {
         }
 
         const res = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeout);
-        
         if (!res.ok) {
             const errorData = await res.json();
             throw new Error(errorData.detail || "Gagal mengambil data laporan");
         }
         
         const data = await res.json();
+        console.log('Report data received:', data);
         currentReportData = data;
+        // Set current type as early as possible to avoid stale state
+        const previousType = currentDataType;
         currentDataType = 'sales';
 
         // Update summary
-        document.getElementById("summary-period").textContent = `${data.start_date || 'N/A'} s/d ${data.end_date || 'N/A'}`;
-        document.getElementById("summary-income").textContent = `Rp ${(data.total_income || 0).toLocaleString()}`;
-        document.getElementById("summary-orders").textContent = `${data.total_order || 0}`;
-        const statusEl = document.getElementById("summary-status-badge");
-        if (statusEl) {
-            statusEl.textContent = "Data Sales";
-            statusEl.className = 'status-badge status-deliver';
-        }
+        updateSummaryWithData(data, 'sales');
         applyModeLayout('sales');
 
         const details = Array.isArray(data.details) ? data.details : [];
+        console.log('Report details:', details);
+        
         const newHash = computeDataHash(details);
-        if (newHash !== lastReportHash) {
+        // Force refresh if coming from a different data type to avoid stale ingredient/log rows
+        if (newHash !== lastReportHash || previousType !== 'sales') {
             lastReportHash = newHash;
             baseData = details;
             // preserve current search if any
@@ -1530,33 +1624,35 @@ async function loadReport() {
             renderTablePage();
             updatePagination();
             // Re-render charts only when data changed
-            if (details.length > 0) {
-                // Reset table header to normal sales format
-                const tableHeader = document.querySelector('#report-table thead tr');
-                if (tableHeader) {
-                    tableHeader.innerHTML = `
-                        <th>No</th>
-                        <th>Menu</th>
-                        <th>Qty</th>
-                        <th>Price</th>
-                        <th>Total</th>`;
-                }
-                renderCharts(details);
+            const chartData = details.map(item => ({
+                menu_name: item.menu_name || 'N/A',
+        quantity: item.quantity || 0,
+        unit_price: item.unit_price || 0,
+        total: item.total || 0
+            }));
+            renderCharts(chartData);
+        } else {
+            // Even if hash same, ensure header matches sales mode after returning from ingredient
+            const tableHeader = document.querySelector('#report-table thead tr');
+            if (tableHeader) {
+                tableHeader.innerHTML = `
+                    <th>No</th>
+                    <th>Menu</th>
+                    <th>Qty</th>
+                    <th>Price</th>
+                    <th>Total</th>
+                `;
             }
         }
 
-        if (details.length > 0) {
-            const topMenu = details.reduce((max, curr) => (curr.total || 0) > (max.total || 0) ? curr : max, details[0]);
-        await loadTopCustomers(start, end, data, topMenu);
-        } else {
+        if (details.length === 0) {
+            // When no sales data, try best seller as fallback
+            console.log('No sales data found, loading best seller data instead');
             await loadBestSellerData(start, end);
         }
-        
-        await fetchSuggestedMenu();
-
     } catch (err) {
         console.error("Error loading report:", err);
-        alert(`⚠️ ${err.message || "Gagal memuat laporan. Periksa koneksi atau server."}`);
+        showEmptyState(err.message || 'Gagal memuat data laporan', 'error');
     } finally {
         clearTimeout(timeout);
     }
@@ -1564,7 +1660,8 @@ async function loadReport() {
 
 async function loadBestSellerData(start, end) {
     try {
-        const res = await fetch(`/report/best_seller?start_date=${start}&end_date=${end}&limit=10`);
+        console.log('Fetching best seller data for:', start, 'to', end);
+        const res = await fetch(`/report/best_seller?start_date=${start}&end_date=${end}`);
         
         if (!res.ok) {
             const errorData = await res.json();
@@ -1572,8 +1669,13 @@ async function loadBestSellerData(start, end) {
         }
         
         const data = await res.json();
+        console.log('Best seller data received:', data);
+
+        const previousType = currentDataType;
+        currentDataType = 'best';
 
         if (data.best_sellers && data.best_sellers.length > 0) {
+            console.log('Best sellers found:', data.best_sellers.length);
             // Convert best seller data to chart format
             const chartData = data.best_sellers.map(item => ({
                 menu_name: item.menu_name || 'N/A',
@@ -1586,19 +1688,13 @@ async function loadBestSellerData(start, end) {
             const totalRevenue = data.best_sellers.reduce((sum, item) => sum + (item.total_revenue || 0), 0);
             
             // Update summary with best seller data
-            document.getElementById("summary-period").textContent = `${data.start_date || 'N/A'} s/d ${data.end_date || 'N/A'}`;
-            document.getElementById("summary-income").textContent = `Rp ${totalRevenue.toLocaleString()}`;
-            document.getElementById("summary-orders").textContent = `${data.processed_orders || 0}`;
-            const statusEl = document.getElementById("summary-status-badge");
-            if (statusEl) {
-                statusEl.textContent = "Best Seller";
-                statusEl.className = 'status-badge status-warning';
-            }
+            updateSummaryWithData(data, 'best');
             applyModeLayout('best');
 
             const best = data.best_sellers;
             const newHash = computeDataHash(best);
-            if (newHash !== lastBestHash) {
+            // Force refresh when switching from a different type
+            if (newHash !== lastBestHash || previousType !== 'best') {
                 lastBestHash = newHash;
                 baseData = best;
                 const tableSearch = document.getElementById('table-search-input');
@@ -1608,11 +1704,6 @@ async function loadBestSellerData(start, end) {
                 renderTablePage();
                 updatePagination();
                 renderCharts(chartData);
-                // Update chart title to show it's best seller data
-                const chartTitle = document.querySelector('.column-title');
-                if (chartTitle) {
-                    chartTitle.textContent = '🏆 Top Menu Terlaris (Best Seller)';
-                }
                 // Update table header for best seller data
                 const tableHeader = document.querySelector('#report-table thead tr');
                 if (tableHeader) {
@@ -1625,24 +1716,34 @@ async function loadBestSellerData(start, end) {
                 }
             }
         } else {
+            console.log('No best seller data found');
             // Show empty chart and table
             renderCharts([]);
             baseData = [];
             filteredData = [];
             renderTablePage();
             updatePagination();
-            document.getElementById("summary-income").textContent = `Rp 0`;
-            document.getElementById("summary-orders").textContent = `0`;
-            const statusEl2 = document.getElementById("summary-status-badge");
-            if (statusEl2) {
-                statusEl2.textContent = "Kosong";
-                statusEl2.className = 'status-badge status-cancel';
+            updateSummaryWithData(data, 'empty');
+            // Update table header for empty state
+            const tableHeader = document.querySelector('#report-table thead tr');
+            if (tableHeader) {
+                tableHeader.innerHTML = `
+                    <th>No</th>
+                    <th>Menu</th>
+                    <th>Total Qty</th>
+                    <th>Unit Price</th>
+                    <th>Total Revenue</th>`;
             }
         }
 
     } catch (err) {
         console.error("Error loading best seller data:", err);
-        // Don't show alert, just log error
+        // Show error in table
+        baseData = [];
+        filteredData = [];
+        renderTablePage();
+        updatePagination();
+        showEmptyState(err.message || 'Gagal memuat data best seller', 'error');
     }
 }
 
@@ -1810,60 +1911,78 @@ function renderTablePage() {
                                 </button>
                             </td>
                         </tr>`;
-                                 } else {
-                     console.log('Using daily view format');
-                     // Daily view - show aggregated data with detail button
-                     const dailySummary = item.daily_summary || {};
-                     const totalOrders = dailySummary.total_orders || 0;
-                     const uniqueMenus = dailySummary.unique_menus || 0;
-                     const totalConsumption = dailySummary.total_consumption || 0;
-                     
-                     tbody.innerHTML += `
-                         <tr onclick="viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="cursor: pointer;">
-                             <td>${actualIndex + 1}</td>
-                             <td style="font-weight: 600; color: #1F2937;">${item.date || '-'}</td>
-                             <td style="color: #6B7280; line-height: 1.4;">
-                                 <div style="margin-bottom: 0.25rem;">
-                                     <span style="color: #059669; font-weight: 600;">📊 ${totalOrders} pesanan</span>
-                                 </div>
-                                 <div style="font-size: 0.9rem; color: #6B7280;">
-                                     <span style="color: #7C3AED; font-weight: 500;">🍽️ ${uniqueMenus} menu unik</span>
-                                 </div>
-                             </td>
-                             <td style="text-align: center; font-weight: 600; color: #059669;">${totalOrders.toLocaleString()}</td>
-                             <td style="text-align: center; font-weight: 600; color: #DC2626;">${totalConsumption.toLocaleString()}</td>
-                             <td>
-                                 <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="white-space: nowrap; min-width: 80px;">
-                                     🔍 Detail
-                                 </button>
-                             </td>
-                         </tr>`;
-                 }
+                } else {
+                    console.log('Using daily view format');
+                    // Daily view - show aggregated data with detail button
+                    const dailySummary = item.daily_summary || {};
+                    const totalOrders = dailySummary.total_orders || 0;
+                    const uniqueMenus = dailySummary.unique_menus || 0;
+                    const totalConsumption = dailySummary.total_consumption || 0;
+                    
+                    tbody.innerHTML += `
+                        <tr onclick="viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="cursor: pointer;">
+                            <td>${actualIndex + 1}</td>
+                            <td style="font-weight: 600; color: #1F2937;">${item.date || '-'}</td>
+                            <td style="color: #6B7280; line-height: 1.4;">
+                                <div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
+                                    <span style="background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; padding:.2rem .5rem; border-radius:9999px; font-weight:600;">${totalOrders} pesanan</span>
+                                    <span style="background:#F5F3FF; color:#4C1D95; border:1px solid #DDD6FE; padding:.2rem .5rem; border-radius:9999px; font-weight:600;">${uniqueMenus} menu unik</span>
+                                </div>
+                            </td>
+                            <td style="text-align: center; font-weight: 600; color: #059669;">${totalOrders.toLocaleString()}</td>
+                            <td style="text-align: center; font-weight: 600; color: #DC2626;">${totalConsumption.toLocaleString()}</td>
+                            <td>
+                                <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="white-space: nowrap; min-width: 80px;">
+                                    🔍 Detail
+                                </button>
+                            </td>
+                        </tr>`;
+                }
             } else {
-            tbody.innerHTML += `
-                <tr>
-                    <td>${actualIndex + 1}</td>
-                    <td>${item.menu_name || 'N/A'}</td>
-                    <td>${item.quantity || item.total_quantity || 0}</td>
-                    <td>Rp ${(item.unit_price || 0).toLocaleString()}</td>
-                    <td>Rp ${(item.total || item.total_revenue || 0).toLocaleString()}</td>
-                </tr>`;
+                // Sales or Best Seller data
+                console.log('Rendering sales/best seller item:', item);
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${actualIndex + 1}</td>
+                        <td>${item.menu_name || 'N/A'}</td>
+                        <td>${item.quantity || item.total_quantity || 0}</td>
+                        <td>Rp ${(item.unit_price || 0).toLocaleString()}</td>
+                        <td>Rp ${(item.total || item.total_revenue || 0).toLocaleString()}</td>
+                    </tr>`;
             }
         });
-    } else {
-                 tbody.innerHTML = `
-             <tr>
-                 <td colspan="6" style="text-align: center; padding: 2rem; border-top-right-radius: 0.5rem; border-bottom-right-radius: 0.5rem;">
-                     Tidak ada data untuk halaman ini
-                 </td>
-             </tr>`;
+        // Totals row for daily view (UX clarity)
+        if (currentDataType === 'ingredient' && pageData[0] && !pageData[0].menu_name) {
+            const totals = pageData.reduce((acc, it) => {
+                const s = it.daily_summary || {}; 
+                acc.orders += (s.total_orders || 0);
+                acc.ingredients += (s.total_consumption || 0);
+                return acc;
+            }, { orders: 0, ingredients: 0 });
+            tbody.innerHTML += `
+                <tr style="background:#F9FAFB; font-weight:600;">
+                    <td colspan="3" style="text-align:right; padding-right:8px;">Total Halaman</td>
+                    <td style="text-align:center; color:#059669;">${totals.orders.toLocaleString()}</td>
+                    <td style="text-align:center; color:#DC2626;">${totals.ingredients.toLocaleString()}</td>
+                    <td></td>
+                </tr>`;
         }
+    } else {
+        // No data to display
+        const message = currentDataType === 'ingredient' 
+            ? 'Tidak ada data konsumsi bahan untuk periode ini'
+            : currentDataType === 'best' 
+                ? 'Tidak ada data best seller untuk periode ini'
+                : 'Tidak ada data penjualan untuk periode ini';
         
-        // Update pagination info
-        document.getElementById("pagination-start").textContent = startIndex + 1;
-        document.getElementById("pagination-end").textContent = Math.min(endIndex, filteredData.length);
-        document.getElementById("pagination-total").textContent = filteredData.length;
+        showEmptyState(message, 'info');
     }
+    
+    // Update pagination info
+    document.getElementById("pagination-start").textContent = startIndex + 1;
+    document.getElementById("pagination-end").textContent = Math.min(endIndex, filteredData.length);
+    document.getElementById("pagination-total").textContent = filteredData.length;
+}
     
     function updatePagination() {
         const maxPage = Math.ceil(filteredData.length / itemsPerPage);
@@ -1964,6 +2083,15 @@ function applyReportFilter() {
             applyIngredientModeLayout();
             toggleReportFilter();
             return;
+        } else {
+            // Reset to normal mode when switching from ingredient to sales/best
+            resetToNormalMode();
+            // Apply the correct mode layout based on data type
+            if (dataType === 'best') {
+                applyModeLayout('best');
+            } else {
+                applyModeLayout('sales');
+            }
         }
     }
     
@@ -2058,8 +2186,60 @@ function clearReportFilter() {
     // Re-load sales view by default
     const start = document.getElementById("start_date").value;
     const end = document.getElementById("end_date").value;
+    resetToNormalMode();
     loadReport(start, end);
+    applyModeLayout('sales');
     toggleReportFilter();
+}
+
+function resetToNormalMode() {
+    // Reset all UI elements to normal mode
+    const chartBar = document.getElementById('chart-bar-card');
+    const chartPie = document.getElementById('chart-pie-card');
+    const loyal = document.getElementById('loyal-card');
+    const usulan = document.getElementById('usulan-card');
+    const tableHeader = document.querySelector('#report-table thead tr');
+    const statusEl = document.getElementById('summary-status-badge');
+    const barTitle = document.querySelector('#chart-bar-card .column-title');
+    const pieTitle = document.querySelector('#chart-pie-card .column-title');
+    const ingredientViewContainer = document.getElementById('ingredient-view-container');
+    
+    // Show all cards with proper display style
+    if (chartBar) chartBar.style.display = 'flex';
+    if (chartPie) chartPie.style.display = 'flex';
+    if (loyal) loyal.style.display = 'flex';
+    if (usulan) usulan.style.display = 'flex';
+    
+    // Reset table header
+    if (tableHeader) {
+        tableHeader.innerHTML = `
+            <th>No</th>
+            <th>Menu</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th>Total</th>
+        `;
+    }
+    
+    // Reset titles
+    if (barTitle) barTitle.textContent = '📊 Top Menu Terlaris';
+    if (pieTitle) pieTitle.textContent = '🥧 Komposisi Penjualan';
+    
+    // Hide ingredient view container
+    if (ingredientViewContainer) ingredientViewContainer.style.display = 'none';
+    
+    // Reset status badge
+    if (statusEl) {
+        statusEl.textContent = 'Data Sales';
+        statusEl.className = 'status-badge status-deliver';
+    }
+    
+    // Clear ingredient details panel
+    const ingredientDetailsPanel = document.getElementById('ingredient-details-panel');
+    if (ingredientDetailsPanel) ingredientDetailsPanel.classList.add('hidden');
+    
+    // Reset current data type
+    currentDataType = 'sales';
 }
 
 function applyIngredientModeLayout() {
@@ -2083,8 +2263,8 @@ function applyIngredientModeLayout() {
     // Update table header based on view mode
     updateIngredientTableHeader();
 
-    if (chartBar) chartBar.style.display = 'block';
-    if (chartPie) chartPie.style.display = 'block';
+    if (chartBar) chartBar.style.display = 'flex';
+    if (chartPie) chartPie.style.display = 'flex';
     if (loyal) loyal.style.display = 'none';
     if (usulan) usulan.style.display = 'none';
 }
@@ -2306,12 +2486,14 @@ document.addEventListener('visibilitychange', () => {
                 const start = document.getElementById("start_date").value;
                 const end = document.getElementById("end_date").value;
                 if (this.value === 'best') {
+                    resetToNormalMode();
                     await loadBestSellerData(start, end);
                     applyModeLayout('best');
                 } else if (this.value === 'ingredient') {
                     await loadIngredientAnalysisData();
                     applyIngredientModeLayout();
                 } else {
+                    resetToNormalMode();
                     await loadReport();
                     applyModeLayout('sales');
                 }
@@ -2363,11 +2545,26 @@ document.addEventListener('visibilitychange', () => {
     
     // ========== INITIALIZATION ==========
 window.onload = () => {
+    console.log('Window loaded, initializing report page...');
     const today = new Date().toISOString().split('T')[0];
-    document.getElementById("start_date").value = today;
-    document.getElementById("end_date").value = today;
-    loadReport();
-        startAutoRefresh();
+    const startDateInput = document.getElementById("start_date");
+    const endDateInput = document.getElementById("end_date");
+    
+    if (startDateInput && endDateInput) {
+        startDateInput.value = today;
+        endDateInput.value = today;
+        console.log('Set default dates:', today);
+        
+        // Load initial data
+        setTimeout(() => {
+            console.log('Loading initial report data...');
+            loadReport();
+        }, 100);
+    } else {
+        console.error('Date input elements not found');
+    }
+    
+    startAutoRefresh();
 };
 
 function getItemFlavorRaw(item) {
@@ -2482,4 +2679,33 @@ function closeModalAndViewConsumption(orderId, dateStr, statusText) {
             }
         }, 200);
     }, 100);
+}
+
+function setIngredientViewHeader(viewMode) {
+    const header = document.querySelector('#report-table thead tr');
+    const statusEl = document.getElementById('summary-status-badge');
+    if (header) {
+        if (viewMode === 'daily') {
+            header.innerHTML = `
+                <th>No</th>
+                <th>Tanggal</th>
+                <th>Ringkasan Harian</th>
+                <th>Total Pesanan</th>
+                <th>Total Bahan Terpakai</th>
+                <th>Aksi</th>`;
+        } else {
+            header.innerHTML = `
+                <th>No</th>
+                <th>Nama Menu</th>
+                <th>Flavor</th>
+                <th>Tanggal</th>
+                <th>Status</th>
+                <th>Total Bahan</th>
+                <th>Aksi</th>`;
+        }
+    }
+    if (statusEl) {
+        statusEl.textContent = viewMode === 'daily' ? 'Analisis Bahan — Harian' : 'Analisis Bahan — Per-Order (Logs)';
+        statusEl.className = 'status-badge status-deliver';
+    }
 }
