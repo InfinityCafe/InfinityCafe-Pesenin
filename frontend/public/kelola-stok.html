@@ -244,23 +244,57 @@
             <div class="search-filter-section">
               <div class="search-container">
                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                <input type="text" id="audit-history-search" placeholder="Search history..." class="search-input">
+                <input type="text" id="audit-history-search" placeholder="Search by ingredient name, user, or notes..." class="search-input" onkeyup="inventoryManager.filterAuditHistory(this.value)">
               </div>
               <div class="filter-container">
-                <button class="filter-btn" onclick="toggleFilterAuditHistory()">
-                  <i class="fas fa-filter"></i>
-                  Filter
-                </button>
+                        <button class="filter-btn" onclick="inventoryManager.toggleFilterAuditHistory()">
+          <i class="fas fa-filter"></i>
+          Filter
+        </button>
                 <div class="filter-dropdown" id="audit-history-filter-dropdown">
-                  <div class="filter-group">
-                    <label>Sort by Name:</label>
-                    <select id="sort-filter">
-                      <option value="">Default</option>
-                      <option value="a-z">A to Z</option>
-                      <option value="z-a">Z to A</option>
-                    </select>
+                  <div class="filter-groups-wrapper">
+                    <div class="filter-group">
+                      <label>Sort by Name:</label>
+                      <select id="audit-sort-filter">
+                        <option value="">Default</option>
+                        <option value="a-z">A to Z</option>
+                        <option value="z-a">Z to A</option>
+                      </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                      <label>Action Type:</label>
+                      <select id="audit-action-filter">
+                        <option value="">All Actions</option>
+                        <option value="add">Add Stock</option>
+                        <option value="update">Update Stock</option>
+                        <option value="restock">Restock</option>
+                        <option value="adjustment">Adjustment</option>
+                      </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                      <label>Date Range:</label>
+                      <select id="audit-date-filter">
+                        <option value="">All Time</option>
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                        <option value="quarter">This Quarter</option>
+                        <option value="year">This Year</option>
+                      </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                      <label>Performed By:</label>
+                      <select id="audit-user-filter">
+                        <option value="">All Users</option>
+                        <!-- Will be populated dynamically -->
+                      </select>
+                    </div>
                   </div>
-                  <div class="filter-action">
+                  
+                  <div class="filter-actions">
                     <button class="apply-filter-btn" onclick="inventoryManager.applyAuditHistoryFilter()">Apply</button>
                     <button class="clear-filter-btn" onclick="inventoryManager.clearAuditHistoryFilter()">Clear</button>
                   </div>
@@ -278,10 +312,12 @@
                 <tr>
                   <th>NO</th>
                   <th>ITEM NAME</th>
+                  <th>ACTION TYPE</th>
                   <th>QUANTITY BEFORE</th>
                   <th>QUANTITY AFTER</th>
-                  <th>QUANTITY CHANGED</th>
-                  <th>BY</th>
+                  <th>CHANGES</th>
+                  <th>PERFORMED BY</th>
+                  <th>DATE</th>
                   <th class="action-header">ACTION</th>
                 </tr>
               </thead>
@@ -294,19 +330,19 @@
                 <span id="audit-history-pagination-info">Page 1 of 1</span>
               </div>
               <div class="pagination-controls">
-                <button class="pagination-btn" id="audit-history-prev-btn" onclick="changeAuditHistoryPage(-1)">
+                <button class="pagination-btn" id="audit-history-prev-btn" onclick="inventoryManager.changeAuditHistoryPage(-1)">
                   <i class="fas fa-chevron-left"></i>
                 </button>
                 <div class="page-numbers" id="audit-history-page-numbers">
 
                 </div>
-                <button class="pagination-btn" id="audit-history-next-btn" onclick="changeAuditHistoryPage(1)">
+                <button class="pagination-btn" id="audit-history-next-btn" onclick="inventoryManager.changeAuditHistoryPage(1)">
                   <i class="fas fa-chevron-right"></i>
                 </button>
               </div>
               <div class="pagination-size">
                 <label>Show:</label>
-                <select id="audit-history-page-size" onchange="changeAuditHistoryPageSize()">
+                <select id="audit-history-page-size" onchange="inventoryManager.changeAuditHistoryPageSize()">
                   <option value="5">5</option>
                   <option value="10" selected>10</option>
                   <option value="25">25</option>

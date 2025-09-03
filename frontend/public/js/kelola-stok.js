@@ -68,7 +68,12 @@ class InventoryManager {
     this.currentAuditPage = 1;
     this.auditItemsPerPage = 10;
     this.totalAuditPages = 1;
-    this.currentAuditFilters = { sort: '' };
+    this.currentAuditFilters = { 
+      sort: '', 
+      actionType: '', 
+      dateRange: '', 
+      user: '' 
+    };
     this.currentAuditSearchTerm = '';
     this.auditLoaded = false;
     this.viewingAuditId = null;
@@ -750,7 +755,7 @@ class InventoryManager {
   }
 
   editFromView() {
-    const itemId = dosument.getElementById('view-item-modal').getAttribute('data-item-id');
+    const itemId = document.getElementById('view-item-modal').getAttribute('data-item-id');
     if (!itemId) {
       this.showError('No item selected for editing');
       return;
@@ -1207,6 +1212,7 @@ class InventoryManager {
         if (data.status === 'success') {
           this.auditHistory = data.data.history || [];
           this.filteredAuditHistory = [...this.auditHistory];
+          this.populateAuditFilters();
           this.applyAuditFiltersAndSearch(true);
           this.auditLoaded = true;
         } else {
@@ -1221,16 +1227,78 @@ class InventoryManager {
     }
   }
 
+  populateAuditFilters() {
+    // Populate user filter
+    const userFilter = document.getElementById('audit-user-filter');
+    if (userFilter) {
+      const uniqueUsers = [...new Set(this.auditHistory.map(item => item.performed_by).filter(Boolean))];
+      userFilter.innerHTML = '<option value="">All Users</option>';
+      uniqueUsers.sort().forEach(user => {
+        const option = document.createElement('option');
+        option.value = user;
+        option.textContent = user;
+        userFilter.appendChild(option);
+      });
+    }
+  }
+
   applyAuditFiltersAndSearch(resetPage = false) {
     let temp = [...this.auditHistory];
 
+    // Search filter
     if (this.currentAuditSearchTerm) {
       temp = temp.filter(item =>
-      (item.ingredient_name && item.ingredient_name.toLowerCase().includes(this.currentAuditSearchTerm))
-      (this.performed_by && item.performed_by.toLowerCase().includes(this.currentAuditSearchTerm))
+        (item.ingredient_name && item.ingredient_name.toLowerCase().includes(this.currentAuditSearchTerm)) ||
+        (item.performed_by && item.performed_by.toLowerCase().includes(this.currentAuditSearchTerm)) ||
+        (item.notes && item.notes.toLowerCase().includes(this.currentAuditSearchTerm))
       );
     }
 
+    // Action type filter
+    if (this.currentAuditFilters.actionType) {
+      temp = temp.filter(item => 
+        item.action_type && item.action_type.toLowerCase() === this.currentAuditFilters.actionType.toLowerCase()
+      );
+    }
+
+    // Date range filter
+    if (this.currentAuditFilters.dateRange) {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      temp = temp.filter(item => {
+        if (!item.created_at) return false;
+        const itemDate = new Date(item.created_at);
+        
+        switch (this.currentAuditFilters.dateRange) {
+          case 'today':
+            return itemDate >= today;
+          case 'week':
+            const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+            return itemDate >= weekAgo;
+          case 'month':
+            const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+            return itemDate >= monthAgo;
+          case 'quarter':
+            const quarterAgo = new Date(today.getFullYear(), today.getMonth() - 3, today.getDate());
+            return itemDate >= quarterAgo;
+          case 'year':
+            const yearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+            return itemDate >= yearAgo;
+          default:
+            return true;
+        }
+      });
+    }
+
+    // User filter
+    if (this.currentAuditFilters.user) {
+      temp = temp.filter(item => 
+        item.performed_by && item.performed_by.toLowerCase() === this.currentAuditFilters.user.toLowerCase()
+      );
+    }
+
+    // Sort filter
     const sort = this.currentAuditFilters.sort;
     if (sort === 'a-z') {
       temp.sort((a, b) => (a.ingredient_name || '').localeCompare(b.ingredient_name || ''));
@@ -1266,14 +1334,14 @@ class InventoryManager {
     if (!this.filteredAuditHistory.length) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="7" style="text-align: center; padding: 1rem;">
+          <td colspan="9" style="text-align: center; padding: 1rem;">
             No audit history found
           </td>
         </tr>
       `;
     } else {
       pageData.forEach((item, index) => {
-        const row = document.createAuditTableRow(item, startIndex + index + 1);
+        const row = this.createAuditTableRow(item, startIndex + index + 1);
         tbody.appendChild(row); 
       });
     }
@@ -1288,22 +1356,49 @@ class InventoryManager {
 
   createAuditTableRow(item, rowNumber) {
     const row = document.createElement('tr');
+    
+    // Format date
+    const date = item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }) : 'N/A';
+    
+    // Format action type with badge
+    const actionType = item.action_type || 'N/A';
+    const actionBadge = `<span class="status-badge status-${this.getActionTypeClass(actionType)}">${actionType}</span>`;
+    
     row.innerHTML = `
       <td>${rowNumber}</td>
       <td>${item.ingredient_name || 'N/A'}</td>
+      <td>${actionBadge}</td>
       <td>${(item.quantity_before != null ? item.quantity_before.toFixed(2) : 'N/A')}</td>
       <td>${(item.quantity_after != null ? item.quantity_after.toFixed(2) : 'N/A')}</td>
       <td>${(item.quantity_changed != null ? item.quantity_changed.toFixed(2) : 'N/A')}</td>
       <td>${item.performed_by || 'N/A'}</td>
-      <td> class="action-header">
+      <td>${date}</td>
+      <td class="action-header">
         <button class="table-action-btn" onclick="inventoryManager.viewAuditHistory(${item.id})"><i class="fas fa-eye"></i></button>
       </td>
     `;
     return row;
   }
 
+  getActionTypeClass(actionType) {
+    const actionMap = {
+      'add': 'success',
+      'restock': 'success',
+      'update': 'warning',
+      'adjustment': 'info',
+      'delete': 'danger'
+    };
+    return actionMap[actionType.toLowerCase()] || 'default';
+  }
+
   renderAuditPagination() {
-    const pageNumbers= document.getElementById('audit-history-page-numbers');
+    const pageNumbers = document.getElementById('audit-history-page-numbers');
     if (!pageNumbers) return;
 
     const paginationInfo = document.getElementById('audit-history-pagination-info');
@@ -1313,12 +1408,28 @@ class InventoryManager {
 
     const prevBtn = document.getElementById('audit-history-prev-btn');
     const nextBtn = document.getElementById('audit-history-next-btn');
+    
+    // If all data fits on one page, disable navigation and show only "1"
+    if (this.totalAuditPages <= 1) {
+      if (prevBtn) prevBtn.disabled = true;
+      if (nextBtn) nextBtn.disabled = true;
+      
+      pageNumbers.innerHTML = '';
+      const pageBtn = document.createElement('button');
+      pageBtn.className = 'page-number active';
+      pageBtn.textContent = '1';
+      pageBtn.disabled = true;
+      pageNumbers.appendChild(pageBtn);
+      return;
+    }
+
+    // Normal pagination for multiple pages
     if (prevBtn) prevBtn.disabled = this.currentAuditPage === 1;
     if (nextBtn) nextBtn.disabled = this.currentAuditPage === this.totalAuditPages;
 
     pageNumbers.innerHTML = '';
     const maxVisiblePages = 5;
-    let startPage = Math.max(1, this.currentAuditPage - Math.floor(maxVisiblePages /2));
+    let startPage = Math.max(1, this.currentAuditPage - Math.floor(maxVisiblePages / 2));
     let endPage = Math.min(this.totalAuditPages, startPage + maxVisiblePages - 1);
     if (endPage - startPage + 1 < maxVisiblePages) {
       startPage = Math.max(1, endPage - maxVisiblePages + 1);
@@ -1360,19 +1471,39 @@ class InventoryManager {
   }
 
   applyAuditHistoryFilter() {
-    const sortFilter = document.getElementById('sort-filter');
-    if (sortFilter) {
-      this.currentAuditFilters.sort = sortFilter.value;
-      this.applyCurrentFiltersAndSearch(true);
-      this.toggleFilterAuditHistory();
-    }
+    const sortFilter = document.getElementById('audit-sort-filter');
+    const actionFilter = document.getElementById('audit-action-filter');
+    const dateFilter = document.getElementById('audit-date-filter');
+    const userFilter = document.getElementById('audit-user-filter');
+    
+    if (sortFilter) this.currentAuditFilters.sort = sortFilter.value;
+    if (actionFilter) this.currentAuditFilters.actionType = actionFilter.value;
+    if (dateFilter) this.currentAuditFilters.dateRange = dateFilter.value;
+    if (userFilter) this.currentAuditFilters.user = userFilter.value;
+    
+    this.applyAuditFiltersAndSearch(true);
+    this.toggleFilterAuditHistory();
   }
 
   clearAuditHistoryFilter() {
-    const sortFilter = document.getElementById('sort-filter');
+    const sortFilter = document.getElementById('audit-sort-filter');
+    const actionFilter = document.getElementById('audit-action-filter');
+    const dateFilter = document.getElementById('audit-date-filter');
+    const userFilter = document.getElementById('audit-user-filter');
+    const searchInput = document.getElementById('audit-history-search');
+    
     if (sortFilter) sortFilter.value = '';
+    if (actionFilter) actionFilter.value = '';
+    if (dateFilter) dateFilter.value = '';
+    if (userFilter) userFilter.value = '';
+    if (searchInput) searchInput.value = '';
+    
     this.currentAuditFilters.sort = '';
+    this.currentAuditFilters.actionType = '';
+    this.currentAuditFilters.dateRange = '';
+    this.currentAuditFilters.user = '';
     this.currentAuditSearchTerm = '';
+    
     this.applyAuditFiltersAndSearch(true);
     this.toggleFilterAuditHistory();
   }
@@ -1389,8 +1520,8 @@ class InventoryManager {
     document.getElementById('view-audit-quantity-before').textContent = (item.quantity_before != null ? item.quantity_before.toFixed(2) : 'N/A');
     document.getElementById('view-audit-quantity-after').textContent = (item.quantity_after != null ? item.quantity_after.toFixed(2) : 'N/A');
     document.getElementById('view-audit-quantity-changed').textContent = (item.quantity_changed != null ? item.quantity_changed.toFixed(2) : 'N/A');
-    document.getElementById('view-audit-peformed-by').textContent = item.performed_by || 'N/A';
-    document.getElementById('view-audit-notes').textContent = item.notes || 'N/A';
+    document.getElementById('view-audit-performed-by').textContent = item.performed_by || 'N/A';
+    document.getElementById('view-audit-item-notes').textContent = item.notes || 'N/A';
     document.getElementById('view-audit-created-at').textContent = item.created_at || 'N/A';
     document.getElementById('view-audit-order-id').textContent = item.order_id || 'N/A';
 

@@ -711,6 +711,37 @@ input:checked + .slider:before {
     color: #B3261E !important;
     font-weight: 600 !important;
 }
+
+/* Audit History Action Type Badges */
+.status-success {
+    background-color: #BBF7D0;
+    color: #207156 !important;
+    font-weight: 600 !important;
+}
+
+.status-warning {
+    background-color: #FFE8C0;
+    color: #E09B20 !important;
+    font-weight: 600 !important;
+}
+
+.status-info {
+    background-color: #C2DCF6;
+    color: #1A508A !important;
+    font-weight: 600 !important;
+}
+
+.status-danger {
+    background-color: #F5C1BD;
+    color: #B3261E !important;
+    font-weight: 600 !important;
+}
+
+.status-default {
+    background-color: #E5E7EB;
+    color: #6B7280 !important;
+    font-weight: 600 !important;
+}
 /* .status-warning {
     background: #FFC49D;
     color: #BB5903;
@@ -2501,7 +2532,7 @@ body.tab-done .add-order-btn {
 #suggestions-table thead tr,
 #report-table thead tr,
 #audit-history-table thead tr {
-    background-color: transparent;
+    background-color: #CAB99D;
 }
 
 #menu-table th, #flavors-table th, #inventory-table th, #suggestions-table th, #report-table th, #audit-history th {
@@ -2555,7 +2586,7 @@ body.tab-done .add-order-btn {
     border-bottom-right-radius: 0.5rem;
 }
 
-#audit-history-table th:nth-child(6) {
+#audit-history-table th:nth-child(9) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
@@ -2638,7 +2669,7 @@ body.tab-done .add-order-btn {
     border-bottom-right-radius: 0.5rem;
 }
 
-#audit-history-table td:nth-child(6) {
+#audit-history-table td:nth-child(9) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
@@ -3334,7 +3365,7 @@ body.tab-done .add-order-btn {
     padding: 20px;
     min-width: 300px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-    z-index: 100;
+    z-index: 9999;
     display: none;
     margin-top: 8px;
     overflow-y: auto;
@@ -3617,6 +3648,7 @@ body.tab-done .add-order-btn {
         width: 90vw;
         max-width: 320px;
         margin-top: 0;
+        z-index: 9999;
     }
     
     .pagination-container {
