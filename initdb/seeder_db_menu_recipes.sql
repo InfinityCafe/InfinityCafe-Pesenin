@@ -60,7 +60,7 @@ INSERT INTO synced_inventory (id, name, current_quantity, minimum_quantity, cate
 (36, 'Sprite',               5000,  1250,  'ingredient', 'milliliter'),
 (37, 'Biji Selasih',          100,    20,  'ingredient', 'gram');
 
--- 1) Caffe Latte (MENU001) - Menggunakan perasa apa saja (20-30ml akan ditambah dinamis)
+-- 1) Caffe Latte (MENU001) - Resep DASAR untuk SEMUA varian
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES
 ('MENU001', 1, 1, 'piece'),     -- Cup (default untuk semua menu)
 ('MENU001', 3, 1, 'piece'),     -- Sedotan
@@ -138,9 +138,11 @@ INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VAL
 -- 11) Cappuccino (MENU011)
 INSERT INTO recipe_ingredients (menu_item_id, ingredient_id, quantity, unit) VALUES
 ('MENU011', 1, 1, 'piece'),     -- Cup (default untuk semua menu)
+('MENU011', 3, 1, 'piece'),     -- Sedotan
 ('MENU011', 5, 20, 'gram'),     -- Creamer 20gr
 ('MENU011', 4, 17, 'gram'),     -- Kopi robusta 17gr
-('MENU011', 7, 200, 'milliliter'); -- Susu cair 200ml
+('MENU011', 7, 200, 'milliliter'), -- Susu cair 200ml
+('MENU011', 35, 80, 'gram');    -- Es batu 80gr
 
 -- Set sequence recipe_ingredients ke max id
 SELECT setval(pg_get_serial_sequence('recipe_ingredients','id'), (SELECT MAX(id) FROM recipe_ingredients));
