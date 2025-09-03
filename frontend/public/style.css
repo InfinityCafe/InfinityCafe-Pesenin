@@ -1970,12 +1970,31 @@ input:checked + .slider:before {
   cursor: pointer;
   transition: all 0.2s;
 }
-#add-order-modal .modal-btn-outline {
-  background: #fff;
-  color: #312929;
-  border: 1.5px solid #bdbdbd;
+
+.modal-btn-outline{
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+  background: white;
+  color: #8D7272;
+  border: 2px dashed #dcd0a8;
   font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
+.modal-btn-outline:hover {
+  background-color: #e8e4d8;
+  border-color: #cab99d;
+}
+
 #add-order-modal .order-item-block {
   background: none;
   border: none;
@@ -3820,28 +3839,28 @@ body.tab-done .add-order-btn {
 }
 
 
-.view-item .status-label {
+/* .view-item .status-label {
   padding: 4px 12px;
   border-radius: 12px;
   font-size: 14px;
   font-weight: 600;
   display: inline-block;
-}
+} */
 
-.view-item .status-in-stock {
+/* .view-item .status-in-stock {
   background-color: #E8F5E8;
   color: #2E7D32;
-}
+} */
 
 .view-item .status-low-stock {
   background-color: #FFF3E0;
   color: #EF6C00;
 }
 
-.view-item .status-out-of-stock {
+/* .view-item .status-out-of-stock {
   background-color: #FFEBEE;
   color: #C62828;
-}
+} */
 
 .view-modal .modal-actions {
     display: flex;
@@ -4453,6 +4472,76 @@ body[data-page="login"] {
 
 .log-table tbody tr:hover {
   background: rgba(220, 208, 168, 0.1);
+}
+
+.recipe-ingredients-container {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e0e0e0;
+}
+.recipe-ingredients-container > label {
+  display: block;
+  margin-bottom: 1rem;
+  font-weight: 700;
+  color: #312929;
+  font-size: 15px;
+}
+.recipe-item {
+  display: grid;
+  grid-template-columns: 3fr 1.5fr 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+.recipe-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+.recipe-item .form-group {
+  margin-bottom: 0;
+}
+.recipe-item label {
+  display: none;
+}
+.recipe-item input, .recipe-item select {
+  font-size: 14px;
+  padding: 0 12px;
+}
+.recipe-unit-display {
+  font-size: 14px;
+  font-weight: 500;
+  color: #312929;
+  text-align: left;
+  padding-left: 5px;
+}
+.remove-ingredient-btn {
+  background: none;
+  border: none;
+  color: #B3261E;
+  font-size: 30px;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+.remove-ingredient-btn:hover {
+  background-color: #f5c1bd;
+}
+.recipe-display {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.recipe-item {
+  font-size: 14px;
+  color: #312929;
 }
 
 /* Responsive adjustments for search and view modals */

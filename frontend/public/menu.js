@@ -6,6 +6,8 @@ let allFlavors = [];
 let filteredMenus = [];
 let filteredFlavors = [];
 let selectedFlavorIds = [];
+let allIngredients = [];
+let recipeIngredients = [];
 
 // Data loading state
 let menusLoaded = false;
@@ -221,16 +223,15 @@ async function changeMenuPageSize() {
 // Ensure data is loaded
 async function ensureDataLoaded() {
     try {
-        if (!menusLoaded) {
-            await loadMenus();
-        }
-        if (!flavorsLoaded) {
-            await loadFlavors();
-        }
+        const promises = [];
+        if (!menusLoaded) promises.push(loadMenus());
+        if (!flavorsLoaded) promises.push(loadFlavors());
+        if (allIngredients.length === 0) promises.push(loadAllIngredients());
+        await Promise.all(promises);
     } catch (error) {
         console.error('Error ensuring data is loaded:', error);
-        menusLoaded = false;
-        flavorsLoaded = false;
+        // menusLoaded = false;
+        // flavorsLoaded = false;
         throw error;
     }
 }
@@ -496,34 +497,115 @@ document.addEventListener('click', function(event) {
     }
 });
 
+async function loadAllIngredients() {
+    if (allIngredients.length > 0) return;
+    try {
+        const response = await fetch('/inventory/list?show_unavailable=true'); 
+        if (!response.ok) throw new Error('Failed to fetch ingredients');
+        const data = await response.json();
+        allIngredients = data.data || [];
+        console.log("Successfully loaded ingredients:", allIngredients);
+    } catch (error) {
+        console.error("Error loading ingredients:", error);
+        showErrorModal("Could not load ingredients. Please try again.");
+    }
+}
+
+function renderRecipeIngredients() {
+    const container = document.getElementById('recipe-ingredients-list');
+    container.innerHTML = '';
+
+    recipeIngredients.forEach((recipeItem, index) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'recipe-item';
+
+        const ingredientOptions = allIngredients.map(ing => 
+            `<option value="${ing.id}" data-unit="${ing.unit}" ${ing.id == recipeItem.ingredient_id ? 'selected' : ''}>${ing.name}</option>`
+        ).join('');
+
+        itemDiv.innerHTML = `
+            <select class="recipe-ingredient-select" data-index="${index}">
+                <option value="">Select Ingredient</option>
+                ${ingredientOptions}
+            </select>
+            <input type="number" class="recipe-quantity-input" placeholder="Qty" value="${recipeItem.quantity || ''}" data-index="${index}" min="0" step="0.01">
+            <div class="recipe-unit-display">${recipeItem.unit || 'Unit'}</div>
+            <button class="remove-ingredient-btn" data-index="${index}">&times;</button>
+        `;
+        container.appendChild(itemDiv);
+    });
+
+    document.querySelectorAll('.recipe-ingredient-select').forEach(select => {
+        select.onchange = function() {
+            const index = this.dataset.index;
+            const selectedOption = this.options[this.selectedIndex];
+            recipeIngredients[index].ingredient_id = this.value ? parseInt(this.value) : '';
+            recipeIngredients[index].unit = selectedOption.dataset.unit || '';
+            renderRecipeIngredients();
+        };
+    });
+    document.querySelectorAll('.recipe-quantity-input').forEach(input => {
+        input.oninput = function() {
+            const index = this.dataset.index;
+            recipeIngredients[index].quantity = this.value ? parseFloat(this.value) : '';
+        };
+    });
+    document.querySelectorAll('.remove-ingredient-btn').forEach(btn => {
+        btn.onclick = function() {
+            const index = this.dataset.index;
+            recipeIngredients.splice(index, 1);
+            if (recipeIngredients.length === 0) {
+                recipeIngredients.push({ ingredient_id: '', quantity: '', unit: '' });
+            }
+            renderRecipeIngredients();
+        };
+    });
+}
+
 // Save or update menu
 async function saveMenu() {
     const menuId = document.getElementById('add-menu-form').getAttribute('data-menu-id') || null;
-    const baseNameEn = document.getElementById('base-name-en').value;
-    const baseNameId = document.getElementById('base-name-id').value;
+    const baseNameEn = document.getElementById('base-name-en').value.trim();
+    const baseNameId = document.getElementById('base-name-id').value.trim();
     const basePrice = parseInt(document.getElementById('base-price').value);
     const isAvail = document.querySelector('input[name="is-avail"]:checked').value === 'true';
     const makingTimeMinutes = parseFloat(document.getElementById('making-time-minutes').value) || 0;
-    const recipeIngredients = []; // Add logic to collect recipe ingredients if needed
+    
+    const validRecipeIngredients = recipeIngredients
+        .filter(item => item.ingredient_id && item.quantity > 0)
+        .map(item => ({
+            ingredient_id: parseInt(item.ingredient_id),
+            quantity: parseFloat(item.quantity),
+            unit: item.unit
+        }));
+    
+    if (!baseNameEn || !baseNameId) {
+        showErrorModal('Nama menu (EN dan ID) tidak boleh kosong.');
+        return;
+    }
 
     if (isNaN(basePrice) || basePrice <= 0) {
         showErrorModal('Harga menu harus lebih dari 0.');
         return;
     }
 
-    if (!baseNameEn || !baseNameId) {
-        showErrorModal('Nama menu (EN dan ID) tidak boleh kosong.');
+    if (!recipeIngredients || recipeIngredients.length === 0) {
+        showErrorModal('Recipe ingredients tidak boleh kosong.');
+        return;
+    }
+    if (validRecipeIngredients.length === 0) {
+        showErrorModal('Menu must have at least one valid ingredient in its recipe.');
         return;
     }
 
     const data = {
-        base_name_en: baseNameEn.trim(),
-        base_name_id: baseNameId.trim(),
+        base_name_en: baseNameEn,
+        base_name_id: baseNameId,
         base_price: basePrice,
         isAvail: isAvail,
         making_time_minutes: makingTimeMinutes,
         flavor_ids: selectedFlavorIds,
-        recipe_ingredients: recipeIngredients
+        recipe_ingredients: validRecipeIngredients
     };
 
     try {
@@ -569,31 +651,48 @@ async function saveMenu() {
 }
 
 // Edit menu
-function editMenu(menuId) {
-    fetch(`${BASE_URL}/menu/${menuId}`)
-        .then(response => response.json())
-        .then(menu => {
-            document.getElementById('base-name-en').value = menu.base_name_en;
-            document.getElementById('base-name-id').value = menu.base_name_id;
-            document.getElementById('base-price').value = menu.base_price;
-            document.getElementById('making-time-minutes').value = menu.making_time_minutes;
-            
-            if (menu.isAvail) {
-                document.getElementById('is-avail-true').checked = true;
-            } else {
-                document.getElementById('is-avail-false').checked = true;
-            }
-            
-            selectedFlavorIds = menu.flavors ? menu.flavors.map(f => f.id) : [];
-            console.log('Selected flavor IDs for edit:', selectedFlavorIds);
-            
-            document.getElementById('add-menu-form').setAttribute('data-menu-id', menuId);
-            openAddMenuModal();
-        })
-        .catch(error => {
-            console.error('Error loading menu for edit:', error);
-            showErrorModal('Error loading menu for edit: ' + error.message);
-        });
+async function editMenu(menuId) {
+    try {
+        const [menuRes, recipeRes] = await Promise.all([
+            fetch(`${BASE_URL}/menu/${menuId}`),
+            fetch(`${BASE_URL}/menu/${menuId}/recipe`)
+        ]);
+
+        if (!menuRes.ok) throw new Error(`Failed to fetch menu details: HTTP ${menuRes.status}`);
+        if (!recipeRes.ok) throw new Error(`Failed to fetch recipe details: HTTP ${recipeRes.status}`);
+
+        const menu = await menuRes.json() || {};
+        const recipeData = await recipeRes.json() || { data: { recipe_ingredients: [] } };
+
+        console.log('Menu data:', menu);
+        console.log('Recipe data:', recipeData);
+
+        // Validasi data menu
+        if (!menu.base_name_en || !menu.base_name_id) {
+            throw new Error('Menu data is missing or incomplete');
+        }
+
+        document.getElementById('base-name-en').value = menu.base_name_en || '';
+        document.getElementById('base-name-id').value = menu.base_name_id || '';
+        document.getElementById('base-price').value = menu.base_price || '';
+        document.getElementById('making-time-minutes').value = menu.making_time_minutes || '';
+        document.getElementById(menu.isAvail ? 'is-avail-true' : 'is-avail-false').checked = true;
+
+        selectedFlavorIds = menu.flavors ? menu.flavors.map(f => f.id) : [];
+        recipeIngredients = recipeData.data && recipeData.data.recipe_ingredients 
+            ? recipeData.data.recipe_ingredients.map(ing => ({
+                  ingredient_id: ing.ingredient_id,
+                  quantity: ing.quantity,
+                  unit: ing.unit
+              }))
+            : [{ ingredient_id: '', quantity: '', unit: '' }];
+
+        document.getElementById('add-menu-form').setAttribute('data-menu-id', menuId);
+        openAddMenuModal();
+    } catch (error) {
+        console.error('Error loading menu for edit:', error);
+        showErrorModal('Error loading menu for edit: ' + error.message);
+    }
 }
 
 // Delete menu
@@ -633,13 +732,27 @@ async function deleteMenu(menuId) {
 // View menu
 async function viewMenu(menuId) {
     try {
-        const response = await fetch(`${BASE_URL}/menu/${menuId}`);
-        if (!response.ok) throw new Error('Failed to fetch menu details');
-        
-        const menu = await response.json();
-        
-        document.getElementById('view-menu-name').textContent = `${menu.base_name_en} / ${menu.base_name_id}`;
-        document.getElementById('view-menu-price').textContent = `Rp ${menu.base_price.toLocaleString()}`;
+        const [menuResponse, recipeResponse] = await Promise.all([
+            fetch(`${BASE_URL}/menu/${menuId}`),
+            fetch(`${BASE_URL}/menu/${menuId}/recipe`)
+        ]);
+
+        if (!menuResponse.ok) {
+            throw new Error(`Failed to fetch menu details: HTTP ${menuResponse.status}`);
+        }
+        if (!recipeResponse.ok) {
+            throw new Error(`Failed to fetch recipe details: HTTP ${recipeResponse.status}`);
+        }
+
+        const menu = await menuResponse.json() || {};
+        const recipeData = await recipeResponse.json() || { data: { recipe_ingredients: [] } };
+
+        if (!menu.base_name_en || !menu.base_name_id) {
+            throw new Error('Menu data is missing or incomplete');
+        }
+
+        document.getElementById('view-menu-name').textContent = `${menu.base_name_en || 'Unknown'} / ${menu.base_name_id || 'Unknown'}`;
+        document.getElementById('view-menu-price').textContent = `Rp ${(menu.base_price || 0).toLocaleString()}`;
         document.getElementById('view-menu-available').innerHTML =
             `<span class="status-badge ${menu.isAvail ? 'status-available' : 'status-unavailable'}">
                 ${menu.isAvail ? 'Available' : 'Unavailable'}
@@ -648,14 +761,23 @@ async function viewMenu(menuId) {
         let flavorsText = 'None';
         if (menu.flavors && menu.flavors.length > 0) {
             const flavorItems = menu.flavors.map(flavor => 
-                `<div class="flavor-item">${flavor.flavor_name_en} / ${flavor.flavor_name_id}<span class="flavor-price">(+Rp ${flavor.additional_price.toLocaleString()})</span></div>`
+                `<div class="flavor-item">${flavor.flavor_name_en || 'Unknown' }<span class="flavor-price">(+Rp ${flavor.additional_price.toLocaleString()})</span></div>`
             );
             flavorsText = flavorItems.join('');
         }
         document.getElementById('view-menu-flavors').innerHTML = flavorsText;
-        
+
+        let recipeText = 'None';
+        if (recipeData.data && recipeData.data.recipe_ingredients && recipeData.data.recipe_ingredients.length > 0) {
+            const recipeItems = recipeData.data.recipe_ingredients.map(ingredient => {
+                const ingredientName = allIngredients.find(ing => ing.id === ingredient.ingredient_id)?.name || 'Unknown';
+                return `<div class="recipe-item">${ingredientName}: ${ingredient.quantity || 0} ${ingredient.unit || ''}</div>`;
+            });
+            recipeText = recipeItems.join('');
+        }
+        document.getElementById('view-menu-recipe').innerHTML = recipeText;
+
         document.getElementById('view-menu-modal').setAttribute('data-menu-id', menuId);
-        
         document.getElementById('view-menu-modal').classList.remove('hidden');
     } catch (error) {
         console.error('Error viewing menu:', error);
@@ -760,27 +882,18 @@ function openAddModal() {
     }
 }
 
-function openAddMenuModal() {
-    // Load flavors if not already loaded
-    if (allFlavors.length === 0) {
-        loadFlavors().then(() => {
-            populateFlavorCheckboxes();
-        });
-    } else {
-        populateFlavorCheckboxes();
-    }
+async function openAddMenuModal() {
+    document.getElementById('add-menu-form').reset();
+    document.getElementById('add-menu-form').removeAttribute('data-menu-id');
+    document.querySelector('#add-menu-modal .modal-title').textContent = 'Add New Menu';
     
-    // Set modal title based on whether we're editing or adding
-    const modalTitle = document.querySelector('#add-menu-modal .modal-title');
-    const isEditing = document.getElementById('add-menu-form').hasAttribute('data-menu-id');
-    modalTitle.textContent = isEditing ? 'Edit Menu' : 'Add New Menu';
+    recipeIngredients = [{ ingredient_id: '', quantity: '', unit: '' }];
+    selectedFlavorIds = [];
     
-    if (isEditing) {
-        console.log('Opening edit modal with selectedFlavorIds:', selectedFlavorIds);
-        setTimeout(() => {
-            populateFlavorCheckboxes();
-        }, 100);
-    }
+    await ensureDataLoaded();
+    
+    populateFlavorCheckboxes();
+    renderRecipeIngredients();
     
     document.getElementById('add-menu-modal').classList.remove('hidden');
 }
@@ -1040,12 +1153,11 @@ window.addEventListener('load', async () => {
     // Load menus (flavors are included in menu data)
     await loadMenus();
     await loadFlavors();
-    setupNavigation();
+    // setupNavigation();
     setupSearch();
-    
-    setTimeout(() => {
-        setupNavigation();
-    }, 100);
+    // setTimeout(() => {
+    //     setupNavigation();
+    // }, 100);
     } catch (error) {
     console.error('Error during initial load:', error);
     // Show error message to user
@@ -1054,4 +1166,19 @@ window.addEventListener('load', async () => {
         tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: red;">Error loading data: ' + error.message + '</td></tr>';
     }
     }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const addIngredientBtn = document.getElementById('add-ingredient-btn');
+    if (addIngredientBtn) {
+        addIngredientBtn.onclick = () => {
+            recipeIngredients.push({ ingredient_id: '', quantity: '', unit: '' });
+            renderRecipeIngredients();
+        };
+    }
+    // Initial Load Logic
+    const activeTabFromHash = window.location.hash.substring(1);
+    const activeTab = activeTabFromHash || 'menu'; 
+    switchTab(activeTab); 
+    setupSearch();
 });
