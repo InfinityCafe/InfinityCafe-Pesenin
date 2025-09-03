@@ -926,7 +926,7 @@ class InventoryManager {
           await fetch('/inventory/stock/add', {
             method: 'POST',
             headers,
-            body: JSON.stringify({ ingredient_id: newId, quantity: itemData.current_quantity, notes: itemData.notes || 'Initial stock (opname) on create' })
+            body: JSON.stringify({ ingredient_id: newId, add_quantity: itemData.current_quantity, notes: itemData.notes || 'Initial stock (opname) on create' })
           });
         }
         response = new Response(JSON.stringify({ status: 'success' }), { status: 200 });
@@ -1176,14 +1176,17 @@ class InventoryManager {
     const formData = new FormData(addStockForm);
     const stockData = {
       ingredient_id: parseInt(formData.get('ingredient_id')),
-      quantity: parseFloat(formData.get('quantity')),
+      add_quantity: parseFloat(formData.get('quantity')),
       notes: formData.get('notes') || ''
     };
 
     try {
+      const token = localStorage.getItem('access_token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const response = await fetch('/inventory/stock/add', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(stockData)
       });
 
@@ -1193,8 +1196,10 @@ class InventoryManager {
         this.loadAndRefreshData();
         document.getElementById('add-stock-form').reset();
       } else {
-        const errorData = await response.json();
-        this.showError(errorData.error || 'Failed to add stock');
+        let errorMsg = 'Failed to add stock';
+        try { const errorData = await response.json(); errorMsg = errorData.error || errorData.message || errorMsg; } catch (_) {}
+        if (response.status === 401) errorMsg = 'Unauthorized: silakan login ulang.';
+        this.showError(errorMsg);
       }
     } catch (error) {
       console.error('Error adding stock:', error);
