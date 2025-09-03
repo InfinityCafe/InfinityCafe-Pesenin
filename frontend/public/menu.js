@@ -1085,7 +1085,11 @@ async function editFlavor(flavorId) {
 async function deleteFlavor(flavorId) {
     // Get flavor name for confirmation message
     const flavor = allFlavors.find(f => f.id === flavorId);
-    const flavorName = flavor ? `${flavor.flavor_name_en} / ${flavor.flavor_name_id}` : 'this flavor';
+    if (!flavor) {
+        showErrorModal(`Varian rasa dengan ID ${flavorId} tidak ditemukan.`);
+        return;
+    }
+    const flavorName = `${flavor.flavor_name_en} / ${flavor.flavor_name_id}`;
     
     showDeleteConfirmModal(
         `Apakah Anda yakin ingin menghapus varian rasa "${flavorName}"?`,
@@ -1095,10 +1099,22 @@ async function deleteFlavor(flavorId) {
                     method: "DELETE"
                 });
                 
+                console.log('Delete flavor response:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: [...response.headers.entries()]
+                });
+                
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    console.log('Flavor delete error response:', errorData);
-                    const errorMessage = errorData.message || errorData.detail || 'Gagal menghapus varian rasa';
+                    let errorMessage = 'Gagal menghapus varian rasa';
+                    try {
+                        const errorData = await response.json();
+                        console.log('Flavor delete error response:', errorData);
+                        errorMessage = errorData?.message || errorData?.detail || `HTTP ${response.status}: ${response.statusText}`;
+                    } catch (parseError) {
+                        console.error('Error parsing error response:', parseError);
+                        errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                    }
                     showErrorModal(errorMessage);
                     return;
                 }
@@ -1110,25 +1126,7 @@ async function deleteFlavor(flavorId) {
                 showSuccessModal(result.message || 'Varian rasa berhasil dihapus');
             } catch (error) {
                 console.error('Error deleting flavor:', error);
-                console.log('Error type:', typeof error);
-                console.log('Error value:', error);
-                console.log('Error is null:', error === null);
-                console.log('Error is undefined:', error === undefined);
-                
-                let errorMessage = 'Unknown error occurred';
-                if (error) {
-                    if (typeof error === 'object' && error.message) {
-                        errorMessage = error.message;
-                    } else if (typeof error === 'string') {
-                        errorMessage = error;
-                    } else {
-                        errorMessage = String(error);
-                    }
-                } else {
-                    errorMessage = 'Unknown error occurred';
-                }
-                
-                showErrorModal('Error deleting flavor: ' + errorMessage);
+                showErrorModal('Error deleting flavor: ' + (error.message || 'Unknown error'));
             }
         }
     );
@@ -1526,16 +1524,5 @@ document.addEventListener('DOMContentLoaded', () => {
             renderRecipeIngredients();
         };
     }
-    
-    const editAddIngredientBtn = document.getElementById('edit-add-ingredient-btn');
-    if (editAddIngredientBtn) {
-        editAddIngredientBtn.onclick = () => {
-            recipeIngredients.push({ ingredient_id: '', quantity: '', unit: '' });
-            renderEditRecipeIngredients();
-        };
-    }
-    
-    // Initial Load Logic
-     
     setupSearch();
 });

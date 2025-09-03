@@ -20,7 +20,7 @@ END $$;
 
 -- LANGKAH 1: ISI TABEL MASTER 'flavors' - disesuaikan dengan inventory yang tersedia
 INSERT INTO flavors (id, flavor_name_en, flavor_name_id, additional_price, "isAvail") VALUES
--- Flavors untuk Caffe Latte
+('FLAV00', 'Original', 'Original', 0, TRUE), 
 ('FLAV01', 'Caramel', 'Karamel', 0, TRUE),
 ('FLAV02', 'Macadamia Nut', 'Kacang Makadamia', 0, TRUE),
 ('FLAV03', 'French Moca', 'Moka Prancis', 0, TRUE),  
@@ -64,7 +64,9 @@ INSERT INTO menu_items (id, base_name_en, base_name_id, base_price, making_time_
 
 -- LANGKAH 3: HUBUNGKAN MENU DENGAN RASA DI TABEL PENGHUBUNG
 INSERT INTO menu_item_flavor_association (menu_item_id, flavor_id) VALUES
+
 -- Rasa untuk Caffe Latte (MENU001)
+('MENU001', 'FLAV00'), -- Original / Original
 ('MENU001', 'FLAV01'), -- Caramel / Karamel
 ('MENU001', 'FLAV02'), -- Macadamia Nut / Kacang Makadamia
 ('MENU001', 'FLAV03'), -- French Moca / Moka Prancis
@@ -90,7 +92,18 @@ INSERT INTO menu_item_flavor_association (menu_item_id, flavor_id) VALUES
 ('MENU003', 'FLAV19'), -- Dark Chocolate / Coklat Hitam
 ('MENU003', 'FLAV20'), -- Chocolate Hazelnut / Coklat Hazelnut
 ('MENU003', 'FLAV21'), -- Chocolate Malt / Coklat Malt
-('MENU003', 'FLAV22'); -- Blackcurrant / Blackcurrant
+('MENU003', 'FLAV22'), -- Blackcurrant / Blackcurrant
+
+-- Rasa untuk Cappuccino (MENU011) - SAMA seperti Caffe Latte
+('MENU011', 'FLAV00'), -- Original / Original
+('MENU011', 'FLAV01'), -- Caramel / Karamel
+('MENU011', 'FLAV02'), -- Macadamia Nut / Kacang Makadamia
+('MENU011', 'FLAV03'), -- French Moca / Moka Prancis
+('MENU011', 'FLAV04'), -- Java Brown Sugar / Gula Merah Jawa
+('MENU011', 'FLAV05'), -- Chocolate / Coklat
+('MENU011', 'FLAV06'), -- Roasted Almond / Almond Panggang
+('MENU011', 'FLAV07'), -- Creme Brulee / Krim Brulee
+('MENU011', 'FLAV08'); -- Butterscotch / Butterscotch
 
 -- LANGKAH 4: ISI TABEL 'menu_suggestions'
 INSERT INTO menu_suggestions (usulan_id, menu_name, customer_name, "timestamp") VALUES
