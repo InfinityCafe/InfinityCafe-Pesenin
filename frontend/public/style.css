@@ -288,7 +288,8 @@ input:checked + .slider:before {
     color: #8D7272;
 }
 
-.tab-menu-suggestion.tab-btn {
+.tab-menu-suggestion.tab-btn,
+.tab-audit-history.tab-btn {
     width: 200px;
     text-wrap: nowrap;
 }
@@ -2478,7 +2479,7 @@ body.tab-done .add-order-btn {
     overflow: hidden;
 }
 
-#menu-table, #flavors-table, #inventory-table, #suggestions-table, #report-table {
+#menu-table, #flavors-table, #inventory-table, #suggestions-table, #report-table, #audit-history-table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0.75rem;
@@ -2489,7 +2490,8 @@ body.tab-done .add-order-btn {
 #flavors-table th, #flavors-table td,
 #inventory-table th, #inventory-table td,
 #suggestions-table th, #suggestions-table td,
-#report-table th, #report-table td {
+#report-table th, #report-table td,
+#audit-history-table th, #audit-history-table td {
     position: relative;
 }
 
@@ -2497,11 +2499,12 @@ body.tab-done .add-order-btn {
 #flavors-table thead tr,
 #inventory-table thead tr,
 #suggestions-table thead tr,
-#report-table thead tr {
+#report-table thead tr,
+#audit-history-table thead tr {
     background-color: transparent;
 }
 
-#menu-table th, #flavors-table th, #inventory-table th, #suggestions-table th, #report-table th {
+#menu-table th, #flavors-table th, #inventory-table th, #suggestions-table th, #report-table th, #audit-history th {
     padding: 0.75rem 1rem;
     text-align: center;
     font-weight: bold;
@@ -2516,7 +2519,8 @@ body.tab-done .add-order-btn {
 #flavors-table th:first-child,
 #inventory-table th:first-child,
 #suggestions-table th:first-child,
-#report-table th:first-child {
+#report-table th:first-child,
+#audit-history-table th:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
 }
@@ -2551,11 +2555,17 @@ body.tab-done .add-order-btn {
     border-bottom-right-radius: 0.5rem;
 }
 
+#audit-history-table th:nth-child(6) {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
 #menu-table th:not(:first-child):not(.action-header)::before,
 #flavors-table th:not(:first-child):not(.action-header)::before,
 #inventory-table th:not(:first-child):not(.action-header)::before,
 #suggestions-table th:not(:first-child):not(.action-header)::before,
-#report-table th:not(:first-child):not(.action-header)::before {
+#report-table th:not(:first-child):not(.action-header)::before,
+#audit-history-table th:not(:first-child):not(.action-header)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2568,18 +2578,19 @@ body.tab-done .add-order-btn {
 #menu-table th.action-header,
 #flavors-table th.action-header,
 #inventory-table th.action-header,
-#suggestions-table th.action-header {
+#suggestions-table th.action-header,
+#audit-history-table th.action-header {
     background-color: #CAB99D;
     border-radius: 0.5rem;
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
 
-#menu-table tbody tr, #flavors-table tbody tr, #inventory-table, #suggestions-table tbody tr, #report-table tbody tr {
+#menu-table tbody tr, #flavors-table tbody tr, #inventory-table, #suggestions-table tbody tr, #report-table tbody tr, #audit-history-table tbody tr {
     background-color: transparent;
 }
 
-#menu-table td, #flavors-table td, #inventory-table td, #suggestions-table td, #report-table td {
+#menu-table td, #flavors-table td, #inventory-table td, #suggestions-table td, #report-table td, #audit-history-table td {
     padding: 1rem;
     vertical-align: middle;
     background-color: #F4F1E8;
@@ -2591,7 +2602,8 @@ body.tab-done .add-order-btn {
 #flavors-table td:first-child,
 #inventory-table td:first-child,
 #suggestions-table td:first-child,
-#report-table td:first-child {
+#report-table td:first-child,
+#audit-history-table td:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
 }
@@ -2626,11 +2638,17 @@ body.tab-done .add-order-btn {
     border-bottom-right-radius: 0.5rem;
 }
 
+#audit-history-table td:nth-child(6) {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
 #menu-table td:not(:first-child):not(:last-child)::before,
 #flavors-table td:not(:first-child):not(:last-child)::before,
 #inventory-table td:not(:first-child):not(:last-child)::before,
 #suggestions-table td:not(:first-child):not(:last-child)::before,
-#report-table td:not(:first-child):not(:last-child)::before {
+#report-table td:not(:first-child):not(:last-child)::before,
+#audit-history-table td:not(:first-child):not(:last-child)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2653,7 +2671,8 @@ body.tab-done .add-order-btn {
 #menu-table td:last-child,
 #flavors-table td:last-child,
 #inventory-table td:last-child,
-#suggestions-table td:last-child {
+#suggestions-table td:last-child,
+#audit-history-table td:last-child {
     background-color: #F4F1E8;
     padding: 0;
     border-top-left-radius: 0.5rem;

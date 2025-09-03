@@ -52,76 +52,80 @@
 
       <!-- Tab Navigation -->
       <div class="tab-navigation">
+        <button id="tab-inventory" class="tab-btn tab-active" onclick="switchTab('inventory')">INVENTORY</button>
+        <button id="tab-audit-history" class="tab-btn tab-audit-history" onclick="switchTab('audit-history')">AUDIT HISTORY</button>
         <button class="add-order-btn" id="add-item-btn">ADD NEW ITEM</button>
       </div>
 
-      <!-- Inventory Overview Cards -->
-      <div class="inventory-overview">
-        <div class="overview-card total-items">
-          <div class="card-icon total-items">
-            <i class="fas fa-boxes icons-total-items"></i>
-          </div>
-          <div class="card-content">
-            <h3>Total Items</h3>
-            <p>Total items at inventory</p>
-            <span class="card-number" id="total-items"></span>
-          </div>
-        </div>
+      
 
-        <div class="overview-card low-stock">
-          <div class="card-icon low-stock">
-            <i class="fa-solid fa-triangle-exclamation icons-low-stock"></i>
-          </div>
-          <div class="card-content">
-            <h3>Low Stock</h3>
-            <p>Running low</p>
-            <span class="card-number" id="low-stock-items">15</span>
-          </div>
-        </div>
+      <!-- Tab Content -->
+      <div id="tab-content">
+        <!-- Iventory Tab (Default) -->
+        <div id="tab-inventory-content" class="tab-panel active">
+          <!-- Inventory Overview Cards -->
+          <div class="inventory-overview">
+            <div class="overview-card total-items">
+              <div class="card-icon total-items">
+                <i class="fas fa-boxes icons-total-items"></i>
+              </div>
+              <div class="card-content">
+                <h3>Total Items</h3>
+                <p>Total items at inventory</p>
+                <span class="card-number" id="total-items"></span>
+              </div>
+            </div>
 
-        <div class="overview-card critical">
-          <div class="card-icon critical">
-            <i class="fa-solid fa-circle-xmark icons-critical"></i>
-          </div>
-          <div class="card-content">
-            <h3>Critical</h3>
-            <p>Out of stock</p>
-            <span class="card-number" id="critical-items">15</span>
-          </div>
-        </div>
+            <div class="overview-card low-stock">
+              <div class="card-icon low-stock">
+                <i class="fa-solid fa-triangle-exclamation icons-low-stock"></i>
+              </div>
+              <div class="card-content">
+                <h3>Low Stock</h3>
+                <p>Running low</p>
+                <span class="card-number" id="low-stock-items">15</span>
+              </div>
+            </div>
 
-        <!-- Quick Action Section -->
-        <div class="quick-action-section">
-          <div class="quick-action-header">
-            <h3>Quick<br>Action</h3>
-          </div>
-          <div class="quick-action-buttons">
-            <button class="add-stock-btn" id="add-stock-btn">
-              <i class="fas fa-boxes"></i>
-              RESTOCK
-            </button>
+            <div class="overview-card critical">
+              <div class="card-icon critical">
+                <i class="fa-solid fa-circle-xmark icons-critical"></i>
+              </div>
+              <div class="card-content">
+                <h3>Critical</h3>
+                <p>Out of stock</p>
+                <span class="card-number" id="critical-items">15</span>
+              </div>
+            </div>
+
+            <!-- Quick Action Section -->
+            <div class="quick-action-section">
+              <div class="quick-action-header">
+                <h3>Quick<br>Action</h3>
+              </div>
+              <div class="quick-action-buttons">
+                <button class="add-stock-btn" id="add-stock-btn">
+                  <i class="fas fa-boxes"></i>
+                  RESTOCK
+                </button>
             <button class="btn-secondary" id="history-btn" style="margin-left:8px;">
               <i class="fas fa-clock"></i>
               HISTORY
             </button>
-            <!-- <button class="bulk-stock-btn" id="bulk-stock-btn">
-              <i class="fas fa-truck"></i>
-              UNIT CONVERTER
-            </button> -->
+                <!-- <button class="bulk-stock-btn" id="bulk-stock-btn">
+                  <i class="fas fa-truck"></i>
+                  UNIT CONVERTER
+                </button> -->
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <!-- Main Content Area -->
-      <div id="tab-content">
-        <!-- Menu Tab (Default) -->
-        <div id="tab-menu-content">
           <div class="table-container">
             <!-- Search and Filter Section -->
             <div class="search-filter-section">
               <div class="search-container">
                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                <input type="text" id="table-search" placeholder="Search menu..." class="search-input">
+                <input type="text" id="inventory-search" placeholder="Search menu..." class="search-input">
               </div>
               <div class="filter-container">
                 <button class="filter-btn" onclick="inventoryManager.toggleFilterStock()">
@@ -182,7 +186,7 @@
 
             <!-- Table Info -->
             <div class="table-info">
-              <span id="table-info">Showing 0 of 0 entries</span>
+              <span id="inventory-table-info">Showing 0 of 0 entries</span>
             </div>
 
             <!-- Inventory Table -->
@@ -223,6 +227,86 @@
               <div class="pagination-size">
                 <label>Show:</label>
                 <select id="entries-per-page" onchange="inventoryManager.changeStockPageSize()">
+                  <option value="5">5</option>
+                  <option value="10" selected>10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                </select>
+                <span>entries</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Audit History Tab -->
+        <div id="tab-audit-history-content" class="tab-panel">
+          <div class="table-container">
+            <div class="search-filter-section">
+              <div class="search-container">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="audit-history-search" placeholder="Search history..." class="search-input">
+              </div>
+              <div class="filter-container">
+                <button class="filter-btn" onclick="toggleFilterAuditHistory()">
+                  <i class="fas fa-filter"></i>
+                  Filter
+                </button>
+                <div class="filter-dropdown" id="audit-history-filter-dropdown">
+                  <div class="filter-group">
+                    <label>Sort by Name:</label>
+                    <select id="sort-filter">
+                      <option value="">Default</option>
+                      <option value="a-z">A to Z</option>
+                      <option value="z-a">Z to A</option>
+                    </select>
+                  </div>
+                  <div class="filter-action">
+                    <button class="apply-filter-btn" onclick="inventoryManager.applyAuditHistoryFilter()">Apply</button>
+                    <button class="clear-filter-btn" onclick="inventoryManager.clearAuditHistoryFilter()">Clear</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Table Info -->
+            <div class="table-info">
+              <span id="audit-history-table-info">Showing 0 of 0 entries</span>
+            </div>
+
+            <table id="audit-history-table">
+              <thead>
+                <tr>
+                  <th>NO</th>
+                  <th>ITEM NAME</th>
+                  <th>QUANTITY BEFORE</th>
+                  <th>QUANTITY AFTER</th>
+                  <th>QUANTITY CHANGED</th>
+                  <th>BY</th>
+                  <th class="action-header">ACTION</th>
+                </tr>
+              </thead>
+              <tbody id="audit-history-tbody"></tbody>
+            </table>
+
+            <!-- Pagination for audit history -->
+            <div class="pagination-container" id="audit-history-pagination">
+              <div class="pagination-info">
+                <span id="audit-history-pagination-info">Page 1 of 1</span>
+              </div>
+              <div class="pagination-controls">
+                <button class="pagination-btn" id="audit-history-prev-btn" onclick="changeAuditHistoryPage(-1)">
+                  <i class="fas fa-chevron-left"></i>
+                </button>
+                <div class="page-numbers" id="audit-history-page-numbers">
+
+                </div>
+                <button class="pagination-btn" id="audit-history-next-btn" onclick="changeAuditHistoryPage(1)">
+                  <i class="fas fa-chevron-right"></i>
+                </button>
+              </div>
+              <div class="pagination-size">
+                <label>Show:</label>
+                <select id="audit-history-page-size" onchange="changeAuditHistoryPageSize()">
                   <option value="5">5</option>
                   <option value="10" selected>10</option>
                   <option value="25">25</option>
@@ -277,6 +361,57 @@
       <div class="modal-actions">
         <button class="modal-btn modal-btn-cancel" onclick="inventoryManager.closeModal('view-item-modal')">Close</button>
         <button class="modal-btn" onclick="inventoryManager.editItemFromView()">Edit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Audit History Modal -->
+   <div id="view-audit-modal" class="modal hidden">
+    <div class="modal-content view-modal">
+      <button class="modal-close" onclick="inventoryManager.closeModal('view-audit-modal')">
+        &times;
+      </button>
+      <h3 class="modal-title">Audit History Details</h3>
+      <div class="view-content">
+        <div class="view-item">
+          <label>Ingredient Name:</label>
+          <span id="view-audit-ingredient-name"></span>
+        </div>
+        <div class="view-item">
+          <label>Action Type:</label>
+          <span id="view-audit-action-type"></span>
+        </div>
+        <div class="view-item">
+          <label>Quantity Before:</label>
+          <span id="view-audit-quantity-before"></span>
+        </div>
+        <div class="view-item">
+          <label>Quantity After:</label>
+          <span id="view-audit-quantity-after"></span>
+        </div>
+        <div class="view-item">
+          <label>Quantity Changes:</label>
+          <span id="view-audit-quantity-changed"></span>
+        </div>
+        <div class="view-item">
+          <label>Performed By:</label>
+          <span id="view-audit-performed-by"></span>
+        </div>
+        <div class="view-item">
+          <label>Notes:</label>
+          <span id="view-audit-item-notes"></span>
+        </div>
+        <div class="view-item">
+          <label>Created At:</label>
+          <span id="view-audit-created-at"></span>
+        </div>
+        <div class="view-item">
+          <label>Order ID:</label>
+          <span id="view-audit-order-id"></span>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn-cancel" onclick="inventoryManager.closeModal('view-audit-modal')">Close</button>
       </div>
     </div>
   </div>
@@ -433,7 +568,7 @@
   </div> -->
 
   <!-- Consumption Log Modal -->
-  <div id="consumption-log-modal" class="modal hidden">
+  <!-- <div id="consumption-log-modal" class="modal hidden">
     <div class="modal-content">
       <div class="modal-header">
         <h3 class="modal-title">Consumption Log</h3>
@@ -457,14 +592,15 @@
                 <th>Date</th>
               </tr>
             </thead>
-            <tbody id="consumption-log-tbody">
+            <tbody id="consumption-log-tbody"> -->
               <!-- Log entries will be populated here -->
-            </tbody>
+            <!-- </tbody>
           </table>
         </div>
       </div>
     </div>
-  </div>
+  </div> -->
+  
 
   <!-- Stock History Modal -->
   <div id="stock-history-modal" class="modal hidden">

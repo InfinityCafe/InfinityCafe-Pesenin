@@ -3,6 +3,7 @@ const path = require("path");
 const swaggerUi = require("swagger-ui-express");
 const swaggerJsdoc = require("swagger-jsdoc");
 const fetch = require("node-fetch");
+const { error } = require("console");
 
 const app = express();
 const PORT = 8080;
@@ -780,6 +781,34 @@ app.get("/inventory/history", async (req, res) => {
   } catch (err) {
     console.error("Failed to fetch inventory history ", err);
     res.status(500).json({ error: "Failed to fetch inventory history" });
+  }
+});
+
+// Audit History
+app.get("/inventory/stock/history", async (req,res) => {
+  try {
+    const { limit, action_type, performed_by } = req.query;
+
+    let queryParams = '';
+    if (limit || action_type || performed_by) {
+      queryParams = '?';
+      if (limit) queryParams += `limit=${encodeURIComponent(limit)}&`;
+      if (action_type) queryParams += `action_type=${encodeURIComponent(action_type)}&`;
+      if (performed_by) queryParams += `performed_by=${encodeURIComponent(performed_by)}&`;
+      queryParams = queryParams.slice(0, -1);
+    }
+
+    const resp = await fetch(`http://inventory_service:8006/stock/history${queryParams}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" }
+    });
+
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+
+  } catch (err) {
+    console.error("Failed to get stock history", err);
+    res.status(500).json({ error: "Failed to get stock history" });
   }
 });
 
