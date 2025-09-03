@@ -1,5 +1,55 @@
 // Kelola Stok Page JavaScript
 
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.remove('tab-active');
+  });
+
+  document.querySelectorAll('.tab-panel').forEach(panel => {
+    panel.classList.remove('active');
+  });
+
+  const activeButton = document.getElementById(`tab-${tab}`);
+  if (activeButton) {
+    activeButton.classList.add('tab-active');
+  }
+
+  const activePanel = document.getElementById(`tab-${tab}-content`);
+  if (activePanel) {
+    activePanel.classList.add('active');
+  }
+
+  if (tab === 'inventory' && window.inventoryManager) {
+    window.inventoryManager.loadInventoryData();
+  } else if (tab === 'audit-history' && window.inventoryManager) {
+    window.inventoryManager.loadAuditHistoryData();
+  } 
+}
+
+// function toggleFilterAuditHistory() {
+//   const dropdown = document.getElementById('audit-history-filter-dropdown');
+//   if (dropdown) {
+//     dropdown.classList.toggle('show');
+//   }
+// }
+
+// function applyAuditHistoryFilter() {
+//   console.log('Applying audit history filter...');
+//   toggleFilterAuditHistory();
+// }
+
+// function clearAuditHistoryFilter() {
+//   console.log('Clearing audit history filter...');
+//   toggleFilterAuditHistory();
+// }
+
+// function changeAuditHistoryPage(direction) {
+//   console.log('Changing audit history page:', direction);
+// }
+
+// function changeAuditHistoryPageSize() {
+//   console.log('Changing audit history page size...');
+// }
 class InventoryManager {
   constructor() {
     this.inventory = [];
@@ -13,6 +63,15 @@ class InventoryManager {
     this.isUserInteracting = false;
     this.currentFilters = { category: '', unit: '', status: '' };
     this.currentSearchTerm = '';
+    this.auditHistory = [];
+    this.filteredAuditHistory =[];
+    this.currentAuditPage = 1;
+    this.auditItemsPerPage = 10;
+    this.totalAuditPages = 1;
+    this.currentAuditFilters = { sort: '' };
+    this.currentAuditSearchTerm = '';
+    this.auditLoaded = false;
+    this.viewingAuditId = null;
 
     this.initializeEventListeners();
     this.initialLoad();
@@ -58,7 +117,7 @@ class InventoryManager {
       this.closeModal('change-status-modal');
     });
 
-    const searchInput = document.getElementById('table-search');
+    const searchInput = document.getElementById('inventory-search');
     if (searchInput) {
       searchInput.addEventListener('focus', () => {
         this.isUserInteracting = true;
@@ -170,6 +229,23 @@ class InventoryManager {
 
     safeAddEventListener('log-search', 'input', (e) => {
       this.filterConsumptionLogs(e.target.value);
+    });
+
+    safeAddEventListener('audit-history-search', 'input', (e) => {
+      this.currentAuditSearchTerm = e.target.value.toLowerCase().trim();
+      this.applyAuditFiltersAndSearch(true);
+    });
+
+    safeAddEventListener('audit-history-page-size', 'change', () => {
+      this.changeAuditHistoryPageSize();
+    });
+
+    safeAddEventListener('audit-history-prev-btn', 'click', () => {
+      this.changeAuditHistoryPage(-1);
+    });
+
+    safeAddEventListener('audit-history-next-btn', 'click', () => {
+      this.changeAuditHistoryPage(1);
     });
   }
   
@@ -428,7 +504,7 @@ class InventoryManager {
           </td>
         </tr>
       `;
-      const tableInfo = document.getElementById('table-info');
+      const tableInfo = document.getElementById('inventory-table-info');
       if (tableInfo) {
         tableInfo.textContent = 'Showing 0 of 0 entries';
       }
@@ -442,7 +518,7 @@ class InventoryManager {
         const row = this.createTableRow(item, startIndex + index + 1);
         tbody.appendChild(row);
       });
-      const tableInfo = document.getElementById('table-info');
+      const tableInfo = document.getElementById('inventory-table-info');
       if (tableInfo) {
         tableInfo.textContent = `Showing ${startIndex + 1} to ${Math.min(endIndex, this.filteredInventory.length)} of ${this.filteredInventory.length} entries`;
       }
@@ -1119,6 +1195,206 @@ class InventoryManager {
       console.error('Error adding stock:', error);
       this.showError('Failed to add stock');
     }
+  }
+
+  async loadAuditHistoryData(forceReload = false) {
+    if (this.auditLoaded && !forceReload) return;
+
+    try {
+      const response = await fetch('/inventory/stock/history?limit=1000')
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === 'success') {
+          this.auditHistory = data.data.history || [];
+          this.filteredAuditHistory = [...this.auditHistory];
+          this.applyAuditFiltersAndSearch(true);
+          this.auditLoaded = true;
+        } else {
+          this.showError(data.message || 'Failed to load audit history');
+        }
+      } else {
+        this.showError('Failed to load audit history');
+      }
+    } catch (error) {
+      console.error('Error loading audit history:', error);
+      this.showError('Failed to load audit history');
+    }
+  }
+
+  applyAuditFiltersAndSearch(resetPage = false) {
+    let temp = [...this.auditHistory];
+
+    if (this.currentAuditSearchTerm) {
+      temp = temp.filter(item =>
+      (item.ingredient_name && item.ingredient_name.toLowerCase().includes(this.currentAuditSearchTerm))
+      (this.performed_by && item.performed_by.toLowerCase().includes(this.currentAuditSearchTerm))
+      );
+    }
+
+    const sort = this.currentAuditFilters.sort;
+    if (sort === 'a-z') {
+      temp.sort((a, b) => (a.ingredient_name || '').localeCompare(b.ingredient_name || ''));
+    } else if (sort === 'z-a') {
+      temp.sort((a, b) => (b.ingredient_name || '').localeCompare(a.ingredient_name || ''));
+    }
+    
+    this.filteredAuditHistory = temp;
+    this.totalAuditPages = Math.ceil(this.filteredAuditHistory.length / this.auditItemsPerPage) || 1;
+
+    if (resetPage) {
+      this.currentAuditPage = 1;
+    } else if (this.currentAuditPage > this.totalAuditPages) {
+      this.currentAuditPage = this.totalAuditPages;
+    }
+
+    this.renderAuditHistoryTable();
+  }
+
+  renderAuditHistoryTable() {
+    const tbody = document.getElementById('audit-history-tbody');
+    if (!tbody) {
+      console.warn("Audit history table body not found in DOM");
+      return;
+    }
+
+    tbody.innerHTML = '';
+
+    const startIndex = (this.currentAuditPage -1) * this.auditItemsPerPage;
+    const endIndex = startIndex + this.auditItemsPerPage;
+    const pageData = this.filteredAuditHistory.slice(startIndex, endIndex);
+
+    if (!this.filteredAuditHistory.length) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="7" style="text-align: center; padding: 1rem;">
+            No audit history found
+          </td>
+        </tr>
+      `;
+    } else {
+      pageData.forEach((item, index) => {
+        const row = document.createAuditTableRow(item, startIndex + index + 1);
+        tbody.appendChild(row); 
+      });
+    }
+
+    const tableInfo = document.getElementById('audit-history-table-info');
+    if (tableInfo) {
+      tableInfo.textContent = `Showing ${startIndex + 1} to ${Math.min(endIndex, this.filteredAuditHistory.length)} of ${this.filteredAuditHistory.length} entries`;
+    }
+
+    this.renderAuditPagination();
+  }
+
+  createAuditTableRow(item, rowNumber) {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${rowNumber}</td>
+      <td>${item.ingredient_name || 'N/A'}</td>
+      <td>${(item.quantity_before != null ? item.quantity_before.toFixed(2) : 'N/A')}</td>
+      <td>${(item.quantity_after != null ? item.quantity_after.toFixed(2) : 'N/A')}</td>
+      <td>${(item.quantity_changed != null ? item.quantity_changed.toFixed(2) : 'N/A')}</td>
+      <td>${item.performed_by || 'N/A'}</td>
+      <td> class="action-header">
+        <button class="table-action-btn" onclick="inventoryManager.viewAuditHistory(${item.id})"><i class="fas fa-eye"></i></button>
+      </td>
+    `;
+    return row;
+  }
+
+  renderAuditPagination() {
+    const pageNumbers= document.getElementById('audit-history-page-numbers');
+    if (!pageNumbers) return;
+
+    const paginationInfo = document.getElementById('audit-history-pagination-info');
+    if (paginationInfo) {
+      paginationInfo.textContent = `Page ${this.currentAuditPage} of ${this.totalAuditPages}`;
+    }
+
+    const prevBtn = document.getElementById('audit-history-prev-btn');
+    const nextBtn = document.getElementById('audit-history-next-btn');
+    if (prevBtn) prevBtn.disabled = this.currentAuditPage === 1;
+    if (nextBtn) nextBtn.disabled = this.currentAuditPage === this.totalAuditPages;
+
+    pageNumbers.innerHTML = '';
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, this.currentAuditPage - Math.floor(maxVisiblePages /2));
+    let endPage = Math.min(this.totalAuditPages, startPage + maxVisiblePages - 1);
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      const pageBtn = document.createElement('button');
+      pageBtn.className = `page-number ${i === this.currentAuditPage ? 'active' : ''}`;
+      pageBtn.textContent = i;
+      pageBtn.onclick = () => {
+        this.currentAuditPage = i;
+        this.renderAuditHistoryTable();
+      };
+      pageNumbers.appendChild(pageBtn);
+    }
+  }
+
+  changeAuditHistoryPage(direction) {
+    this.currentAuditPage += direction;
+    if (this.currentAuditPage < 1) this.currentAuditPage = 1;
+    if (this.currentAuditPage > this.totalAuditPages) this.currentAuditPage = this.totalAuditPages;
+    this.renderAuditHistoryTable();
+  }
+
+  changeAuditHistoryPageSize() {
+    const entriesPerPage = document.getElementById('audit-history-page-size');
+    if (entriesPerPage) {
+      this.auditItemsPerPage = parseInt(entriesPerPage.value);
+      this.currentAuditPage = 1;
+      this.renderAuditHistoryTable();
+    }
+  }
+
+  toggleFilterAuditHistory() {
+    const dropdown = document.getElementById('audit-history-filter-dropdown');
+    if (dropdown) {
+      dropdown.classList.toggle('show');
+    }
+  }
+
+  applyAuditHistoryFilter() {
+    const sortFilter = document.getElementById('sort-filter');
+    if (sortFilter) {
+      this.currentAuditFilters.sort = sortFilter.value;
+      this.applyCurrentFiltersAndSearch(true);
+      this.toggleFilterAuditHistory();
+    }
+  }
+
+  clearAuditHistoryFilter() {
+    const sortFilter = document.getElementById('sort-filter');
+    if (sortFilter) sortFilter.value = '';
+    this.currentAuditFilters.sort = '';
+    this.currentAuditSearchTerm = '';
+    this.applyAuditFiltersAndSearch(true);
+    this.toggleFilterAuditHistory();
+  }
+
+  viewAuditHistory(id) {
+    const item = this.auditHistory.find(h => h.id === id);
+    if (!item) {
+      this.showError('Audit history item not found');
+      return;
+    }
+
+    document.getElementById('view-audit-ingredient-name').textContent = item.ingredient_name || 'N/A';
+    document.getElementById('view-audit-action-type').textContent = item.action_type || 'N/A';
+    document.getElementById('view-audit-quantity-before').textContent = (item.quantity_before != null ? item.quantity_before.toFixed(2) : 'N/A');
+    document.getElementById('view-audit-quantity-after').textContent = (item.quantity_after != null ? item.quantity_after.toFixed(2) : 'N/A');
+    document.getElementById('view-audit-quantity-changed').textContent = (item.quantity_changed != null ? item.quantity_changed.toFixed(2) : 'N/A');
+    document.getElementById('view-audit-peformed-by').textContent = item.performed_by || 'N/A';
+    document.getElementById('view-audit-notes').textContent = item.notes || 'N/A';
+    document.getElementById('view-audit-created-at').textContent = item.created_at || 'N/A';
+    document.getElementById('view-audit-order-id').textContent = item.order_id || 'N/A';
+
+    this.showModal('view-audit-modal');
   }
 
   // Consumption Log Modal Methods
