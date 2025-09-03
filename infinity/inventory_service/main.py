@@ -979,7 +979,7 @@ def update_ingredient(req: UpdateIngredientRequest, db: Session = Depends(get_db
         })
 
 @app.patch("/toggle_ingredient_availability/{ingredient_id}", summary="Toggle ketersediaan bahan (available/unavailable)", tags=["Inventory"], operation_id="toggle ingredient availability")
-def toggle_ingredient_availability(ingredient_id: int, db: Session = Depends(get_db)):
+def toggle_ingredient_availability(ingredient_id: int, db: Session = Depends(get_db), current_username: str = Depends(get_current_username)):
     """
     Toggle status ketersediaan ingredient antara available dan unavailable.
     Ini menggantikan fungsi delete - ingredient tidak pernah benar-benar dihapus,
@@ -994,11 +994,24 @@ def toggle_ingredient_availability(ingredient_id: int, db: Session = Depends(get
                 "data": None
             })
         
+        old_availability = ing.is_available
         new_availability = not ing.is_available
         old_status = "tersedia" if ing.is_available else "tidak tersedia"
         new_status = "tersedia" if new_availability else "tidak tersedia"
         
         ing.is_available = new_availability
+        
+        # Tambahkan tracking history untuk perubahan availability
+        action_type = "make_unavailable" if not new_availability else "make_available"
+        create_stock_history(
+            db=db,
+            ingredient_id=ingredient_id,
+            action_type=action_type,
+            quantity_before=1 if old_availability else 0,  # 1 = available, 0 = unavailable
+            quantity_after=1 if new_availability else 0,
+            performed_by=current_username,  # Menggunakan user yang sedang login
+            notes=f"Toggle ketersediaan dari {old_status} menjadi {new_status}"
+        )
         
         ingredient_data = {
             "id": ing.id,
@@ -1009,7 +1022,8 @@ def toggle_ingredient_availability(ingredient_id: int, db: Session = Depends(get
             "unit": ing.unit.value,
             "is_available": ing.is_available,
             "old_status": old_status,
-            "new_status": new_status
+            "new_status": new_status,
+            "performed_by": current_username  # Tambahkan info user di response
         }
         
         db.commit()
@@ -1018,7 +1032,7 @@ def toggle_ingredient_availability(ingredient_id: int, db: Session = Depends(get
         create_outbox_event(db, event_type, {
             "id": ingredient_id, 
             "name": ing.name,
-            "old_availability": not new_availability,
+            "old_availability": old_availability,
             "new_availability": new_availability
         })
         db.commit()
@@ -1026,7 +1040,7 @@ def toggle_ingredient_availability(ingredient_id: int, db: Session = Depends(get
         
         return JSONResponse(status_code=200, content={
             "status": "success", 
-            "message": f"Bahan '{ing.name}' berhasil diubah dari {old_status} menjadi {new_status}", 
+            "message": f"Bahan '{ing.name}' berhasil diubah dari {old_status} menjadi {new_status} oleh {current_username}", 
             "data": ingredient_data
         })
         
@@ -1039,7 +1053,7 @@ def toggle_ingredient_availability(ingredient_id: int, db: Session = Depends(get
         })
 
 @app.patch("/set_ingredient_availability/{ingredient_id}", summary="Set status ketersediaan bahan", tags=["Inventory"])
-def set_ingredient_availability(ingredient_id: int, is_available: bool = Query(..., description="True untuk available, False untuk unavailable"), db: Session = Depends(get_db)):
+def set_ingredient_availability(ingredient_id: int, is_available: bool = Query(..., description="True untuk available, False untuk unavailable"), db: Session = Depends(get_db), current_username: str = Depends(get_current_username)):
     """
     Set status ketersediaan ingredient ke available atau unavailable secara eksplisit.
     """
@@ -1064,11 +1078,24 @@ def set_ingredient_availability(ingredient_id: int, is_available: bool = Query(.
                     "id": ing.id,
                     "name": ing.name,
                     "is_available": ing.is_available,
-                    "status": new_status
+                    "status": new_status,
+                    "performed_by": current_username  # Tambahkan info user
                 }
             })
         
         ing.is_available = is_available
+        
+        # Tambahkan tracking history untuk perubahan availability
+        action_type = "make_unavailable" if not is_available else "make_available"
+        create_stock_history(
+            db=db,
+            ingredient_id=ingredient_id,
+            action_type=action_type,
+            quantity_before=1 if old_availability else 0,  # 1 = available, 0 = unavailable
+            quantity_after=1 if is_available else 0,
+            performed_by=current_username,  # Menggunakan user yang sedang login
+            notes=f"Set ketersediaan dari {old_status} menjadi {new_status}"
+        )
         
         ingredient_data = {
             "id": ing.id,
@@ -1079,7 +1106,8 @@ def set_ingredient_availability(ingredient_id: int, is_available: bool = Query(.
             "unit": ing.unit.value,
             "is_available": ing.is_available,
             "old_status": old_status,
-            "new_status": new_status
+            "new_status": new_status,
+            "performed_by": current_username  # Tambahkan info user di response
         }
         
         db.commit()
@@ -1096,7 +1124,7 @@ def set_ingredient_availability(ingredient_id: int, is_available: bool = Query(.
         
         return JSONResponse(status_code=200, content={
             "status": "success", 
-            "message": f"Bahan '{ing.name}' berhasil diubah dari {old_status} menjadi {new_status}", 
+            "message": f"Bahan '{ing.name}' berhasil diubah dari {old_status} menjadi {new_status} oleh {current_username}", 
             "data": ingredient_data
         })
         
@@ -1516,7 +1544,7 @@ def update_ingredient_with_audit(
 def get_ingredient_stock_history(
     ingredient_id: int, 
     limit: int = Query(50, description="Jumlah record maksimal"),
-    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback"),
+    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable"),
     db: Session = Depends(get_db)
 ):
     """Menampilkan history perubahan stock untuk ingredient tertentu"""
@@ -1577,7 +1605,7 @@ def get_ingredient_stock_history(
 @app.get("/stock/history", summary="History perubahan stock semua ingredient", tags=["Stock Management"])
 def get_all_stock_history(
     limit: int = Query(100, description="Jumlah record maksimal"),
-    action_type: Optional[str] = Query(None, description="Filter by action type"),
+    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable"),
     performed_by: Optional[str] = Query(None, description="Filter by user name"),
     db: Session = Depends(get_db)
 ):
