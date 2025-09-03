@@ -359,16 +359,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const page = document.body.getAttribute('data-page');
     const hash = window.location.hash.replace('#', '');
-    console.log('Current page:', page, 'Hash:', hash);
-
     const validTabs = ['menu', 'flavors'];
 
     if (page === 'menu') {
         const activeTab = validTabs.includes(hash) ? hash : 'menu';
-        console.log('Active tab set to:', activeTab);
         switchTab(activeTab);
-        if (validTabs.includes(hash)) {
-            console.log('Clearing hash from URL');
+        if (window.location.hash) {
             window.history.replaceState({}, document.title, '/menu-management');
         }
         // Ensure data is loaded for the active tab

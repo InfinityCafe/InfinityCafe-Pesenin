@@ -288,6 +288,38 @@ app.put("/menu/:menu_id", async (req, res) => {
   }
 });
 
+// Update menu recipe (menu service)
+app.post("/menu/:menu_id/recipe", async (req, res) => {
+  try {
+    const { menu_id } = req.params;
+    const body = req.body;
+    const resp = await fetch(`http://menu_service:8001/menu/${menu_id}/recipe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to update menu recipe", err);
+    res.status(500).json({ error: "Failed to update menu recipe" });
+  }
+});
+
+app.get("/menu/:menu_id/recipe", async (req, res) => {
+  try {
+    const { menu_id } = req.params;
+    const resp = await fetch(`http://menu_service:8001/menu/${menu_id}/recipe`, {
+      method: "GET"
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to load menu recipe", err);
+    res.status(500).json({ error: "Failed to load menu recipe" });
+  }
+});
+
 app.delete("/menu/:menu_id", async (req, res) => {
   try {
     const { menu_id } = req.params;
