@@ -7,7 +7,7 @@ const { error } = require("console");
 
 const app = express();
 const PORT = 8080;
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "https://liberal-relative-panther.ngrok-free.app/webhook/trigger-order-status";
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "https://allowed-airedale-darling.ngrok-free.app/webhook/trigger-order-status";
 
 // Middleware
 app.use(express.json());
@@ -23,7 +23,7 @@ const swaggerSpec = swaggerJsdoc({
       version: "1.0.0",
       description: "Dokumentasi untuk frontend Infinity Cafe",
     },
-    servers: [{ url: "http://localhost:8080" }],
+    servers: [{ url: "http://frontend:8080" }],
   },
   apis: ["./server.js"],
 });
