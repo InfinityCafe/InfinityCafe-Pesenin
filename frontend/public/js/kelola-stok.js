@@ -19,6 +19,12 @@ function switchTab(tab) {
     activePanel.classList.add('active');
   }
 
+  // Toggle visibility of Add New Item button based on active tab
+  const addItemBtn = document.getElementById('add-item-btn');
+  if (addItemBtn) {
+    addItemBtn.style.display = (tab === 'inventory') ? '' : 'none';
+  }
+
   if (tab === 'inventory' && window.inventoryManager) {
     window.inventoryManager.loadInventoryData();
   } else if (tab === 'audit-history' && window.inventoryManager) {
