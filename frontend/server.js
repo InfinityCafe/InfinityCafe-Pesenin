@@ -3,6 +3,7 @@ const path = require("path");
 const swaggerUi = require("swagger-ui-express");
 const swaggerJsdoc = require("swagger-jsdoc");
 const fetch = require("node-fetch");
+const { error } = require("console");
 
 const app = express();
 const PORT = 8080;
@@ -194,10 +195,24 @@ app.get("/menu", async (req, res) => {
   try {
     const resp = await fetch("http://menu_service:8001/menu");
     const data = await resp.json();
+    res.set('Cache-Control', 'no-store');
     res.json(data);
   } catch (err) {
     console.error("Failed to fetch menu ", err);
     res.status(500).json({ error: "Failed to fetch menu" });
+  }
+});
+
+// Admin passthrough for all menus (same as list, explicit path)
+app.get("/menu/all", async (req, res) => {
+  try {
+    const resp = await fetch("http://menu_service:8001/menu");
+    const data = await resp.json();
+    res.set('Cache-Control', 'no-store');
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch all menus ", err);
+    res.status(500).json({ error: "Failed to fetch all menus" });
   }
 });
 
@@ -287,17 +302,21 @@ app.put("/menu/:menu_id", async (req, res) => {
   }
 });
 
+// Update menu recipe (menu service)
 app.post("/menu/:menu_id/recipe", async (req, res) => {
   try {
     const { menu_id } = req.params;
+    const body = req.body;
     const resp = await fetch(`http://menu_service:8001/menu/${menu_id}/recipe`, {
-      method: "POST"
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
     });
     const data = await resp.json();
     res.status(resp.status).json(data);
   } catch (err) {
-    console.error("Failed to create menu ", err);
-    res.status(500).json({ error: "Failed to create menu" });
+    console.error("Failed to update menu recipe", err);
+    res.status(500).json({ error: "Failed to update menu recipe" });
   }
 });
 
@@ -330,6 +349,17 @@ app.delete("/menu/:menu_id", async (req, res) => {
 });
 
 // Flavor endpoints
+app.get("/flavors/all", async (req, res) => {
+  try {
+    const resp = await fetch("http://menu_service:8001/flavors/all");
+    const data = await resp.json();
+    res.set('Cache-Control', 'no-store');
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to fetch all flavors ", err);
+    res.status(500).json({ error: "Failed to fetch all flavors" });
+  }
+});
 app.get("/flavors", async (req, res) => {
   try {
     const resp = await fetch("http://menu_service:8001/flavors");
@@ -392,7 +422,17 @@ app.delete("/flavors/:flavor_id", async (req, res) => {
     const resp = await fetch(`http://menu_service:8001/flavors/${flavor_id}`, {
       method: "DELETE"
     });
-    const data = await resp.json();
+    let data;
+    try {
+      data = await resp.json();
+    } catch (_) {
+      // Fallback when backend returns empty body
+      data = {
+        status: resp.ok ? "success" : "error",
+        message: resp.ok ? "Flavor deleted" : `HTTP ${resp.status}: ${resp.statusText}`,
+        data: { id: flavor_id }
+      };
+    }
     res.status(resp.status).json(data);
   } catch (err) {
     console.error("Failed to delete flavor ", err);
@@ -811,6 +851,34 @@ app.get("/inventory/history", async (req, res) => {
   }
 });
 
+// Audit History
+app.get("/inventory/stock/history", async (req,res) => {
+  try {
+    const { limit, action_type, performed_by } = req.query;
+
+    let queryParams = '';
+    if (limit || action_type || performed_by) {
+      queryParams = '?';
+      if (limit) queryParams += `limit=${encodeURIComponent(limit)}&`;
+      if (action_type) queryParams += `action_type=${encodeURIComponent(action_type)}&`;
+      if (performed_by) queryParams += `performed_by=${encodeURIComponent(performed_by)}&`;
+      queryParams = queryParams.slice(0, -1);
+    }
+
+    const resp = await fetch(`http://inventory_service:8006/stock/history${queryParams}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" }
+    });
+
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+
+  } catch (err) {
+    console.error("Failed to get stock history", err);
+    res.status(500).json({ error: "Failed to get stock history" });
+  }
+});
+
 app.patch("/inventory/toggle/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -862,6 +930,7 @@ app.get("/menu/list", async (req, res) => {
   try {
     const resp = await fetch("http://menu_service:8001/menu");
     const data = await resp.json();
+    res.set('Cache-Control', 'no-store');
     res.json(data);
   } catch (err) {
     console.error("Failed to fetch menu list ", err);

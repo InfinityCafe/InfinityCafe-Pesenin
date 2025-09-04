@@ -46,8 +46,9 @@ function switchTab(tab) {
 // Load all menus with pagination
 async function loadMenus() {
     try {
+    const cb = Date.now();
     // Use /menu/all endpoint to get all menus (including unavailable ones) for admin view
-    const response = await fetch(`${BASE_URL}/menu/all`);
+    const response = await fetch(`${BASE_URL}/menu/all?cb=${cb}`, { cache: 'no-store' });
     if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -92,7 +93,8 @@ async function loadMenus() {
     } catch (error) {
     console.error('Error loading menus:', error);
     const tbody = document.querySelector('#menu-table tbody');
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: red;">Error loading menus: ' + error.message + '</td></tr>';
+    const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: red;">Error loading menus: ' + errorMessage + '</td></tr>';
     throw error;
     }
 }
@@ -239,7 +241,8 @@ async function ensureDataLoaded() {
 // Load flavors with pagination
 async function loadFlavors() {
     try {
-        const response = await fetch(`${BASE_URL}/flavors/all`);
+        const cb = Date.now();
+        const response = await fetch(`${BASE_URL}/flavors/all?cb=${cb}`, { cache: 'no-store' });
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -274,7 +277,8 @@ async function loadFlavors() {
     } catch (error) {
         console.error('Error loading flavors:', error);
         const tbody = document.querySelector('#flavors-table tbody');
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Error loading flavors: ' + error.message + '</td></tr>';
+        const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Error loading flavors: ' + errorMessage + '</td></tr>';
         throw error;
     }
 }
@@ -500,7 +504,7 @@ document.addEventListener('click', function(event) {
 async function loadAllIngredients() {
     if (allIngredients.length > 0) return;
     try {
-        const response = await fetch('/inventory/list?show_unavailable=true'); 
+        const response = await fetch(`${BASE_URL}/inventory/list?show_unavailable=true`); 
         if (!response.ok) throw new Error('Failed to fetch ingredients');
         const data = await response.json();
         allIngredients = data.data || [];
@@ -535,29 +539,100 @@ function renderRecipeIngredients() {
         container.appendChild(itemDiv);
     });
 
-    document.querySelectorAll('.recipe-ingredient-select').forEach(select => {
+    document.querySelectorAll('#recipe-ingredients-list .recipe-ingredient-select').forEach(select => {
         select.onchange = function() {
-            const index = this.dataset.index;
+            const index = parseInt(this.dataset.index);
             const selectedOption = this.options[this.selectedIndex];
             recipeIngredients[index].ingredient_id = this.value ? parseInt(this.value) : '';
             recipeIngredients[index].unit = selectedOption.dataset.unit || '';
             renderRecipeIngredients();
         };
     });
-    document.querySelectorAll('.recipe-quantity-input').forEach(input => {
+    document.querySelectorAll('#recipe-ingredients-list .recipe-quantity-input').forEach(input => {
         input.oninput = function() {
-            const index = this.dataset.index;
+            const index = parseInt(this.dataset.index);
             recipeIngredients[index].quantity = this.value ? parseFloat(this.value) : '';
         };
     });
-    document.querySelectorAll('.remove-ingredient-btn').forEach(btn => {
+    document.querySelectorAll('#recipe-ingredients-list .remove-ingredient-btn').forEach(btn => {
         btn.onclick = function() {
-            const index = this.dataset.index;
+            const index = parseInt(this.dataset.index);
             recipeIngredients.splice(index, 1);
             if (recipeIngredients.length === 0) {
                 recipeIngredients.push({ ingredient_id: '', quantity: '', unit: '' });
             }
             renderRecipeIngredients();
+        };
+    });
+}
+
+function renderEditRecipeIngredients() {
+    const container = document.getElementById('edit-recipe-ingredients-list');
+    container.innerHTML = '';
+
+    console.log('Rendering edit recipe ingredients:', {
+        recipeIngredients: recipeIngredients,
+        allIngredients: allIngredients,
+        allIngredientsLength: allIngredients.length
+    });
+
+    recipeIngredients.forEach((recipeItem, index) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'recipe-item';
+
+        const ingredientOptions = allIngredients.map(ing => 
+            `<option value="${ing.id}" data-unit="${ing.unit}" ${ing.id == recipeItem.ingredient_id ? 'selected' : ''}>${ing.name}</option>`
+        ).join('');
+
+        itemDiv.innerHTML = `
+            <select class="recipe-ingredient-select" data-index="${index}">
+                <option value="">Select Ingredient</option>
+                ${ingredientOptions}
+            </select>
+            <input type="number" class="recipe-quantity-input" placeholder="Qty" value="${recipeItem.quantity || ''}" data-index="${index}" min="0" step="0.01">
+            <div class="recipe-unit-display">${recipeItem.unit || 'Unit'}</div>
+            <button class="remove-ingredient-btn" data-index="${index}">&times;</button>
+        `;
+        container.appendChild(itemDiv);
+    });
+
+    document.querySelectorAll('#edit-recipe-ingredients-list .recipe-ingredient-select').forEach(select => {
+        select.onchange = function() {
+            const index = parseInt(this.dataset.index);
+            const selectedOption = this.options[this.selectedIndex];
+            console.log('Ingredient changed:', { index, value: this.value, selectedOption });
+            
+            recipeIngredients[index].ingredient_id = this.value ? parseInt(this.value) : '';
+            recipeIngredients[index].unit = selectedOption.dataset.unit || '';
+            
+            console.log('Updated recipeIngredients:', recipeIngredients);
+            renderEditRecipeIngredients();
+        };
+    });
+    
+    document.querySelectorAll('#edit-recipe-ingredients-list .recipe-quantity-input').forEach(input => {
+        input.oninput = function() {
+            const index = parseInt(this.dataset.index);
+            const value = this.value;
+            console.log('Quantity changed:', { index, value });
+            
+            recipeIngredients[index].quantity = value ? parseFloat(value) : '';
+            console.log('Updated recipeIngredients:', recipeIngredients);
+        };
+    });
+    
+    document.querySelectorAll('#edit-recipe-ingredients-list .remove-ingredient-btn').forEach(btn => {
+        btn.onclick = function() {
+            const index = parseInt(this.dataset.index);
+            console.log('Removing ingredient at index:', index);
+            
+            recipeIngredients.splice(index, 1);
+            if (recipeIngredients.length === 0) {
+                recipeIngredients.push({ ingredient_id: '', quantity: '', unit: '' });
+            }
+            
+            console.log('Updated recipeIngredients after removal:', recipeIngredients);
+            renderEditRecipeIngredients();
         };
     });
 }
@@ -638,21 +713,169 @@ async function saveMenu() {
         
         const result = await response.json();
         console.log('Menu saved successfully:', result);
-        
+
+        // Save recipe ingredients via dedicated endpoint
+        try {
+            const createdMenuId = (result && result.id) ? result.id : (menuId || (result.data && result.data.id));
+            if (createdMenuId && validRecipeIngredients && validRecipeIngredients.length > 0) {
+                const recipeRes = await fetch(`${BASE_URL}/menu/${createdMenuId}/recipe`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(validRecipeIngredients)
+                });
+                if (!recipeRes.ok) {
+                    let errMsg = 'Failed to save recipe';
+                    try { const ed = await recipeRes.json(); errMsg = ed.message || ed.detail || errMsg; } catch (_) {}
+                    throw new Error(errMsg);
+                }
+                const recipeResult = await recipeRes.json();
+                console.log('Recipe saved successfully:', recipeResult);
+            }
+        } catch (recipeError) {
+            console.error('Error saving recipe after menu save:', recipeError);
+            const em = recipeError && recipeError.message ? recipeError.message : 'Unknown error occurred';
+            showErrorModal('Menu saved but recipe update failed: ' + em);
+        }
+
         selectedFlavorIds = [];
         closeAddMenuModal();
         await loadMenus();
-        
+
         showSuccessModal(result.message || 'Menu berhasil disimpan');
     } catch (error) {
         console.error('Error saving menu:', error);
-        showErrorModal('Error saving menu: ' + error.message);
+        const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
+        showErrorModal('Error saving menu: ' + errorMessage);
+    }
+}
+
+// Save edited menu
+async function saveEditMenu() {
+    const menuId = document.getElementById('edit-menu-form').getAttribute('data-menu-id') || null;
+    console.log('Edit form menu ID:', menuId); // Debug log
+    
+    const baseNameEn = document.getElementById('edit-base-name-en').value.trim();
+    const baseNameId = document.getElementById('edit-base-name-id').value.trim();
+    const basePrice = parseInt(document.getElementById('edit-base-price').value);
+    const isAvail = document.querySelector('input[name="edit-is-avail"]:checked').value === 'true';
+    const makingTimeMinutes = parseFloat(document.getElementById('edit-making-time-minutes').value) || 0;
+    
+    console.log('Recipe ingredients before validation:', recipeIngredients);
+    
+    const validRecipeIngredients = recipeIngredients
+        .filter(item => item.ingredient_id && item.quantity > 0)
+        .map(item => ({
+            ingredient_id: parseInt(item.ingredient_id),
+            quantity: parseFloat(item.quantity),
+            unit: item.unit
+        }));
+    
+    console.log('Valid recipe ingredients after validation:', validRecipeIngredients);
+    
+    if (!baseNameEn || !baseNameId) {
+        showErrorModal('Nama menu (EN dan ID) tidak boleh kosong.');
+        return;
+    }
+
+    if (isNaN(basePrice) || basePrice <= 0) {
+        showErrorModal('Harga menu harus lebih dari 0.');
+        return;
+    }
+
+    if (!recipeIngredients || recipeIngredients.length === 0) {
+        showErrorModal('Recipe ingredients tidak boleh kosong.');
+        return;
+    }
+    if (validRecipeIngredients.length === 0) {
+        showErrorModal('Menu must have at least one valid ingredient in its recipe.');
+        return;
+    }
+
+    if (!menuId) {
+        showErrorModal('Menu ID tidak ditemukan untuk update.');
+        return;
+    }
+
+    const data = {
+        base_name_en: baseNameEn,
+        base_name_id: baseNameId,
+        base_price: basePrice,
+        isAvail: isAvail,
+        making_time_minutes: makingTimeMinutes,
+        flavor_ids: selectedFlavorIds,
+        recipe_ingredients: validRecipeIngredients
+    };
+    
+    console.log('=== SAVE EDIT MENU DEBUG ===');
+    console.log('Data being sent to API:', data);
+    console.log('Recipe ingredients in data:', data.recipe_ingredients);
+    console.log('Original recipeIngredients array:', recipeIngredients);
+    console.log('Valid recipe ingredients:', validRecipeIngredients);
+    console.log('============================');
+
+    try {
+        const response = await fetch(`${BASE_URL}/menu/${menuId}`, {
+            method: "PUT",
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (!response.ok) {
+            let errorMessage = 'Failed to update menu';
+            try {
+                const errorData = await response.json();
+                console.log('Menu update error response:', errorData);
+                errorMessage = errorData.message || errorData.detail || errorData.error || errorMessage;
+            } catch (parseError) {
+                errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+            }
+            throw new Error(errorMessage);
+        }
+        
+        const result = await response.json();
+        console.log('Menu updated successfully:', result);
+
+        // Update recipe ingredients via dedicated endpoint
+        try {
+            const currentMenuId = menuId || (result && result.id) || (result.data && result.data.id);
+            if (currentMenuId && validRecipeIngredients && validRecipeIngredients.length > 0) {
+                const recipeRes = await fetch(`${BASE_URL}/menu/${currentMenuId}/recipe`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(validRecipeIngredients)
+                });
+                if (!recipeRes.ok) {
+                    let errMsg = 'Failed to update recipe';
+                    try { const ed = await recipeRes.json(); errMsg = ed.message || ed.detail || errMsg; } catch (_) {}
+                    throw new Error(errMsg);
+                }
+                const recipeResult = await recipeRes.json();
+                console.log('Recipe updated successfully:', recipeResult);
+            }
+        } catch (recipeError) {
+            console.error('Error updating recipe after menu update:', recipeError);
+            const em = recipeError && recipeError.message ? recipeError.message : 'Unknown error occurred';
+            showErrorModal('Menu updated but recipe update failed: ' + em);
+        }
+
+        selectedFlavorIds = [];
+        closeEditMenuModal();
+        await loadMenus();
+        
+        showSuccessModal(result.message || 'Menu berhasil diupdate');
+    } catch (error) {
+        console.error('Error updating menu:', error);
+        const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
+        showErrorModal('Error updating menu: ' + errorMessage);
     }
 }
 
 // Edit menu
 async function editMenu(menuId) {
     try {
+        // Ensure ingredients are loaded first
+        await loadAllIngredients();
+        
         const [menuRes, recipeRes] = await Promise.all([
             fetch(`${BASE_URL}/menu/${menuId}`),
             fetch(`${BASE_URL}/menu/${menuId}/recipe`)
@@ -672,13 +895,17 @@ async function editMenu(menuId) {
             throw new Error('Menu data is missing or incomplete');
         }
 
-        document.getElementById('base-name-en').value = menu.base_name_en || '';
-        document.getElementById('base-name-id').value = menu.base_name_id || '';
-        document.getElementById('base-price').value = menu.base_price || '';
-        document.getElementById('making-time-minutes').value = menu.making_time_minutes || '';
-        document.getElementById(menu.isAvail ? 'is-avail-true' : 'is-avail-false').checked = true;
+        // Populate edit form fields
+        document.getElementById('edit-base-name-en').value = menu.base_name_en || '';
+        document.getElementById('edit-base-name-id').value = menu.base_name_id || '';
+        document.getElementById('edit-base-price').value = menu.base_price || '';
+        document.getElementById('edit-making-time-minutes').value = menu.making_time_minutes || '';
+        document.getElementById(menu.isAvail ? 'edit-is-avail-true' : 'edit-is-avail-false').checked = true;
 
+        // Set selected flavors for edit form
         selectedFlavorIds = menu.flavors ? menu.flavors.map(f => f.id) : [];
+        
+        // Set recipe ingredients for edit form
         recipeIngredients = recipeData.data && recipeData.data.recipe_ingredients 
             ? recipeData.data.recipe_ingredients.map(ing => ({
                   ingredient_id: ing.ingredient_id,
@@ -687,11 +914,21 @@ async function editMenu(menuId) {
               }))
             : [{ ingredient_id: '', quantity: '', unit: '' }];
 
-        document.getElementById('add-menu-form').setAttribute('data-menu-id', menuId);
-        openAddMenuModal();
+        console.log('=== EDIT MENU DEBUG ===');
+        console.log('Recipe data from API:', recipeData);
+        console.log('Initialized recipeIngredients:', recipeIngredients);
+        console.log('========================');
+
+        // Set menu ID for edit form
+        document.getElementById('edit-menu-form').setAttribute('data-menu-id', menuId);
+        console.log('Set edit form menu ID to:', menuId); // Debug log
+        
+        // Open edit modal instead of add modal
+        openEditMenuModal();
     } catch (error) {
         console.error('Error loading menu for edit:', error);
-        showErrorModal('Error loading menu for edit: ' + error.message);
+        const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
+        showErrorModal('Error loading menu for edit: ' + errorMessage);
     }
 }
 
@@ -723,7 +960,8 @@ async function deleteMenu(menuId) {
                 showSuccessModal(result.message || 'Menu berhasil dihapus');
             } catch (error) {
                 console.error('Error deleting menu:', error);
-                showErrorModal('Error deleting menu: ' + error.message);
+                const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
+                showErrorModal('Error deleting menu: ' + errorMessage);
             }
         }
     );
@@ -732,9 +970,13 @@ async function deleteMenu(menuId) {
 // View menu
 async function viewMenu(menuId) {
     try {
+        // Ensure ingredients are loaded first
+        await loadAllIngredients();
+        
+        const cacheBust = `cb=${Date.now()}`;
         const [menuResponse, recipeResponse] = await Promise.all([
-            fetch(`${BASE_URL}/menu/${menuId}`),
-            fetch(`${BASE_URL}/menu/${menuId}/recipe`)
+            fetch(`${BASE_URL}/menu/${menuId}?${cacheBust}`, { cache: 'no-store' }),
+            fetch(`${BASE_URL}/menu/${menuId}/recipe?${cacheBust}`, { cache: 'no-store' })
         ]);
 
         if (!menuResponse.ok) {
@@ -770,7 +1012,8 @@ async function viewMenu(menuId) {
         let recipeText = 'None';
         if (recipeData.data && recipeData.data.recipe_ingredients && recipeData.data.recipe_ingredients.length > 0) {
             const recipeItems = recipeData.data.recipe_ingredients.map(ingredient => {
-                const ingredientName = allIngredients.find(ing => ing.id === ingredient.ingredient_id)?.name || 'Unknown';
+                const fromInventory = allIngredients.find(ing => ing.id === ingredient.ingredient_id)?.name;
+                const ingredientName = ingredient.ingredient_name || fromInventory || 'Unknown';
                 return `<div class="recipe-item">${ingredientName}: ${ingredient.quantity || 0} ${ingredient.unit || ''}</div>`;
             });
             recipeText = recipeItems.join('');
@@ -781,7 +1024,8 @@ async function viewMenu(menuId) {
         document.getElementById('view-menu-modal').classList.remove('hidden');
     } catch (error) {
         console.error('Error viewing menu:', error);
-        showErrorModal('Error loading menu details: ' + error.message);
+        const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
+        showErrorModal('Error loading menu details: ' + errorMessage);
     }
 }
 
@@ -805,7 +1049,8 @@ async function viewFlavor(flavorId) {
         document.getElementById('view-flavor-modal').classList.remove('hidden');
     } catch (error) {
         console.error('Error viewing flavor:', error);
-        showErrorModal('Error loading flavor details: ' + error.message);
+        const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
+        showErrorModal('Error loading flavor details: ' + errorMessage);
     }
 }
 
@@ -833,7 +1078,8 @@ async function editFlavor(flavorId) {
         openAddFlavourModal();
     } catch (error) {
         console.error('Error loading flavor for edit:', error);
-        showErrorModal('Error loading flavor for edit: ' + error.message);
+        const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
+        showErrorModal('Error loading flavor for edit: ' + errorMessage);
     }
 }
 
@@ -846,43 +1092,65 @@ async function deleteFlavor(flavorId) {
         return;
     }
     const flavorName = `${flavor.flavor_name_en} / ${flavor.flavor_name_id}`;
-    
+
+    // Pre-check usage: prevent deletion if still used by any menu for better UX
+    const menusUsingFlavor = (allMenus || []).filter(m => Array.isArray(m.flavors) && m.flavors.some(f => f.id === flavorId));
+    if (menusUsingFlavor.length > 0) {
+        const usedBy = menusUsingFlavor.map(m => `${m.base_name_en} / ${m.base_name_id}`).join(', ');
+        showErrorModal(`Varian rasa tidak dapat dihapus karena masih digunakan oleh menu: ${usedBy}`);
+        return;
+    }
+
     showDeleteConfirmModal(
         `Apakah Anda yakin ingin menghapus varian rasa "${flavorName}"?`,
         async () => {
+            const confirmBtn = document.getElementById('delete-confirm-btn');
+            const originalText = confirmBtn ? confirmBtn.textContent : '';
+            if (confirmBtn) {
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Deleting...';
+            }
             try {
                 const response = await fetch(`${BASE_URL}/flavors/${flavorId}`, {
                     method: "DELETE"
                 });
-                
-                console.log('Delete flavor response:', {
-                    status: response.status,
-                    statusText: response.statusText,
-                    headers: [...response.headers.entries()]
-                });
-                
+
                 if (!response.ok) {
                     let errorMessage = 'Gagal menghapus varian rasa';
                     try {
                         const errorData = await response.json();
-                        console.log('Flavor delete error response:', errorData);
                         errorMessage = errorData?.message || errorData?.detail || `HTTP ${response.status}: ${response.statusText}`;
-                    } catch (parseError) {
-                        console.error('Error parsing error response:', parseError);
+                    } catch (_) {
                         errorMessage = `HTTP ${response.status}: ${response.statusText}`;
                     }
                     showErrorModal(errorMessage);
                     return;
                 }
-                
-                const result = await response.json();
+
+                let result;
+                try { result = await response.json(); } catch (_) { result = null; }
+
+                // Update UI lists - optimistic update
+                allFlavors = allFlavors.filter(f => f.id !== flavorId);
+                filteredFlavors = filteredFlavors.filter(f => f.id !== flavorId);
+                renderFlavorTable();
+
+                // Also refresh from server to be safe
                 await loadFlavors();
                 await loadMenus();
-                
-                showSuccessModal(result.message || 'Varian rasa berhasil dihapus');
+
+                const successMsg = (result && (result.message || (result.data && result.data.message))) || 'Varian rasa berhasil dihapus';
+                showSuccessModal(successMsg);
             } catch (error) {
-                console.error('Error deleting flavor:', error);
-                showErrorModal('Error deleting flavor: ' + (error.message || 'Unknown error'));
+                let errorMessage = 'Unknown error occurred';
+                if (error && typeof error === 'object' && error.message) errorMessage = error.message;
+                else if (typeof error === 'string') errorMessage = error;
+                showErrorModal('Error deleting flavor: ' + errorMessage);
+            } finally {
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = originalText;
+                }
             }
         }
     );
@@ -927,6 +1195,32 @@ function closeAddMenuModal() {
     const modalTitle = document.querySelector('#add-menu-modal .modal-title');
     modalTitle.textContent = 'Add New Menu';
     document.getElementById('add-menu-modal').classList.add('hidden');
+}
+
+async function openEditMenuModal() {
+    document.querySelector('#edit-menu-modal .modal-title').textContent = 'Edit Menu';
+    
+    await ensureDataLoaded();
+    
+    populateEditFlavorCheckboxes();
+    renderEditRecipeIngredients();
+    
+    document.getElementById('edit-menu-modal').classList.remove('hidden');
+}
+
+function closeEditMenuModal() {
+    document.getElementById('edit-menu-form').reset();
+    document.getElementById('edit-menu-form').removeAttribute('data-menu-id');
+    document.getElementById('edit-form-error').textContent = '';
+    document.getElementById('edit-form-error').style.color = '';
+    document.getElementById('edit-is-avail-true').checked = true;
+    // Reset flavor selection
+    selectedFlavorIds = [];
+    populateEditFlavorCheckboxes();
+    // Reset modal title
+    const modalTitle = document.querySelector('#edit-menu-modal .modal-title');
+    modalTitle.textContent = 'Edit Menu';
+    document.getElementById('edit-menu-modal').classList.add('hidden');
 }
 
 function openAddFlavourModal() {
@@ -1052,7 +1346,8 @@ async function saveFlavour() {
         showSuccessModal(result.message || 'Varian rasa berhasil disimpan');
     } catch (error) {
         console.error('Error saving flavour:', error);
-        showErrorModal('Error saving flavour: ' + error.message);
+        const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
+        showErrorModal('Error saving flavour: ' + errorMessage);
     }
 }
 
@@ -1060,6 +1355,11 @@ async function saveFlavour() {
 document.getElementById('add-menu-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     await saveMenu();
+});
+
+document.getElementById('edit-menu-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await saveEditMenu();
 });
 
 document.getElementById('add-flavour-form').addEventListener('submit', async (e) => {
@@ -1115,6 +1415,61 @@ function toggleAllFlavors() {
 
 function clearAllFlavors() {
     const checkboxes = document.querySelectorAll('#flavor-checkboxes input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+    checkbox.checked = false;
+    });
+    
+    selectedFlavorIds = [];
+}
+
+function populateEditFlavorCheckboxes() {
+    const flavorCheckboxes = document.getElementById('edit-flavor-checkboxes');
+    flavorCheckboxes.innerHTML = '';
+    
+    console.log('Populating edit flavor checkboxes with selectedFlavorIds:', selectedFlavorIds);
+    
+    selectedFlavorIds = selectedFlavorIds.filter(id => 
+        allFlavors.some(flavor => flavor.id === id)
+    );
+    
+    allFlavors.forEach(flavor => {
+        const checkboxItem = document.createElement('div');
+        checkboxItem.className = 'flavor-checkbox-item';
+        const isChecked = selectedFlavorIds.includes(flavor.id);
+        checkboxItem.innerHTML = `
+            <input type="checkbox" id="edit-flavor-${flavor.id}" value="${flavor.id}" 
+                   ${isChecked ? 'checked' : ''} 
+                   onchange="updateSelectedEditFlavors()">
+            <label for="edit-flavor-${flavor.id}">
+                ${flavor.flavor_name_en} / ${flavor.flavor_name_id}
+                <span class="flavor-price">(+Rp ${flavor.additional_price.toLocaleString()})</span>
+            </label>
+        `;
+        flavorCheckboxes.appendChild(checkboxItem);
+    });
+}
+
+function updateSelectedEditFlavors() {
+    selectedFlavorIds = [];
+    const checkboxes = document.querySelectorAll('#edit-flavor-checkboxes input[type="checkbox"]:checked');
+    checkboxes.forEach(checkbox => {
+    selectedFlavorIds.push(checkbox.value);
+    });
+}
+
+function toggleAllEditFlavors() {
+    const checkboxes = document.querySelectorAll('#edit-flavor-checkboxes input[type="checkbox"]');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    
+    checkboxes.forEach(checkbox => {
+    checkbox.checked = !allChecked;
+    });
+    
+    updateSelectedEditFlavors();
+}
+
+function clearAllEditFlavors() {
+    const checkboxes = document.querySelectorAll('#edit-flavor-checkboxes input[type="checkbox"]');
     checkboxes.forEach(checkbox => {
     checkbox.checked = false;
     });
@@ -1179,7 +1534,8 @@ window.addEventListener('load', async () => {
     // Show error message to user
     const tbody = document.querySelector('#menu-table tbody');
     if (tbody) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: red;">Error loading data: ' + error.message + '</td></tr>';
+        const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: red;">Error loading data: ' + errorMessage + '</td></tr>';
     }
     }
 });

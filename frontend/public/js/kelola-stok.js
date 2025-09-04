@@ -1,5 +1,55 @@
 // Kelola Stok Page JavaScript
 
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.remove('tab-active');
+  });
+
+  document.querySelectorAll('.tab-panel').forEach(panel => {
+    panel.classList.remove('active');
+  });
+
+  const activeButton = document.getElementById(`tab-${tab}`);
+  if (activeButton) {
+    activeButton.classList.add('tab-active');
+  }
+
+  const activePanel = document.getElementById(`tab-${tab}-content`);
+  if (activePanel) {
+    activePanel.classList.add('active');
+  }
+
+  if (tab === 'inventory' && window.inventoryManager) {
+    window.inventoryManager.loadInventoryData();
+  } else if (tab === 'audit-history' && window.inventoryManager) {
+    window.inventoryManager.loadAuditHistoryData();
+  } 
+}
+
+// function toggleFilterAuditHistory() {
+//   const dropdown = document.getElementById('audit-history-filter-dropdown');
+//   if (dropdown) {
+//     dropdown.classList.toggle('show');
+//   }
+// }
+
+// function applyAuditHistoryFilter() {
+//   console.log('Applying audit history filter...');
+//   toggleFilterAuditHistory();
+// }
+
+// function clearAuditHistoryFilter() {
+//   console.log('Clearing audit history filter...');
+//   toggleFilterAuditHistory();
+// }
+
+// function changeAuditHistoryPage(direction) {
+//   console.log('Changing audit history page:', direction);
+// }
+
+// function changeAuditHistoryPageSize() {
+//   console.log('Changing audit history page size...');
+// }
 class InventoryManager {
   constructor() {
     this.inventory = [];
@@ -13,6 +63,20 @@ class InventoryManager {
     this.isUserInteracting = false;
     this.currentFilters = { category: '', unit: '', status: '' };
     this.currentSearchTerm = '';
+    this.auditHistory = [];
+    this.filteredAuditHistory =[];
+    this.currentAuditPage = 1;
+    this.auditItemsPerPage = 10;
+    this.totalAuditPages = 1;
+    this.currentAuditFilters = { 
+      sort: '', 
+      actionType: '', 
+      dateRange: '', 
+      user: '' 
+    };
+    this.currentAuditSearchTerm = '';
+    this.auditLoaded = false;
+    this.viewingAuditId = null;
 
     this.initializeEventListeners();
     this.initialLoad();
@@ -58,7 +122,7 @@ class InventoryManager {
       this.closeModal('change-status-modal');
     });
 
-    const searchInput = document.getElementById('table-search');
+    const searchInput = document.getElementById('inventory-search');
     if (searchInput) {
       searchInput.addEventListener('focus', () => {
         this.isUserInteracting = true;
@@ -170,6 +234,23 @@ class InventoryManager {
 
     safeAddEventListener('log-search', 'input', (e) => {
       this.filterConsumptionLogs(e.target.value);
+    });
+
+    safeAddEventListener('audit-history-search', 'input', (e) => {
+      this.currentAuditSearchTerm = e.target.value.toLowerCase().trim();
+      this.applyAuditFiltersAndSearch(true);
+    });
+
+    safeAddEventListener('audit-history-page-size', 'change', () => {
+      this.changeAuditHistoryPageSize();
+    });
+
+    safeAddEventListener('audit-history-prev-btn', 'click', () => {
+      this.changeAuditHistoryPage(-1);
+    });
+
+    safeAddEventListener('audit-history-next-btn', 'click', () => {
+      this.changeAuditHistoryPage(1);
     });
   }
   
@@ -428,7 +509,7 @@ class InventoryManager {
           </td>
         </tr>
       `;
-      const tableInfo = document.getElementById('table-info');
+      const tableInfo = document.getElementById('inventory-table-info');
       if (tableInfo) {
         tableInfo.textContent = 'Showing 0 of 0 entries';
       }
@@ -442,7 +523,7 @@ class InventoryManager {
         const row = this.createTableRow(item, startIndex + index + 1);
         tbody.appendChild(row);
       });
-      const tableInfo = document.getElementById('table-info');
+      const tableInfo = document.getElementById('inventory-table-info');
       if (tableInfo) {
         tableInfo.textContent = `Showing ${startIndex + 1} to ${Math.min(endIndex, this.filteredInventory.length)} of ${this.filteredInventory.length} entries`;
       }
@@ -666,7 +747,34 @@ class InventoryManager {
     const statusElement = document.getElementById('view-item-status');
     statusElement.innerHTML = `<span class="${status.class}">${status.text}</span>`;
     this.showModal('view-item-modal');
-  ;
+  }
+
+  closeViewItemModal() {
+    this.closeModal('view-item-modal');
+    document.getElementById('view-item-modal').removeAttribute('data-item-id');
+  }
+
+  editFromView() {
+    const itemId = document.getElementById('view-item-modal').getAttribute('data-item-id');
+    if (!itemId) {
+      this.showError('No item selected for editing');
+      return;
+    }
+
+    this.closeViewItemModal();
+
+    setTimeout(() => {
+      this.editItem(parseInt(itemId));
+    }, 50);
+  }
+
+  openAddItemModal() {
+    this.editingItem = null;
+    const modalTitle = document.getElementById('modal-title');
+    const itemForm = document.getElementById('item-form');
+    if (modalTitle) modalTitle.textContent = 'Add New Item';
+    if (itemForm) itemForm.reset();
+    this.showModal('item-modal');
   }
 
   editItem(itemId) {
@@ -818,7 +926,7 @@ class InventoryManager {
           await fetch('/inventory/stock/add', {
             method: 'POST',
             headers,
-            body: JSON.stringify({ ingredient_id: newId, quantity: itemData.current_quantity, notes: itemData.notes || 'Initial stock (opname) on create' })
+            body: JSON.stringify({ ingredient_id: newId, add_quantity: itemData.current_quantity, notes: itemData.notes || 'Initial stock (opname) on create' })
           });
         }
         response = new Response(JSON.stringify({ status: 'success' }), { status: 200 });
@@ -1068,14 +1176,17 @@ class InventoryManager {
     const formData = new FormData(addStockForm);
     const stockData = {
       ingredient_id: parseInt(formData.get('ingredient_id')),
-      quantity: parseFloat(formData.get('quantity')),
+      add_quantity: parseFloat(formData.get('quantity')),
       notes: formData.get('notes') || ''
     };
 
     try {
+      const token = localStorage.getItem('access_token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const response = await fetch('/inventory/stock/add', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(stockData)
       });
 
@@ -1085,13 +1196,341 @@ class InventoryManager {
         this.loadAndRefreshData();
         document.getElementById('add-stock-form').reset();
       } else {
-        const errorData = await response.json();
-        this.showError(errorData.error || 'Failed to add stock');
+        let errorMsg = 'Failed to add stock';
+        try { const errorData = await response.json(); errorMsg = errorData.error || errorData.message || errorMsg; } catch (_) {}
+        if (response.status === 401) errorMsg = 'Unauthorized: silakan login ulang.';
+        this.showError(errorMsg);
       }
     } catch (error) {
       console.error('Error adding stock:', error);
       this.showError('Failed to add stock');
     }
+  }
+
+  async loadAuditHistoryData(forceReload = false) {
+    if (this.auditLoaded && !forceReload) return;
+
+    try {
+      const response = await fetch('/inventory/stock/history?limit=1000')
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === 'success') {
+          this.auditHistory = data.data.history || [];
+          this.filteredAuditHistory = [...this.auditHistory];
+          this.populateAuditFilters();
+          this.applyAuditFiltersAndSearch(true);
+          this.auditLoaded = true;
+        } else {
+          this.showError(data.message || 'Failed to load audit history');
+        }
+      } else {
+        this.showError('Failed to load audit history');
+      }
+    } catch (error) {
+      console.error('Error loading audit history:', error);
+      this.showError('Failed to load audit history');
+    }
+  }
+
+  populateAuditFilters() {
+    // Populate user filter
+    const userFilter = document.getElementById('audit-user-filter');
+    if (userFilter) {
+      const uniqueUsers = [...new Set(this.auditHistory.map(item => item.performed_by).filter(Boolean))];
+      userFilter.innerHTML = '<option value="">All Users</option>';
+      uniqueUsers.sort().forEach(user => {
+        const option = document.createElement('option');
+        option.value = user;
+        option.textContent = user;
+        userFilter.appendChild(option);
+      });
+    }
+  }
+
+  applyAuditFiltersAndSearch(resetPage = false) {
+    let temp = [...this.auditHistory];
+
+    // Search filter
+    if (this.currentAuditSearchTerm) {
+      temp = temp.filter(item =>
+        (item.ingredient_name && item.ingredient_name.toLowerCase().includes(this.currentAuditSearchTerm)) ||
+        (item.performed_by && item.performed_by.toLowerCase().includes(this.currentAuditSearchTerm)) ||
+        (item.notes && item.notes.toLowerCase().includes(this.currentAuditSearchTerm))
+      );
+    }
+
+    // Action type filter
+    if (this.currentAuditFilters.actionType) {
+      temp = temp.filter(item => 
+        item.action_type && item.action_type.toLowerCase() === this.currentAuditFilters.actionType.toLowerCase()
+      );
+    }
+
+    // Date range filter
+    if (this.currentAuditFilters.dateRange) {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      temp = temp.filter(item => {
+        if (!item.created_at) return false;
+        const itemDate = new Date(item.created_at);
+        
+        switch (this.currentAuditFilters.dateRange) {
+          case 'today':
+            return itemDate >= today;
+          case 'week':
+            const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+            return itemDate >= weekAgo;
+          case 'month':
+            const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+            return itemDate >= monthAgo;
+          case 'quarter':
+            const quarterAgo = new Date(today.getFullYear(), today.getMonth() - 3, today.getDate());
+            return itemDate >= quarterAgo;
+          case 'year':
+            const yearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+            return itemDate >= yearAgo;
+          default:
+            return true;
+        }
+      });
+    }
+
+    // User filter
+    if (this.currentAuditFilters.user) {
+      temp = temp.filter(item => 
+        item.performed_by && item.performed_by.toLowerCase() === this.currentAuditFilters.user.toLowerCase()
+      );
+    }
+
+    // Sort filter
+    const sort = this.currentAuditFilters.sort;
+    if (sort === 'a-z') {
+      temp.sort((a, b) => (a.ingredient_name || '').localeCompare(b.ingredient_name || ''));
+    } else if (sort === 'z-a') {
+      temp.sort((a, b) => (b.ingredient_name || '').localeCompare(a.ingredient_name || ''));
+    }
+    
+    this.filteredAuditHistory = temp;
+    this.totalAuditPages = Math.ceil(this.filteredAuditHistory.length / this.auditItemsPerPage) || 1;
+
+    if (resetPage) {
+      this.currentAuditPage = 1;
+    } else if (this.currentAuditPage > this.totalAuditPages) {
+      this.currentAuditPage = this.totalAuditPages;
+    }
+
+    this.renderAuditHistoryTable();
+  }
+
+  renderAuditHistoryTable() {
+    const tbody = document.getElementById('audit-history-tbody');
+    if (!tbody) {
+      console.warn("Audit history table body not found in DOM");
+      return;
+    }
+
+    tbody.innerHTML = '';
+
+    const startIndex = (this.currentAuditPage -1) * this.auditItemsPerPage;
+    const endIndex = startIndex + this.auditItemsPerPage;
+    const pageData = this.filteredAuditHistory.slice(startIndex, endIndex);
+
+    if (!this.filteredAuditHistory.length) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" style="text-align: center; padding: 1rem;">
+            No audit history found
+          </td>
+        </tr>
+      `;
+    } else {
+      pageData.forEach((item, index) => {
+        const row = this.createAuditTableRow(item, startIndex + index + 1);
+        tbody.appendChild(row); 
+      });
+    }
+
+    const tableInfo = document.getElementById('audit-history-table-info');
+    if (tableInfo) {
+      tableInfo.textContent = `Showing ${startIndex + 1} to ${Math.min(endIndex, this.filteredAuditHistory.length)} of ${this.filteredAuditHistory.length} entries`;
+    }
+
+    this.renderAuditPagination();
+  }
+
+  createAuditTableRow(item, rowNumber) {
+    const row = document.createElement('tr');
+    
+    // Format date
+    const date = item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }) : 'N/A';
+    
+    // Format action type with badge
+    const actionType = item.action_type || 'N/A';
+    const actionBadge = `<span class="status-badge status-${this.getActionTypeClass(actionType)}">${actionType}</span>`;
+    
+    row.innerHTML = `
+      <td>${rowNumber}</td>
+      <td>${item.ingredient_name || 'N/A'}</td>
+      <td>${actionBadge}</td>
+      <td>${(item.quantity_before != null ? item.quantity_before.toFixed(2) : 'N/A')}</td>
+      <td>${(item.quantity_after != null ? item.quantity_after.toFixed(2) : 'N/A')}</td>
+      <td>${(item.quantity_changed != null ? item.quantity_changed.toFixed(2) : 'N/A')}</td>
+      <td>${item.performed_by || 'N/A'}</td>
+      <td>${date}</td>
+      <td class="action-header">
+        <button class="table-action-btn" onclick="inventoryManager.viewAuditHistory(${item.id})"><i class="fas fa-eye"></i></button>
+      </td>
+    `;
+    return row;
+  }
+
+  getActionTypeClass(actionType) {
+    const actionMap = {
+      'add': 'success',
+      'restock': 'success',
+      'update': 'warning',
+      'adjustment': 'info',
+      'delete': 'danger'
+    };
+    return actionMap[actionType.toLowerCase()] || 'default';
+  }
+
+  renderAuditPagination() {
+    const pageNumbers = document.getElementById('audit-history-page-numbers');
+    if (!pageNumbers) return;
+
+    const paginationInfo = document.getElementById('audit-history-pagination-info');
+    if (paginationInfo) {
+      paginationInfo.textContent = `Page ${this.currentAuditPage} of ${this.totalAuditPages}`;
+    }
+
+    const prevBtn = document.getElementById('audit-history-prev-btn');
+    const nextBtn = document.getElementById('audit-history-next-btn');
+    
+    // If all data fits on one page, disable navigation and show only "1"
+    if (this.totalAuditPages <= 1) {
+      if (prevBtn) prevBtn.disabled = true;
+      if (nextBtn) nextBtn.disabled = true;
+      
+      pageNumbers.innerHTML = '';
+      const pageBtn = document.createElement('button');
+      pageBtn.className = 'page-number active';
+      pageBtn.textContent = '1';
+      pageBtn.disabled = true;
+      pageNumbers.appendChild(pageBtn);
+      return;
+    }
+
+    // Normal pagination for multiple pages
+    if (prevBtn) prevBtn.disabled = this.currentAuditPage === 1;
+    if (nextBtn) nextBtn.disabled = this.currentAuditPage === this.totalAuditPages;
+
+    pageNumbers.innerHTML = '';
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, this.currentAuditPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(this.totalAuditPages, startPage + maxVisiblePages - 1);
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      const pageBtn = document.createElement('button');
+      pageBtn.className = `page-number ${i === this.currentAuditPage ? 'active' : ''}`;
+      pageBtn.textContent = i;
+      pageBtn.onclick = () => {
+        this.currentAuditPage = i;
+        this.renderAuditHistoryTable();
+      };
+      pageNumbers.appendChild(pageBtn);
+    }
+  }
+
+  changeAuditHistoryPage(direction) {
+    this.currentAuditPage += direction;
+    if (this.currentAuditPage < 1) this.currentAuditPage = 1;
+    if (this.currentAuditPage > this.totalAuditPages) this.currentAuditPage = this.totalAuditPages;
+    this.renderAuditHistoryTable();
+  }
+
+  changeAuditHistoryPageSize() {
+    const entriesPerPage = document.getElementById('audit-history-page-size');
+    if (entriesPerPage) {
+      this.auditItemsPerPage = parseInt(entriesPerPage.value);
+      this.currentAuditPage = 1;
+      this.renderAuditHistoryTable();
+    }
+  }
+
+  toggleFilterAuditHistory() {
+    const dropdown = document.getElementById('audit-history-filter-dropdown');
+    if (dropdown) {
+      dropdown.classList.toggle('show');
+    }
+  }
+
+  applyAuditHistoryFilter() {
+    const sortFilter = document.getElementById('audit-sort-filter');
+    const actionFilter = document.getElementById('audit-action-filter');
+    const dateFilter = document.getElementById('audit-date-filter');
+    const userFilter = document.getElementById('audit-user-filter');
+    
+    if (sortFilter) this.currentAuditFilters.sort = sortFilter.value;
+    if (actionFilter) this.currentAuditFilters.actionType = actionFilter.value;
+    if (dateFilter) this.currentAuditFilters.dateRange = dateFilter.value;
+    if (userFilter) this.currentAuditFilters.user = userFilter.value;
+    
+    this.applyAuditFiltersAndSearch(true);
+    this.toggleFilterAuditHistory();
+  }
+
+  clearAuditHistoryFilter() {
+    const sortFilter = document.getElementById('audit-sort-filter');
+    const actionFilter = document.getElementById('audit-action-filter');
+    const dateFilter = document.getElementById('audit-date-filter');
+    const userFilter = document.getElementById('audit-user-filter');
+    const searchInput = document.getElementById('audit-history-search');
+    
+    if (sortFilter) sortFilter.value = '';
+    if (actionFilter) actionFilter.value = '';
+    if (dateFilter) dateFilter.value = '';
+    if (userFilter) userFilter.value = '';
+    if (searchInput) searchInput.value = '';
+    
+    this.currentAuditFilters.sort = '';
+    this.currentAuditFilters.actionType = '';
+    this.currentAuditFilters.dateRange = '';
+    this.currentAuditFilters.user = '';
+    this.currentAuditSearchTerm = '';
+    
+    this.applyAuditFiltersAndSearch(true);
+    this.toggleFilterAuditHistory();
+  }
+
+  viewAuditHistory(id) {
+    const item = this.auditHistory.find(h => h.id === id);
+    if (!item) {
+      this.showError('Audit history item not found');
+      return;
+    }
+
+    document.getElementById('view-audit-ingredient-name').textContent = item.ingredient_name || 'N/A';
+    document.getElementById('view-audit-action-type').textContent = item.action_type || 'N/A';
+    document.getElementById('view-audit-quantity-before').textContent = (item.quantity_before != null ? item.quantity_before.toFixed(2) : 'N/A');
+    document.getElementById('view-audit-quantity-after').textContent = (item.quantity_after != null ? item.quantity_after.toFixed(2) : 'N/A');
+    document.getElementById('view-audit-quantity-changed').textContent = (item.quantity_changed != null ? item.quantity_changed.toFixed(2) : 'N/A');
+    document.getElementById('view-audit-performed-by').textContent = item.performed_by || 'N/A';
+    document.getElementById('view-audit-item-notes').textContent = item.notes || 'N/A';
+    document.getElementById('view-audit-created-at').textContent = item.created_at || 'N/A';
+    document.getElementById('view-audit-order-id').textContent = item.order_id || 'N/A';
+
+    this.showModal('view-audit-modal');
   }
 
   // Consumption Log Modal Methods

@@ -221,18 +221,18 @@
               <div class="pagination-container" id="flavor-pagination">
                 <div class="pagination-info">
                   <span id="flavor-pagination-info">Page 1 of 1</span>
-            </div>
+                </div>
                 <div class="pagination-controls">
                   <button class="pagination-btn" id="flavor-prev-btn" onclick="changeFlavorPage(-1)">
                     <i class="fas fa-chevron-left"></i>
                   </button>
                   <div class="page-numbers" id="flavor-page-numbers">
                     <!-- Page numbers will be generated here -->
-          </div>
+                  </div>
                   <button class="pagination-btn" id="flavor-next-btn" onclick="changeFlavorPage(1)">
                     <i class="fas fa-chevron-right"></i>
                   </button>
-          </div>
+                </div>
                 <div class="pagination-size">
                   <label>Show:</label>
                   <select id="flavor-page-size" onchange="changeFlavorPageSize()">
@@ -318,6 +318,75 @@
           </button>
         </form>
         <div id="form-error" class="error"></div>
+      </div>
+    </div>
+
+    <!-- Edit Menu Modal -->
+    <div id="edit-menu-modal" class="modal hidden">
+      <div class="modal-content edit-menu-modal">
+        <button class="modal-close" onclick="closeEditMenuModal()">
+          &times;
+        </button>
+        <h3 class="modal-title">Edit Menu</h3>
+        <form id="edit-menu-form">
+          <div class="form-group">
+            <label for="edit-base-name-en">Menu Name (EN)</label>
+            <input type="text" id="edit-base-name-en" name="edit-base-name-en" placeholder="Type English name..." required />
+          </div>
+          <div class="form-group">
+            <label for="edit-base-name-id">Menu Name (ID)</label>
+            <input type="text" id="edit-base-name-id" name="edit-base-name-id" placeholder="Type Indonesian name..." required />
+          </div>
+          <div class="form-group">
+            <label for="edit-base-price">Price</label>
+            <input type="number" id="edit-base-price" name="edit-base-price" placeholder="Type Here ..." required min="0" step="1" />
+          </div>
+          <div class="form-group">
+            <label for="edit-making-time-minutes">Making Time (Minutes)</label>
+            <input type="number" id="edit-making-time-minutes" name="edit-making-time-minutes" placeholder="Type Here ..." min="0" step="0.1" />
+          </div>
+          <div class="form-group">
+            <label for="edit-is-avail">Status</label>
+            <div class="radio-group">
+              <div class="radio-option">
+                <input type="radio" id="edit-is-avail-true" name="edit-is-avail" value="true" checked />
+                <label for="edit-is-avail-true">Available</label>
+              </div>
+              <div class="radio-option">
+                <input type="radio" id="edit-is-avail-false" name="edit-is-avail" value="false" />
+                <label for="edit-is-avail-false">Unavailable</label>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="edit-menu-flavors">Available Flavors</label>
+            <div class="flavor-selector">
+              <div class="flavor-selector-header">
+                <button type="button" class="select-all-btn" onclick="toggleAllEditFlavors()">Select All</button>
+                <button type="button" class="clear-all-btn" onclick="clearAllEditFlavors()">Clear All</button>
+              </div>
+              <div class="flavor-checkboxes" id="edit-flavor-checkboxes">
+                <!-- Flavor checkboxes will be populated here -->
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Recipe Ingredients</label>
+            <div id="edit-recipe-ingredients-list">
+              <!-- Baris-baris ingredient akan dibuat oleh JavaScript di sini -->
+            </div>
+            <button type="button" id="edit-add-ingredient-btn" class="modal-btn-outline">
+              Add Ingredient <i class="fas fa-plus"></i>
+            </button>
+          </div>
+
+          <button type="submit" class="save-button">
+            <span class="fa fa-save"></span>
+            <span>Update Menu</span>
+          </button>
+        </form>
+        <div id="edit-form-error" class="error"></div>
       </div>
     </div>
 
