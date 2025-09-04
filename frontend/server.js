@@ -984,15 +984,54 @@ app.post('/register', async (req, res) => {
   }
 });
 
+// JWT validation function
+function validateJWT(token) {
+  try {
+    if (!token) return false;
+    
+    // Split JWT into parts
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    
+    // Decode payload (middle part)
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    
+    // Check if token is expired
+    const currentTime = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < currentTime) {
+      console.log('Token expired');
+      return false;
+    }
+    
+    // Check if token has required fields
+    if (!payload.sub) {
+      console.log('Token missing subject');
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.log('JWT validation error:', error.message);
+    return false;
+  }
+}
+
 // Authentication middleware
 function requireAuth(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
   
   if (!token) {
+    console.log('No token provided');
     return res.redirect('/login');
   }
   
-  // For now, just check if token exists (you can add JWT validation here)
+  // Validate JWT token
+  if (!validateJWT(token)) {
+    console.log('Invalid or expired token');
+    return res.redirect('/login');
+  }
+  
+  console.log('Token validated successfully');
   next();
 }
 

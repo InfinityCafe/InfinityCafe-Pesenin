@@ -236,18 +236,55 @@ function setupLogoutButton() {
     }
 }
 
+// JWT validation function (client-side)
+function validateJWTClient(token) {
+    try {
+        if (!token) return false;
+        
+        // Split JWT into parts
+        const parts = token.split('.');
+        if (parts.length !== 3) return false;
+        
+        // Decode payload (middle part)
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        
+        // Check if token is expired
+        const currentTime = Math.floor(Date.now() / 1000);
+        if (payload.exp && payload.exp < currentTime) {
+            console.log('Token expired on client side');
+            localStorage.removeItem('access_token');
+            return false;
+        }
+        
+        // Check if token has required fields
+        if (!payload.sub) {
+            console.log('Token missing subject on client side');
+            return false;
+        }
+        
+        return true;
+    } catch (error) {
+        console.log('JWT validation error on client:', error.message);
+        localStorage.removeItem('access_token');
+        return false;
+    }
+}
+
 // Login guard
 function checkAuth() {
     console.log('Checking auth...');
     const publicPages = ['login'];
     const currentPage = document.body.dataset.page || window.location.pathname.split('/').pop().replace('.html', '');
     
-    if (!publicPages.includes(currentPage) && !localStorage.getItem('access_token')) {
-        console.log('No access token, redirecting to /login');
-        window.location.href = '/login';
-    } else {
-        console.log('Auth passed, current page:', currentPage);
+    if (!publicPages.includes(currentPage)) {
+        const token = localStorage.getItem('access_token');
+        if (!token || !validateJWTClient(token)) {
+            console.log('No valid access token, redirecting to /login');
+            window.location.href = '/login';
+            return;
+        }
     }
+    console.log('Auth passed, current page:', currentPage);
 }
 
 // Fungsi untuk mendekode token JWT
