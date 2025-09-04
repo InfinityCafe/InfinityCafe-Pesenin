@@ -288,7 +288,8 @@ input:checked + .slider:before {
     color: #8D7272;
 }
 
-.tab-menu-suggestion.tab-btn {
+.tab-menu-suggestion.tab-btn,
+.tab-audit-history.tab-btn {
     width: 200px;
     text-wrap: nowrap;
 }
@@ -364,6 +365,12 @@ input:checked + .slider:before {
     display: flex;
     gap: 1.5rem;
     align-items: stretch;
+}
+
+/* Hide add order button in tab done */
+body.tab-done .add-order-btn,
+body.tab-audit-history .add-item-btn {
+  display: none !important;
 }
 
 /* Order Columns */
@@ -692,7 +699,7 @@ input:checked + .slider:before {
 }
 
 .status-deliver, .status-available, .status-in-stock {
-    background-color: #BBF7D0;
+    background-color: #BBF7D0 !important;
     color: #207156 !important;
     font-weight: 600 !important;
 }
@@ -708,6 +715,37 @@ input:checked + .slider:before {
 .status-unavailable, .status-out-of-stock {
     background-color: #F5C1BD;
     color: #B3261E !important;
+    font-weight: 600 !important;
+}
+
+/* Audit History Action Type Badges */
+.status-success {
+    background-color: #BBF7D0;
+    color: #207156 !important;
+    font-weight: 600 !important;
+}
+
+.status-warning {
+    background-color: #FFE8C0;
+    color: #E09B20 !important;
+    font-weight: 600 !important;
+}
+
+.status-info {
+    background-color: #C2DCF6;
+    color: #1A508A !important;
+    font-weight: 600 !important;
+}
+
+.status-danger {
+    background-color: #F5C1BD;
+    color: #B3261E !important;
+    font-weight: 600 !important;
+}
+
+.status-default {
+    background-color: #E5E7EB;
+    color: #6B7280 !important;
     font-weight: 600 !important;
 }
 /* .status-warning {
@@ -1209,7 +1247,7 @@ input:checked + .slider:before {
 
     .success-modal .success-icon {
         font-size: 3rem;
-        color: #10B981;
+        color: #379777;
         margin-bottom: 1rem;
     }
 
@@ -1234,7 +1272,7 @@ input:checked + .slider:before {
     }
 
     .success-modal .modal-btn {
-        background-color: #10B981;
+        background: linear-gradient(90deg, #207156 0%, #60B7A6 100%);
         color: white;
         border: none;
         padding: 0.75rem 2rem;
@@ -1245,7 +1283,10 @@ input:checked + .slider:before {
     }
 
     .success-modal .modal-btn:hover {
-        background-color: #059669;
+        background: #207156;
+        transition: opacity 0.3s ease;
+        transform: scale(1.02);
+        box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
     }
 
     /* Error Modal */
@@ -1263,7 +1304,7 @@ input:checked + .slider:before {
 
     .error-modal .error-icon {
         font-size: 3rem;
-        color: #EF4444;
+        color: #DC2626;
         margin-bottom: 1rem;
     }
 
@@ -1288,7 +1329,7 @@ input:checked + .slider:before {
     }
 
     .error-modal .modal-btn {
-        background-color: #EF4444;
+        background: linear-gradient(90deg, #b3261e 0%, #f26060 100%);
         color: white;
         border: none;
         padding: 0.75rem 2rem;
@@ -1299,7 +1340,10 @@ input:checked + .slider:before {
     }
 
     .error-modal .modal-btn:hover {
-        background-color: #DC2626;
+        background: #b3261e;
+        transition: opacity 0.3s ease;
+        transform: scale(1.02);
+        box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
     }
 
     /* Responsive styles for new modals */
@@ -1970,12 +2014,33 @@ input:checked + .slider:before {
   cursor: pointer;
   transition: all 0.2s;
 }
-#add-order-modal .modal-btn-outline {
-  background: #fff;
-  color: #312929;
-  border: 1.5px solid #bdbdbd;
+
+.modal-btn-outline,
+.edit-menu-modal .modal-btn-outline{
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+  background: white;
+  color: #8D7272;
+  border: 2px dashed #dcd0a8;
   font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
+.modal-btn-outline:hover,
+.edit-menu-modal .modal-btn-outline:hover {
+  background-color: #e8e4d8;
+  border-color: #cab99d;
+}
+
 #add-order-modal .order-item-block {
   background: none;
   border: none;
@@ -2318,11 +2383,6 @@ input:checked + .slider:before {
   }
 }
 
-/* Hide add order button in tab done */
-body.tab-done .add-order-btn {
-  display: none !important;
-}
-
 .summary-detail--order {
   cursor: pointer;
   /* transition: color 0.18s, background 0.18s, box-shadow 0.18s; */
@@ -2478,7 +2538,7 @@ body.tab-done .add-order-btn {
     overflow: hidden;
 }
 
-#menu-table, #flavors-table, #inventory-table, #suggestions-table, #report-table {
+#menu-table, #flavors-table, #inventory-table, #suggestions-table, #report-table, #audit-history-table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0.75rem;
@@ -2489,7 +2549,8 @@ body.tab-done .add-order-btn {
 #flavors-table th, #flavors-table td,
 #inventory-table th, #inventory-table td,
 #suggestions-table th, #suggestions-table td,
-#report-table th, #report-table td {
+#report-table th, #report-table td,
+#audit-history-table th, #audit-history-table td {
     position: relative;
 }
 
@@ -2497,11 +2558,12 @@ body.tab-done .add-order-btn {
 #flavors-table thead tr,
 #inventory-table thead tr,
 #suggestions-table thead tr,
-#report-table thead tr {
-    background-color: transparent;
+#report-table thead tr,
+#audit-history-table thead tr {
+    background-color: #CAB99D;
 }
 
-#menu-table th, #flavors-table th, #inventory-table th, #suggestions-table th, #report-table th {
+#menu-table th, #flavors-table th, #inventory-table th, #suggestions-table th, #report-table th, #audit-history-table th {
     padding: 0.75rem 1rem;
     text-align: center;
     font-weight: bold;
@@ -2516,7 +2578,8 @@ body.tab-done .add-order-btn {
 #flavors-table th:first-child,
 #inventory-table th:first-child,
 #suggestions-table th:first-child,
-#report-table th:first-child {
+#report-table th:first-child,
+#audit-history-table th:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
 }
@@ -2551,11 +2614,17 @@ body.tab-done .add-order-btn {
     border-bottom-right-radius: 0.5rem;
 }
 
+#audit-history-table th:nth-child(7) {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
 #menu-table th:not(:first-child):not(.action-header)::before,
 #flavors-table th:not(:first-child):not(.action-header)::before,
 #inventory-table th:not(:first-child):not(.action-header)::before,
 #suggestions-table th:not(:first-child):not(.action-header)::before,
-#report-table th:not(:first-child):not(.action-header)::before {
+#report-table th:not(:first-child):not(.action-header)::before,
+#audit-history-table th:not(:first-child):not(.action-header)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2568,18 +2637,19 @@ body.tab-done .add-order-btn {
 #menu-table th.action-header,
 #flavors-table th.action-header,
 #inventory-table th.action-header,
-#suggestions-table th.action-header {
+#suggestions-table th.action-header,
+#audit-history-table th.action-header {
     background-color: #CAB99D;
     border-radius: 0.5rem;
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
 
-#menu-table tbody tr, #flavors-table tbody tr, #inventory-table, #suggestions-table tbody tr, #report-table tbody tr {
+#menu-table tbody tr, #flavors-table tbody tr, #inventory-table, #suggestions-table tbody tr, #report-table tbody tr, #audit-history-table tbody tr {
     background-color: transparent;
 }
 
-#menu-table td, #flavors-table td, #inventory-table td, #suggestions-table td, #report-table td {
+#menu-table td, #flavors-table td, #inventory-table td, #suggestions-table td, #report-table td, #audit-history-table td {
     padding: 1rem;
     vertical-align: middle;
     background-color: #F4F1E8;
@@ -2591,7 +2661,8 @@ body.tab-done .add-order-btn {
 #flavors-table td:first-child,
 #inventory-table td:first-child,
 #suggestions-table td:first-child,
-#report-table td:first-child {
+#report-table td:first-child,
+#audit-history-table td:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
 }
@@ -2626,11 +2697,17 @@ body.tab-done .add-order-btn {
     border-bottom-right-radius: 0.5rem;
 }
 
+#audit-history-table td:nth-child(7) {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
 #menu-table td:not(:first-child):not(:last-child)::before,
 #flavors-table td:not(:first-child):not(:last-child)::before,
 #inventory-table td:not(:first-child):not(:last-child)::before,
 #suggestions-table td:not(:first-child):not(:last-child)::before,
-#report-table td:not(:first-child):not(:last-child)::before {
+#report-table td:not(:first-child):not(:last-child)::before,
+#audit-history-table td:not(:first-child):not(:last-child)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2653,7 +2730,8 @@ body.tab-done .add-order-btn {
 #menu-table td:last-child,
 #flavors-table td:last-child,
 #inventory-table td:last-child,
-#suggestions-table td:last-child {
+#suggestions-table td:last-child,
+#audit-history-table td:last-child {
     background-color: #F4F1E8;
     padding: 0;
     border-top-left-radius: 0.5rem;
@@ -2779,7 +2857,8 @@ body.tab-done .add-order-btn {
 /* --- AKHIR STYLE TABEL --- */
 
 /* Add Menu Modal Specific Styles */
-.add-menu-modal {
+.add-menu-modal,
+.edit-menu-modal {
     background-color: #F5EFE6;
     border-radius: 20px;
     padding: 32px;
@@ -2793,12 +2872,14 @@ body.tab-done .add-order-btn {
 }
 
 /* Ensure flavor selector fits within modal */
-.add-menu-modal .flavor-selector {
+.add-menu-modal .flavor-selector,
+.edit-menu-modal .flavor-selector {
     max-height: 200px;
     margin-bottom: 0;
 }
 
-.add-menu-modal .flavor-checkboxes {
+.add-menu-modal .flavor-checkboxes,
+.edit-menu-modal .flavor-checkboxes {
     max-height: 120px;
 }
 
@@ -2924,12 +3005,14 @@ body.tab-done .add-order-btn {
     font-weight: 500;
 }
 
-.add-menu-modal .form-group:last-child {
+.add-menu-modal .form-group:last-child,
+.edit-menu-modal .form-group:last-child {
     margin-bottom: 0;
 }
 
 .add-flavour-modal .form-group label,
 .add-menu-modal .form-group label,
+.edit-menu-modal .form-group label,
 .form-group label {
     font-family: 'Inter', sans-serif;
     font-weight: 700;
@@ -2945,25 +3028,29 @@ body.tab-done .add-order-btn {
     text-align: left;
 }
 
-.add-menu-modal .radio-group {
+.add-menu-modal .radio-group,
+.edit-menu-modal .radio-group {
     display: flex;
     gap: 152px;
     margin-top: 8px;
 }
 
-.add-menu-modal .radio-option {
+.add-menu-modal .radio-option,
+.edit-menu-modal .radio-option {
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
-.add-menu-modal .radio-option input[type="radio"] {
+.add-menu-modal .radio-option input[type="radio"],
+.edit-menu-modal .radio-option input[type="radio"] {
     width: 24px;
     height: 24px;
     accent-color: #312929;
 }
 
-.add-menu-modal .radio-option label {
+.add-menu-modal .radio-option label,
+.edit-menu-modal .radio-option label {
     font-family: 'Inter', sans-serif;
     font-weight: 700;
     font-size: 16px;
@@ -2979,8 +3066,130 @@ body.tab-done .add-order-btn {
     border-radius: 10px;
     padding: 16px;
     max-height: 240px;
+}
+
+/* Edit Modal Specific Styles - Reuse existing styles */
+.edit-menu-modal .form-group input[type="text"],
+.edit-menu-modal .form-group input[type="number"] {
+    width: 100%;
+    height: 48px;
+    background-color: #FFFFFF;
+    border: none;
+    border-radius: 10px;
+    padding: 0 22px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 16px;
+    line-height: 1.21;
+    color: #312929;
     box-shadow: inset 0px 4px 4px 0px rgba(0, 0, 0, 0.25);
     box-sizing: border-box;
+}
+
+.edit-menu-modal .form-group input::placeholder {
+    color: #9A9A9A;
+    text-align: left;
+}
+
+.edit-menu-modal .save-button {
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    background: linear-gradient(90deg, #207156 0%, #60B7A6 100%);
+    border: none;
+    border-radius: 10px;
+    color: #FFFFFF;
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    padding: 0.75rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.edit-menu-modal .save-button:hover {
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.15);
+    transition: opacity 0.3s ease;
+    background: #207156;
+    transform: scale(1.01);
+}
+
+.edit-menu-modal .save-button svg {
+    width: 15px;
+    height: 16px;
+}
+
+.edit-menu-modal .error {
+    margin-top: 16px;
+    text-align: center;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* Edit Modal Recipe Ingredients - Reuse existing styles */
+.edit-menu-modal .recipe-item {
+    display: grid;
+    grid-template-columns: 3fr 1.5fr 1fr auto;
+    gap: 0.75rem;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.edit-menu-modal .recipe-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.edit-menu-modal .recipe-item .form-group {
+    margin-bottom: 0;
+}
+
+.edit-menu-modal .recipe-item label {
+    display: none;
+}
+
+.edit-menu-modal .recipe-item input, 
+.edit-menu-modal .recipe-item select {
+    font-size: 14px;
+    padding: 0 12px;
+}
+
+.edit-menu-modal .recipe-unit-display {
+    font-size: 14px;
+    font-weight: 500;
+    color: #312929;
+    text-align: left;
+    padding-left: 5px;
+}
+
+.edit-menu-modal .remove-ingredient-btn {
+    background: none;
+    border: none;
+    color: #B3261E;
+    font-size: 30px;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.edit-menu-modal .remove-ingredient-btn:hover {
+    background-color: #f5c1bd;
+}
+
+.flavor-selector {
     scrollbar-width: thin;
     scrollbar-color: #DCD0A8 #F5EFE6;
 }
@@ -3147,7 +3356,8 @@ body.tab-done .add-order-btn {
     }
     
     /* Adjust modal for mobile */
-    .add-menu-modal {
+    .add-menu-modal,
+    .edit-menu-modal {
         width: 95vw;
         max-width: 95vw;
         padding: 20px;
@@ -3162,12 +3372,31 @@ body.tab-done .add-order-btn {
         overflow-y: auto;
     }
     
-    .add-menu-modal .flavor-selector {
+    .add-menu-modal .flavor-selector,
+    .edit-menu-modal .flavor-selector {
         max-height: 150px;
     }
     
-    .add-menu-modal .flavor-checkboxes {
+    .add-menu-modal .flavor-checkboxes,
+    .edit-menu-modal .flavor-checkboxes {
         max-height: 100px;
+    }
+    
+    /* Additional responsive adjustments for edit modal */
+    .edit-menu-modal .recipe-item {
+        grid-template-columns: 2fr 1fr 1fr auto;
+        gap: 0.5rem;
+    }
+    
+    .edit-menu-modal .form-group input[type="text"],
+    .edit-menu-modal .form-group input[type="number"] {
+        font-size: 14px;
+        padding: 0 16px;
+    }
+    
+    .edit-menu-modal .radio-group {
+        gap: 80px;
+        flex-wrap: wrap;
     }
 }
 
@@ -3304,7 +3533,7 @@ body.tab-done .add-order-btn {
 .filter-btn i {
     font-size: 12px;
 }
-
+.audit-history-filter-dropdown,
 .filter-dropdown {
     position: absolute;
     top: 100%;
@@ -3315,7 +3544,7 @@ body.tab-done .add-order-btn {
     padding: 20px;
     min-width: 300px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-    z-index: 100;
+    z-index: 9999;
     display: none;
     margin-top: 8px;
     overflow-y: auto;
@@ -3598,6 +3827,7 @@ body.tab-done .add-order-btn {
         width: 90vw;
         max-width: 320px;
         margin-top: 0;
+        z-index: 9999;
     }
     
     .pagination-container {
@@ -3820,28 +4050,28 @@ body.tab-done .add-order-btn {
 }
 
 
-.view-item .status-label {
+/* .view-item .status-label {
   padding: 4px 12px;
   border-radius: 12px;
   font-size: 14px;
   font-weight: 600;
   display: inline-block;
-}
+} */
 
-.view-item .status-in-stock {
+/* .view-item .status-in-stock {
   background-color: #E8F5E8;
   color: #2E7D32;
-}
+} */
 
 .view-item .status-low-stock {
   background-color: #FFF3E0;
   color: #EF6C00;
 }
 
-.view-item .status-out-of-stock {
+/* .view-item .status-out-of-stock {
   background-color: #FFEBEE;
   color: #C62828;
-}
+} */
 
 .view-modal .modal-actions {
     display: flex;
@@ -4453,6 +4683,76 @@ body[data-page="login"] {
 
 .log-table tbody tr:hover {
   background: rgba(220, 208, 168, 0.1);
+}
+
+.recipe-ingredients-container {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e0e0e0;
+}
+.recipe-ingredients-container > label {
+  display: block;
+  margin-bottom: 1rem;
+  font-weight: 700;
+  color: #312929;
+  font-size: 15px;
+}
+.recipe-item {
+  display: grid;
+  grid-template-columns: 3fr 1.5fr 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+.recipe-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+.recipe-item .form-group {
+  margin-bottom: 0;
+}
+.recipe-item label {
+  display: none;
+}
+.recipe-item input, .recipe-item select {
+  font-size: 14px;
+  padding: 0 12px;
+}
+.recipe-unit-display {
+  font-size: 14px;
+  font-weight: 500;
+  color: #312929;
+  text-align: left;
+  padding-left: 5px;
+}
+.remove-ingredient-btn {
+  background: none;
+  border: none;
+  color: #B3261E;
+  font-size: 30px;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+.remove-ingredient-btn:hover {
+  background-color: #f5c1bd;
+}
+.recipe-display {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.recipe-item {
+  font-size: 14px;
+  color: #312929;
 }
 
 /* Responsive adjustments for search and view modals */
