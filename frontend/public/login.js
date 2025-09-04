@@ -27,7 +27,7 @@ form.addEventListener('submit', async (e) => {
     const data = await res.json();
     if (data.access_token) {
       localStorage.setItem('access_token', data.access_token);
-      window.location.href = '/dashboard';
+      window.location.href = `/dashboard?token=${encodeURIComponent(data.access_token)}`;
     } else {
       errorDiv.textContent = data.detail || 'Username atau password salah.';
       errorDiv.style.display = 'block';

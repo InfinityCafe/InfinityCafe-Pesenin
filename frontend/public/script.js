@@ -127,7 +127,12 @@ function setupNavigation() {
 
             if (route) {
                 console.log('Navigating to:', route);
-                window.location.href = route;
+                const token = localStorage.getItem('access_token');
+                if (token) {
+                    window.location.href = `${route}?token=${encodeURIComponent(token)}`;
+                } else {
+                    window.location.href = '/login';
+                }
             }
         });
     });

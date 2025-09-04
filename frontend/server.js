@@ -984,28 +984,40 @@ app.post('/register', async (req, res) => {
   }
 });
 
+// Authentication middleware
+function requireAuth(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
+  
+  if (!token) {
+    return res.redirect('/login');
+  }
+  
+  // For now, just check if token exists (you can add JWT validation here)
+  next();
+}
+
 // ========== PAGE ROUTES ==========
 app.get("/", (req, res) => {
   res.redirect("/login");
 });
 
-app.get("/dashboard", (req, res) => {
+app.get("/dashboard", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.get("/menu-management", (req, res) => {
+app.get("/menu-management", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "menu.html"));
 });
 
-app.get("/reportkitchen", (req, res) => {
+app.get("/reportkitchen", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "report.html"));
 });
 
-app.get("/stock-management", (req, res) => {
+app.get("/stock-management", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "kelola-stok.html"));
 });
 
-app.get("/menu-suggestion", (req, res) => {
+app.get("/menu-suggestion", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "menu-suggestion.html"));
 });
 
