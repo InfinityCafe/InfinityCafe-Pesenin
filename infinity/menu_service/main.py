@@ -432,8 +432,6 @@ def update_flavor_item(flavor_id: str, flavor: FlavorCreate, db: Session = Depen
         }
     }
 
-# Note: Duplicate endpoint definition removed. See the complete implementation below.
-
 @app.delete("/flavors/{flavor_id}", summary="Hapus Varian Rasa", tags=["Flavor"], operation_id="delete flavor")
 def delete_flavor_item(flavor_id: str, db: Session = Depends(get_db)):
     """Menghapus varian rasa berdasarkan ID."""

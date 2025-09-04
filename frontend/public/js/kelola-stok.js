@@ -19,6 +19,12 @@ function switchTab(tab) {
     activePanel.classList.add('active');
   }
 
+  // Toggle visibility of Add New Item button based on active tab
+  const addItemBtn = document.getElementById('add-item-btn');
+  if (addItemBtn) {
+    addItemBtn.style.display = (tab === 'inventory') ? '' : 'none';
+  }
+
   if (tab === 'inventory' && window.inventoryManager) {
     window.inventoryManager.loadInventoryData();
   } else if (tab === 'audit-history' && window.inventoryManager) {
@@ -840,9 +846,12 @@ class InventoryManager {
     const isAvailable = isAvailTrue.checked;
 
     try {
+      const token = localStorage.getItem('access_token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const response = await fetch(`/inventory/toggle/${this.editingItem.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ is_available: isAvailable })
       });
 
