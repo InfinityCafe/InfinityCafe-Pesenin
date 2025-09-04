@@ -144,14 +144,16 @@
                     </div>
 
                     <div class="filter-group">
+                      <label>Status:</label>
+                      <select id="status-filter">
+                        <option value="">All Status</option>
+                      </select>
+                    </div>
+
+                    <div class="filter-group">
                       <label>Category:</label>
                       <select id="category-filter">
                         <option value="">All Categories</option>
-                        <!-- <option value="ingredients">Ingredients</option>
-                        <option value="packaging">Packaging</option>
-                        <option value="coffe_flavors">Coffe Flavors</option>
-                        <option value="milk_shake_flavors">Milk Shake Flavors</option>
-                        <option value="squash_flavors">Squash Flavors</option> -->
                       </select>
                     </div>
                     
@@ -159,19 +161,6 @@
                       <label>Unit:</label>
                       <select id="unit-filter">
                         <option value="">All Units</option>
-                        <!-- <option value="gram">Gram</option>
-                        <option value="milliliter">Milliliter</option>
-                        <option value="piece">Piece</option> -->
-                      </select>
-                    </div>
-                    
-                    <div class="filter-group">
-                      <label>Status:</label>
-                      <select id="status-filter">
-                        <option value="">All Status</option>
-                        <!-- <option value="in-stock">In Stock</option>
-                        <option value="low-stock">Low Stock</option>
-                        <option value="out-of-stock">Out of Stock</option> -->
                       </select>
                     </div>
                   </div>
@@ -514,7 +503,7 @@
       </button>
       <div class="modal-header">
         <i class="fas fa-exclamation-triangle warning-icon"></i>
-        <h3>Change Item Availability</h3>
+        <h3 class="modal-title">Warning</h3>
       </div>
       <div class="modal-body">
         <p class="item-name" id="change-status-item-name"></p>
