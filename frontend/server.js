@@ -23,7 +23,7 @@ const swaggerSpec = swaggerJsdoc({
       version: "1.0.0",
       description: "Dokumentasi untuk frontend Infinity Cafe",
     },
-    servers: [{ url: "http://localhost:8080" }],
+    servers: [{ url: "http://frontend:8080" }],
   },
   apis: ["./server.js"],
 });
