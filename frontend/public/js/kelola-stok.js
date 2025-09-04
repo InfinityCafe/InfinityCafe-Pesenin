@@ -1052,47 +1052,31 @@ class InventoryManager {
   }
 
   showSuccess(message) {
-    // Simple success notification
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #379777;
-      color: white;
-      padding: 1rem;
-      border-radius: 5px;
-      z-index: 1001;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    `;
-    notification.textContent = message;
-    document.body.appendChild(notification);
+    const modal = document.getElementById('success-modal');
+    const messageElement = document.getElementById('success-message');
 
-    setTimeout(() => {
-      notification.remove();
-    }, 3000);
+    if (modal && messageElement) {
+      messageElement.textContent = message;
+      modal.classList.remove('hidden');
+    } else {
+      // Fallback jika modal tidak ditemukan
+      console.log('SUCCESS:', message);
+      alert(message);
+    }
   }
 
   showError(message) {
-    // Simple error notification
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #B3261E;
-      color: white;
-      padding: 1rem;
-      border-radius: 5px;
-      z-index: 1001;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    `;
-    notification.textContent = message;
-    document.body.appendChild(notification);
+    const modal = document.getElementById('error-modal');
+    const messageElement = document.getElementById('error-message');
 
-    setTimeout(() => {
-      notification.remove();
-    }, 3000);
+    if (modal && messageElement) {
+      messageElement.textContent = message;
+      modal.classList.remove('hidden');
+    } else {
+      // Fallback jika modal tidak ditemukan
+      console.error('ERROR:', message);
+      alert(message);
+    }
   }
 
   handleKitchenToggle(isOpen) {
@@ -1815,6 +1799,18 @@ window.closeViewItemModal = function() {
 window.editFromView = function() {
   if (window.inventoryManager) {
     window.inventoryManager.editFromView();
+  }
+};
+
+window.closeSuccessModal = function() {
+  if (window.inventoryManager) {
+    window.inventoryManager.closeModal('success-modal');
+  }
+};
+
+window.closeErrorModal = function() {
+  if (window.inventoryManager) {
+    window.inventoryManager.closeModal('error-modal');
   }
 };
 

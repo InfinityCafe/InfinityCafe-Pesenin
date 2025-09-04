@@ -547,7 +547,7 @@
           <input type="number" id="stock-quantity" name="quantity" min="0" step="0.01" required>
         </div>
         <div class="form-group">
-          <label for="stock-notes">Notes (Optional)</label>
+          <label for="stock-notes">Notes (Reason)</label>
           <textarea id="stock-notes" name="notes" rows="3" placeholder="Add any notes about this stock addition..."></textarea>
         </div>
         <div class="form-actions">
@@ -557,120 +557,64 @@
     </div>
   </div>
 
-  <!-- Bulk Stock Modal -->
-  <!-- <div id="bulk-stock-modal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 class="modal-title">Bulk Add Stock</h3>
-        <button class="modal-close" id="close-bulk-stock-modal">
+  <!-- Delete Confirmation Modal -->
+    <div id="delete-confirm-modal" class="modal hidden">
+      <div class="modal-content delete-confirm-modal">
+        <button class="modal-close" onclick="closeDeleteConfirmModal()">
           &times;
         </button>
+        <div class="modal-header">
+          <i class="fas fa-exclamation-triangle warning-icon"></i>
+          <h3 class="modal-title">Warning</h3>
+        </div>
+        <div class="modal-body">
+          <p id="delete-confirm-message">Apakah Anda yakin ingin menghapus item ini?</p>
+          <p class="delete-warning">You won’t be able to revert this action!</p>
+        </div>
+        <div class="modal-actions">
+          <button class="modal-btn modal-btn-cancel" onclick="closeDeleteConfirmModal()">Batal</button>
+          <button class="modal-btn modal-btn-danger" id="delete-confirm-btn">Hapus</button>
+        </div>
       </div>
-      <form id="bulk-stock-form">
-        <div class="form-group">
-          <label>Stock Items</label>
-          <div id="bulk-stock-items">
-            <div class="bulk-stock-item">
-              <select name="ingredient_id[]" required>
-                <option value="">Select Ingredient</option>
-              </select>
-              <input type="number" name="quantity[]" placeholder="Qty" min="0" step="0.01" required>
-              <button type="button" class="remove-bulk-item-btn" onclick="inventoryManager.removeBulkItem(this)">
-                <i class="fas fa-minus"></i>
-              </button>
-            </div>
-          </div>
-          <button type="button" class="btn-secondary" id="add-bulk-item-btn">
-            <i class="fas fa-plus"></i> Add Another Item
-          </button>
-        </div>
-        <div class="form-group">
-          <label for="bulk-stock-notes">Notes (Optional)</label>
-          <textarea id="bulk-stock-notes" name="notes" rows="3" placeholder="Add any notes about this bulk stock addition..."></textarea>
-        </div>
-        <div class="form-actions">
-          <button type="submit" class="save-button">Add Bulk Stock</button>
-        </div>
-      </form>
     </div>
-  </div> -->
 
-  <!-- Consumption Log Modal -->
-  <!-- <div id="consumption-log-modal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 class="modal-title">Consumption Log</h3>
-        <button class="modal-close" id="close-consumption-log-modal">
+    <!-- Success Modal -->
+    <div id="success-modal" class="modal hidden">
+      <div class="modal-content success-modal">
+        <button class="modal-close" onclick="closeSuccessModal()">
           &times;
         </button>
-      </div>
-      <div class="consumption-log-content">
-        <div class="log-filters">
-          <input type="text" id="log-search" placeholder="Search by order ID...">
-          <button class="btn-secondary" id="refresh-logs-btn">Refresh</button>
+        <div class="modal-header">
+          <i class="fas fa-check-circle success-icon"></i>
+          <h3 class="modal-title">Success!</h3>
         </div>
-        <div class="log-table-container">
-          <table class="log-table">
-            <thead>
-              <tr>
-                <th>Order ID</th>
-                <th>Menu Items</th>
-                <th>Consumed</th>
-                <th>Rolled Back</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody id="consumption-log-tbody"> -->
-              <!-- Log entries will be populated here -->
-            <!-- </tbody>
-          </table>
+        <div class="modal-body">
+          <p id="success-message">Operation Completed Successfully</p>
+        </div>
+        <div class="modal-actions">
+          <button class="modal-btn" onclick="closeSuccessModal()">OK</button>
         </div>
       </div>
     </div>
-  </div> -->
-  
 
-  <!-- Stock History Modal -->
-  <!-- <div id="stock-history-modal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 class="modal-title">Stock History</h3>
-        <button class="modal-close" id="close-stock-history-modal">&times;</button>
-      </div>
-      <div class="search-filter-section" style="margin-top: 0.5rem;">
-        <div class="search-container">
-          <i class="fa-solid fa-magnifying-glass search-icon"></i>
-          <input type="text" id="history-search" placeholder="Search user or action..." class="search-input">
+    <!-- Error Modal -->
+    <div id="error-modal" class="modal hidden">
+      <div class="modal-content error-modal">
+        <button class="modal-close" onclick="closeErrorModal()">
+          &times;
+        </button>
+        <div class="modal-header">
+          <i class="fas fa-exclamation-circle error-icon"></i>
+          <h3 class="modal-title">Error</h3>
         </div>
-        <div class="filter-container">
-          <select id="history-action-filter" class="form-select">
-            <option value="">All Actions</option>
-            <option value="restock">Restock</option>
-            <option value="edit_stock">Edit Stock</option>
-            <option value="edit_minimum">Edit Minimum</option>
-            <option value="consume">Consume</option>
-            <option value="rollback">Rollback</option>
-          </select>
-          <button class="btn-secondary" id="refresh-history-btn" style="margin-left:8px;">Refresh</button>
+        <div class="modal-body">
+          <p id="error-message">Failed to complete the operation.</p>
         </div>
-      </div>
-      <div class="table-container">
-        <table class="log-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Ingredient</th>
-              <th>Action</th>
-              <th>Before → After</th>
-              <th>By</th>
-              <th>Notes</th>
-            </tr>
-          </thead>
-          <tbody id="stock-history-tbody"></tbody>
-        </table>
+        <div class="modal-actions">
+          <button class="modal-btn" onclick="closeErrorModal()">OK</button>
+        </div>
       </div>
     </div>
-  </div> -->
 
   <script src="script.js"></script>
   <script src="js/kelola-stok.js"></script>
