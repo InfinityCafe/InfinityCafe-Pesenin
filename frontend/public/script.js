@@ -283,21 +283,22 @@ function checkAuth() {
     const currentPage = document.body.dataset.page || window.location.pathname.split('/').pop().replace('.html', '');
     
     if (!publicPages.includes(currentPage)) {
-        // Check for temporary token first, then regular token
-        const tempToken = sessionStorage.getItem('temp_token');
+        // Check for regular token first (persistent across refreshes)
         const regularToken = localStorage.getItem('access_token');
-        const token = tempToken || regularToken;
+        const tempToken = sessionStorage.getItem('temp_token');
+        const token = regularToken || tempToken;
         
         if (!token || !validateJWTClient(token)) {
             console.log('No valid access token, redirecting to /login');
             // Clean up any temporary tokens
             sessionStorage.removeItem('temp_token');
             sessionStorage.removeItem('temp_token_id');
+            localStorage.removeItem('access_token');
             window.location.href = '/login';
             return;
         }
         
-        // If we used a temporary token, move it to localStorage for consistency
+        // If we used a temporary token, move it to localStorage for persistence
         if (tempToken && !regularToken) {
             localStorage.setItem('access_token', tempToken);
             sessionStorage.removeItem('temp_token');

@@ -1037,9 +1037,10 @@ function requireAuth(req, res, next) {
     return next();
   }
   
-  // No token provided
-  console.log('No token provided');
-  return res.redirect('/login');
+  // No token provided - let client-side handle authentication
+  // This allows page refreshes to work properly
+  console.log('No token provided, allowing access for client-side auth check');
+  return next();
 }
 
 // ========== PAGE ROUTES ==========
