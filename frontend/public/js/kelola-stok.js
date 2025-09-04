@@ -19,11 +19,10 @@ function switchTab(tab) {
     activePanel.classList.add('active');
   }
 
-  // Toggle visibility of Add New Item button based on active tab
   const addItemBtn = document.getElementById('add-item-btn');
-  if (addItemBtn) {
-    addItemBtn.style.display = (tab === 'inventory') ? '' : 'none';
-  }
+    if (addItemBtn) {
+      addItemBtn.style.display = (tab === 'inventory') ? '' : 'none';
+    }
 
   if (tab === 'inventory' && window.inventoryManager) {
     window.inventoryManager.loadInventoryData();
@@ -31,31 +30,6 @@ function switchTab(tab) {
     window.inventoryManager.loadAuditHistoryData();
   } 
 }
-
-// function toggleFilterAuditHistory() {
-//   const dropdown = document.getElementById('audit-history-filter-dropdown');
-//   if (dropdown) {
-//     dropdown.classList.toggle('show');
-//   }
-// }
-
-// function applyAuditHistoryFilter() {
-//   console.log('Applying audit history filter...');
-//   toggleFilterAuditHistory();
-// }
-
-// function clearAuditHistoryFilter() {
-//   console.log('Clearing audit history filter...');
-//   toggleFilterAuditHistory();
-// }
-
-// function changeAuditHistoryPage(direction) {
-//   console.log('Changing audit history page:', direction);
-// }
-
-// function changeAuditHistoryPageSize() {
-//   console.log('Changing audit history page size...');
-// }
 class InventoryManager {
   constructor() {
     this.inventory = [];
@@ -198,20 +172,20 @@ class InventoryManager {
       this.openAddStockModal();
     });
     // History button
-    safeAddEventListener('history-btn', 'click', () => {
-      this.openStockHistoryModal();
-    });
-    safeAddEventListener('close-stock-history-modal', 'click', () => {
-      this.closeModal('stock-history-modal');
-    });
-    safeAddEventListener('refresh-history-btn', 'click', () => {
-      this.loadStockHistory();
-    });
-    safeAddEventListener('history-search', 'input', (e) => {
-      this.filterStockHistory(e.target.value);
-    });
-    const actionFilter = document.getElementById('history-action-filter');
-    if (actionFilter) actionFilter.addEventListener('change', () => this.loadStockHistory());
+    // safeAddEventListener('history-btn', 'click', () => {
+    //   this.openStockHistoryModal();
+    // });
+    // safeAddEventListener('close-stock-history-modal', 'click', () => {
+    //   this.closeModal('stock-history-modal');
+    // });
+    // safeAddEventListener('refresh-history-btn', 'click', () => {
+    //   this.loadStockHistory();
+    // });
+    // safeAddEventListener('history-search', 'input', (e) => {
+    //   this.filterStockHistory(e.target.value);
+    // });
+    // const actionFilter = document.getElementById('history-action-filter');
+    // if (actionFilter) actionFilter.addEventListener('change', () => this.loadStockHistory());
     // Consumption log button
     safeAddEventListener('consumption-log-btn', 'click', () => {
       this.openConsumptionLogModal();
@@ -1282,7 +1256,9 @@ class InventoryManager {
       
       temp = temp.filter(item => {
         if (!item.created_at) return false;
-        const itemDate = new Date(item.created_at);
+        const itemDate = this.parseDate(item.created_at);
+
+        // const itemDate = new Date(item.created_at);
         
         switch (this.currentAuditFilters.dateRange) {
           case 'today':
@@ -1291,14 +1267,15 @@ class InventoryManager {
             const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
             return itemDate >= weekAgo;
           case 'month':
-            const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
-            return itemDate >= monthAgo;
+            const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            return itemDate >= firstOfMonth;
           case 'quarter':
-            const quarterAgo = new Date(today.getFullYear(), today.getMonth() - 3, today.getDate());
-            return itemDate >= quarterAgo;
+            const quarterStartMonth = Math.floor(today.getMonth() / 3) * 3;
+            const firstOfQuarter = new Date(today.getFullYear(), quarterStartMonth, 1);
+            return itemDate >= firstOfQuarter;
           case 'year':
-            const yearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
-            return itemDate >= yearAgo;
+            const firstOfYear = new Date(today.getFullYear(), 0, 1);
+            return itemDate >= firstOfYear;
           default:
             return true;
         }
@@ -1332,6 +1309,25 @@ class InventoryManager {
     this.renderAuditHistoryTable();
   }
 
+  parseDate(dateStr) {
+    if (!dateStr) return null;
+      const parts = dateStr.trim().split(/[\s\/:]+/);
+      if (parts.length < 3) return null;
+
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) -1;
+      const year = parseInt(parts[2], 10);
+      let hour = 0, minute = 0, second = 0;
+      if (parts.length > 3) {
+        hour = parseInt(parts[3], 10) || 0;
+        if (parts.length > 4) minute = parseInt(parts[4], 10) || 0;
+        if (parts.length > 5) second = parseInt(parts[5], 10) || 0;
+      }
+
+      const parsed = new Date(year, month, day, hour, minute, second);
+      return isNaN(parsed.getTime()) ? null : parsed;
+  }
+
   renderAuditHistoryTable() {
     const tbody = document.getElementById('audit-history-tbody');
     if (!tbody) {
@@ -1348,7 +1344,7 @@ class InventoryManager {
     if (!this.filteredAuditHistory.length) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="9" style="text-align: center; padding: 1rem;">
+          <td colspan="8" style="text-align: center; padding: 1rem;">
             No audit history found
           </td>
         </tr>
@@ -1372,13 +1368,13 @@ class InventoryManager {
     const row = document.createElement('tr');
     
     // Format date
-    const date = item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }) : 'N/A';
+    // const date = item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', {
+    //   year: 'numeric',
+    //   month: 'short',
+    //   day: 'numeric',
+    //   hour: '2-digit',
+    //   minute: '2-digit'
+    // }) : 'N/A';
     
     // Format action type with badge
     const actionType = item.action_type || 'N/A';
@@ -1392,7 +1388,6 @@ class InventoryManager {
       <td>${(item.quantity_after != null ? item.quantity_after.toFixed(2) : 'N/A')}</td>
       <td>${(item.quantity_changed != null ? item.quantity_changed.toFixed(2) : 'N/A')}</td>
       <td>${item.performed_by || 'N/A'}</td>
-      <td>${date}</td>
       <td class="action-header">
         <button class="table-action-btn" onclick="inventoryManager.viewAuditHistory(${item.id})"><i class="fas fa-eye"></i></button>
       </td>
@@ -1402,11 +1397,13 @@ class InventoryManager {
 
   getActionTypeClass(actionType) {
     const actionMap = {
-      'add': 'success',
+      'consume': 'success',
+      'edit_stock': 'success',
+      'edit_minimum': 'success',
+      'rollback': 'warning',
       'restock': 'success',
-      'update': 'warning',
-      'adjustment': 'info',
-      'delete': 'danger'
+      'make_available': 'success',
+      'make_unavailable': 'danger'
     };
     return actionMap[actionType.toLowerCase()] || 'default';
   }
@@ -1479,9 +1476,39 @@ class InventoryManager {
 
   toggleFilterAuditHistory() {
     const dropdown = document.getElementById('audit-history-filter-dropdown');
-    if (dropdown) {
-      dropdown.classList.toggle('show');
+    const filterBtn = document.querySelector('#tab-audit-history-content .filter-btn');
+    if (!dropdown || !filterBtn) return;
+
+    const isShown = dropdown.classList.toggle('show');
+
+    if (isShown) {
+      const btnRect = filterBtn.getBoundingClientRect();
+      const table = document.getElementById('audit-history-table');
+      let maxHeight = 200;
+
+      const availableHeight = window.innerHeight - btnRect.bottom - 20;
+
+      let tableHeight = availableHeight; 
+      if (table) {
+        const tableRect = table.getBoundingClientRect();
+        tableHeight = tableRect.height;
+      }
+
+      maxHeight = Math.min(availableHeight, tableHeight, 450);
+      maxHeight = Math.max(300, maxHeight); 
+
+      dropdown.style.maxHeight = maxHeight + 'px';
+    } else {
+      dropdown.style.maxHeight = 'none';
     }
+
+    // if (isShown) {
+    //   const btnRect = filterBtn.getBoundingClientRect();
+    //   const availableHeight = window.innerHeight - btnRect.bottom - 20;
+    //   dropdown.style.maxHeight = Math.max(200, availableHeight) + 'px';
+    // } else {
+    //   dropdown.style.maxHeight = 'none'
+    // }
   }
 
   applyAuditHistoryFilter() {
@@ -1529,14 +1556,55 @@ class InventoryManager {
       return;
     }
 
+    let date = 'N/A';
+    if (item.created_at) {
+      // Asumsikan format input 'DD/MM/YYYY' atau 'DD/MM/YYYY HH:MM:SS'
+      const parts = item.created_at.trim().split(/[\s\/:]+/); // Split oleh space, slash, atau colon
+      if (parts.length >= 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1; // Bulan di JS mulai dari 0
+        const year = parseInt(parts[2], 10);
+        let hour = 0, minute = 0, second = 0;
+        if (parts.length > 3) {
+          hour = parseInt(parts[3], 10) || 0;
+          minute = parseInt(parts[4], 10) || 0;
+          second = parseInt(parts[5], 10) || 0;
+        }
+        const parsedDate = new Date(year, month, day, hour, minute, second);
+        if (!isNaN(parsedDate.getTime())) {
+          date = parsedDate.toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+          });
+        } else {
+          date = 'Invalid Date';
+        }
+      }
+    }
+
+    // const date = item.created_at ? new Date(item.created_at).toLocaleDateString('en-GB', {
+    //   day: 'numeric',
+    //   month: 'short',
+    //   year: 'numeric',
+    //   hour: '2-digit',
+    //   minute: '2-digit',
+    //   second: '2-digit',
+    //   hour12: false
+    // }) : 'N/A';
+
     document.getElementById('view-audit-ingredient-name').textContent = item.ingredient_name || 'N/A';
     document.getElementById('view-audit-action-type').textContent = item.action_type || 'N/A';
     document.getElementById('view-audit-quantity-before').textContent = (item.quantity_before != null ? item.quantity_before.toFixed(2) : 'N/A');
     document.getElementById('view-audit-quantity-after').textContent = (item.quantity_after != null ? item.quantity_after.toFixed(2) : 'N/A');
     document.getElementById('view-audit-quantity-changed').textContent = (item.quantity_changed != null ? item.quantity_changed.toFixed(2) : 'N/A');
     document.getElementById('view-audit-performed-by').textContent = item.performed_by || 'N/A';
-    document.getElementById('view-audit-item-notes').textContent = item.notes || 'N/A';
-    document.getElementById('view-audit-created-at').textContent = item.created_at || 'N/A';
+    document.getElementById('view-audit-notes').textContent = item.notes || 'N/A';
+    document.getElementById('view-audit-created-at').textContent = date || 'N/A';
     document.getElementById('view-audit-order-id').textContent = item.order_id || 'N/A';
 
     this.showModal('view-audit-modal');

@@ -367,6 +367,12 @@ input:checked + .slider:before {
     align-items: stretch;
 }
 
+/* Hide add order button in tab done */
+body.tab-done .add-order-btn,
+body.tab-audit-history .add-item-btn {
+  display: none !important;
+}
+
 /* Order Columns */
 .order-columns {
     display: grid;
@@ -2371,11 +2377,6 @@ input:checked + .slider:before {
   }
 }
 
-/* Hide add order button in tab done */
-body.tab-done .add-order-btn {
-  display: none !important;
-}
-
 .summary-detail--order {
   cursor: pointer;
   /* transition: color 0.18s, background 0.18s, box-shadow 0.18s; */
@@ -2556,7 +2557,7 @@ body.tab-done .add-order-btn {
     background-color: #CAB99D;
 }
 
-#menu-table th, #flavors-table th, #inventory-table th, #suggestions-table th, #report-table th, #audit-history th {
+#menu-table th, #flavors-table th, #inventory-table th, #suggestions-table th, #report-table th, #audit-history-table th {
     padding: 0.75rem 1rem;
     text-align: center;
     font-weight: bold;
@@ -2607,7 +2608,7 @@ body.tab-done .add-order-btn {
     border-bottom-right-radius: 0.5rem;
 }
 
-#audit-history-table th:nth-child(9) {
+#audit-history-table th:nth-child(7) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
@@ -2690,7 +2691,7 @@ body.tab-done .add-order-btn {
     border-bottom-right-radius: 0.5rem;
 }
 
-#audit-history-table td:nth-child(9) {
+#audit-history-table td:nth-child(7) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
@@ -3526,7 +3527,7 @@ body.tab-done .add-order-btn {
 .filter-btn i {
     font-size: 12px;
 }
-
+.audit-history-filter-dropdown,
 .filter-dropdown {
     position: absolute;
     top: 100%;

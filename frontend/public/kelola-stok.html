@@ -108,10 +108,10 @@
                   <i class="fas fa-boxes"></i>
                   RESTOCK
                 </button>
-            <button class="btn-secondary" id="history-btn" style="margin-left:8px;">
-              <i class="fas fa-clock"></i>
-              HISTORY
-            </button>
+                <!-- <button class="btn-secondary" id="history-btn" style="margin-left:8px;">
+                  <i class="fas fa-clock"></i>
+                  HISTORY
+                </button> -->
                 <!-- <button class="bulk-stock-btn" id="bulk-stock-btn">
                   <i class="fas fa-truck"></i>
                   UNIT CONVERTER
@@ -247,10 +247,10 @@
                 <input type="text" id="audit-history-search" placeholder="Search by ingredient name, user, or notes..." class="search-input" onkeyup="inventoryManager.filterAuditHistory(this.value)">
               </div>
               <div class="filter-container">
-                        <button class="filter-btn" onclick="inventoryManager.toggleFilterAuditHistory()">
-          <i class="fas fa-filter"></i>
-          Filter
-        </button>
+                <button class="filter-btn" onclick="inventoryManager.toggleFilterAuditHistory()">
+                  <i class="fas fa-filter"></i>
+                  Filter
+                </button>
                 <div class="filter-dropdown" id="audit-history-filter-dropdown">
                   <div class="filter-groups-wrapper">
                     <div class="filter-group">
@@ -265,11 +265,14 @@
                     <div class="filter-group">
                       <label>Action Type:</label>
                       <select id="audit-action-filter">
-                        <option value="">All Actions</option>
-                        <option value="add">Add Stock</option>
-                        <option value="update">Update Stock</option>
+                        <option value="">All Type</option>
+                        <option value="consume">Consume</option>
+                        <option value="rollback">Rollback</option>
                         <option value="restock">Restock</option>
-                        <option value="adjustment">Adjustment</option>
+                        <option value="edit_stock">Edit Stock</option>
+                        <option value="edit_minimum">Edit Minimum</option>
+                        <option value="make_availabe">Make Available</option>
+                        <option value="make_unavailable">Make Unavailable</option>
                       </select>
                     </div>
                     
@@ -315,9 +318,9 @@
                   <th>ACTION TYPE</th>
                   <th>QUANTITY BEFORE</th>
                   <th>QUANTITY AFTER</th>
-                  <th>CHANGES</th>
+                  <th>QUANTITY CHANGES</th>
                   <th>PERFORMED BY</th>
-                  <th>DATE</th>
+                  <!-- <th>DATE</th> -->
                   <th class="action-header">ACTION</th>
                 </tr>
               </thead>
@@ -435,7 +438,7 @@
         </div>
         <div class="view-item">
           <label>Notes:</label>
-          <span id="view-audit-item-notes"></span>
+          <span id="view-audit-notes"></span>
         </div>
         <div class="view-item">
           <label>Created At:</label>
@@ -639,7 +642,7 @@
   
 
   <!-- Stock History Modal -->
-  <div id="stock-history-modal" class="modal hidden">
+  <!-- <div id="stock-history-modal" class="modal hidden">
     <div class="modal-content">
       <div class="modal-header">
         <h3 class="modal-title">Stock History</h3>
@@ -678,7 +681,7 @@
         </table>
       </div>
     </div>
-  </div>
+  </div> -->
 
   <script src="script.js"></script>
   <script src="js/kelola-stok.js"></script>

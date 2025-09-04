@@ -852,32 +852,32 @@ app.get("/inventory/history", async (req, res) => {
 });
 
 // Audit History
-app.get("/inventory/stock/history", async (req,res) => {
-  try {
-    const { limit, action_type, performed_by } = req.query;
+// app.get("/inventory/stock/history", async (req,res) => {
+//   try {
+//     const { limit, action_type, performed_by } = req.query;
 
-    let queryParams = '';
-    if (limit || action_type || performed_by) {
-      queryParams = '?';
-      if (limit) queryParams += `limit=${encodeURIComponent(limit)}&`;
-      if (action_type) queryParams += `action_type=${encodeURIComponent(action_type)}&`;
-      if (performed_by) queryParams += `performed_by=${encodeURIComponent(performed_by)}&`;
-      queryParams = queryParams.slice(0, -1);
-    }
+//     let queryParams = '';
+//     if (limit || action_type || performed_by) {
+//       queryParams = '?';
+//       if (limit) queryParams += `limit=${encodeURIComponent(limit)}&`;
+//       if (action_type) queryParams += `action_type=${encodeURIComponent(action_type)}&`;
+//       if (performed_by) queryParams += `performed_by=${encodeURIComponent(performed_by)}&`;
+//       queryParams = queryParams.slice(0, -1);
+//     }
 
-    const resp = await fetch(`http://inventory_service:8006/stock/history${queryParams}`, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" }
-    });
+//     const resp = await fetch(`http://inventory_service:8006/stock/history${queryParams}`, {
+//       method: "GET",
+//       headers: { "Content-Type": "application/json" }
+//     });
 
-    const data = await resp.json();
-    res.status(resp.status).json(data);
+//     const data = await resp.json();
+//     res.status(resp.status).json(data);
 
-  } catch (err) {
-    console.error("Failed to get stock history", err);
-    res.status(500).json({ error: "Failed to get stock history" });
-  }
-});
+//   } catch (err) {
+//     console.error("Failed to get stock history", err);
+//     res.status(500).json({ error: "Failed to get stock history" });
+//   }
+// });
 
 app.patch("/inventory/toggle/:id", async (req, res) => {
   try {
