@@ -121,10 +121,15 @@
 
   <!-- Confirm Modal -->
   <div id="confirm-modal" class="modal hidden">
-    <div class="modal-content">
+    <div class="modal-content delete-confirm-modal">
       <button onclick="closeConfirmModal()" class="modal-close">&times;</button>
-      <h3 class="modal-title">Konfirmasi Pembatalan</h3>
-      <p class="modal-text">Pilih alasan pembatalan atau kehabisan bahan.</p>
+      <div class="modal-header">
+          <i class="fas fa-exclamation-triangle warning-icon"></i>
+          <h3 class="modal-title">Konfirmasi Pembatalan</h3>
+      </div>
+      <div class="modal-body">
+          <p class="modal-text">Pilih alasan pembatalan atau kehabisan bahan.</p>
+      </div>
       <div class="modal-actions">
         <button onclick="confirmCancel('cancel')" class="modal-btn modal-btn-cancel">Alasan Lain</button>
         <button onclick="confirmCancel('habis')" class="modal-btn modal-btn-habis">Habis</button>
@@ -197,27 +202,39 @@
 
   <!-- Modal Sukses Pesanan -->
   <div id="success-modal" class="modal hidden">
-    <div class="modal-content">
+    <div class="modal-content success-modal">
       <button class="modal-close" onclick="closeSuccessModal()">&times;</button>
-      <h3 class="modal-title">Sukses!</h3>
-      <div id="success-message" class="modal-text" style="margin-bottom:24px;"></div>
+      <div class="modal-header">
+          <i class="fas fa-check-circle success-icon"></i>
+          <h3 class="modal-title">Success!</h3>
+      </div>
+      <div class="modal-body">
+          <p id="success-message" class="modal-text"></p>
+      </div>
       <div class="modal-actions" style="justify-content:center;">
-        <button class="modal-btn modal-btn-habis" onclick="closeSuccessModal()">OK</button>
+        <button class="modal-btn" onclick="closeSuccessModal()">OK</button>
       </div>
     </div>
   </div>
 
-  <!-- Error Modal -->
-  <div id="error-modal" class="modal hidden">
-    <div class="modal-content">
-      <button class="modal-close" onclick="closeErrorModal()">&times;</button>
-      <h3 class="modal-title">Terjadi Kesalahan</h3>
-      <div id="error-message" class="modal-text" style="margin-bottom:24px;"></div>
-      <div class="modal-actions" style="justify-content:center;">
-        <button class="modal-btn modal-btn-habis" onclick="closeErrorModal()">OK</button>
+    <!-- Error Modal -->
+    <div id="error-modal" class="modal hidden">
+      <div class="modal-content error-modal">
+        <button class="modal-close" onclick="closeErrorModal()">
+          &times;
+        </button>
+        <div class="modal-header">
+          <i class="fas fa-exclamation-circle error-icon"></i>
+          <h3 class="modal-title">Error</h3>
+        </div>
+        <div class="modal-body">
+          <p id="error-message">Failed to complete the operation.</p>
+        </div>
+        <div class="modal-actions">
+          <button class="modal-btn" onclick="closeErrorModal()">OK</button>
+        </div>
       </div>
     </div>
-  </div>
 
   <!-- Audio -->
   <audio id="sound-new-order" src="https://www.myinstants.com/media/sounds/mario-coin.mp3" preload="auto"></audio>

@@ -1241,7 +1241,7 @@ input:checked + .slider:before {
 
     .success-modal .success-icon {
         font-size: 3rem;
-        color: #10B981;
+        color: #379777;
         margin-bottom: 1rem;
     }
 
@@ -1266,7 +1266,7 @@ input:checked + .slider:before {
     }
 
     .success-modal .modal-btn {
-        background-color: #10B981;
+        background: linear-gradient(90deg, #207156 0%, #60B7A6 100%);
         color: white;
         border: none;
         padding: 0.75rem 2rem;
@@ -1277,7 +1277,10 @@ input:checked + .slider:before {
     }
 
     .success-modal .modal-btn:hover {
-        background-color: #059669;
+        background: #207156;
+        transition: opacity 0.3s ease;
+        transform: scale(1.02);
+        box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
     }
 
     /* Error Modal */
@@ -1295,7 +1298,7 @@ input:checked + .slider:before {
 
     .error-modal .error-icon {
         font-size: 3rem;
-        color: #EF4444;
+        color: #DC2626;
         margin-bottom: 1rem;
     }
 
@@ -1320,7 +1323,7 @@ input:checked + .slider:before {
     }
 
     .error-modal .modal-btn {
-        background-color: #EF4444;
+        background: linear-gradient(90deg, #b3261e 0%, #f26060 100%);
         color: white;
         border: none;
         padding: 0.75rem 2rem;
@@ -1331,7 +1334,10 @@ input:checked + .slider:before {
     }
 
     .error-modal .modal-btn:hover {
-        background-color: #DC2626;
+        background: #b3261e;
+        transition: opacity 0.3s ease;
+        transform: scale(1.02);
+        box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
     }
 
     /* Responsive styles for new modals */
