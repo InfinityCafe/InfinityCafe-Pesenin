@@ -2196,8 +2196,8 @@ function resetToNormalMode() {
     // Reset all UI elements to normal mode
     const chartBar = document.getElementById('chart-bar-card');
     const chartPie = document.getElementById('chart-pie-card');
-    const loyal = document.getElementById('loyal-card');
-    const usulan = document.getElementById('usulan-card');
+    const loyal = null;
+    const usulan = null;
     const tableHeader = document.querySelector('#report-table thead tr');
     const statusEl = document.getElementById('summary-status-badge');
     const barTitle = document.querySelector('#chart-bar-card .column-title');
@@ -2245,8 +2245,8 @@ function resetToNormalMode() {
 function applyIngredientModeLayout() {
     const chartBar = document.getElementById('chart-bar-card');
     const chartPie = document.getElementById('chart-pie-card');
-    const loyal = document.getElementById('loyal-card');
-    const usulan = document.getElementById('usulan-card');
+    const loyal = null;
+    const usulan = null;
     const tableHeader = document.querySelector('#report-table thead tr');
     const statusEl = document.getElementById('summary-status-badge');
     const barTitle = document.querySelector('#chart-bar-card .column-title');
@@ -2302,8 +2302,8 @@ function applyModeLayout(mode) {
     const isBest = mode === 'best';
     const chartBar = document.getElementById('chart-bar-card');
     const chartPie = document.getElementById('chart-pie-card');
-    const loyal = document.getElementById('loyal-card');
-    const usulan = document.getElementById('usulan-card');
+    const loyal = null;
+    const usulan = null;
     const tableHeader = document.querySelector('#report-table thead tr');
     const statusEl = document.getElementById('summary-status-badge');
     const dataTypeSelect = document.getElementById('data-type-select');

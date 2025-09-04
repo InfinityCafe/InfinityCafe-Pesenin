@@ -27,7 +27,14 @@ form.addEventListener('submit', async (e) => {
     const data = await res.json();
     if (data.access_token) {
       localStorage.setItem('access_token', data.access_token);
-      window.location.href = '/dashboard';
+      
+      // Create a temporary token for secure navigation
+      const tempToken = btoa(data.access_token).substring(0, 20) + Date.now();
+      sessionStorage.setItem('temp_token', data.access_token);
+      sessionStorage.setItem('temp_token_id', tempToken);
+      
+      // Navigate with temporary token that will be immediately removed
+      window.location.href = `/dashboard?temp=${tempToken}`;
     } else {
       errorDiv.textContent = data.detail || 'Username atau password salah.';
       errorDiv.style.display = 'block';

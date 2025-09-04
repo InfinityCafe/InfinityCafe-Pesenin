@@ -18,11 +18,11 @@
         <p class="header-subtitle">Stephany | Barista</p>
       </div>
       <div class="header-menu">
-        <button class="nav-btn" id="nav-dashboard" onclick="window.location.href = '/dashboard';">Dashboard</button>
-        <button class="nav-btn active" id="nav-menu" onclick="window.location.href = '/menu-management';">Menu Management</button>
-        <!-- <button class="nav-btn" id="nav-suggestion" onclick="window.location.href = '/menu-suggestion';">Usulan Menu</button> -->
-        <button class="nav-btn" id="nav-stok" onclick="window.location.href = '/stock-management';">Stock Management</button>
-        <button class="nav-btn" id="nav-report" onclick="window.location.href = '/reportkitchen';">Reports</button>
+              <button class="nav-btn" id="nav-dashboard">Dashboard</button>
+      <button class="nav-btn active" id="nav-menu">Menu Management</button>
+      <!-- <button class="nav-btn" id="nav-suggestion">Usulan Menu</button> -->
+      <button class="nav-btn" id="nav-stok">Stock Management</button>
+      <button class="nav-btn" id="nav-report">Reports</button>
       </div>
       <div class="header-right">
         <!-- <div class="search-container">
@@ -63,7 +63,7 @@
         <div class="tab-navigation">
           <button id="tab-menu" class="tab-btn" onclick="switchTab('menu')">MENU</button>
           <button id="tab-flavors" class="tab-btn" onclick="switchTab('flavors')">FLAVORS</button>
-          <button id="tab-menu-suggestion" class="tab-btn tab-menu-suggestion" onclick="window.location.href = 'menu-suggestion';">MENU SUGGESTION</button>
+          <button id="tab-menu-suggestion" class="tab-btn tab-menu-suggestion" onclick="navigateToMenuSuggestion()">MENU SUGGESTION</button>
           <button class="add-order-btn" id="add-new-btn" onclick="openAddModal()">ADD NEW MENU</button>
         </div>
 
@@ -221,18 +221,18 @@
               <div class="pagination-container" id="flavor-pagination">
                 <div class="pagination-info">
                   <span id="flavor-pagination-info">Page 1 of 1</span>
-            </div>
+                </div>
                 <div class="pagination-controls">
                   <button class="pagination-btn" id="flavor-prev-btn" onclick="changeFlavorPage(-1)">
                     <i class="fas fa-chevron-left"></i>
                   </button>
                   <div class="page-numbers" id="flavor-page-numbers">
                     <!-- Page numbers will be generated here -->
-          </div>
+                  </div>
                   <button class="pagination-btn" id="flavor-next-btn" onclick="changeFlavorPage(1)">
                     <i class="fas fa-chevron-right"></i>
                   </button>
-          </div>
+                </div>
                 <div class="pagination-size">
                   <label>Show:</label>
                   <select id="flavor-page-size" onchange="changeFlavorPageSize()">
@@ -261,12 +261,20 @@
         <h3 class="modal-title">Add New Menu</h3>
         <form id="add-menu-form">
           <div class="form-group">
-            <label for="base-name">Menu Name</label>
-            <input type="text" id="base-name" name="base-name" placeholder="Type Here ..." required />
+            <label for="base-name-en">Menu Name (EN)</label>
+            <input type="text" id="base-name-en" name="base-name-en" placeholder="Type English name..." required />
+          </div>
+          <div class="form-group">
+            <label for="base-name-id">Menu Name (ID)</label>
+            <input type="text" id="base-name-id" name="base-name-id" placeholder="Type Indonesian name..." required />
           </div>
           <div class="form-group">
             <label for="base-price">Price</label>
             <input type="number" id="base-price" name="base-price" placeholder="Type Here ..." required min="0" step="1" />
+          </div>
+          <div class="form-group">
+            <label for="making-time-minutes">Making Time (Minutes)</label>
+            <input type="number" id="making-time-minutes" name="making-time-minutes" placeholder="Type Here ..." min="0" step="0.1" />
           </div>
           <div class="form-group">
             <label for="is-avail">Status</label>
@@ -293,12 +301,92 @@
               </div>
             </div>
           </div>
+
+          <div class="form-group">
+            <label>Recipe Ingredients</label>
+            <div id="recipe-ingredients-list">
+              <!-- Baris-baris ingredient akan dibuat oleh JavaScript di sini -->
+            </div>
+            <button type="button" id="add-ingredient-btn" class="modal-btn-outline">
+              Add Ingredient <i class="fas fa-plus"></i>
+            </button>
+          </div>
+
           <button type="submit" class="save-button">
             <span class="fa fa-save"></span>
             <span>Save Menu</span>
           </button>
         </form>
         <div id="form-error" class="error"></div>
+      </div>
+    </div>
+
+    <!-- Edit Menu Modal -->
+    <div id="edit-menu-modal" class="modal hidden">
+      <div class="modal-content edit-menu-modal">
+        <button class="modal-close" onclick="closeEditMenuModal()">
+          &times;
+        </button>
+        <h3 class="modal-title">Edit Menu</h3>
+        <form id="edit-menu-form">
+          <div class="form-group">
+            <label for="edit-base-name-en">Menu Name (EN)</label>
+            <input type="text" id="edit-base-name-en" name="edit-base-name-en" placeholder="Type English name..." required />
+          </div>
+          <div class="form-group">
+            <label for="edit-base-name-id">Menu Name (ID)</label>
+            <input type="text" id="edit-base-name-id" name="edit-base-name-id" placeholder="Type Indonesian name..." required />
+          </div>
+          <div class="form-group">
+            <label for="edit-base-price">Price</label>
+            <input type="number" id="edit-base-price" name="edit-base-price" placeholder="Type Here ..." required min="0" step="1" />
+          </div>
+          <div class="form-group">
+            <label for="edit-making-time-minutes">Making Time (Minutes)</label>
+            <input type="number" id="edit-making-time-minutes" name="edit-making-time-minutes" placeholder="Type Here ..." min="0" step="0.1" />
+          </div>
+          <div class="form-group">
+            <label for="edit-is-avail">Status</label>
+            <div class="radio-group">
+              <div class="radio-option">
+                <input type="radio" id="edit-is-avail-true" name="edit-is-avail" value="true" checked />
+                <label for="edit-is-avail-true">Available</label>
+              </div>
+              <div class="radio-option">
+                <input type="radio" id="edit-is-avail-false" name="edit-is-avail" value="false" />
+                <label for="edit-is-avail-false">Unavailable</label>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="edit-menu-flavors">Available Flavors</label>
+            <div class="flavor-selector">
+              <div class="flavor-selector-header">
+                <button type="button" class="select-all-btn" onclick="toggleAllEditFlavors()">Select All</button>
+                <button type="button" class="clear-all-btn" onclick="clearAllEditFlavors()">Clear All</button>
+              </div>
+              <div class="flavor-checkboxes" id="edit-flavor-checkboxes">
+                <!-- Flavor checkboxes will be populated here -->
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Recipe Ingredients</label>
+            <div id="edit-recipe-ingredients-list">
+              <!-- Baris-baris ingredient akan dibuat oleh JavaScript di sini -->
+            </div>
+            <button type="button" id="edit-add-ingredient-btn" class="modal-btn-outline">
+              Add Ingredient <i class="fas fa-plus"></i>
+            </button>
+          </div>
+
+          <button type="submit" class="save-button">
+            <span class="fa fa-save"></span>
+            <span>Update Menu</span>
+          </button>
+        </form>
+        <div id="edit-form-error" class="error"></div>
       </div>
     </div>
 
@@ -311,8 +399,12 @@
         <h3 class="modal-title">Create New Flavour</h3>
         <form id="add-flavour-form">
           <div class="form-group">
-            <label for="flavour-name">Flavour Name</label>
-            <input type="text" id="flavour-name" name="flavour-name" placeholder="Type Here ..." required />
+            <label for="flavour-name-en">Flavour Name (EN)</label>
+            <input type="text" id="flavour-name-en" name="flavour-name-en" placeholder="Type English name..." required />
+          </div>
+          <div class="form-group">
+            <label for="flavour-name-id">Flavour Name (ID)</label>
+            <input type="text" id="flavour-name-id" name="flavour-name-id" placeholder="Type Indonesian name..." required />
           </div>
           <div class="form-group">
             <label for="additional-price">Additional Price</label>
@@ -364,11 +456,15 @@
             <label>Available Flavors:</label>
             <span id="view-menu-flavors" class="flavor-display"></span>
           </div>
+          <div class="view-item">
+            <label>Recipe Ingredients:</label>
+            <span id="view-menu-recipe" class="recipe-display"></span>
+          </div>
         </div>
-        <div class="modal-actions">
+        <!-- <div class="modal-actions">
           <button class="modal-btn modal-btn-cancel" onclick="closeViewMenuModal()">Close</button>
           <button class="modal-btn" onclick="editFromView()">Edit</button>
-        </div>
+        </div> -->
       </div>
     </div>
 
@@ -393,10 +489,10 @@
             <span id="view-flavor-available"></span>
           </div>
         </div>
-        <div class="modal-actions">
+        <!-- <div class="modal-actions">
           <button class="modal-btn modal-btn-cancel" onclick="closeViewFlavorModal()">Close</button>
           <button class="modal-btn" onclick="editFlavorFromView()">Edit</button>
-        </div>
+        </div> -->
       </div>
     </div>
 
@@ -408,11 +504,11 @@
         </button>
         <div class="modal-header">
           <i class="fas fa-exclamation-triangle warning-icon"></i>
-          <h3 class="modal-title">Konfirmasi Hapus</h3>
+          <h3 class="modal-title">Warning</h3>
         </div>
         <div class="modal-body">
           <p id="delete-confirm-message">Apakah Anda yakin ingin menghapus item ini?</p>
-          <p class="delete-warning">Tindakan ini tidak dapat dibatalkan.</p>
+          <p class="delete-warning">You won’t be able to revert this action!</p>
         </div>
         <div class="modal-actions">
           <button class="modal-btn modal-btn-cancel" onclick="closeDeleteConfirmModal()">Batal</button>
@@ -429,10 +525,10 @@
         </button>
         <div class="modal-header">
           <i class="fas fa-check-circle success-icon"></i>
-          <h3 class="modal-title">Berhasil!</h3>
+          <h3 class="modal-title">Success!</h3>
         </div>
         <div class="modal-body">
-          <p id="success-message">Operasi berhasil dilakukan.</p>
+          <p id="success-message">Operation Completed Successfully</p>
         </div>
         <div class="modal-actions">
           <button class="modal-btn" onclick="closeSuccessModal()">OK</button>
@@ -448,10 +544,10 @@
         </button>
         <div class="modal-header">
           <i class="fas fa-exclamation-circle error-icon"></i>
-          <h3 class="modal-title">Terjadi Kesalahan</h3>
+          <h3 class="modal-title">Error</h3>
         </div>
         <div class="modal-body">
-          <p id="error-message">Terjadi kesalahan saat melakukan operasi.</p>
+          <p id="error-message">Failed to complete the operation.</p>
         </div>
         <div class="modal-actions">
           <button class="modal-btn" onclick="closeErrorModal()">OK</button>
