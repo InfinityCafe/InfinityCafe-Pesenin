@@ -2,317 +2,427 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>1 Laporan Penjualan - Infinity Cafe</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laporan Penjualan - Infinity Cafe</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="./css/responsive-tables.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <style>
-        .card-retro {@apply bg-white border-4 border-black p-4 shadow-[4px_4px_0_#000] font-mono uppercase text-sm;}
-        .table-retro {@apply border-collapse w-full mt-4 text-sm;}
-        .table-retro th, .table-retro td {@apply border-2 border-black px-2 py-1;}
-        .btn-retro {@apply bg-yellow-300 border-4 border-black px-4 py-2 font-extrabold shadow-[3px_3px_0_#000] hover:bg-black hover:text-yellow-300;}
-        .btn-close {@apply absolute top-2 right-2 text-red-600 font-bold text-lg bg-white border-2 border-black rounded-full w-6 h-6 flex items-center justify-center;}
-    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
-<body class="bg-white p-6 font-mono">
-    <div id="loading-overlay" class="fixed inset-0 bg-white bg-opacity-70 z-50 hidden items-center justify-center">
-        <div class="text-black font-extrabold text-xl animate-pulse">⏳ Memuat data laporan...</div>
+<body data-page="report">
+    <!-- Header -->
+    <nav class="header">
+        <div class="header-brand">
+            <h1 class="header-title" id="navbar-title">Laporan Penjualan</h1>
+            <p class="header-subtitle">Stephany | Barista</p>
+        </div>
+        <div class="header-menu">
+            <button class="nav-btn" id="nav-dashboard">Dashboard</button>
+            <button class="nav-btn" id="nav-menu">Menu Management</button>
+            <!-- <button class="nav-btn" id="nav-suggestion">Usulan Menu</button> -->
+            <button class="nav-btn" id="nav-stok">Stock Management</button>
+            <button class="nav-btn active" id="nav-report">Reports</button>
+            <!-- <button class="nav-btn" id="nav-kitchen-report" onclick="showKitchenReport()">Kitchen Report</button> -->
+            <!-- <button class="nav-btn" id="nav-ingredient-analysis" onclick="showIngredientAnalysis()">Analisis Bahan</button> -->
+        </div>
+        <div class="header-right">
+            <div class="kitchen-status-container">
+                <label class="switch">
+                    <input type="checkbox" id="kitchen-toggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="modal hidden">
+        <div class="modal-content" style="max-width: 400px; text-align: center; background: #F5EFE6;">
+            <div class="modal-title">⏳ Memuat Data Laporan</div>
+            <div class="modal-text">Mohon tunggu sebentar...</div>
+        </div>
     </div>
 
-    <h1 class="text-3xl font-extrabold uppercase mb-4 text-center bg-yellow-300 border-b-4 border-black shadow-[4px_4px_0_#000]">📊 Laporan Penjualan X</h1>
-
-    <div class="flex flex-wrap items-center gap-4 mb-4">
-        <label class="font-mono uppercase text-sm">Dari:
-            <input type="date" id="start_date" class="border-4 border-black p-1">
-        </label>
-        <label class="font-mono uppercase text-sm">Sampai:
-            <input type="date" id="end_date" class="border-4 border-black p-1">
-        </label>
-        <button onclick="loadReport()" class="btn-retro">Tampilkan</button>
-        <button onclick="exportCSV()" class="btn-retro">⬇️ CSV</button>
-        <button onclick="exportPDF()" class="btn-retro">📄 PDF</button>
+    <!-- Kitchen Off Banner -->
+    <div id="kitchen-off-banner" class="kitchen-off-banner hidden">
+        🚫 Dapur sedang OFF. Tidak dapat menerima/memproses pesanan.
     </div>
 
-    <div id="summary" class="text-sm font-mono mb-2"></div>
-    <div id="insight-box" class="card-retro text-black bg-yellow-100 mb-4 hidden"></div>
+    <!-- Offline Banner -->
+    <div id="offline-banner" class="offline-banner hidden">
+        🔌 Gagal ambil data. Cek koneksi.
+    </div>
 
-    <table class="table-retro">
-        <thead>
-            <tr>
-                <th>No</th><th>Menu</th><th>Qty</th><th>Harga</th><th>Total</th>
-            </tr>
-        </thead>
-        <tbody id="report-body"></tbody>
-    </table>
+    <!-- Main Content -->
+    <div class="main-container">
+        <div class="content-area">
+            <!-- Greeting Message -->
+            <div class="greeting-message">
+                <h2>Hi, John Doe, here's your sales report!</h2>
+                <p class="greeting-date" id="greeting-date">Monday, 14th July 2025</p>
+            </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
-        <div class="card-retro">
-            <h3 class="text-lg mb-2">📊 Top Menu Terlaris</h3>
+            <!-- Tab Navigation -->
+            <div class="tab-navigation">
+              <!-- Tab navigation removed as requested -->
+            </div>
+
+            <!-- Enhanced Filter Section -->
+            <div class="search-filter-section" id="search-filter-section-report">
+                <div class="search-container">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" id="menu-filter" placeholder="Filter berdasarkan nama menu..." class="search-input">
+                </div>
+                <div class="filter-container">
+                    <label class="filter-group">
+                        <span style="color: #312929; font-weight: 600; margin-right: 8px;">Dari:</span>
+                        <input type="date" id="start_date" class="price-input" style="width: 200px;">
+        </label>
+                    <label class="filter-group">
+                        <span style="color: #312929; font-weight: 600; margin-right: 8px;">Sampai:</span>
+                        <input type="date" id="end_date" class="price-input" style="width: 200px;">
+        </label>
+                    <button onclick="exportCSV()" class="btn-secondary">⬇️ CSV</button>
+                    <button onclick="exportPDF()" class="btn-secondary">📄 PDF</button>
+                </div>
+    </div>
+
+            <!-- Summary Section -->
+            <div id="summary" class="summary-details" style="margin-bottom: 1rem;">
+                <span class="summary-detail--order">Periode: <strong id="summary-period">-</strong></span>
+                <span class="summary-detail--order">Pendapatan: <strong id="summary-income">-</strong></span>
+                <span class="summary-detail--order">Transaksi: <strong id="summary-orders">-</strong></span>
+                <span class="summary-detail--order">Mode Data: <span id="summary-status-badge" class="status-badge">-</span></span>
+            </div>
+
+            <!-- Insight Box -->
+            <div id="insight-box" class="summary-item hidden">
+                <div class="summary-header">
+                    <span class="summary-name">💡 Insight Laporan</span>
+                    <span class="summary-close" onclick="document.getElementById('insight-box').classList.add('hidden')">×</span>
+                </div>
+                <div id="insight-content"></div>
+            </div>
+
+            <!-- Report Table -->
+            <div class="table-container">
+                <div class="summary-item">
+                    <div class="summary-header">
+                        <span class="summary-name">📊 Data Laporan</span>
+                    </div>
+                    <div class="table-header">
+                        <div class="search-filter-section"> 
+                            <div class="search-container">
+                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                <input type="text" id="table-search-input" class="search-input" placeholder="Cari di tabel...">
+                            </div>
+                            <div class="right-controls" style="display: flex; align-items: center; gap: 12px; margin-left: auto;">
+                                <!-- Ingredient view mode (visible when Analisis Bahan active) -->
+                                <div class="filter-container" id="ingredient-view-container" style="display:none; gap: 8px; align-items: center;">
+                                    <label for="ingredient-view-select" style="color:#312929; font-weight:600;">Tampilan:</label>
+                                    <select id="ingredient-view-select" class="form-select" onchange="onIngredientViewChange()">
+                                        <option value="daily" selected>Harian</option>
+                                        <option value="logs">Per-Order (Logs)</option>
+                                    </select>
+                                </div>
+                                <div class="filter-container">
+                                    <button class="filter-btn" type="button" onclick="toggleReportFilter()">
+                                        <i class="fas fa-filter"></i>
+                                        Filter
+                                    </button>
+                                <div class="filter-dropdown" id="report-filter-dropdown">
+                                    <div class="filter-group">
+                                        <label>Jenis Data:</label>
+                                        <select id="data-type-select" class="form-select">
+                                            <option value="sales" selected>Data Sales</option>
+                                            <option value="best">Best Seller</option>
+                                            <option value="ingredient">Analisis Bahan</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-group">
+                                        <label>Urutkan:</label>
+                                        <select id="sort-select" class="form-select">
+                                            <option value="name" selected>Nama Menu</option>
+                                            <option value="qty">Quantity</option>
+                                            <option value="total">Total</option>
+                                            <option value="ingredients">Jumlah Bahan</option>
+                                            <option value="quantity">Total Quantity</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-actions">
+                                        <button class="apply-filter-btn" type="button" onclick="applyReportFilter()">Terapkan</button>
+                                        <button class="clear-filter-btn" type="button" onclick="clearReportFilter()">Reset</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <table id="report-table">
+                    <thead>
+                        <tr>
+                                <th>No</th>
+                                <th>Menu</th>
+                                <th>Qty</th>
+                                <th>Price</th>
+                                <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="report-tbody"></tbody>
+                </table>
+
+                    <!-- Pagination -->
+                    <div class="pagination-container">
+                        <div class="pagination-info">
+                            Menampilkan <span id="pagination-start">1</span> - <span id="pagination-end">10</span> dari <span id="pagination-total">0</span> data
+                        </div>
+                        <div class="pagination-controls">
+                            <button class="pagination-btn" id="prev-page" onclick="changePage(-1)">
+                                <i class="fas fa-chevron-left"></i>
+                            </button>
+                            <div class="page-numbers" id="page-numbers"></div>
+                            <button class="pagination-btn" id="next-page" onclick="changePage(1)">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                        <div class="entries-per-page">
+                            <span>Tampilkan</span>
+                            <select id="entries-per-page" class="form-select">
+                                <option value="10" selected>10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                            </select>
+                            <span>entri</span>
+                        </div>
+                    </div>
+                    <!-- Ingredient Details Panel (for Analisis Bahan mode) -->
+                    <div id="ingredient-details-panel" class="summary-item hidden" style="margin-top: 1.5rem;">
+                        <div class="summary-header">
+                            <span class="summary-name">🥤 Detail Konsumsi Bahan</span>
+                            <span class="summary-close" onclick="hideIngredientDetailsPanel()">×</span>
+                        </div>
+                        <div class="summary-details" style="margin: 1rem 0 1.5rem 0;">
+                            <span class="summary-detail--order">Order ID: <strong id="detail-order-id">-</strong></span>
+                            <span class="summary-detail--order">Tanggal: <strong id="detail-order-date">-</strong></span>
+                            <span class="summary-detail--order">Status: <strong id="detail-order-status">-</strong></span>
+                        </div>
+                        <div class="table-container" style="margin-top: 0;">
+                            <table id="ingredient-details-table" class="flavour-table" style="margin-top: 0;">
+                            <thead>
+                                <tr>
+                                        <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">No</th>
+                                        <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Nama Bahan</th>
+                                        <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Qty Terpakai</th>
+                                        <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Unit</th>
+                                        <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Stok Sebelum</th>
+                                        <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Stok Sesudah</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ingredient-details-body"></tbody>
+                        </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="dashboard-layout" style="margin-top: 2rem; flex-wrap: wrap;">
+                <div class="column" id="chart-bar-card" style="flex: 1 1 0; min-width: 320px;">
+                    <h3 class="column-title">📊 Top Menu Terlaris</h3>
+                    <div class="column-content" style="height: 320px;">
             <canvas id="barChart"></canvas>
         </div>
-        <div class="card-retro">
-            <h3 class="text-lg mb-2">🥧 Komposisi Penjualan</h3>
+                </div>
+                <div class="column" id="chart-pie-card" style="flex: 1 1 0; min-width: 320px;">
+                    <h3 class="column-title">🥧 Komposisi Penjualan</h3>
+                    <div class="column-content" style="height: 320px;">
             <canvas id="pieChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Info Section -->
+            <!-- Removed loyal buyers and customer suggestions per request -->
+
+            <!-- Kitchen Report Section -->
+            <div id="kitchen-report-section" class="kitchen-report-section hidden">
+                <div class="summary-item">
+                    <div class="summary-header">
+                        <span class="summary-name">👨‍🍳 Kitchen Report</span>
+                        <span class="summary-close" onclick="hideKitchenReport()">×</span>
+                    </div>
+                    
+                    <!-- Kitchen Report Filter -->
+                    <div class="search-filter-section">
+                        <div class="filter-container">
+                            <label class="filter-group">
+                                <span style="color: #312929; font-weight: 600; margin-right: 8px;">Status:</span>
+                                <select id="kitchen-status-filter" class="form-select">
+                                    <option value="">Semua Status</option>
+                                    <option value="receive">Diterima</option>
+                                    <option value="making">Sedang Dibuat</option>
+                                    <option value="deliver">Siap Antar</option>
+                                    <option value="done">Selesai</option>
+                                    <option value="cancelled">Dibatalkan</option>
+                                </select>
+                            </label>
+                            <button onclick="refreshKitchenData()" class="btn-secondary">🔄 Refresh</button>
+                            <button onclick="exportKitchenCSV()" class="btn-secondary">⬇️ CSV</button>
+                        </div>
+                    </div>
+
+                    <!-- Kitchen Orders Table -->
+                    <div class="table-container">
+                        <table id="kitchen-table" class="flavour-table">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Order ID</th>
+                                    <th>Queue</th>
+                                    <th>Customer</th>
+                                    <th>Room</th>
+                                    <th>Menu Items</th>
+                                    <th>Bahan yang Digunakan</th>
+                                    <th>Status</th>
+                                    <th>Time Receive</th>
+                                    <th>Time Done</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="kitchen-body"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- Kitchen Summary -->
+                    <div id="kitchen-summary" class="summary-details" style="margin-top: 1rem;">
+                        <span class="summary-detail--order">Total Orders: <strong id="kitchen-total-orders">-</strong></span>
+                        <span class="summary-detail--order">In Progress: <strong id="kitchen-in-progress">-</strong></span>
+                        <span class="summary-detail--order">Completed: <strong id="kitchen-completed">-</strong></span>
+                        <span class="summary-detail--order">Cancelled: <strong id="kitchen-cancelled">-</strong></span>
+                    </div>
+                </div>
+
+
+            </div>
         </div>
     </div>
 
-    <div class="card-retro mt-8">
-        <h3 class="text-lg mb-2">🏆 Top 5 Pembeli Loyal</h3>
-        <ul id="loyal-list" class="list-disc ml-5 text-sm"></ul>
-    </div>
+    <!-- Ingredient Analysis Section -->
+    <div id="ingredient-analysis-section" class="ingredient-analysis-section hidden">
+        <div class="summary-item">
+            <div class="summary-header">
+                <span class="summary-name">🥤 Analisis Penggunaan Bahan</span>
+                <span class="summary-close" onclick="hideIngredientAnalysis()">×</span>
+            </div>
+            
+            <!-- Ingredient Analysis Filter -->
+            <div class="search-filter-section">
+                <div class="filter-container">
+                    <label class="filter-group">
+                        <span style="color: #312929; font-weight: 600; margin-right: 8px;">Periode:</span>
+                        <input type="date" id="ingredient-start-date" class="price-input" style="width: 150px;">
+                    </label>
+                    <label class="filter-group">
+                        <span style="color: #312929; font-weight: 600; margin-right: 8px;">Sampai:</span>
+                        <input type="date" id="ingredient-end-date" class="price-input" style="width: 150px;">
+                    </label>
+                    <button onclick="refreshIngredientAnalysis()" class="btn-secondary">🔄 Refresh</button>
+                    <button onclick="exportIngredientCSV()" class="btn-secondary">⬇️ CSV</button>
+                </div>
+            </div>
 
-    <div class="card-retro mt-8">
-        <h3 class="text-lg mb-2">💡 Menu Usulan Pelanggan</h3>
-        <ul id="usulan-list" class="list-disc ml-5 text-sm"></ul>
-    </div>
+            <!-- Ingredient Summary -->
+            <div id="ingredient-summary" class="summary-details" style="margin-top: 1rem;">
+                <span class="summary-detail--order">Total Menu: <strong id="ingredient-total-menu">-</strong></span>
+                <span class="summary-detail--order">Total Bahan: <strong id="ingredient-total-ingredients">-</strong></span>
+                <span class="summary-detail--order">Menu Terbanyak Bahan: <strong id="ingredient-most-ingredients">-</strong></span>
+                <span class="summary-detail--order">Bahan Paling Sering Digunakan: <strong id="ingredient-most-used">-</strong></span>
+            </div>
 
-    <div id="pie-modal" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden items-center justify-center">
-        <div class="bg-white border-4 border-black p-6 rounded-lg shadow-[4px_4px_0_#000] max-w-sm w-full font-mono relative">
-            <button onclick="closePieModal()" class="btn-close">✖</button>
-            <h3 class="text-lg font-bold mb-2">📊 Detail Menu</h3>
-            <div id="pie-modal-content" class="text-sm"></div>
+            <!-- Ingredient Analysis Dashboard -->
+            <div class="dashboard-layout" style="flex-wrap: wrap; margin-top: 1rem;">
+                <div class="column" style="flex: 1 1 0; min-width: 320px;">
+                    <h4 class="column-title">📊 Top Menu by Ingredient Usage</h4>
+                    <div class="column-content" style="height: 300px;">
+                        <canvas id="ingredientChart"></canvas>
+                    </div>
+                </div>
+                <div class="column" style="flex: 1 1 0; min-width: 320px;">
+                    <h4 class="column-title">📋 Detail Bahan per Menu</h4>
+                    <div class="column-content">
+                        <div id="ingredient-details" class="ingredient-details"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ingredient Usage Table -->
+            <div class="table-container" style="margin-top: 1rem;">
+                <div class="summary-item">
+                    <div class="summary-header">
+                        <span class="summary-name">📊 Tabel Penggunaan Bahan per Menu</span>
+                    </div>
+                    <table id="ingredient-table" class="flavour-table">
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Nama Menu</th>
+                                <th>Flavor</th>
+                                <th>Qty Pesanan</th>
+                                <th>Detail Bahan (Terpakai)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ingredient-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
-<script>
-// Configuration for different environments
-let API_URLS = {
-  kitchen: 'http://localhost:8003',
-  order: 'http://localhost:8002', 
-  menu: 'http://localhost:8001',
-  report: 'http://localhost:8004',
-  inventory: 'http://localhost:8005'
-};
+    <!-- Menu Suggestion Modal -->
+    <div id="suggestion-modal" class="modal hidden">
+        <div class="modal-content add-menu-modal">
+            <button onclick="closeSuggestionModal()" class="modal-close">×</button>
+            <div class="modal-title">💡 Usulkan Menu Baru</div>
+            <div class="form-group">
+                <label for="suggestion-menu-name">Nama Menu:</label>
+                <input type="text" id="suggestion-menu-name" placeholder="Masukkan nama menu yang diusulkan">
+            </div>
+            <div class="form-group">
+                <label for="suggestion-customer-name">Nama Customer (Opsional):</label>
+                <input type="text" id="suggestion-customer-name" placeholder="Nama customer yang mengusulkan">
+            </div>
+            <div class="modal-actions">
+                <button onclick="submitSuggestion()" class="save-button">Kirim Usulan</button>
+                <button onclick="closeSuggestionModal()" class="modal-btn-cancel">Batal</button>
+            </div>
+        </div>
+    </div>
 
-// Load configuration from server
-async function loadApiConfig() {
-  try {
-    const response = await fetch('/api/config');
-    const config = await response.json();
-    API_URLS = config.apiUrls;
-    console.log('🌍 Loaded API configuration:', config);
-  } catch (error) {
-    console.warn('⚠️ Failed to load API config from server, using fallback configuration');
-    // Fallback to hostname-based detection
-    const hostname = window.location.hostname;
-    const protocol = window.location.protocol;
+
+
+    <!-- Pie Chart Modal -->
+    <div id="pie-modal" class="modal hidden">
+        <div class="modal-content view-modal">
+            <button onclick="closePieModal()" class="modal-close">×</button>
+            <div class="modal-title">�� Detail Menu</div>
+            <div id="pie-modal-content" class="view-content"></div>
+        </div>
+    </div>
+
+    <!-- Ingredient Detail Modal -->
+    <div id="ingredient-modal" class="modal hidden">
+        <div class="modal-content view-modal" style="max-width: 800px; width: 800px; max-height: 90vh; overflow: hidden;">
+            <button onclick="closeIngredientModal()" class="modal-close">×</button>
+            <div id="ingredient-modal-content" class="view-content" style="max-height: calc(90vh - 120px); overflow-y: auto;">
+                <div id="ingredient-modal-body"></div>
+            </div>
+        </div>
+    </div>
     
-    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-      API_URLS = {
-        kitchen: `${protocol}//${hostname}:8003`,
-        order: `${protocol}//${hostname}:8002`,
-        menu: `${protocol}//${hostname}:8001`, 
-        report: `${protocol}//${hostname}:8004`,
-        inventory: `${protocol}//${hostname}:8005`
-      };
-    }
-  }
-}
+    <script src="script.js"></script>
+    <script src="report.js"></script>
 
-let barChart, pieChart;
-
-function closePieModal() {
-    document.getElementById("pie-modal").classList.add("hidden");
-}
-
-function showPieModal(label, value, percent) {
-    document.getElementById("pie-modal-content").innerHTML = `
-        <p><strong>${label}</strong></p>
-        <p>Jumlah: ${value} item</p>
-        <p>Kontribusi: ${percent}%</p>`;
-    document.getElementById("pie-modal").classList.remove("hidden");
-}
-
-function renderCharts(details) {
-    const labels = details.map(d => d.menu_name);
-    const quantities = details.map(d => d.quantity);
-    if (barChart) barChart.destroy();
-    if (pieChart) pieChart.destroy();
-
-    barChart = new Chart(document.getElementById("barChart"), {
-        type: 'bar',
-        data: { labels, datasets: [{ label: "Jumlah Terjual", data: quantities, backgroundColor: "orange" }] },
-        options: { responsive: true }
-    });
-
-    pieChart = new Chart(document.getElementById("pieChart"), {
-        type: 'pie',
-        data: {
-            labels,
-            datasets: [{ data: quantities, backgroundColor: labels.map((_, i) => `hsl(${i * 40}, 70%, 60%)`) }]
-        },
-        options: {
-            responsive: true,
-            animation: { animateRotate: true, animateScale: true, duration: 1000, easing: "easeOutBounce" },
-            plugins: {
-                tooltip: {
-                    callbacks: {
-                        label: function (context) {
-                            const label = context.label || '';
-                            const value = context.parsed;
-                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            const percent = ((value / total) * 100).toFixed(1);
-                            return `${label}: ${value} item (${percent}%)`;
-                        }
-                    }
-                },
-                legend: {
-                    position: 'right',
-                    onClick: (e, legendItem, legend) => {
-                        const index = legendItem.index;
-                        const ci = legend.chart;
-                        ci.toggleDataVisibility(index);
-                        ci.update();
-                    }
-                }
-            },
-            onClick: (e, elements) => {
-                if (elements.length > 0) {
-                    const index = elements[0].index;
-                    const label = pieChart.data.labels[index];
-                    const value = pieChart.data.datasets[0].data[index];
-                    const total = pieChart.data.datasets[0].data.reduce((a, b) => a + b, 0);
-                    const percent = ((value / total) * 100).toFixed(1);
-                    showPieModal(label, value, percent);
-                }
-            }
-        }
-    });
-}
-
-function generateInsight(data, topMenu, loyalCustomer) {
-    const box = document.getElementById("insight-box");
-    const percent = ((topMenu.total / data.total_income) * 100).toFixed(1);
-    const rangkuman = `📅 Hari ini terjadi <strong>${data.total_order}</strong> transaksi dengan total pendapatan <strong>Rp ${data.total_income.toLocaleString()}</strong>.`;
-    const menuTerlaris = `📌 Menu paling laris: <strong>${topMenu.menu_name}</strong> (${topMenu.quantity} terjual), menyumbang ${percent}% pendapatan.`;
-    const loyal = loyalCustomer ? `🏆 Pelanggan loyal: <strong>${loyalCustomer.customer_name}</strong>, ${loyalCustomer.total_orders}x order, Rp ${loyalCustomer.total_spent.toLocaleString()}.` : "";
-    box.innerHTML = [rangkuman, menuTerlaris, loyal].filter(Boolean).join('<br>');
-    box.classList.remove("hidden");
-}
-
-async function loadReport() {
-    const start = document.getElementById("start_date").value;
-    const end = document.getElementById("end_date").value;
-    if (!start || !end) return alert("Tanggal belum diisi!");
-    if (new Date(start) > new Date(end)) return alert("Tanggal awal tidak boleh melebihi tanggal akhir!");
-
-    document.getElementById("loading-overlay").classList.remove("hidden");
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-
-    try {
-        const res = await fetch(`${API_URLS.report}/report?start_date=${start}&end_date=${end}`, { signal: controller.signal });
-        clearTimeout(timeout);
-        if (!res.ok) throw new Error("Gagal mengambil data laporan");
-        const data = await res.json();
-
-        document.getElementById("summary").innerHTML = `
-            <p><strong>Periode:</strong> ${data.start_date} s/d ${data.end_date}</p>
-            <p><strong>Total Transaksi:</strong> ${data.total_order} | <strong>Pendapatan:</strong> Rp ${data.total_income.toLocaleString()}</p>`;
-
-        const tbody = document.getElementById("report-body");
-        tbody.innerHTML = "";
-        data.details.forEach((item, i) => {
-            tbody.innerHTML += `
-                <tr>
-                    <td>${i + 1}</td>
-                    <td>${item.menu_name}</td>
-                    <td>${item.quantity}</td>
-                    <td>Rp ${item.unit_price.toLocaleString()}</td>
-                    <td>Rp ${item.total.toLocaleString()}</td>
-                </tr>`;
-        });
-
-        renderCharts(data.details);
-        const topMenu = data.details.reduce((max, curr) => curr.total > max.total ? curr : max, data.details[0]);
-        await loadTopCustomers(start, end, data, topMenu);
-        await fetchSuggestedMenu();
-
-    } catch (err) {
-        alert("⚠️ Gagal memuat laporan. Periksa koneksi atau server.");
-        console.error(err);
-    } finally {
-        document.getElementById("loading-overlay").classList.add("hidden");
-    }
-}
-
-async function loadTopCustomers(start, end, salesData, topMenu) {
-    try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10000);
-        const res = await fetch(`${API_URLS.report}/report/top_customers?start_date=${start}&end_date=${end}`, { signal: controller.signal });
-        clearTimeout(timeout);
-        if (!res.ok) throw new Error("Gagal ambil data loyal customer");
-        const data = await res.json();
-
-        const ul = document.getElementById("loyal-list");
-        ul.innerHTML = "";
-        data.forEach((cust, i) => {
-            ul.innerHTML += `<li>${cust.customer_name} — ${cust.total_orders}x | Rp ${cust.total_spent.toLocaleString()}</li>`;
-        });
-        generateInsight(salesData, topMenu, data[0]);
-    } catch (err) {
-        alert("⚠️ Gagal memuat data pelanggan loyal.");
-        console.error(err);
-    }
-}
-
-async function fetchSuggestedMenu() {
-    const start = document.getElementById("start_date").value;
-    const end = document.getElementById("end_date").value;
-    try {
-        const res = await fetch(`${API_URLS.report}/report/suggested_menu?start_date=${start}&end_date=${end}`);
-        const data = await res.json();
-        const ul = document.getElementById("usulan-list");
-        ul.innerHTML = "";
-        if (data.length === 0) {
-            ul.innerHTML = "<li class='text-gray-600'>Tidak ada usulan pada periode ini.</li>";
-        } else {
-            data.forEach((item) => {
-                const date = new Date(item.last_suggested).toLocaleString("id-ID");
-                ul.innerHTML += `<li><strong>${item.menu_name}</strong> — ${item.usulan_count}x (terakhir: ${date})</li>`;
-            });
-        }
-    } catch (err) {
-        console.error("Gagal memuat menu usulan", err);
-    }
-}
-
-function exportCSV() {
-    const rows = [["No", "Menu", "Qty", "Harga", "Total"]];
-    document.querySelectorAll("#report-body tr").forEach((tr, i) => {
-        const cols = [...tr.children].map(td => td.innerText);
-        rows.push([i + 1, ...cols.slice(1)]);
-    });
-    const csv = rows.map(row => row.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `laporan_penjualan_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-}
-
-async function exportPDF() {
-    const element = document.body;
-    const canvas = await html2canvas(element);
-    const imgData = canvas.toDataURL("image/png");
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [canvas.width, canvas.height] });
-    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-    pdf.save(`laporan_penjualan_${new Date().toISOString().slice(0, 10)}.pdf`);
-}
-
-window.onload = async () => {
-    // Load API configuration first
-    await loadApiConfig();
-    
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById("start_date").value = today;
-    document.getElementById("end_date").value = today;
-    loadReport();
-};
-</script>
 </body>
 </html>

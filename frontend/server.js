@@ -3,38 +3,18 @@ const path = require("path");
 const swaggerUi = require("swagger-ui-express");
 const swaggerJsdoc = require("swagger-jsdoc");
 const fetch = require("node-fetch");
+const { error } = require("console");
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = 8080;
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "https://liberal-relative-panther.ngrok-free.app/webhook/trigger-order-status";
 
-// Environment configuration
-const ENV = process.env.NODE_ENV || 'development';
-const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost';
-
-// API configuration for different environments
-const API_CONFIG = {
-  development: {
-    kitchen: 'http://localhost:8003',
-    order: 'http://localhost:8002',
-    menu: 'http://localhost:8001',
-    report: 'http://localhost:8004',
-    inventory: 'http://localhost:8005'
-  },
-  production: {
-    kitchen: `${API_BASE_URL}:8003`,
-    order: `${API_BASE_URL}:8002`,
-    menu: `${API_BASE_URL}:8001`,
-    report: `${API_BASE_URL}:8004`,
-    inventory: `${API_BASE_URL}:8005`
-  }
-};
-
-const currentConfig = API_CONFIG[ENV] || API_CONFIG.development;
-
-app.use(express.static(path.join(__dirname, "public")));
+// Middleware
+app.use(express.json());
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
+// Swagger configuration
 const swaggerSpec = swaggerJsdoc({
   definition: {
     openapi: "3.0.0",
@@ -50,147 +30,98 @@ const swaggerSpec = swaggerJsdoc({
 
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-/**
- * @swagger
- * /:
- *   get:
- *     summary: Halaman dashboard dapur
- *     responses:
- *       200:
- *         description: Mengembalikan file index.html
- * /report_page:
- *   get:
- *     summary: Halaman laporan penjualan
- *     responses:
- *       200:
- *         description: Mengembalikan file report.html
- * /health:
- *   get:
- *     summary: Health check API
- *     responses:
- *       200:
- *         description: Status OK
- * /kitchen/orders:
- *   get:
- *     summary: Ambil daftar semua pesanan dari dapur
- *     responses:
- *       200:
- *         description: Daftar pesanan
- * /kitchen/update_status/{order_id}:
- *   post:
- *     summary: Perbarui status pesanan tertentu
- *     parameters:
- *       - in: path
- *         name: order_id
- *         required: true
- *         schema:
- *           type: string
- *         description: ID pesanan
- *       - in: query
- *         name: status
- *         required: true
- *         schema:
- *           type: string
- *         description: Status baru
- *       - in: query
- *         name: reason
- *         schema:
- *           type: string
- *         description: Alasan pembatalan
- *     responses:
- *       200:
- *         description: Status pesanan berhasil diperbarui
- * /stream/orders:
- *   get:
- *     summary: Streaming data pesanan aktif via SSE
- *     responses:
- *       200:
- *         description: Event stream (SSE)
- * /report:
- *   get:
- *     summary: Ambil laporan penjualan berdasarkan rentang tanggal
- *     parameters:
- *       - in: query
- *         name: start_date
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: end_date
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Data laporan penjualan
- * /report/top_customers:
- *   get:
- *     summary: Ambil pelanggan loyal
- *     parameters:
- *       - in: query
- *         name: start_date
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: end_date
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Daftar pelanggan loyal
- * /report/suggested_menu:
- *   get:
- *     summary: Ambil daftar menu usulan pelanggan
- *     parameters:
- *       - in: query
- *         name: start_date
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: end_date
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Daftar menu usulan
- */
+// ========== API ROUTES (MUST COME BEFORE PAGE ROUTES) ==========
 
-app.get("/kitchen/orders", async (req, res) => {
-  try {
-    const resp = await fetch(`${currentConfig.kitchen}/kitchen/orders`);
-    const data = await resp.json();
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch orders" });
-  }
+// Health check
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
 });
 
-app.get("/kitchen/status/now", async (req, res) => {
+// Order endpoints
+app.post("/create_order", async (req, res) => {
   try {
-    const resp = await fetch(`${currentConfig.kitchen}/kitchen/status/now`);
-    const data = await resp.json();
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch kitchen status" });
-  }
-});
-
-app.post("/kitchen/status", async (req, res) => {
-  try {
-    const isOpen = req.body;
-    const resp = await fetch(`${currentConfig.kitchen}/kitchen/status`, {
+    const body = req.body;
+    const resp = await fetch("http://order_service:8002/create_order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(isOpen)
+      body: JSON.stringify(body)
     });
     const data = await resp.json();
     res.json(data);
   } catch (err) {
-    res.status(500).json({ error: "Failed to update kitchen status" });
+    console.error("Failed to create order ", err);
+    res.status(500).json({ error: "Failed to create order" });
+  }
+});
+
+app.post("/custom_order", async (req, res) => {
+  try {
+    const body = req.body;
+    console.log('Received custom order request:', body);
+    const resp = await fetch("http://order_service:8002/custom_order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+
+    if (!resp.ok) {
+      const errorData = await resp.text(); // Ambil response error dari service
+      throw new Error(`Service error: ${resp.status} - ${errorData}`);
+    }
+
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to create custom order ", err);
+    res.status(500).json({ error: "Failed to create custom order" });
+  }
+});
+
+app.post("/cancel_order", async (req, res) => {
+  try {
+    const body = req.body;
+
+    // Panggil service untuk cancel order
+    const resp = await fetch("http://order_service:8002/cancel_order", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+
+    const data = await resp.json();
+
+    // Setelah cancel berhasil, trigger webhook ke n8n (GET) - non-blocking
+    try {
+      const { order_id = "", reason = "" } = body;
+      const qs = new URLSearchParams({
+        order_id: String(order_id),
+        status: "cancelled", // status diset manual
+        reason: String(reason || "Cancelled by user")
+      });
+
+      fetch(`${N8N_WEBHOOK_URL}?${qs.toString()}`, { method: "GET" })
+        .catch(err => console.error("Failed to call n8n webhook ", err));
+    } catch (whErr) {
+      console.error("n8n webhook error ", whErr);
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to cancel order ", err);
+    res.status(500).json({ error: "Failed to cancel order" });
+  }
+});
+
+
+// Kitchen endpoints
+app.get("/kitchen/orders", async (req, res) => {
+  try {
+    const resp = await fetch("http://kitchen_service:8003/kitchen/orders");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed on fetching orders ", err);
+    res.status(500).json({ error: "Failed to fetch kitchen orders" });
   }
 });
 
@@ -198,11 +129,56 @@ app.post("/kitchen/update_status/:order_id", async (req, res) => {
   const { order_id } = req.params;
   const { status, reason = "" } = req.query;
   try {
-    await fetch(`${currentConfig.kitchen}/kitchen/update_status/${order_id}?status=${status}&reason=${encodeURIComponent(reason)}`, { method: "POST" });
-    await fetch(`${currentConfig.order}/order/update_status/${order_id}?status=${status}`, { method: "POST" });
+    // Update status di kitchen_service
+    await fetch(
+      `http://kitchen_service:8003/kitchen/update_status/${order_id}?status=${status}&reason=${encodeURIComponent(reason)}`,
+      { method: "POST" }
+    );
+
+    // Trigger n8n webhook (GET) - non-blocking agar tidak mengganggu response
+    try {
+      const qs = new URLSearchParams({
+        order_id: String(order_id || ""),
+        status: String(status || ""),
+        reason: String(reason || "")
+      });
+      fetch(`${N8N_WEBHOOK_URL}?${qs.toString()}`, { method: "GET" })
+        .catch(err => console.error("Failed to call n8n webhook ", err));
+    } catch (whErr) {
+      console.error("n8n webhook error ", whErr);
+    }
+
     res.json({ success: true });
   } catch (err) {
+    console.error("Failed to update status ", err);
     res.status(500).json({ error: "Failed to update status" });
+  }
+});
+
+app.get("/kitchen/status/now", async (req, res) => {
+  try {
+    const resp = await fetch("http://kitchen_service:8003/kitchen/status/now");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch kitchen status ", err);
+    res.status(500).json({ error: "Failed to fetch kitchen status" });
+  }
+});
+
+app.post("/kitchen/status", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://kitchen_service:8003/kitchen/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+       body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to update kitchen status ", err);
+    res.status(500).json({ error: "Failed to update kitchen status" });
   }
 });
 
@@ -214,33 +190,892 @@ app.get("/stream/orders", (req, res) => {
   }).catch(() => res.status(500).end());
 });
 
-app.get("/", async (req, res) => {
+// Menu endpoints
+app.get("/menu", async (req, res) => {
   try {
-    const resp = await fetch(`${currentConfig.kitchen}/kitchen/orders`);
-    const orders = await resp.json();
-    res.render("index", { orders });
+    const resp = await fetch("http://menu_service:8001/menu");
+    const data = await resp.json();
+    res.set('Cache-Control', 'no-store');
+    res.json(data);
   } catch (err) {
-    res.render("index", { orders: [] });
+    console.error("Failed to fetch menu ", err);
+    res.status(500).json({ error: "Failed to fetch menu" });
   }
 });
 
-app.get("/reportkitchen", (req, res) => {
+// Admin passthrough for all menus (same as list, explicit path)
+app.get("/menu/all", async (req, res) => {
+  try {
+    const resp = await fetch("http://menu_service:8001/menu");
+    const data = await resp.json();
+    res.set('Cache-Control', 'no-store');
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch all menus ", err);
+    res.status(500).json({ error: "Failed to fetch all menus" });
+  }
+});
+
+app.post("/menu", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://menu_service:8001/menu", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to create menu ", err);
+    res.status(500).json({ error: "Failed to create menu" });
+  }
+});
+
+// Proxy: flavors for a menu by base name
+app.get("/menu/by_name/:base_name/flavors", async (req, res) => {
+  try {
+    const { base_name } = req.params;
+    const resp = await fetch(`http://menu_service:8001/menu/by_name/${encodeURIComponent(base_name)}/flavors`);
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to fetch flavors for menu by name ", err);
+    res.status(500).json({ error: "Failed to fetch flavors for menu by name" });
+  }
+});
+
+// Menu suggestion endpoints - MUST COME BEFORE /menu/:menu_id to avoid route conflict
+app.get("/menu_suggestion", async (req, res) => {
+  try {
+    const resp = await fetch("http://menu_service:8001/menu_suggestion");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch menu suggestions ", err);
+    res.status(500).json({ error: "Failed to fetch menu suggestions" });
+  }
+});
+
+app.post("/menu_suggestion", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://menu_service:8001/menu_suggestion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to create menu suggestion ", err);
+    res.status(500).json({ error: "Failed to create menu suggestion" });
+  }
+});
+
+app.get("/menu/:menu_id", async (req, res) => {
+  try {
+    const { menu_id } = req.params;
+    const resp = await fetch(`http://menu_service:8001/menu/${menu_id}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch menu by ID ", err);
+    res.status(500).json({ error: "Failed to fetch menu by ID" });
+  }
+});
+
+app.put("/menu/:menu_id", async (req, res) => {
+  try {
+    const { menu_id } = req.params;
+    const body = req.body;
+    const resp = await fetch(`http://menu_service:8001/menu/${menu_id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to update menu ", err);
+    res.status(500).json({ error: "Failed to update menu" });
+  }
+});
+
+// Update menu recipe (menu service)
+app.post("/menu/:menu_id/recipe", async (req, res) => {
+  try {
+    const { menu_id } = req.params;
+    const body = req.body;
+    const resp = await fetch(`http://menu_service:8001/menu/${menu_id}/recipe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to update menu recipe", err);
+    res.status(500).json({ error: "Failed to update menu recipe" });
+  }
+});
+
+app.get("/menu/:menu_id/recipe", async (req, res) => {
+  try {
+    const { menu_id } = req.params;
+    const resp = await fetch(`http://menu_service:8001/menu/${menu_id}/recipe`, {
+      method: "GET"
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to load menu recipe", err);
+    res.status(500).json({ error: "Failed to load menu recipe" });
+  }
+});
+
+app.delete("/menu/:menu_id", async (req, res) => {
+  try {
+    const { menu_id } = req.params;
+    const resp = await fetch(`http://menu_service:8001/menu/${menu_id}`, {
+      method: "DELETE"
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to delete menu ", err);
+    res.status(500).json({ error: "Failed to delete menu" });
+  }
+});
+
+// Flavor endpoints
+app.get("/flavors/all", async (req, res) => {
+  try {
+    const resp = await fetch("http://menu_service:8001/flavors/all");
+    const data = await resp.json();
+    res.set('Cache-Control', 'no-store');
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to fetch all flavors ", err);
+    res.status(500).json({ error: "Failed to fetch all flavors" });
+  }
+});
+app.get("/flavors", async (req, res) => {
+  try {
+    const resp = await fetch("http://menu_service:8001/flavors");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch flavors ", err);
+    res.status(500).json({ error: "Failed to fetch flavors" });
+  }
+});
+
+app.post("/flavors", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://menu_service:8001/flavors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to create flavor ", err);
+    res.status(500).json({ error: "Failed to create flavor" });
+  }
+});
+
+app.get("/flavors/:flavor_id", async (req, res) => {
+  try {
+    const { flavor_id } = req.params;
+    const resp = await fetch(`http://menu_service:8001/flavors/${flavor_id}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch flavor by ID ", err);
+    res.status(500).json({ error: "Failed to fetch flavor by ID" });
+  }
+});
+
+app.put("/flavors/:flavor_id", async (req, res) => {
+  try {
+    const { flavor_id } = req.params;
+    const body = req.body;
+    const resp = await fetch(`http://menu_service:8001/flavors/${flavor_id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to update flavor ", err);
+    res.status(500).json({ error: "Failed to update flavor" });
+  }
+});
+
+app.delete("/flavors/:flavor_id", async (req, res) => {
+  try {
+    const { flavor_id } = req.params;
+    const resp = await fetch(`http://menu_service:8001/flavors/${flavor_id}`, {
+      method: "DELETE"
+    });
+    let data;
+    try {
+      data = await resp.json();
+    } catch (_) {
+      // Fallback when backend returns empty body
+      data = {
+        status: resp.ok ? "success" : "error",
+        message: resp.ok ? "Flavor deleted" : `HTTP ${resp.status}: ${resp.statusText}`,
+        data: { id: flavor_id }
+      };
+    }
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to delete flavor ", err);
+    res.status(500).json({ error: "Failed to delete flavor" });
+  }
+});
+
+// Report endpoints
+app.get("/report", async (req, res) => {
+  const { start_date, end_date, menu_name } = req.query;
+  try {
+    const params = new URLSearchParams({ start_date, end_date });
+    if (menu_name) params.append('menu_name', menu_name);
+    
+    const resp = await fetch(`http://report_service:8004/report?${params.toString()}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch report ", err);
+    res.status(500).json({ error: "Failed to fetch report" });
+  }
+});
+
+// app.get("/report/best_seller", async (req, res) => {
+//   const { start_date, end_date, menu_name } = req.query;
+//   try {
+//     const params = new URLSearchParams({ start_date, end_date });
+//     if (menu_name) params.append('menu_name', menu_name);
+    
+//     const resp = await fetch(`http://report_service:8004/report/best_seller?${params.toString()}`);
+//     const data = await resp.json();
+//     res.json(data);
+//   } catch (err) {
+//     console.error("Failed to fetch report ", err);
+//     res.status(500).json({ error: "Failed to fetch report" });
+//   }
+// });
+
+app.get("/report/best_seller", async (req, res) => {
+  const { start_date, end_date } = req.query;
+  try {
+    const params = new URLSearchParams({ start_date, end_date });
+    const resp = await fetch(`http://report_service:8004/report/best_seller?${params.toString()}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch top customers ", err);
+    res.status(500).json({ error: "Failed to fetch top customers" });
+  }
+});
+
+app.get("/report/top_customers", async (req, res) => {
+  const { start_date, end_date } = req.query;
+  try {
+    const params = new URLSearchParams({ start_date, end_date });
+    const resp = await fetch(`http://report_service:8004/report/top_customers?${params.toString()}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch top customers ", err);
+    res.status(500).json({ error: "Failed to fetch top customers" });
+  }
+});
+
+app.get("/report/suggested_menu", async (req, res) => {
+  const { start_date, end_date } = req.query;
+  try {
+    const params = new URLSearchParams({ start_date, end_date });
+    const resp = await fetch(`http://report_service:8004/report/suggested_menu?${params.toString()}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch suggested menu ", err);
+    res.status(500).json({ error: "Failed to fetch suggested menu" });
+  }
+});
+
+// Financial sales report endpoints
+app.get("/report/financial_sales", async (req, res) => {
+  const { start_date, end_date, today_only } = req.query;
+  try {
+    const params = new URLSearchParams();
+    if (start_date) params.append('start_date', start_date);
+    if (end_date) params.append('end_date', end_date);
+    if (today_only) params.append('today_only', today_only);
+    
+    const resp = await fetch(`http://report_service:8004/report/financial_sales?${params.toString()}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch financial sales report ", err);
+    res.status(500).json({ error: "Failed to fetch financial sales report" });
+  }
+});
+
+app.get("/report/financial_sales/summary", async (req, res) => {
+  const { start_date, end_date, today_only } = req.query;
+  try {
+    const params = new URLSearchParams();
+    if (start_date) params.append('start_date', start_date);
+    if (end_date) params.append('end_date', end_date);
+    if (today_only) params.append('today_only', today_only);
+    
+    const resp = await fetch(`http://report_service:8004/report/financial_sales/summary?${params.toString()}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch financial sales summary ", err);
+    res.status(500).json({ error: "Failed to fetch financial sales summary" });
+  }
+});
+
+app.get("/report/financial_sales/export", async (req, res) => {
+  const { start_date, end_date, today_only, format_type } = req.query;
+  try {
+    const params = new URLSearchParams();
+    if (start_date) params.append('start_date', start_date);
+    if (end_date) params.append('end_date', end_date);
+    if (today_only) params.append('today_only', today_only);
+    if (format_type) params.append('format_type', format_type);
+    
+    const resp = await fetch(`http://report_service:8004/report/financial_sales/export?${params.toString()}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to export financial sales report ", err);
+    res.status(500).json({ error: "Failed to export financial sales report" });
+  }
+});
+
+// Inventory endpoints
+app.get("/inventory/list", async (req, res) => {
+  try {
+    const resp = await fetch("http://inventory_service:8006/list_ingredients?show_unavailable=true");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch inventory ", err);
+    res.status(500).json({ error: "Failed to fetch inventory" });
+  }
+});
+
+app.get("/inventory/order/:orderId/ingredients", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    
+    // Encode the orderId for the internal service call
+    const encodedOrderId = encodeURIComponent(orderId);
+    
+    const resp = await fetch(`http://inventory_service:8006/order/${encodedOrderId}/ingredients`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" }
+    });
+
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+
+  } catch (err) {
+    console.error("Failed to get order ingredients details", err);
+    res.status(500).json({ error: "Failed to get order ingredients details" });
+  }
+});
+
+app.get("/inventory/summary", async (req, res) => {
+  try {
+    const resp = await fetch("http://inventory_service:8006/stock/summary");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch inventory summary ", err);
+    res.status(500).json({ error: "Failed to fetch inventory summary" });
+  }
+});
+
+app.get("/inventory/alerts", async (req, res) => {
+  try {
+    const resp = await fetch("http://inventory_service:8006/stock/alerts");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch inventory alerts ", err);
+    res.status(500).json({ error: "Failed to fetch inventory alerts" });
+  }
+});
+
+app.post("/inventory/add", async (req, res) => {
+  try {
+    const body = req.body;
+    const auth = req.headers["authorization"] || "";
+    const resp = await fetch("http://inventory_service:8006/add_ingredient", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(auth ? { Authorization: auth } : {}) },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to add ingredient ", err);
+    res.status(500).json({ error: "Failed to add ingredient" });
+  }
+});
+
+app.put("/inventory/update", async (req, res) => {
+  try {
+    const body = req.body;
+    const auth = req.headers["authorization"] || "";
+    const resp = await fetch("http://inventory_service:8006/update_ingredient_with_audit", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...(auth ? { Authorization: auth } : {}) },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to update ingredient ", err);
+    res.status(500).json({ error: "Failed to update ingredient" });
+  }
+});
+
+app.delete("/inventory/delete/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const resp = await fetch(`http://inventory_service:8006/delete_ingredient/${id}`, {
+      method: "DELETE"
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to delete ingredient ", err);
+    res.status(500).json({ error: "Failed to delete ingredient" });
+  }
+});
+
+// Stock Management endpoints
+app.post("/inventory/stock/add", async (req, res) => {
+  try {
+    const body = req.body;
+    const auth = req.headers["authorization"] || "";
+    const resp = await fetch("http://inventory_service:8006/stock/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(auth ? { Authorization: auth } : {}) },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to add stock ", err);
+    res.status(500).json({ error: "Failed to add stock" });
+  }
+});
+
+// app.post("/inventory/stock/bulk_add", async (req, res) => {
+//   try {
+//     const body = req.body;
+//     const resp = await fetch("http://inventory_service:8006/stock/bulk_add", {
+//       method: "POST",
+//       headers: { "Content-Type": "application/json" },
+//       body: JSON.stringify(body)
+//     });
+//     const data = await resp.json();
+//     res.status(resp.status).json(data);
+//   } catch (err) {
+//     console.error("Failed to bulk add stock ", err);
+//     res.status(500).json({ error: "Failed to bulk add stock" });
+//   }
+// });
+
+app.put("/inventory/stock/minimum", async (req, res) => {
+  try {
+    const body = req.body;
+    const auth = req.headers["authorization"] || "";
+    const resp = await fetch("http://inventory_service:8006/stock/minimum", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...(auth ? { Authorization: auth } : {}) },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to update minimum stock ", err);
+    res.status(500).json({ error: "Failed to update minimum stock" });
+  }
+});
+
+// Stock history proxies
+app.get("/inventory/stock/history/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const url = `http://inventory_service:8006/stock/history/${id}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to fetch stock history by id ", err);
+    res.status(500).json({ error: "Failed to fetch stock history" });
+  }
+});
+
+app.get("/inventory/stock/history", async (req, res) => {
+  try {
+    const params = new URLSearchParams();
+    if (req.query.action_type) params.append('action_type', req.query.action_type);
+    if (req.query.performed_by) params.append('performed_by', req.query.performed_by);
+    if (req.query.limit) params.append('limit', req.query.limit);
+    const resp = await fetch(`http://inventory_service:8006/stock/history?${params.toString()}`);
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to fetch all stock history ", err);
+    res.status(500).json({ error: "Failed to fetch all stock history" });
+  }
+});
+
+app.get("/inventory/stock/out_of_stock", async (req, res) => {
+  try {
+    const resp = await fetch("http://inventory_service:8006/stock/out_of_stock");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch out of stock items ", err);
+    res.status(500).json({ error: "Failed to fetch out of stock items" });
+  }
+});
+
+app.get("/inventory/stock/critical_status", async (req, res) => {
+  try {
+    const resp = await fetch("http://inventory_service:8006/stock/critical_status");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch critical status ", err);
+    res.status(500).json({ error: "Failed to fetch critical status" });
+  }
+});
+
+app.post("/inventory/stock/check_and_consume", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://inventory_service:8006/stock/check_and_consume", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to check and consume stock ", err);
+    res.status(500).json({ error: "Failed to check and consume stock" });
+  }
+});
+
+app.post("/inventory/stock/rollback/:order_id", async (req, res) => {
+  try {
+    const { order_id } = req.params;
+    const resp = await fetch(`http://inventory_service:8006/stock/rollback/${order_id}`, {
+      method: "POST"
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to rollback stock consumption ", err);
+    res.status(500).json({ error: "Failed to rollback stock consumption" });
+  }
+});
+
+app.get("/inventory/consumption_log", async (req, res) => {
+  try {
+    const resp = await fetch("http://inventory_service:8006/consumption_log");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch consumption logs ", err);
+    res.status(500).json({ error: "Failed to fetch consumption logs" });
+  }
+});
+
+app.get("/inventory/consumption_log/:order_id", async (req, res) => {
+  try {
+    const { order_id } = req.params;
+    const resp = await fetch(`http://inventory_service:8006/consumption_log/${order_id}`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch consumption log for order ", err);
+    res.status(500).json({ error: "Failed to fetch consumption log for order" });
+  }
+});
+
+app.get("/inventory/flavor_mapping", async (req, res) => {
+  try {
+    const resp = await fetch("http://inventory_service:8006/flavor_mapping");
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch flavor mapping ", err);
+    res.status(500).json({ error: "Failed to fetch flavor mapping" });
+  }
+});
+
+// Proxy: inventory logs history
+app.get("/inventory/history", async (req, res) => {
+  try {
+    const { order_id, limit } = req.query;
+    const params = new URLSearchParams();
+    if (order_id) params.set("order_id", order_id);
+    if (limit) params.set("limit", limit);
+    const url = params.toString()
+      ? `http://inventory_service:8006/history?${params.toString()}`
+      : `http://inventory_service:8006/history`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to fetch inventory history ", err);
+    res.status(500).json({ error: "Failed to fetch inventory history" });
+  }
+});
+
+// Audit History
+// app.get("/inventory/stock/history", async (req,res) => {
+//   try {
+//     const { limit, action_type, performed_by } = req.query;
+
+//     let queryParams = '';
+//     if (limit || action_type || performed_by) {
+//       queryParams = '?';
+//       if (limit) queryParams += `limit=${encodeURIComponent(limit)}&`;
+//       if (action_type) queryParams += `action_type=${encodeURIComponent(action_type)}&`;
+//       if (performed_by) queryParams += `performed_by=${encodeURIComponent(performed_by)}&`;
+//       queryParams = queryParams.slice(0, -1);
+//     }
+
+//     const resp = await fetch(`http://inventory_service:8006/stock/history${queryParams}`, {
+//       method: "GET",
+//       headers: { "Content-Type": "application/json" }
+//     });
+
+//     const data = await resp.json();
+//     res.status(resp.status).json(data);
+
+//   } catch (err) {
+//     console.error("Failed to get stock history", err);
+//     res.status(500).json({ error: "Failed to get stock history" });
+//   }
+// });
+
+app.patch("/inventory/toggle/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const body = req.body;
+    const auth = req.headers["authorization"] || "";
+    const resp = await fetch(`http://inventory_service:8006/toggle_ingredient_availability/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...(auth ? { Authorization: auth } : {}) },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to toggle ingredient availability ", err);
+    res.status(500).json({ error: "Failed to toggle ingredient availability" });
+  }
+});
+
+// Recipe endpoints
+app.post("/recipes/batch", async (req, res) => {
+  try {
+    const body = req.body;
+    const resp = await fetch("http://menu_service:8001/recipes/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to fetch batch recipes ", err);
+    res.status(500).json({ error: "Failed to fetch batch recipes" });
+  }
+});
+
+app.get("/order/:order_id/ingredients", async (req, res) => {
+  try {
+    const { order_id } = req.params;
+    const resp = await fetch(`http://inventory_service:8006/order/${order_id}/ingredients`);
+    const data = await resp.json();
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch order ingredients ", err);
+    res.status(500).json({ error: "Failed to fetch order ingredients" });
+  }
+});
+
+// Menu endpoints
+app.get("/menu/list", async (req, res) => {
+  try {
+    const resp = await fetch("http://menu_service:8001/menu");
+    const data = await resp.json();
+    res.set('Cache-Control', 'no-store');
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch menu list ", err);
+    res.status(500).json({ error: "Failed to fetch menu list" });
+  }
+});
+
+// Order status endpoint
+app.get('/order_status/:order_id', async (req, res) => {
+  try {
+    const { order_id } = req.params;
+    const response = await fetch(`http://order_service:8002/order_status/${order_id}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    console.error('Failed to fetch order status:', err);
+    res.status(500).json({ error: 'Failed to fetch order status' });
+  }
+});
+
+// User endpoints
+app.post('/login', async (req, res) => {
+  try {
+    const response = await fetch('http://user_service:8005/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/register', async (req, res) => {
+  try {
+    const response = await fetch('http://user_service:8005/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// JWT validation function
+function validateJWT(token) {
+  try {
+    if (!token) return false;
+    
+    // Split JWT into parts
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    
+    // Decode payload (middle part)
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    
+    // Check if token is expired
+    const currentTime = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < currentTime) {
+      console.log('Token expired');
+      return false;
+    }
+    
+    // Check if token has required fields
+    if (!payload.sub) {
+      console.log('Token missing subject');
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.log('JWT validation error:', error.message);
+    return false;
+  }
+}
+
+// Authentication middleware
+function requireAuth(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
+  const tempToken = req.query.temp;
+  
+  // If we have a temporary token, allow access (client-side will handle validation)
+  if (tempToken) {
+    console.log('Temporary token provided, allowing access');
+    return next();
+  }
+  
+  // If we have a regular token, validate it
+  if (token) {
+    if (!validateJWT(token)) {
+      console.log('Invalid or expired token');
+      return res.redirect('/login');
+    }
+    console.log('Token validated successfully');
+    return next();
+  }
+  
+  // No token provided - let client-side handle authentication
+  // This allows page refreshes to work properly
+  console.log('No token provided, allowing access for client-side auth check');
+  return next();
+}
+
+// ========== PAGE ROUTES ==========
+app.get("/", (req, res) => {
+  res.redirect("/login");
+});
+
+app.get("/dashboard", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+app.get("/menu-management", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "menu.html"));
+});
+
+app.get("/reportkitchen", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "report.html"));
 });
 
-app.get("/health", (req, res) => {
-  res.json({ status: "ok" });
+app.get("/stock-management", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "kelola-stok.html"));
 });
 
-// API configuration endpoint for frontend
-app.get("/api/config", (req, res) => {
-  res.json({
-    environment: ENV,
-    apiUrls: currentConfig,
-    timestamp: new Date().toISOString()
-  });
+app.get("/menu-suggestion", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "menu-suggestion.html"));
 });
 
+app.get("/login", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "login.html"));
+});
+
+// ========== STATIC FILES (MUST COME LAST) ==========
+app.use(express.static(path.join(__dirname, "public")));
+
+// Start server
 app.listen(PORT, () => {
   console.log(`✅ Frontend running at http://localhost:${PORT}`);
   console.log(`📘 Swagger docs available at http://localhost:${PORT}/docs`);

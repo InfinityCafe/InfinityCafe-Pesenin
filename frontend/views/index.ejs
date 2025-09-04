@@ -36,7 +36,6 @@
           <div class="text-sm">#<%= o.order_id %></div>
           <div class="text-xs text-gray-500">🕒 <%= new Date(o.time_receive).toLocaleString("id-ID") %></div>
           <div class="text-xs">🏠 <%= o.room_name || '-' %></div>
-          <div class="text-xs">🪑 Meja <%= o.table_no || '-' %></div>
           <div class="font-bold text-lg mt-1"><%= o.detail %></div>
           <div class="text-xs mt-1">Status: <%= o.status %></div>
           <% if (o.time_done) { %>
@@ -57,7 +56,6 @@
           <div class="text-sm">#<%= o.order_id %></div>
           <div class="text-xs text-gray-500">🕒 <%= new Date(o.time_receive).toLocaleString("id-ID") %></div>
           <div class="text-xs">🏠 <%= o.room_name || '-' %></div>
-          <div class="text-xs">🪑 Meja <%= o.table_no || '-' %></div>
           <div class="font-bold text-lg mt-1"><%= o.detail %></div>
           <div class="text-xs mt-1">Status: <%= o.status %></div>
           <% if (o.time_done) { %>
@@ -132,7 +130,6 @@
       box.innerHTML = `
         <p><strong>Order ID:</strong> ${order.order_id}</p>
         <p><strong>Nama:</strong> ${order.customer_name}</p>
-        <p><strong>Meja:</strong> ${order.table_no}</p>
         <p><strong>Ruangan:</strong> ${order.room_name}</p>
         <p><strong>Status:</strong> ${order.status}</p>
         <p><strong>Waktu:</strong> ${new Date(order.time_receive).toLocaleString("id-ID")}</p>
@@ -190,7 +187,6 @@
           <div class="text-sm">#${o.order_id}</div>
           <div class="text-xs text-gray-500">🕒 ${new Date(o.time_receive).toLocaleString("id-ID")}</div>
           <div class="text-xs">🏠 ${o.room_name || '-'}</div>
-          <div class="text-xs">🪑 Meja ${o.table_no || '-'}</div>
           <div class="font-bold text-lg mt-1">${o.detail}</div>
           <div class="text-xs mt-1">Status: ${o.status}</div>
           ${o.time_done ? `<div class="text-xs mt-1 text-gray-600">📅 Selesai: ${new Date(o.time_done).toLocaleString("id-ID")}</div>` : ""}

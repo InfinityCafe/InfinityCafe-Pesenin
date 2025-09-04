@@ -1,113 +1,114 @@
 -- Mengatur zona waktu sesi ke Asia/Jakarta
-SET TIME ZONE 'Asia/Jakarta';
+SET TIMEZONE = 'Asia/Jakarta';
 
--- Membuat ekstensi 'vector' jika belum ada (berguna untuk AI/embedding)
-CREATE EXTENSION IF NOT EXISTS vector;
+-- Membersihkan data lama dari tabel-tabel terkait agar tidak ada duplikasi (jika tabel sudah ada)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'menu_items') THEN
+        TRUNCATE TABLE menu_items RESTART IDENTITY CASCADE;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'flavors') THEN
+        TRUNCATE TABLE flavors RESTART IDENTITY CASCADE;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'menu_item_flavor_association') THEN
+        TRUNCATE TABLE menu_item_flavor_association RESTART IDENTITY CASCADE;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'menu_suggestions') THEN
+        TRUNCATE TABLE menu_suggestions RESTART IDENTITY CASCADE;
+    END IF;
+END $$;
 
--- Definisikan ulang tabel sesuai dengan model Python/SQLAlchemy yang baru
--- DROP TABLE IF EXISTS menu_item_flavor_association, flavors, menu_items, menu_suggestions CASCADE;
--- CREATE TABLE flavors (...);
--- CREATE TABLE menu_items (...);
--- CREATE TABLE menu_item_flavor_association (...);
--- CREATE TABLE menu_suggestions (...);
+-- LANGKAH 1: ISI TABEL MASTER 'flavors' - disesuaikan dengan inventory yang tersedia
+INSERT INTO flavors (id, flavor_name_en, flavor_name_id, additional_price, "isAvail") VALUES
+('FLAV00', 'Original', 'Original', 0, TRUE), 
+('FLAV01', 'Caramel', 'Karamel', 0, TRUE),
+('FLAV02', 'Macadamia Nut', 'Kacang Makadamia', 0, TRUE),
+('FLAV03', 'French Moca', 'Moka Prancis', 0, TRUE),  
+('FLAV04', 'Java Brown Sugar', 'Gula Merah Jawa', 0, TRUE),
+('FLAV05', 'Chocolate', 'Coklat', 0, TRUE),
+('FLAV06', 'Roasted Almond', 'Almond Panggang', 0, TRUE),
+('FLAV07', 'Creme Brulee', 'Krim Brulee', 0, TRUE),
+('FLAV08', 'Butterscotch', 'Butterscotch', 0, TRUE),
 
+-- Flavors untuk Squash
+('FLAV09', 'Peach', 'Persik', 0, TRUE),
+('FLAV10', 'Passion Fruit', 'Markisa', 0, TRUE),
+('FLAV11', 'Vanilla', 'Vanila', 0, TRUE),
+('FLAV12', 'Grenadine', 'Grenadine', 0, TRUE),
+('FLAV13', 'Passion Fruit', 'Markisa', 0, TRUE),
+('FLAV14', 'Melon', 'Melon', 0, TRUE),
+('FLAV15', 'Pineapple', 'Nanas', 0, TRUE),
 
--- Membersihkan data lama dari tabel-tabel terkait agar tidak ada duplikasi
-TRUNCATE TABLE menu_items, flavors, menu_item_flavor_association, menu_suggestions RESTART IDENTITY CASCADE;
-
--- LANGKAH 1: ISI TABEL MASTER 'flavors'
--- Diisi dengan SEMUA varian rasa yang unik dari semua produk.
-INSERT INTO flavors (id, flavor_name, additional_price) VALUES
-('FLAV01', 'Macadamia Nut', 0),
-('FLAV02', 'Roasted Almond', 0),
-('FLAV03', 'Creme Brulee', 0),
-('FLAV04', 'Salted Caramel', 0),
-('FLAV05', 'Java Brown Sugar', 0),
-('FLAV06', 'French Mocca', 0),
-('FLAV07', 'Havana', 0),
-('FLAV08', 'Butterscotch', 0),
-('FLAV09', 'Chocolate', 0),
-('FLAV10', 'Irish', 0),
-('FLAV11', 'Taro', 0),
-('FLAV12', 'Red Velvet', 0),
-('FLAV13', 'Bubble Gum', 0),
-('FLAV14', 'Choco Malt', 0),
-('FLAV15', 'Choco Hazelnut', 0),
-('FLAV16', 'Choco Biscuit', 0),
-('FLAV17', 'Milktea', 0),
-('FLAV18', 'Stroberi', 0),
-('FLAV19', 'Banana', 0),
-('FLAV20', 'Alpukat', 0),
-('FLAV21', 'Vanilla', 0),
-('FLAV22', 'Tiramisu', 0),
-('FLAV23', 'Green Tea', 0),
-('FLAV24', 'Markisa', 0),
-('FLAV25', 'Melon', 0),
-('FLAV26', 'Nanas', 0);
+-- Flavors untuk MilkShake
+('FLAV16', 'Vanilla Cheese', 'Keju Vanila', 0, TRUE),
+('FLAV17', 'Taro', 'Talas', 0, TRUE),
+('FLAV18', 'Banana', 'Pisang', 0, TRUE),
+('FLAV19', 'Dark Chocolate', 'Coklat Hitam', 0, TRUE),
+('FLAV20', 'Chocolate Hazelnut', 'Coklat Hazelnut', 0, TRUE),
+('FLAV21', 'Chocolate Malt', 'Coklat Malt', 0, TRUE),
+('FLAV22', 'Blackcurrant', 'Blackcurrant', 0, TRUE);   
 
 -- LANGKAH 2: ISI TABEL MASTER 'menu_items'
--- Diisi dengan produk-produk dasar.
-INSERT INTO menu_items (id, base_name, base_price, "isAvail") VALUES
-('MENU001', 'Caffe Latte', 20000, TRUE),
-('MENU002', 'Es Kopi Susu', 20000, TRUE),
-('MENU003', 'Es Kopi Susu Gula Aren', 20000, TRUE),
-('MENU004', 'Americano', 12000, TRUE),
-('MENU005', 'Cappuccino', 20000, TRUE),
-('MENU006', 'Espresso', 10000, TRUE),
-('MENU007', 'Milkshake', 10000, TRUE),
-('MENU008', 'Squash', 15000, TRUE);
+INSERT INTO menu_items (id, base_name_en, base_name_id, base_price, making_time_minutes, "isAvail") VALUES
+('MENU001', 'Caffe Latte', 'Kafe Latte', 20000, 5.0, TRUE),
+('MENU002', 'Squash', 'Squash', 15000, 3.0, TRUE),
+('MENU003', 'Milkshake', 'Milkshake', 18000, 6.0, TRUE),
+('MENU004', 'Espresso Single', 'Espresso Tunggal', 10000, 2.0, TRUE),
+('MENU005', 'Vietnamese Drip Coffee', 'Kopi Vietnam', 18000, 9.0, TRUE),
+('MENU006', 'Palm Sugar Milk Coffee', 'Kopi Susu Gula Aren', 20000, 5.0, TRUE),
+('MENU007', 'Tea', 'Teh', 8000, 2.0, TRUE),
+('MENU008', 'Espresso Double', 'Espresso Ganda', 15000, 2.0, TRUE),
+('MENU009', 'Milk Coffee', 'Kopi Susu', 20000, 5.0, TRUE),
+('MENU010', 'Americano', 'Amerikano', 12000, 2.0, TRUE),
+('MENU011', 'Cappuccino', 'Kapucino', 20000, 5.0, TRUE);
 
 -- LANGKAH 3: HUBUNGKAN MENU DENGAN RASA DI TABEL PENGHUBUNG
 INSERT INTO menu_item_flavor_association (menu_item_id, flavor_id) VALUES
+
 -- Rasa untuk Caffe Latte (MENU001)
-('MENU001', 'FLAV01'), ('MENU001', 'FLAV02'), ('MENU001', 'FLAV03'), ('MENU001', 'FLAV04'), ('MENU001', 'FLAV05'),
-('MENU001', 'FLAV06'), ('MENU001', 'FLAV07'), ('MENU001', 'FLAV08'), ('MENU001', 'FLAV09'), ('MENU001', 'FLAV10'),
+('MENU001', 'FLAV00'), -- Original / Original
+('MENU001', 'FLAV01'), -- Caramel / Karamel
+('MENU001', 'FLAV02'), -- Macadamia Nut / Kacang Makadamia
+('MENU001', 'FLAV03'), -- French Moca / Moka Prancis
+('MENU001', 'FLAV04'), -- Java Brown Sugar / Gula Merah Jawa
+('MENU001', 'FLAV05'), -- Chocolate / Coklat
+('MENU001', 'FLAV06'), -- Roasted Almond / Almond Panggang
+('MENU001', 'FLAV07'), -- Creme Brulee / Krim Brulee
+('MENU001', 'FLAV08'), -- Butterscotch / Butterscotch
 
--- Rasa untuk Cappuccino (MENU005)
-('MENU005', 'FLAV01'), ('MENU005', 'FLAV02'), ('MENU005', 'FLAV03'), ('MENU005', 'FLAV04'), ('MENU005', 'FLAV05'),
-('MENU005', 'FLAV06'), ('MENU005', 'FLAV07'), ('MENU005', 'FLAV08'), ('MENU005', 'FLAV09'), ('MENU005', 'FLAV10'),
+-- Rasa untuk Squash (MENU002)
+('MENU002', 'FLAV09'), -- Peach / Persik
+('MENU002', 'FLAV10'), -- Passion Fruit / Markisa
+('MENU002', 'FLAV11'), -- Vanilla / Vanila
+('MENU002', 'FLAV12'), -- Grenadine / Grenadine
+('MENU002', 'FLAV13'), -- Passion Fruit / Markisa
+('MENU002', 'FLAV14'), -- Melon / Melon
+('MENU002', 'FLAV15'), -- Pineapple / Nanas
 
--- Rasa untuk Milkshake (MENU007)
-('MENU007', 'FLAV11'), ('MENU007', 'FLAV12'), ('MENU007', 'FLAV13'), ('MENU007', 'FLAV09'), ('MENU007', 'FLAV14'),
-('MENU007', 'FLAV15'), ('MENU007', 'FLAV16'), ('MENU007', 'FLAV17'), ('MENU007', 'FLAV18'), ('MENU007', 'FLAV19'),
-('MENU007', 'FLAV20'), ('MENU007', 'FLAV21'), ('MENU007', 'FLAV22'), ('MENU007', 'FLAV23'),
+-- Rasa untuk MilkShake (MENU003)
+('MENU003', 'FLAV16'), -- Vanilla Cheese / Keju Vanila
+('MENU003', 'FLAV17'), -- Taro / Talas
+('MENU003', 'FLAV18'), -- Banana / Pisang
+('MENU003', 'FLAV19'), -- Dark Chocolate / Coklat Hitam
+('MENU003', 'FLAV20'), -- Chocolate Hazelnut / Coklat Hazelnut
+('MENU003', 'FLAV21'), -- Chocolate Malt / Coklat Malt
+('MENU003', 'FLAV22'), -- Blackcurrant / Blackcurrant
 
--- Rasa untuk Squash (MENU008)
-('MENU008', 'FLAV18'), ('MENU008', 'FLAV24'), ('MENU008', 'FLAV25'), ('MENU008', 'FLAV26');
+-- Rasa untuk Cappuccino (MENU011) - SAMA seperti Caffe Latte
+('MENU011', 'FLAV00'), -- Original / Original
+('MENU011', 'FLAV01'), -- Caramel / Karamel
+('MENU011', 'FLAV02'), -- Macadamia Nut / Kacang Makadamia
+('MENU011', 'FLAV03'), -- French Moca / Moka Prancis
+('MENU011', 'FLAV04'), -- Java Brown Sugar / Gula Merah Jawa
+('MENU011', 'FLAV05'), -- Chocolate / Coklat
+('MENU011', 'FLAV06'), -- Roasted Almond / Almond Panggang
+('MENU011', 'FLAV07'), -- Creme Brulee / Krim Brulee
+('MENU011', 'FLAV08'); -- Butterscotch / Butterscotch
 
 -- LANGKAH 4: ISI TABEL 'menu_suggestions'
 INSERT INTO menu_suggestions (usulan_id, menu_name, customer_name, "timestamp") VALUES
-('USL-001', 'Kopi Gula Aren', 'Budi', NOW() - INTERVAL '2 days'),
+('USL-001', 'Kopi Gula Aren', 'Budi', NOW() - INTERVAL '2 day'),
 ('USL-002', 'Croissant Coklat', 'Citra', NOW() - INTERVAL '1 day');
 
 -- Notifikasi Selesai
 SELECT 'Seeder SQL berhasil dijalankan dengan struktur data baru.' as "Status";
--- Mengatur zona waktu sesi ke Asia/Jakarta
-SET TIME ZONE 'Asia/Jakarta';
-
-CREATE EXTENSION IF NOT EXISTS vector;
-CREATE TABLE IF NOT EXISTS embeddings (
-    id SERIAL PRIMARY KEY,
-    embedding vector,
-    text text,
-    created_at timestamptz DEFAULT now()
-);
-
--- Membersihkan data lama (opsional)
--- TRUNCATE TABLE menus, orders, order_items, kitchen_orders, menu_suggestions RESTART IDENTITY CASCADE;
-
--- === Tabel 'menus' ===
-INSERT INTO menus (menu_id, menu_name, menu_price, "isAvail") VALUES
-('MENU-001', 'Espresso', 18000, TRUE),
-('MENU-002', 'Americano', 20000, TRUE),
-('MENU-003', 'Cafe Latte', 25000, TRUE),
-('MENU-004', 'Cappuccino', 25000, TRUE),
-('MENU-005', 'Nasi Goreng Infinity', 35000, TRUE),
-('MENU-006', 'Mie Goreng Spesial', 32000, TRUE),
-('MENU-007', 'Kentang Goreng', 22000, TRUE),
-('MENU-008', 'Teh Manis', 10000, FALSE);
-
--- === Tabel 'menu_suggestions' ===
-INSERT INTO menu_suggestions (usulan_id, menu_name, customer_name, "timestamp") VALUES
-('USL-001', 'Kopi Gula Aren', 'Budi', NOW() - INTERVAL '2 days'),
-('USL-002', 'Croissant Coklat', 'Citra', NOW() - INTERVAL '1 day');

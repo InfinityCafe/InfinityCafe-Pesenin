@@ -1,10 +1,11 @@
 from sqlalchemy import or_, and_, func, Boolean
 
 from fastapi import FastAPI, HTTPException, Depends, Request, Body
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from sqlalchemy import create_engine, Column, String, Text, DateTime, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -35,13 +36,36 @@ app = FastAPI(
     version="1.0.0"
 )
 
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Custom handler untuk menangani validasi error, termasuk JSON parsing error"""
+    first_error = exc.errors()[0]
+    field_location = " -> ".join(map(str, first_error['loc']))
+    error_message = first_error['msg']
+    
+    # Handle JSON parsing errors specifically
+    if "JSON" in error_message or "parsing" in error_message.lower():
+        full_message = f"Format JSON tidak valid. Pastikan mengirim objek JSON yang benar, contoh: {{'is_open': true}}"
+    else:
+        full_message = f"Data tidak valid pada field '{field_location}': {error_message}"
+
+    return JSONResponse(
+        status_code=422,
+        content={
+            "status": "error",
+            "message": full_message,
+            "data": {"details": exc.errors()}
+        },
+    )
+
 # Enable CORS for frontend polling
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"], 
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 mcp = FastApiMCP(app, name="Server MCP Infinity", description="Server MCP Infinity Descr",
@@ -64,29 +88,31 @@ class KitchenOrder(Base):
     status = Column(String, default="receive")
     detail = Column(Text)
     customer_name = Column(String)
-    table_no = Column(String)
     room_name = Column(String)
     time_receive = Column(DateTime(timezone=True), nullable=True)
     time_making = Column(DateTime(timezone=True), nullable=True)
     time_deliver = Column(DateTime(timezone=True), nullable=True)
     time_done = Column(DateTime(timezone=True), nullable=True)
     cancel_reason = Column(Text, nullable=True)
-    orders_json = Column(Text, nullable=True) # Added orders_json column
+    orders_json = Column(Text, nullable=True)
 
 Base.metadata.create_all(bind=engine)
 
 class OrderItem(BaseModel):
     menu_name: str
     quantity: int
-    preference: str = ""
-    notes: str = ""
+    telegram_id: str = ""  # Menambahkan telegram_id untuk konsistensi
+    preference: Optional[str] = ""
+    notes: Optional[str] = ""
+
+class KitchenStatusRequest(BaseModel):
+    is_open: bool
 
 class KitchenOrderRequest(BaseModel):
     order_id: str
     queue_number: int  # Menambahkan ini agar bisa konsisten
     orders: List[OrderItem]
     customer_name: str
-    table_no: str
     room_name: str
 
 def get_db():
@@ -104,25 +130,40 @@ def get_kitchen_status(db: Session):  #
         db.commit()
     return status
 
-@app.post("/kitchen/status", summary="Atur status dapur ON/OFF", tags=["Kitchen"])
-def set_kitchen_status(
-    is_open: bool = Body(...),
-    db: Session = Depends(get_db)
-):
+class KitchenStatusRequest(BaseModel):
+    is_open: bool
+
+@app.get("/kitchen/status", summary="Cek status dapur saat ini", tags=["Kitchen"])
+def get_kitchen_status_simple(db: Session = Depends(get_db)):
     status = get_kitchen_status(db)
-    status.is_open = is_open
-    db.commit()
     return {
-        "message": f"Kitchen status set to {'ON' if is_open else 'OFF'}"
+        "status": "success",
+        "data": {
+            "is_open": status.is_open
+        }
     }
 
-@app.get("/kitchen/status/now", summary="Cek status dapur saat ini", tags=["Kitchen"])
-def get_kitchen_status_endpoint(db: Session = Depends(get_db)):
+@app.get("/kitchen/status/now", summary="Cek status dapur saat ini (format sederhana)", tags=["Kitchen"])
+def get_kitchen_status_now(db: Session = Depends(get_db)):
     status = get_kitchen_status(db)
     return {
         "is_open": status.is_open
     }
 
+@app.post("/kitchen/status", summary="Atur status dapur ON/OFF", tags=["Kitchen"])
+async def set_kitchen_status(
+    status_request: KitchenStatusRequest, 
+    db: Session = Depends(get_db)
+):
+
+    status = get_kitchen_status(db)
+    status.is_open = status_request.is_open
+    db.commit()
+    return {
+        "status": "success",
+        "message": f"Kitchen status set to {'ON' if status_request.is_open else 'OFF'}",
+        "data": {"is_open": status_request.is_open}
+    }
 
 @app.post("/receive_order", summary="Terima pesanan", tags=["Kitchen"], operation_id="receive order")
 async def receive_order(order: KitchenOrderRequest, db: Session = Depends(get_db)):
@@ -149,7 +190,6 @@ async def receive_order(order: KitchenOrderRequest, db: Session = Depends(get_db
         queue_number=order.queue_number,
         detail=detail_str,
         customer_name=order.customer_name,
-        table_no=order.table_no,
         room_name=order.room_name,
         time_receive=now,
         orders_json=json.dumps([item.model_dump() if hasattr(item, 'model_dump') else dict(item) for item in order.orders])
@@ -173,7 +213,7 @@ async def update_status(order_id: str, status: str, reason: str = "", db: Sessio
         raise HTTPException(status_code=404, detail="Order not found")
     
     # Validasi status dan reason
-    if status in ["cancel", "habis"] and not reason:
+    if status in ["cancelled", "habis"] and not reason:
         raise HTTPException(status_code=400, detail="Alasan wajib untuk status cancel, atau habis")
 
     # Update timestamp sesuai status
@@ -184,7 +224,12 @@ async def update_status(order_id: str, status: str, reason: str = "", db: Sessio
     elif status == "done" and not order.time_done:
         order.time_done = timestamp
 
-    if status in ["cancel", "habis"]:
+    if status in ["cancelled", "habis"]:
+        if not reason:
+            if status == "cancelled":
+                reason = "Dibatalkan"
+            else:
+                reason = "Bahan habis"
         order.cancel_reason = reason
 
     # Update status
@@ -257,7 +302,6 @@ async def broadcast_orders(db: Session):
             "timestamp": ts.isoformat(),
             "timestamp_receive": o.time_receive.isoformat() if o.time_receive else None,
             "customer_name": o.customer_name,
-            "table_no": o.table_no,
             "room_name": o.room_name,
             "cancel_reason": o.cancel_reason or ""
         })
@@ -273,12 +317,36 @@ async def broadcast_orders(db: Session):
 def health_check():
     return {"status": "ok", "service": "kitchen_service"}
 
+@app.options("/kitchen/status")
+async def options_kitchen_status():
+    """Handle preflight OPTIONS requests for /kitchen/status"""
+    return {"message": "OK"}
+
+@app.options("/kitchen/orders")
+async def options_kitchen_orders():
+    """Handle preflight OPTIONS requests for /kitchen/orders"""
+    return {"message": "OK"}
+
+@app.options("/receive_order")
+async def options_receive_order():
+    """Handle preflight OPTIONS requests for /receive_order"""
+    return {"message": "OK"}
+
+@app.options("/kitchen/orders")
+async def options_kitchen_orders():
+    """Handle preflight OPTIONS requests for /kitchen/orders"""
+    return {"message": "OK"}
+
+@app.options("/receive_order")
+async def options_receive_order():
+    """Handle preflight OPTIONS requests for /receive_order"""
+    return {"message": "OK"}
+
 hostname = socket.gethostname()
 local_ip = socket.gethostbyname(hostname)
 logging.basicConfig(level=logging.INFO)
 logging.info(f"✅ kitchen_service sudah running di http://{local_ip}:8003 add cors")
 
-mcp.setup_server()
 mcp.setup_server()
 
 @app.get("/kitchen/orders", summary="Lihat semua pesanan", tags=["Kitchen"], operation_id="kitchen order list")
@@ -290,7 +358,7 @@ def get_kitchen_orders(db: Session = Depends(get_db)):
         or_(
             KitchenOrder.status.in_(['receive', 'making', 'deliver']),
             and_(
-                KitchenOrder.status.in_(['done', 'cancel', 'habis']),
+                KitchenOrder.status.in_(['done', 'cancelled', 'habis']),
                 KitchenOrder.time_receive >= start_of_day,
                 KitchenOrder.time_receive < end_of_day
             )
@@ -324,17 +392,34 @@ def get_kitchen_orders(db: Session = Depends(get_db)):
                     notes = notesPart[0].strip() if notesPart else ''
                     name = main
                     variant = ''
-                    qty = ''
+                    qty = 1  # Default quantity
+                    
+                    # Pattern 1: "2x Menu Name (variant)"
                     variantMatch = re.match(r'^(\d+)x ([^(]+) \(([^)]+)\)$', main)
                     if variantMatch:
                         qty = int(variantMatch.group(1))
                         name = variantMatch.group(2).strip()
                         variant = variantMatch.group(3).strip()
                     else:
+                        # Pattern 2: "2x Menu Name" (no variant)
                         noVarMatch = re.match(r'^(\d+)x ([^(]+)$', main)
                         if noVarMatch:
                             qty = int(noVarMatch.group(1))
                             name = noVarMatch.group(2).strip()
+                        else:
+                            # Pattern 3: "Menu Name (variant)" (no quantity, default to 1)
+                            simpleVariantMatch = re.match(r'^([^(]+) \(([^)]+)\)$', main)
+                            if simpleVariantMatch:
+                                name = simpleVariantMatch.group(1).strip()
+                                variant = simpleVariantMatch.group(2).strip()
+                            else:
+                                # Pattern 4: Just "Menu Name" (no quantity, no variant)
+                                name = main.strip()
+                    
+                    # Clean up empty variant
+                    if variant == '':
+                        variant = None
+                    
                     items.append({
                         'menu_name': name,
                         'quantity': qty,
@@ -355,7 +440,6 @@ def get_kitchen_orders(db: Session = Depends(get_db)):
             'time_receive': o.time_receive.isoformat() if o.time_receive else None,
             'time_done': o.time_done.isoformat() if o.time_done else None,
             'customer_name': o.customer_name,
-            'table_no': o.table_no,
             'room_name': o.room_name,
             'cancel_reason': o.cancel_reason or ''
         }

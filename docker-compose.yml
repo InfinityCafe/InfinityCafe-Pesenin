@@ -215,7 +215,7 @@ services:
     volumes:
     #  - ./pgvector-init.sql:/docker-entrypoint-initdb.d/init.sql
      - pgvector_storage:/var/lib/postgresql/data
-    #  - ./initdb:/docker-entrypoint-initdb.d
+     - ./initdb:/docker-entrypoint-initdb.d
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -h pgvector -U ${POSTGRES_USER} -d postgres']
       interval: 5s
@@ -267,6 +267,10 @@ services:
           psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB_INVENTORY}'" |
           grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -c 'CREATE DATABASE ${POSTGRES_DB_INVENTORY}' &&
 
+          echo 'Create Database User...' &&
+          psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB_USER}'" |
+          grep -q 1 || psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -c 'CREATE DATABASE ${POSTGRES_DB_USER}' &&
+          
           echo 'All databases created successfully!' &&
           echo 'Initializing vector extension and seeding data...' &&
           
@@ -281,6 +285,7 @@ services:
           echo 'Seeding databases with initial data...' &&
           psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_DEFAULT} -f /initdb/seeder_db_default.sql &&
           psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_MENU} -f /initdb/seeder_db_menu.sql &&
+          psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_MENU} -f /initdb/seeder_db_menu_recipes.sql &&
           psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_ORDER} -f /initdb/seeder_db_order.sql &&
           psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_KITCHEN} -f /initdb/seeder_db_kitchen.sql &&
           psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_INVENTORY} -f /initdb/seeder_db_inventory.sql &&
@@ -407,14 +412,40 @@ services:
     env_file:
       - .env
     ports:
-      - "8005:8005"
+      - "8006:8006"
     extra_hosts:
       - "ollama:host-gateway"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://inventory_service:8005/health"]
+      test: ["CMD", "curl", "-f", "http://inventory_service:8006/health"]
       interval: 5s
       timeout: 5s
       retries: 3
+
+
+  user_service:
+    networks: ['demo', 'my_shared_network']
+    hostname: user_service
+    build:
+      context: ./infinity/ 
+      dockerfile: user_service/Dockerfile
+    container_name: user_service
+    depends_on:
+      pgvector17:
+        condition: service_healthy
+      n8n-import:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    ports:
+      - "8005:8005" 
+    extra_hosts:
+      - "ollama:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://user_service:8005/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
 
   # kitchen_dashboard_pwa:
   #   build:
@@ -448,6 +479,8 @@ services:
     extra_hosts:
       - "ollama:host-gateway"
     depends_on:
+      gateway:
+        condition: service_started
       menu_service:
         condition: service_started
       kitchen_service:
@@ -482,20 +515,25 @@ services:
   #     # timeout: 5s
   #     # retries: 0
 
-  # gateway:
-  #   networks: ['demo']
-  #   hostname: gateway
-  #   build:
-  #     context: .
-  #     dockerfile: gateway/Dockerfile
-  #   ports:
-  #     - "2323:2323"
-  #   depends_on:
-  #     - menu_service
-  #     - order_service
-  #     - kitchen_service
-  #   env_file:
-  #     - .env
+  gateway:
+    networks: ['demo']
+    hostname: gateway
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    ports:
+      - "2323:2323"
+    depends_on:
+      menu_service:
+        condition: service_started
+      order_service:
+        condition: service_started
+      kitchen_service:
+        condition: service_started
+      report_service:
+        condition: service_started
+    env_file:
+      - .env
 
   # seed_data:
   #   networks: ['demo']

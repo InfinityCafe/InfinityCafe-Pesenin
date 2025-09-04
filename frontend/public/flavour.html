@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Dapur - Infinity Cafe</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+
+</head>
+<body data-page="kelola-menu">
+  <!-- Header -->
+  <nav class="header">
+    <div class="header-brand">
+      <h1 class="header-title" id="navbar-title">Infinity Cafe</h1>
+      <p class="header-subtitle">Stephany | Barista</p>
+    </div>
+    <div class="header-menu">
+      <button class="nav-btn" id="nav-dashboard" data-url="dashboard" onclick="window.location.href = '/index.html';">Dashboard</button>
+      <button class="nav-btn" id="nav-menu" data-url="menu-management" onclick="window.location.href = '/menu.html';">Management Menu</button>
+    </div>
+    <div class="header-right">
+      <div class="search-container">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" placeholder="Search" class="search-input">
+      </div>
+      <div class="kitchen-status-container">
+        <label class="switch">
+          <input type="checkbox" id="kitchen-toggle" checked>
+          <span class="slider"></span>
+        </label>
+        <!-- <span id="kitchen-status-text" class="kitchen-status-text">BUKA</span> -->
+      </div>
+    </div>
+  </nav>
+
+  <!-- Kitchen Off Banner -->
+    <div id="kitchen-off-banner" class="kitchen-off-banner hidden">
+        🚫 Dapur sedang OFF. Tidak dapat menerima/memproses pesanan.
+    </div>
+
+    <!-- Offline Banner -->
+    <div id="offline-banner" class="offline-banner hidden">
+        🔌 Gagal ambil data. Cek koneksi.
+    </div>
+
+  <!-- Main Content -->
+  <div class="main-container">
+    <div class="content-area">
+      <!-- Greeting Message -->
+      <div class="greeting-message">
+        <h2>Hi, John Doe, here's today's orders!</h2>
+        <p class="greeting-date" id="greeting-date">Monday, 14th July 2025</p>
+      </div>
+
+        <!-- Tab Navigation -->
+        <div class="tab-navigation">
+            <button id="tab-menu" class="tab-btn" onclick="switchTab('menu')">MENU</button>
+            <button id="tab-flavour" class="tab-btn tab-active" onclick="switchTab('flavour')">FLAVOUR</button> 
+            <button id="tab-filter" class="tab-btn" onclick="switchTab('filter')">FILTER</button>
+            <button class="add-flavour-btn">ADD NEW FLAVOUR</button>
+        </div>
+
+        <!-- Flavour Table -->
+        <div class="flavour-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>NO</th>
+                        <th>FLAVOUR NAME</th>
+                        <th>ADDITIONAL PRICE</th>
+                        <th>ACTION</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>1</td>
+                        <td>Lorem Ipsum</td>
+                        <td>Lorem</td>
+                        <td>
+                            <button class="action-btn"><i class="fas fa-eye"></i></button>
+                            <button class="action-btn"><i class="fas fa-edit"></i></button>
+                            <button class="action-btn"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>
+                    <!-- Tambahkan baris lain sesuai data-->
+                    <tr><td>1</td><td>Lorem Ipsum</td><td>Lorem</td><td><button class="action-btn"><i class="fas fa-eye"></i></button><button class="action-btn"><i class="fas fa-edit"></i></button><button class="action-btn"><i class="fas fa-trash"></i></button></td></tr>
+                    <tr><td>1</td><td>Lorem Ipsum</td><td>Lorem</td><td><button class="action-btn"><i class="fas fa-eye"></i></button><button class="action-btn"><i class="fas fa-edit"></i></button><button class="action-btn"><i class="fas fa-trash"></i></button></td></tr>
+                    <tr><td>1</td><td>Lorem Ipsum</td><td>Lorem</td><td><button class="action-btn"><i class="fas fa-eye"></i></button><button class="action-btn"><i class="fas fa-edit"></i></button><button class="action-btn"><i class="fas fa-trash"></i></button></td></tr>
+                    <tr><td>1</td><td>Lorem Ipsum</td><td>Lorem</td><td><button class="action-btn"><i class="fas fa-eye"></i></button><button class="action-btn"><i class="fas fa-edit"></i></button><button class="action-btn"><i class="fas fa-trash"></i></button></td></tr>
+                    <tr><td>1</td><td>Lorem Ipsum</td><td>Lorem</td><td><button class="action-btn"><i class="fas fa-eye"></i></button><button class="action-btn"><i class="fas fa-edit"></i></button><button class="action-btn"><i class="fas fa-trash"></i></button></td></tr>
+                    <tr><td>1</td><td>Lorem Ipsum</td><td>Lorem</td><td><button class="action-btn"><i class="fas fa-eye"></i></button><button class="action-btn"><i class="fas fa-edit"></i></button><button class="action-btn"><i class="fas fa-trash"></i></button></td></tr>
+                    <tr><td>1</td><td>Lorem Ipsum</td><td>Lorem</td><td><button class="action-btn"><i class="fas fa-eye"></i></button><button class="action-btn"><i class="fas fa-edit"></i></button><button class="action-btn"><i class="fas fa-trash"></i></button></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-confirm-modal" class="modal hidden">
+      <div class="modal-content delete-confirm-modal">
+        <button class="modal-close" onclick="closeDeleteConfirmModal()">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16.5 5.5L5.5 16.5M5.5 5.5L16.5 16.5" stroke="#B3261E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="modal-header">
+          <i class="fas fa-exclamation-triangle warning-icon"></i>
+          <h3 class="modal-title">Warning</h3>
+        </div>
+        <div class="modal-body">
+          <p id="delete-confirm-message">Apakah Anda yakin ingin menghapus item ini?</p>
+          <p class="delete-warning">You won’t be able to revert this action!</p>
+        </div>
+        <div class="modal-actions">
+          <button class="modal-btn modal-btn-cancel" onclick="closeDeleteConfirmModal()">Batal</button>
+          <button class="modal-btn modal-btn-danger" id="delete-confirm-btn">Hapus</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="success-modal" class="modal hidden">
+      <div class="modal-content success-modal">
+        <button class="modal-close" onclick="closeSuccessModal()">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16.5 5.5L5.5 16.5M5.5 5.5L16.5 16.5" stroke="#B3261E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="modal-header">
+          <i class="fas fa-check-circle success-icon"></i>
+          <h3 class="modal-title">Success!</h3>
+        </div>
+        <div class="modal-body">
+          <p id="success-message">Operation Completed Successfully</p>
+        </div>
+        <div class="modal-actions">
+          <button class="modal-btn" onclick="closeSuccessModal()">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div id="error-modal" class="modal hidden">
+      <div class="modal-content error-modal">
+        <button class="modal-close" onclick="closeErrorModal()">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16.5 5.5L5.5 16.5M5.5 5.5L16.5 16.5" stroke="#B3261E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="modal-header">
+          <i class="fas fa-exclamation-circle error-icon"></i>
+          <h3 class="modal-title">Error</h3>
+        </div>
+        <div class="modal-body">
+          <p id="error-message">Failed to complete the operation.</p>
+        </div>
+        <div class="modal-actions">
+          <button class="modal-btn" onclick="closeErrorModal()">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+
+    <script>
+    const BASE_URL = "";
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('tab-active'));
+      document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+      document.getElementById(`tab-${tab}`).classList.add('tab-active');
+      document.getElementById(`tab-${tab}-content`).classList.add('active');
+    }
+
+
+    // Load menus
+    async function loadMenus() {
+      try {
+        const response = await fetch(`${BASE_URL}/menu`);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const menus = await response.json();
+        const tbody = document.querySelector('#menu-table tbody');
+        tbody.innerHTML = '';
+        
+        if (menus && menus.length > 0) {
+          menus.forEach((menu, index) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${index + 1}</td>
+              <td>${menu.base_name}</td>
+              <td>${menu.base_price}</td>
+              <td>${menu.isAvail ? 'Yes' : 'No'}</td>
+              <td>
+                <button class="action-btn" onclick="viewMenu('${menu.id}')"><i class="fas fa-eye"></i></button>
+                <button class="action-btn" onclick="editMenu('${menu.id}')"><i class="fas fa-edit"></i></button>
+                <button class="action-btn" onclick="deleteMenu('${menu.id}')"><i class="fas fa-trash"></i></button>
+              </td>
+            `;
+            tbody.appendChild(row);
+          });
+        } else {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No menus found</td></tr>';
+        }
+      } catch (error) {
+        console.error('Error loading menus:', error);
+        const tbody = document.querySelector('#menu-table tbody');
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Error loading menus: ' + error.message + '</td></tr>';
+      }
+    }
+
+    // Load flavors (placeholder)
+    async function loadFlavors() {
+      try {
+        // Replace with actual API call for flavors
+        const response = await fetch(`${BASE_URL}/flavors`); // Hypothetical endpoint
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const flavors = await response.json();
+        const tbody = document.querySelector('#flavors-table tbody');
+        tbody.innerHTML = '';
+        
+        if (flavors && flavors.length > 0) {
+          flavors.forEach(flavor => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${flavor.id}</td>
+              <td>${flavor.flavor_name}</td>
+              <td>${flavor.additional_price}</td>
+              <td>
+                <button class="btn btn-small btn-primary">Edit</button>
+                <button class="btn btn-small btn-danger">Delete</button>
+              </td>
+            `;
+            tbody.appendChild(row);
+          });
+        } else {
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">No flavors found</td></tr>';
+        }
+      } catch (error) {
+        console.error('Error loading flavors:', error);
+        const tbody = document.querySelector('#flavors-table tbody');
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Error loading flavors: ' + error.message + '</td></tr>';
+      }
+    }
+
+    // Save or update menu
+    async function saveMenu() {
+      const menuId = document.getElementById('add-menu-form').getAttribute('data-menu-id') || null;
+      const baseName = document.getElementById('base-name').value;
+      const basePrice = parseInt(document.getElementById('base-price').value);
+      const isAvail = document.getElementById('is-avail').value === 'true';
+      const flavorIds = document.getElementById('flavor-ids').value.split(',').map(id => id.trim()).filter(id => id);
+
+      const data = {
+        base_name: baseName,
+        base_price: basePrice,
+        isAvail: isAvail,
+        flavor_ids: flavorIds
+      };
+
+      try {
+        let response;
+        if (menuId) {
+          response = await fetch(`${BASE_URL}/menu/${menuId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+        } else {
+          response = await fetch(`${BASE_URL}/menu`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+        }
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Failed to save menu');
+        }
+        
+        const result = await response.json();
+        closeAddMenuModal();
+        await loadMenus();
+        showSuccessModal(result.message || 'Menu berhasil disimpan');
+      } catch (error) {
+        console.error('Error saving menu:', error);
+        showErrorModal('Error saving menu: ' + error.message);
+      }
+    }
+
+    // View menu
+    async function viewMenu(menuId) {
+      try {
+        const response = await fetch(`${BASE_URL}/menu/${menuId}`);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Failed to load menu details');
+        }
+        
+        const menu = await response.json();
+        alert(`Menu Details:\nName: ${menu.base_name}\nPrice: Rp ${menu.base_price.toLocaleString()}\nAvailable: ${menu.isAvail ? 'Yes' : 'No'}\nFlavors: ${menu.flavors ? menu.flavors.map(f => f.flavor_name).join(', ') : 'None'}`);
+      } catch (error) {
+        console.error('Error loading menu details:', error);
+        alert('Error loading menu details: ' + error.message);
+      }
+    }
+
+    // Edit menu
+    async function editMenu(menuId) {
+      try {
+        const response = await fetch(`${BASE_URL}/menu/${menuId}`);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Failed to load menu for edit');
+        }
+        
+        const menu = await response.json();
+        document.getElementById('base-name').value = menu.base_name;
+        document.getElementById('base-price').value = menu.base_price;
+        document.getElementById('is-avail').value = menu.isAvail;
+        document.getElementById('add-menu-form').setAttribute('data-menu-id', menuId);
+        openAddMenuModal();
+      } catch (error) {
+        console.error('Error loading menu for edit:', error);
+        showErrorModal('Error loading menu for edit: ' + error.message);
+      }
+    }
+
+        // Delete menu
+    async function deleteMenu(menuId) {
+      // Get menu name for confirmation message
+      const menu = allMenus ? allMenus.find(m => m.id === menuId) : null;
+      const menuName = menu ? menu.base_name : 'this menu';
+      
+      showDeleteConfirmModal(
+        `Apakah Anda yakin ingin menghapus menu "${menuName}"?`,
+        async () => {
+          try {
+            const response = await fetch(`${BASE_URL}/menu/${menuId}`, {
+              method: 'DELETE'
+            });
+            
+            if (!response.ok) {
+              const errorData = await response.json();
+              showErrorModal(errorData.detail || 'Gagal menghapus menu');
+              return;
+            }
+            
+            const result = await response.json();
+            await loadMenus();
+            showSuccessModal(result.message || 'Menu berhasil dihapus');
+          } catch (error) {
+            console.error('Error deleting menu:', error);
+            showErrorModal('Error deleting menu: ' + error.message);
+          }
+        }
+      );
+    }
+
+    // Modal Functions
+    function openAddMenuModal() {
+      document.getElementById('add-menu-modal').classList.remove('hidden');
+    }
+
+    function closeAddMenuModal() {
+      document.getElementById('add-menu-form').reset();
+      document.getElementById('add-menu-form').removeAttribute('data-menu-id');
+      document.getElementById('form-error').textContent = '';
+      document.getElementById('add-menu-modal').classList.add('hidden');
+    }
+
+    // Event listeners
+    document.getElementById('add-menu-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await saveMenu();
+    });
+
+    // Modal Functions for Delete, Success, and Error
+    function showDeleteConfirmModal(message, onConfirm) {
+      document.getElementById('delete-confirm-message').textContent = message;
+      document.getElementById('delete-confirm-modal').classList.remove('hidden');
+      
+      // Set up confirm button action
+      const confirmBtn = document.getElementById('delete-confirm-btn');
+      confirmBtn.onclick = () => {
+        closeDeleteConfirmModal();
+        onConfirm();
+      };
+    }
+
+    function closeDeleteConfirmModal() {
+      document.getElementById('delete-confirm-modal').classList.add('hidden');
+    }
+
+    function showSuccessModal(message) {
+      document.getElementById('success-message').textContent = message;
+      document.getElementById('success-modal').classList.remove('hidden');
+    }
+
+    function closeSuccessModal() {
+      document.getElementById('success-modal').classList.add('hidden');
+    }
+
+    function showErrorModal(message) {
+      document.getElementById('error-message').textContent = message;
+      document.getElementById('error-modal').classList.remove('hidden');
+    }
+
+    function closeErrorModal() {
+      document.getElementById('error-modal').classList.add('hidden');
+    }
+
+    // Initial load
+    window.addEventListener('load', () => {
+      loadMenus();
+      // loadFlavors(); // Uncomment when flavors API is ready
+      switchTab('flavour'); // Set default tab to flavour
+      setupNavigation(); // Setup navigation
+    });
+  </script>
+</body>
+</html>
