@@ -564,3 +564,13 @@ function changePageSize() {
     updatePagination();
   }
 }
+
+// Navigation function for menu and flavors tabs
+function navigateToMenuTab(tab) {
+  const token = localStorage.getItem('access_token');
+  if (token) {
+    window.location.href = `/menu-management?token=${encodeURIComponent(token)}#${tab}`;
+  } else {
+    window.location.href = '/login';
+  }
+}
