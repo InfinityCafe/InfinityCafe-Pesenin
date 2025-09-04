@@ -21,17 +21,22 @@ function switchTab(tab) {
 
   const addItemBtn = document.getElementById('add-item-btn');
     if (addItemBtn) {
-      addItemBtn.style.display = (tab === 'inventory') ? '' : 'none';
-    }
+      addItemBtn.style.display = (tab === 'inventory') ? '' : 'none';
+  }
+
+  if (window.inventoryManager) {
+    window.inventoryManager.activeTab = tab;
+  }
 
   if (tab === 'inventory' && window.inventoryManager) {
     window.inventoryManager.loadInventoryData();
   } else if (tab === 'audit-history' && window.inventoryManager) {
-    window.inventoryManager.loadAuditHistoryData();
+    window.inventoryManager.loadAuditHistoryData(true);
   } 
 }
 class InventoryManager {
   constructor() {
+    this.activeTab = 'inventory';
     this.inventory = [];
     this.filteredInventory = [];
     this.currentPage = 1;
@@ -283,7 +288,11 @@ class InventoryManager {
       const listResponse = await fetch('/inventory/list');
       const listData = await listResponse.json();
 
-      this.inventory = Array.isArray(listData.data) ? listData.data : [];
+      const newInventory = Array.isArray(listData.data) ? listData.data : [];
+
+      const hasChanged = JSON.stringify(newInventory) !== JSON.stringify(this.inventory);
+
+      this.inventory = newInventory;
 
       if (forceFullReload) {
         this.filteredInventory = [...this.inventory];
@@ -294,10 +303,12 @@ class InventoryManager {
         this.applyCurrentFiltersAndSearch();
       }
 
-      this.renderInventoryTable();
-      this.updateOverviewCards();
-      if (forceFullReload) {
-        this.populateDynamicFilters();
+      if (hasChanged || forceFullReload) {
+        this.renderInventoryTable();
+        this.updateOverviewCards();
+        if (forceFullReload) {
+          this.populateDynamicFilters();
+        }
       }
     } catch (error) {
       console.error('Gagal memuat dan me-refresh data:', error);
@@ -348,10 +359,20 @@ class InventoryManager {
       clearInterval(this.pollingInterval);
     }
 
-    this.pollingInterval = setInterval(() => {
+    this.pollingInterval = setInterval(async () => {
       if (!this.isUserInteracting) {
-        console.log("Polling: Mengambil data inventaris terbaru...");
-        this.loadAndRefreshData();
+        console.log("Polling: Mengambil data terbaru...");
+        try {
+          if (this.activeTab === 'inventory') {
+            await this.loadAndRefreshData();
+          } else if (this.activeTab === 'audit-history') {
+            await this.loadAuditHistoryData(true);
+          }
+        } catch (error) {
+          console.error('Polling error:', error);
+          this.showError('Gagal memperbarui data. Coba lagi nanti.');
+        }
+        // this.loadAndRefreshData();
       } else {
         console.log("Polling: Dilewati karena pengguna sedang berinteraksi.");
       }
@@ -1191,17 +1212,23 @@ class InventoryManager {
   }
 
   async loadAuditHistoryData(forceReload = false) {
-    if (this.auditLoaded && !forceReload) return;
-
     try {
       const response = await fetch('/inventory/stock/history?limit=1000')
       if (response.ok) {
         const data = await response.json();
         if (data.status === 'success') {
-          this.auditHistory = data.data.history || [];
+          const newAuditHistory = data.data.history || [];
+
+          const hasChanged = JSON.stringify(newAuditHistory) !== JSON.stringify(this.auditHistory);
+
+          this.auditHistory = newAuditHistory;
           this.filteredAuditHistory = [...this.auditHistory];
-          this.populateAuditFilters();
-          this.applyAuditFiltersAndSearch(true);
+
+          if (hasChanged || forceReload) {
+            this.populateAuditFilters();
+            this.applyAuditFiltersAndSearch(true);
+          }
+        
           this.auditLoaded = true;
         } else {
           this.showError(data.message || 'Failed to load audit history');
