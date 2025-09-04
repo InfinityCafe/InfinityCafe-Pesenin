@@ -48,6 +48,7 @@ class InventoryManager {
     this.isUserInteracting = false;
     this.currentFilters = { category: '', unit: '', status: '' };
     this.currentSearchTerm = '';
+    this.currentSort = '';
     this.auditHistory = [];
     this.filteredAuditHistory =[];
     this.currentAuditPage = 1;
@@ -340,6 +341,7 @@ class InventoryManager {
     }
 
     this.filteredInventory = tempInventory;
+    this.applySorting(this.filteredInventory);
 
     if (resetPage) {
       this.currentPage = 1;
@@ -351,6 +353,14 @@ class InventoryManager {
     }
 
     this.renderInventoryTable();
+  }
+
+  applySorting(inventoryArray) {
+    if (this.currentSort === 'a-z') {
+        inventoryArray.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (this.currentSort === 'z-a') {
+        inventoryArray.sort((a, b) => b.name.localeCompare(a.name));
+    }
   }
 
   startPolling() {
@@ -434,7 +444,8 @@ class InventoryManager {
     this.currentFilters = { category: '', unit: '', status: '' };
     this.currentSearchTerm = '';
     this.currentPage = 1;
-
+    
+    this.applyCurrentFiltersAndSearch();
     this.populateDynamicFilters();
     
     // Update overview cards with sample data
@@ -443,8 +454,7 @@ class InventoryManager {
       critical_count: sampleInventory.filter(item => item.current_quantity <= 0).length,
       low_stock_count: sampleInventory.filter(item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length,
     });
-
-    this.renderInventoryTable();
+    
     console.log('Sample data loaded and table rendered');
   }
 
@@ -680,6 +690,7 @@ class InventoryManager {
       unit: unitFilter.value,
       status: statusFilter.value
     };
+    this.currentSort = sortFilter.value;
 
     this.applyCurrentFiltersAndSearch(true);
 
@@ -707,9 +718,12 @@ class InventoryManager {
     if (sortFilter) sortFilter.value = '';
 
     this.currentFilters = { category: '', unit: '', status: '' };
+    this.currentSort = '';
     this.currentSearchTerm = '';
+    
     this.isUserInteracting = false;
     this.applyCurrentFiltersAndSearch(true);
+    // this.toggleFilterStock();
   }
 
   changeStockPage(direction) {
@@ -1131,7 +1145,8 @@ class InventoryManager {
       const statuses = [
           { value: 'in-stock', text: 'In Stock' },
           { value: 'low-stock', text: 'Low Stock' },
-          { value: 'out-of-stock', text: 'Out of Stock' }
+          { value: 'out-of-stock', text: 'Out of Stock' },
+          { value: 'unavailable', text: 'Unavailable' }
       ];
 
       categoryFilter.innerHTML = '<option value="">All Categories</option>';
