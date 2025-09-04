@@ -223,8 +223,16 @@ function updateKitchenStatusUI(isOpen) {
 // Fungsi logout
 function logout() {
     console.log('Logging out...');
-    localStorage.removeItem('access_token');
-    window.location.href = '/login';
+    // Hapus semua token dari storage
+    try {
+        localStorage.removeItem('access_token');
+        sessionStorage.removeItem('temp_token');
+        sessionStorage.removeItem('temp_token_id');
+    } catch (e) {
+        console.warn('Error clearing storage on logout:', e);
+    }
+    // Redirect pakai replace agar tidak bisa back ke halaman sebelumnya
+    window.location.replace('/login');
 }
 
 // Fungsi untuk menambahkan tombol logout ke header
