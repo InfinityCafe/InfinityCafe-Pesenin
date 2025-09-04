@@ -736,11 +736,11 @@ async function saveMenu() {
             const em = recipeError && recipeError.message ? recipeError.message : 'Unknown error occurred';
             showErrorModal('Menu saved but recipe update failed: ' + em);
         }
-
+        
         selectedFlavorIds = [];
         closeAddMenuModal();
         await loadMenus();
-
+        
         showSuccessModal(result.message || 'Menu berhasil disimpan');
     } catch (error) {
         console.error('Error saving menu:', error);
@@ -1100,7 +1100,7 @@ async function deleteFlavor(flavorId) {
         showErrorModal(`Varian rasa tidak dapat dihapus karena masih digunakan oleh menu: ${usedBy}`);
         return;
     }
-
+    
     showDeleteConfirmModal(
         `Apakah Anda yakin ingin menghapus varian rasa "${flavorName}"?`,
         async () => {
@@ -1114,11 +1114,11 @@ async function deleteFlavor(flavorId) {
                 const response = await fetch(`${BASE_URL}/flavors/${flavorId}`, {
                     method: "DELETE"
                 });
-
+                
                 if (!response.ok) {
                     let errorMessage = 'Gagal menghapus varian rasa';
                     try {
-                        const errorData = await response.json();
+                    const errorData = await response.json();
                         errorMessage = errorData?.message || errorData?.detail || `HTTP ${response.status}: ${response.statusText}`;
                     } catch (_) {
                         errorMessage = `HTTP ${response.status}: ${response.statusText}`;
@@ -1126,7 +1126,7 @@ async function deleteFlavor(flavorId) {
                     showErrorModal(errorMessage);
                     return;
                 }
-
+                
                 let result;
                 try { result = await response.json(); } catch (_) { result = null; }
 
@@ -1138,7 +1138,7 @@ async function deleteFlavor(flavorId) {
                 // Also refresh from server to be safe
                 await loadFlavors();
                 await loadMenus();
-
+                
                 const successMsg = (result && (result.message || (result.data && result.data.message))) || 'Varian rasa berhasil dihapus';
                 showSuccessModal(successMsg);
             } catch (error) {
@@ -1563,7 +1563,13 @@ document.addEventListener('DOMContentLoaded', () => {
 function navigateToMenuSuggestion() {
     const token = localStorage.getItem('access_token');
     if (token) {
-        window.location.href = `/menu-suggestion?token=${encodeURIComponent(token)}`;
+        // Create a temporary token for this session
+        const tempToken = btoa(token).substring(0, 20) + Date.now();
+        sessionStorage.setItem('temp_token', token);
+        sessionStorage.setItem('temp_token_id', tempToken);
+        
+        // Navigate with temporary token that will be immediately removed
+        window.location.href = `/menu-suggestion?temp=${tempToken}`;
     } else {
         window.location.href = '/login';
     }

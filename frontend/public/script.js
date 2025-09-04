@@ -129,7 +129,13 @@ function setupNavigation() {
                 console.log('Navigating to:', route);
                 const token = localStorage.getItem('access_token');
                 if (token) {
-                    window.location.href = `${route}?token=${encodeURIComponent(token)}`;
+                    // Create a temporary token for secure navigation
+                    const tempToken = btoa(token).substring(0, 20) + Date.now();
+                    sessionStorage.setItem('temp_token', token);
+                    sessionStorage.setItem('temp_token_id', tempToken);
+                    
+                    // Navigate with temporary token that will be immediately removed
+                    window.location.href = `${route}?temp=${tempToken}`;
                 } else {
                     window.location.href = '/login';
                 }
@@ -277,11 +283,25 @@ function checkAuth() {
     const currentPage = document.body.dataset.page || window.location.pathname.split('/').pop().replace('.html', '');
     
     if (!publicPages.includes(currentPage)) {
-        const token = localStorage.getItem('access_token');
+        // Check for temporary token first, then regular token
+        const tempToken = sessionStorage.getItem('temp_token');
+        const regularToken = localStorage.getItem('access_token');
+        const token = tempToken || regularToken;
+        
         if (!token || !validateJWTClient(token)) {
             console.log('No valid access token, redirecting to /login');
+            // Clean up any temporary tokens
+            sessionStorage.removeItem('temp_token');
+            sessionStorage.removeItem('temp_token_id');
             window.location.href = '/login';
             return;
+        }
+        
+        // If we used a temporary token, move it to localStorage for consistency
+        if (tempToken && !regularToken) {
+            localStorage.setItem('access_token', tempToken);
+            sessionStorage.removeItem('temp_token');
+            sessionStorage.removeItem('temp_token_id');
         }
     }
     console.log('Auth passed, current page:', currentPage);
@@ -396,6 +416,29 @@ function switchTab(tabId) {
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOMContentLoaded event triggered in script.js');
+    
+    // Clean up temporary token from URL immediately
+    const urlParams = new URLSearchParams(window.location.search);
+    const tempToken = urlParams.get('temp');
+    if (tempToken) {
+        // Verify the temporary token matches what we stored
+        const storedTokenId = sessionStorage.getItem('temp_token_id');
+        if (storedTokenId === tempToken) {
+            // Remove temp token from URL and sessionStorage
+            urlParams.delete('temp');
+            const newUrl = window.location.pathname + 
+                          (urlParams.toString() ? '?' + urlParams.toString() : '') + 
+                          window.location.hash;
+            window.history.replaceState({}, document.title, newUrl);
+            sessionStorage.removeItem('temp_token_id');
+            console.log('Temporary token cleaned from URL');
+        } else {
+            console.warn('Temporary token mismatch, redirecting to login');
+            window.location.href = '/login';
+            return;
+        }
+    }
+    
     checkAuth();
     updateGreetingDate();
 

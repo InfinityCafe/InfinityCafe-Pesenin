@@ -569,7 +569,13 @@ function changePageSize() {
 function navigateToMenuTab(tab) {
   const token = localStorage.getItem('access_token');
   if (token) {
-    window.location.href = `/menu-management?token=${encodeURIComponent(token)}#${tab}`;
+    // Create a temporary token for this session
+    const tempToken = btoa(token).substring(0, 20) + Date.now();
+    sessionStorage.setItem('temp_token', token);
+    sessionStorage.setItem('temp_token_id', tempToken);
+    
+    // Navigate with temporary token that will be immediately removed
+    window.location.href = `/menu-management?temp=${tempToken}#${tab}`;
   } else {
     window.location.href = '/login';
   }
