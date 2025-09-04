@@ -40,7 +40,7 @@ x-ollama: &service-ollama
   networks: ['demo']
   restart: unless-stopped
   ports:
-    - 11434:11434
+    - 21434:11434
   volumes:
     - ollama_storage:/root/.ollama
     - ./modelfile:/modelfile:ro  # Added shared modelfile directory as read-only
@@ -81,7 +81,7 @@ services:
     container_name: n8n
     restart: unless-stopped
     ports:
-      - 5678:5678
+      - 15678:5678
     volumes:
       - n8n_storage:/home/node/.n8n
       - ./n8n/demo-data:/demo-data
@@ -194,7 +194,7 @@ services:
       pgvector17:
         condition: service_healthy
     ports:
-      - "5050:80"
+      - "15050:80"
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
@@ -206,7 +206,7 @@ services:
     hostname: pgvector
     container_name: pgvector
     ports:
-     - 5555:5432
+     - 15555:5432
     restart: always
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
@@ -317,7 +317,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8001:8001"
+      - "18001:8001"
     extra_hosts:
       - "ollama:host-gateway"
     healthcheck:
@@ -342,7 +342,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8002:8002"
+      - "18002:8002"
     extra_hosts:
       - "ollama:host-gateway"
     healthcheck:
@@ -367,7 +367,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8003:8003"
+      - "18003:8003"
     extra_hosts:
       - "ollama:host-gateway"
     healthcheck:
@@ -388,7 +388,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8004:8004"
+      - "18004:8004"
     extra_hosts:
       - "ollama:host-gateway"
     healthcheck:
@@ -412,7 +412,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8006:8006"
+      - "18006:8006"
     extra_hosts:
       - "ollama:host-gateway"
     healthcheck:
@@ -437,7 +437,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8005:8005" 
+      - "18005:8005" 
     extra_hosts:
       - "ollama:host-gateway"
     healthcheck:
@@ -468,7 +468,7 @@ services:
     hostname: frontend
     networks: ['demo']
     ports:
-      - "7777:8080"
+      - "17777:8080"
     volumes:
       - ./frontend/public:/app/public
     extra_hosts:
@@ -517,7 +517,7 @@ services:
       context: .
       dockerfile: gateway/Dockerfile
     ports:
-      - "2323:2323"
+      - "12323:2323"
     depends_on:
       menu_service:
         condition: service_started
