@@ -1549,4 +1549,22 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
     setupSearch();
+    
+    // Handle hash navigation from menu suggestion
+    const hash = window.location.hash.replace('#', '');
+    if (hash === 'menu' || hash === 'flavors') {
+        switchTab(hash);
+        // Remove hash from URL after switching tab
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+    }
 });
+
+// Navigation function for menu suggestion
+function navigateToMenuSuggestion() {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+        window.location.href = `/menu-suggestion?token=${encodeURIComponent(token)}`;
+    } else {
+        window.location.href = '/login';
+    }
+}

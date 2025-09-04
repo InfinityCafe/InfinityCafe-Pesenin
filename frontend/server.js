@@ -852,32 +852,32 @@ app.get("/inventory/history", async (req, res) => {
 });
 
 // Audit History
-app.get("/inventory/stock/history", async (req,res) => {
-  try {
-    const { limit, action_type, performed_by } = req.query;
+// app.get("/inventory/stock/history", async (req,res) => {
+//   try {
+//     const { limit, action_type, performed_by } = req.query;
 
-    let queryParams = '';
-    if (limit || action_type || performed_by) {
-      queryParams = '?';
-      if (limit) queryParams += `limit=${encodeURIComponent(limit)}&`;
-      if (action_type) queryParams += `action_type=${encodeURIComponent(action_type)}&`;
-      if (performed_by) queryParams += `performed_by=${encodeURIComponent(performed_by)}&`;
-      queryParams = queryParams.slice(0, -1);
-    }
+//     let queryParams = '';
+//     if (limit || action_type || performed_by) {
+//       queryParams = '?';
+//       if (limit) queryParams += `limit=${encodeURIComponent(limit)}&`;
+//       if (action_type) queryParams += `action_type=${encodeURIComponent(action_type)}&`;
+//       if (performed_by) queryParams += `performed_by=${encodeURIComponent(performed_by)}&`;
+//       queryParams = queryParams.slice(0, -1);
+//     }
 
-    const resp = await fetch(`http://inventory_service:8006/stock/history${queryParams}`, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" }
-    });
+//     const resp = await fetch(`http://inventory_service:8006/stock/history${queryParams}`, {
+//       method: "GET",
+//       headers: { "Content-Type": "application/json" }
+//     });
 
-    const data = await resp.json();
-    res.status(resp.status).json(data);
+//     const data = await resp.json();
+//     res.status(resp.status).json(data);
 
-  } catch (err) {
-    console.error("Failed to get stock history", err);
-    res.status(500).json({ error: "Failed to get stock history" });
-  }
-});
+//   } catch (err) {
+//     console.error("Failed to get stock history", err);
+//     res.status(500).json({ error: "Failed to get stock history" });
+//   }
+// });
 
 app.patch("/inventory/toggle/:id", async (req, res) => {
   try {
@@ -984,28 +984,79 @@ app.post('/register', async (req, res) => {
   }
 });
 
+// JWT validation function
+function validateJWT(token) {
+  try {
+    if (!token) return false;
+    
+    // Split JWT into parts
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    
+    // Decode payload (middle part)
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    
+    // Check if token is expired
+    const currentTime = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < currentTime) {
+      console.log('Token expired');
+      return false;
+    }
+    
+    // Check if token has required fields
+    if (!payload.sub) {
+      console.log('Token missing subject');
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.log('JWT validation error:', error.message);
+    return false;
+  }
+}
+
+// Authentication middleware
+function requireAuth(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
+  
+  if (!token) {
+    console.log('No token provided');
+    return res.redirect('/login');
+  }
+  
+  // Validate JWT token
+  if (!validateJWT(token)) {
+    console.log('Invalid or expired token');
+    return res.redirect('/login');
+  }
+  
+  console.log('Token validated successfully');
+  next();
+}
+
 // ========== PAGE ROUTES ==========
 app.get("/", (req, res) => {
   res.redirect("/login");
 });
 
-app.get("/dashboard", (req, res) => {
+app.get("/dashboard", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.get("/menu-management", (req, res) => {
+app.get("/menu-management", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "menu.html"));
 });
 
-app.get("/reportkitchen", (req, res) => {
+app.get("/reportkitchen", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "report.html"));
 });
 
-app.get("/stock-management", (req, res) => {
+app.get("/stock-management", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "kelola-stok.html"));
 });
 
-app.get("/menu-suggestion", (req, res) => {
+app.get("/menu-suggestion", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "menu-suggestion.html"));
 });
 
