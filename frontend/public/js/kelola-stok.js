@@ -846,9 +846,12 @@ class InventoryManager {
     const isAvailable = isAvailTrue.checked;
 
     try {
+      const token = localStorage.getItem('access_token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const response = await fetch(`/inventory/toggle/${this.editingItem.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ is_available: isAvailable })
       });
 

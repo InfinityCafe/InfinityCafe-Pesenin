@@ -883,9 +883,10 @@ app.patch("/inventory/toggle/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const body = req.body;
+    const auth = req.headers["authorization"] || "";
     const resp = await fetch(`http://inventory_service:8006/toggle_ingredient_availability/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(auth ? { Authorization: auth } : {}) },
       body: JSON.stringify(body)
     });
     const data = await resp.json();
@@ -985,7 +986,7 @@ app.post('/register', async (req, res) => {
 
 // ========== PAGE ROUTES ==========
 app.get("/", (req, res) => {
-  res.redirect("/dashboard");
+  res.redirect("/login");
 });
 
 app.get("/dashboard", (req, res) => {
