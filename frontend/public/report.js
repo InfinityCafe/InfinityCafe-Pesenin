@@ -471,23 +471,25 @@ async function loadIngredientAnalysisData() {
                     for (const log of filteredLogs) {
                         const orderId = log.order_id;
                         const kitchenOrder = orderIdToKitchenOrder[orderId];
-                        
+
+                        // Only include orders that are completed (done); skip cancelled and others
+                        if (!kitchenOrder || kitchenOrder.status !== 'done') {
+                            continue;
+                        }
+
                         if (!orderDetails[orderId]) {
                             orderDetails[orderId] = {
                                 order_id: orderId,
                                 date: log.date,
-                                status: log.status,
-                                status_text: log.status === 'consumed' ? 'DIKONSUMSI' : 
-                                             log.status === 'rolled_back' ? 'DIBATALKAN' : 'PENDING',
+                                status: kitchenOrder.status,
+                                status_text: 'Selesai',
                                 ingredients_affected: log.ingredients_affected || 0,
-                                menu_items: kitchenOrder ? kitchenOrder.items : []
+                                menu_items: kitchenOrder.items || []
                             };
                         }
-                        
-                        console.log(`Log ${orderId} matched with kitchen order:`, kitchenOrder ? 'YES' : 'NO');
-                        if (kitchenOrder) {
-                            console.log(`Kitchen order items for ${orderId}:`, kitchenOrder.items);
-                        }
+
+                        console.log(`Log ${orderId} matched with kitchen order (status=${kitchenOrder.status}):`, 'YES');
+                        console.log(`Kitchen order items for ${orderId}:`, kitchenOrder.items);
                     }
                     
                     // Group by actual menu name and flavor from kitchen orders
@@ -571,7 +573,7 @@ async function loadIngredientAnalysisData() {
                 // Create daily rows
                 const dailyRows = Object.values(dailyGroups).map(group => ({
                     date: group.date,
-                    status_text: `${group.total_orders} pesanan`,
+                    status_text: `${group.total_orders} pesanan selesai`,
                     ingredients_affected: group.total_ingredients,
                     order_id: Array.from(group.order_ids)[0] || '',
                     // For daily view, we don't need menu_name and flavor
@@ -748,7 +750,7 @@ async function viewConsumptionDetails(orderId, dateStr, statusText) {
             }
         }
 
-        const res = await fetch(`/inventory/order/${encodeURIComponent(orderId)}/ingredients`);
+        const res = await fetch(`/report/order/${encodeURIComponent(orderId)}/ingredients`, { cache: 'no-store' });
         
         // Check if response is ok
         if (!res.ok) {
@@ -758,10 +760,10 @@ async function viewConsumptionDetails(orderId, dateStr, statusText) {
         const json = await res.json();
         
         // Handle different possible response structures
-        const details = json?.data?.ingredients_breakdown?.details || 
-                       json?.ingredients_breakdown?.details || 
-                       json?.details || 
-                       [];
+        const details = json?.ingredients_breakdown?.details ||
+                        json?.data?.ingredients_breakdown?.details ||
+                        json?.details ||
+                        [];
 
         if (!Array.isArray(details)) {
             console.warn('Expected array of details but got:', details);
