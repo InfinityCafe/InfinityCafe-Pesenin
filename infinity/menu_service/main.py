@@ -459,6 +459,7 @@ def delete_flavor_item(flavor_id: str, db: Session = Depends(get_db)):
     db.delete(db_flavor)
     db.commit()
     
+    # Return explicit non-null JSON response
     return {
         "status": "success",
         "message": "Varian rasa berhasil dihapus",

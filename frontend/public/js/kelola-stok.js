@@ -1,7 +1,42 @@
 // Kelola Stok Page JavaScript
 
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.remove('tab-active');
+  });
+
+  document.querySelectorAll('.tab-panel').forEach(panel => {
+    panel.classList.remove('active');
+  });
+
+  const activeButton = document.getElementById(`tab-${tab}`);
+  if (activeButton) {
+    activeButton.classList.add('tab-active');
+  }
+
+  const activePanel = document.getElementById(`tab-${tab}-content`);
+  if (activePanel) {
+    activePanel.classList.add('active');
+  }
+
+  const addItemBtn = document.getElementById('add-item-btn');
+    if (addItemBtn) {
+      addItemBtn.style.display = (tab === 'inventory') ? '' : 'none';
+  }
+
+  if (window.inventoryManager) {
+    window.inventoryManager.activeTab = tab;
+  }
+
+  if (tab === 'inventory' && window.inventoryManager) {
+    window.inventoryManager.loadInventoryData();
+  } else if (tab === 'audit-history' && window.inventoryManager) {
+    window.inventoryManager.loadAuditHistoryData(true);
+  } 
+}
 class InventoryManager {
   constructor() {
+    this.activeTab = 'inventory';
     this.inventory = [];
     this.filteredInventory = [];
     this.currentPage = 1;
@@ -13,6 +48,21 @@ class InventoryManager {
     this.isUserInteracting = false;
     this.currentFilters = { category: '', unit: '', status: '' };
     this.currentSearchTerm = '';
+    this.currentSort = '';
+    this.auditHistory = [];
+    this.filteredAuditHistory =[];
+    this.currentAuditPage = 1;
+    this.auditItemsPerPage = 10;
+    this.totalAuditPages = 1;
+    this.currentAuditFilters = { 
+      sort: '', 
+      actionType: '', 
+      dateRange: '', 
+      user: '' 
+    };
+    this.currentAuditSearchTerm = '';
+    this.auditLoaded = false;
+    this.viewingAuditId = null;
 
     this.initializeEventListeners();
     this.initialLoad();
@@ -58,7 +108,7 @@ class InventoryManager {
       this.closeModal('change-status-modal');
     });
 
-    const searchInput = document.getElementById('table-search');
+    const searchInput = document.getElementById('inventory-search');
     if (searchInput) {
       searchInput.addEventListener('focus', () => {
         this.isUserInteracting = true;
@@ -128,20 +178,20 @@ class InventoryManager {
       this.openAddStockModal();
     });
     // History button
-    safeAddEventListener('history-btn', 'click', () => {
-      this.openStockHistoryModal();
-    });
-    safeAddEventListener('close-stock-history-modal', 'click', () => {
-      this.closeModal('stock-history-modal');
-    });
-    safeAddEventListener('refresh-history-btn', 'click', () => {
-      this.loadStockHistory();
-    });
-    safeAddEventListener('history-search', 'input', (e) => {
-      this.filterStockHistory(e.target.value);
-    });
-    const actionFilter = document.getElementById('history-action-filter');
-    if (actionFilter) actionFilter.addEventListener('change', () => this.loadStockHistory());
+    // safeAddEventListener('history-btn', 'click', () => {
+    //   this.openStockHistoryModal();
+    // });
+    // safeAddEventListener('close-stock-history-modal', 'click', () => {
+    //   this.closeModal('stock-history-modal');
+    // });
+    // safeAddEventListener('refresh-history-btn', 'click', () => {
+    //   this.loadStockHistory();
+    // });
+    // safeAddEventListener('history-search', 'input', (e) => {
+    //   this.filterStockHistory(e.target.value);
+    // });
+    // const actionFilter = document.getElementById('history-action-filter');
+    // if (actionFilter) actionFilter.addEventListener('change', () => this.loadStockHistory());
     // Consumption log button
     safeAddEventListener('consumption-log-btn', 'click', () => {
       this.openConsumptionLogModal();
@@ -170,6 +220,23 @@ class InventoryManager {
 
     safeAddEventListener('log-search', 'input', (e) => {
       this.filterConsumptionLogs(e.target.value);
+    });
+
+    safeAddEventListener('audit-history-search', 'input', (e) => {
+      this.currentAuditSearchTerm = e.target.value.toLowerCase().trim();
+      this.applyAuditFiltersAndSearch(true);
+    });
+
+    safeAddEventListener('audit-history-page-size', 'change', () => {
+      this.changeAuditHistoryPageSize();
+    });
+
+    safeAddEventListener('audit-history-prev-btn', 'click', () => {
+      this.changeAuditHistoryPage(-1);
+    });
+
+    safeAddEventListener('audit-history-next-btn', 'click', () => {
+      this.changeAuditHistoryPage(1);
     });
   }
   
@@ -222,7 +289,11 @@ class InventoryManager {
       const listResponse = await fetch('/inventory/list');
       const listData = await listResponse.json();
 
-      this.inventory = Array.isArray(listData.data) ? listData.data : [];
+      const newInventory = Array.isArray(listData.data) ? listData.data : [];
+
+      const hasChanged = JSON.stringify(newInventory) !== JSON.stringify(this.inventory);
+
+      this.inventory = newInventory;
 
       if (forceFullReload) {
         this.filteredInventory = [...this.inventory];
@@ -233,10 +304,12 @@ class InventoryManager {
         this.applyCurrentFiltersAndSearch();
       }
 
-      this.renderInventoryTable();
-      this.updateOverviewCards();
-      if (forceFullReload) {
-        this.populateDynamicFilters();
+      if (hasChanged || forceFullReload) {
+        this.renderInventoryTable();
+        this.updateOverviewCards();
+        if (forceFullReload) {
+          this.populateDynamicFilters();
+        }
       }
     } catch (error) {
       console.error('Gagal memuat dan me-refresh data:', error);
@@ -268,6 +341,7 @@ class InventoryManager {
     }
 
     this.filteredInventory = tempInventory;
+    this.applySorting(this.filteredInventory);
 
     if (resetPage) {
       this.currentPage = 1;
@@ -281,16 +355,34 @@ class InventoryManager {
     this.renderInventoryTable();
   }
 
+  applySorting(inventoryArray) {
+    if (this.currentSort === 'a-z') {
+        inventoryArray.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (this.currentSort === 'z-a') {
+        inventoryArray.sort((a, b) => b.name.localeCompare(a.name));
+    }
+  }
+
   startPolling() {
     console.log("Memulai polling cerdas setiap 3 detik...");
     if (this.pollingInterval) {
       clearInterval(this.pollingInterval);
     }
 
-    this.pollingInterval = setInterval(() => {
+    this.pollingInterval = setInterval(async () => {
       if (!this.isUserInteracting) {
-        console.log("Polling: Mengambil data inventaris terbaru...");
-        this.loadAndRefreshData();
+        console.log("Polling: Mengambil data terbaru...");
+        try {
+          if (this.activeTab === 'inventory') {
+            await this.loadAndRefreshData();
+          } else if (this.activeTab === 'audit-history') {
+            await this.loadAuditHistoryData(true);
+          }
+        } catch (error) {
+          console.error('Polling error:', error);
+          this.showError('Gagal memperbarui data. Coba lagi nanti.');
+        }
+        // this.loadAndRefreshData();
       } else {
         console.log("Polling: Dilewati karena pengguna sedang berinteraksi.");
       }
@@ -352,7 +444,8 @@ class InventoryManager {
     this.currentFilters = { category: '', unit: '', status: '' };
     this.currentSearchTerm = '';
     this.currentPage = 1;
-
+    
+    this.applyCurrentFiltersAndSearch();
     this.populateDynamicFilters();
     
     // Update overview cards with sample data
@@ -361,8 +454,7 @@ class InventoryManager {
       critical_count: sampleInventory.filter(item => item.current_quantity <= 0).length,
       low_stock_count: sampleInventory.filter(item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length,
     });
-
-    this.renderInventoryTable();
+    
     console.log('Sample data loaded and table rendered');
   }
 
@@ -428,7 +520,7 @@ class InventoryManager {
           </td>
         </tr>
       `;
-      const tableInfo = document.getElementById('table-info');
+      const tableInfo = document.getElementById('inventory-table-info');
       if (tableInfo) {
         tableInfo.textContent = 'Showing 0 of 0 entries';
       }
@@ -442,7 +534,7 @@ class InventoryManager {
         const row = this.createTableRow(item, startIndex + index + 1);
         tbody.appendChild(row);
       });
-      const tableInfo = document.getElementById('table-info');
+      const tableInfo = document.getElementById('inventory-table-info');
       if (tableInfo) {
         tableInfo.textContent = `Showing ${startIndex + 1} to ${Math.min(endIndex, this.filteredInventory.length)} of ${this.filteredInventory.length} entries`;
       }
@@ -598,6 +690,7 @@ class InventoryManager {
       unit: unitFilter.value,
       status: statusFilter.value
     };
+    this.currentSort = sortFilter.value;
 
     this.applyCurrentFiltersAndSearch(true);
 
@@ -625,9 +718,12 @@ class InventoryManager {
     if (sortFilter) sortFilter.value = '';
 
     this.currentFilters = { category: '', unit: '', status: '' };
+    this.currentSort = '';
     this.currentSearchTerm = '';
+    
     this.isUserInteracting = false;
     this.applyCurrentFiltersAndSearch(true);
+    // this.toggleFilterStock();
   }
 
   changeStockPage(direction) {
@@ -666,7 +762,34 @@ class InventoryManager {
     const statusElement = document.getElementById('view-item-status');
     statusElement.innerHTML = `<span class="${status.class}">${status.text}</span>`;
     this.showModal('view-item-modal');
-  ;
+  }
+
+  closeViewItemModal() {
+    this.closeModal('view-item-modal');
+    document.getElementById('view-item-modal').removeAttribute('data-item-id');
+  }
+
+  editFromView() {
+    const itemId = document.getElementById('view-item-modal').getAttribute('data-item-id');
+    if (!itemId) {
+      this.showError('No item selected for editing');
+      return;
+    }
+
+    this.closeViewItemModal();
+
+    setTimeout(() => {
+      this.editItem(parseInt(itemId));
+    }, 50);
+  }
+
+  openAddItemModal() {
+    this.editingItem = null;
+    const modalTitle = document.getElementById('modal-title');
+    const itemForm = document.getElementById('item-form');
+    if (modalTitle) modalTitle.textContent = 'Add New Item';
+    if (itemForm) itemForm.reset();
+    this.showModal('item-modal');
   }
 
   editItem(itemId) {
@@ -732,9 +855,12 @@ class InventoryManager {
     const isAvailable = isAvailTrue.checked;
 
     try {
+      const token = localStorage.getItem('access_token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const response = await fetch(`/inventory/toggle/${this.editingItem.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ is_available: isAvailable })
       });
 
@@ -818,7 +944,7 @@ class InventoryManager {
           await fetch('/inventory/stock/add', {
             method: 'POST',
             headers,
-            body: JSON.stringify({ ingredient_id: newId, quantity: itemData.current_quantity, notes: itemData.notes || 'Initial stock (opname) on create' })
+            body: JSON.stringify({ ingredient_id: newId, add_quantity: itemData.current_quantity, notes: itemData.notes || 'Initial stock (opname) on create' })
           });
         }
         response = new Response(JSON.stringify({ status: 'success' }), { status: 200 });
@@ -926,47 +1052,31 @@ class InventoryManager {
   }
 
   showSuccess(message) {
-    // Simple success notification
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #379777;
-      color: white;
-      padding: 1rem;
-      border-radius: 5px;
-      z-index: 1001;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    `;
-    notification.textContent = message;
-    document.body.appendChild(notification);
+    const modal = document.getElementById('success-modal');
+    const messageElement = document.getElementById('success-message');
 
-    setTimeout(() => {
-      notification.remove();
-    }, 3000);
+    if (modal && messageElement) {
+      messageElement.textContent = message;
+      modal.classList.remove('hidden');
+    } else {
+      // Fallback jika modal tidak ditemukan
+      console.log('SUCCESS:', message);
+      alert(message);
+    }
   }
 
   showError(message) {
-    // Simple error notification
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #B3261E;
-      color: white;
-      padding: 1rem;
-      border-radius: 5px;
-      z-index: 1001;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    `;
-    notification.textContent = message;
-    document.body.appendChild(notification);
+    const modal = document.getElementById('error-modal');
+    const messageElement = document.getElementById('error-message');
 
-    setTimeout(() => {
-      notification.remove();
-    }, 3000);
+    if (modal && messageElement) {
+      messageElement.textContent = message;
+      modal.classList.remove('hidden');
+    } else {
+      // Fallback jika modal tidak ditemukan
+      console.error('ERROR:', message);
+      alert(message);
+    }
   }
 
   handleKitchenToggle(isOpen) {
@@ -1019,7 +1129,8 @@ class InventoryManager {
       const statuses = [
           { value: 'in-stock', text: 'In Stock' },
           { value: 'low-stock', text: 'Low Stock' },
-          { value: 'out-of-stock', text: 'Out of Stock' }
+          { value: 'out-of-stock', text: 'Out of Stock' },
+          { value: 'unavailable', text: 'Unavailable' }
       ];
 
       categoryFilter.innerHTML = '<option value="">All Categories</option>';
@@ -1068,14 +1179,17 @@ class InventoryManager {
     const formData = new FormData(addStockForm);
     const stockData = {
       ingredient_id: parseInt(formData.get('ingredient_id')),
-      quantity: parseFloat(formData.get('quantity')),
+      add_quantity: parseFloat(formData.get('quantity')),
       notes: formData.get('notes') || ''
     };
 
     try {
+      const token = localStorage.getItem('access_token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const response = await fetch('/inventory/stock/add', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(stockData)
       });
 
@@ -1085,13 +1199,441 @@ class InventoryManager {
         this.loadAndRefreshData();
         document.getElementById('add-stock-form').reset();
       } else {
-        const errorData = await response.json();
-        this.showError(errorData.error || 'Failed to add stock');
+        let errorMsg = 'Failed to add stock';
+        try { const errorData = await response.json(); errorMsg = errorData.error || errorData.message || errorMsg; } catch (_) {}
+        if (response.status === 401) errorMsg = 'Unauthorized: silakan login ulang.';
+        this.showError(errorMsg);
       }
     } catch (error) {
       console.error('Error adding stock:', error);
       this.showError('Failed to add stock');
     }
+  }
+
+  async loadAuditHistoryData(forceReload = false) {
+    try {
+      const response = await fetch('/inventory/stock/history?limit=1000')
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === 'success') {
+          const newAuditHistory = data.data.history || [];
+
+          const hasChanged = JSON.stringify(newAuditHistory) !== JSON.stringify(this.auditHistory);
+
+          this.auditHistory = newAuditHistory;
+          this.filteredAuditHistory = [...this.auditHistory];
+
+          if (hasChanged || forceReload) {
+            this.populateAuditFilters();
+            this.applyAuditFiltersAndSearch(true);
+          }
+        
+          this.auditLoaded = true;
+        } else {
+          this.showError(data.message || 'Failed to load audit history');
+        }
+      } else {
+        this.showError('Failed to load audit history');
+      }
+    } catch (error) {
+      console.error('Error loading audit history:', error);
+      this.showError('Failed to load audit history');
+    }
+  }
+
+  populateAuditFilters() {
+    // Populate user filter
+    const userFilter = document.getElementById('audit-user-filter');
+    if (userFilter) {
+      const uniqueUsers = [...new Set(this.auditHistory.map(item => item.performed_by).filter(Boolean))];
+      userFilter.innerHTML = '<option value="">All Users</option>';
+      uniqueUsers.sort().forEach(user => {
+        const option = document.createElement('option');
+        option.value = user;
+        option.textContent = user;
+        userFilter.appendChild(option);
+      });
+    }
+  }
+
+  applyAuditFiltersAndSearch(resetPage = false) {
+    let temp = [...this.auditHistory];
+
+    // Search filter
+    if (this.currentAuditSearchTerm) {
+      temp = temp.filter(item =>
+        (item.ingredient_name && item.ingredient_name.toLowerCase().includes(this.currentAuditSearchTerm)) ||
+        (item.performed_by && item.performed_by.toLowerCase().includes(this.currentAuditSearchTerm)) ||
+        (item.notes && item.notes.toLowerCase().includes(this.currentAuditSearchTerm))
+      );
+    }
+
+    // Action type filter
+    if (this.currentAuditFilters.actionType) {
+      temp = temp.filter(item => 
+        item.action_type && item.action_type.toLowerCase() === this.currentAuditFilters.actionType.toLowerCase()
+      );
+    }
+
+    // Date range filter
+    if (this.currentAuditFilters.dateRange) {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      temp = temp.filter(item => {
+        if (!item.created_at) return false;
+        const itemDate = this.parseDate(item.created_at);
+
+        // const itemDate = new Date(item.created_at);
+        
+        switch (this.currentAuditFilters.dateRange) {
+          case 'today':
+            return itemDate >= today;
+          case 'week':
+            const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+            return itemDate >= weekAgo;
+          case 'month':
+            const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            return itemDate >= firstOfMonth;
+          case 'quarter':
+            const quarterStartMonth = Math.floor(today.getMonth() / 3) * 3;
+            const firstOfQuarter = new Date(today.getFullYear(), quarterStartMonth, 1);
+            return itemDate >= firstOfQuarter;
+          case 'year':
+            const firstOfYear = new Date(today.getFullYear(), 0, 1);
+            return itemDate >= firstOfYear;
+          default:
+            return true;
+        }
+      });
+    }
+
+    // User filter
+    if (this.currentAuditFilters.user) {
+      temp = temp.filter(item => 
+        item.performed_by && item.performed_by.toLowerCase() === this.currentAuditFilters.user.toLowerCase()
+      );
+    }
+
+    // Sort filter
+    const sort = this.currentAuditFilters.sort;
+    if (sort === 'a-z') {
+      temp.sort((a, b) => (a.ingredient_name || '').localeCompare(b.ingredient_name || ''));
+    } else if (sort === 'z-a') {
+      temp.sort((a, b) => (b.ingredient_name || '').localeCompare(a.ingredient_name || ''));
+    }
+    
+    this.filteredAuditHistory = temp;
+    this.totalAuditPages = Math.ceil(this.filteredAuditHistory.length / this.auditItemsPerPage) || 1;
+
+    if (resetPage) {
+      this.currentAuditPage = 1;
+    } else if (this.currentAuditPage > this.totalAuditPages) {
+      this.currentAuditPage = this.totalAuditPages;
+    }
+
+    this.renderAuditHistoryTable();
+  }
+
+  parseDate(dateStr) {
+    if (!dateStr) return null;
+      const parts = dateStr.trim().split(/[\s\/:]+/);
+      if (parts.length < 3) return null;
+
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) -1;
+      const year = parseInt(parts[2], 10);
+      let hour = 0, minute = 0, second = 0;
+      if (parts.length > 3) {
+        hour = parseInt(parts[3], 10) || 0;
+        if (parts.length > 4) minute = parseInt(parts[4], 10) || 0;
+        if (parts.length > 5) second = parseInt(parts[5], 10) || 0;
+      }
+
+      const parsed = new Date(year, month, day, hour, minute, second);
+      return isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  renderAuditHistoryTable() {
+    const tbody = document.getElementById('audit-history-tbody');
+    if (!tbody) {
+      console.warn("Audit history table body not found in DOM");
+      return;
+    }
+
+    tbody.innerHTML = '';
+
+    const startIndex = (this.currentAuditPage -1) * this.auditItemsPerPage;
+    const endIndex = startIndex + this.auditItemsPerPage;
+    const pageData = this.filteredAuditHistory.slice(startIndex, endIndex);
+
+    if (!this.filteredAuditHistory.length) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="8" style="text-align: center; padding: 1rem;">
+            No audit history found
+          </td>
+        </tr>
+      `;
+    } else {
+      pageData.forEach((item, index) => {
+        const row = this.createAuditTableRow(item, startIndex + index + 1);
+        tbody.appendChild(row); 
+      });
+    }
+
+    const tableInfo = document.getElementById('audit-history-table-info');
+    if (tableInfo) {
+      tableInfo.textContent = `Showing ${startIndex + 1} to ${Math.min(endIndex, this.filteredAuditHistory.length)} of ${this.filteredAuditHistory.length} entries`;
+    }
+
+    this.renderAuditPagination();
+  }
+
+  createAuditTableRow(item, rowNumber) {
+    const row = document.createElement('tr');
+    
+    // Format date
+    // const date = item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', {
+    //   year: 'numeric',
+    //   month: 'short',
+    //   day: 'numeric',
+    //   hour: '2-digit',
+    //   minute: '2-digit'
+    // }) : 'N/A';
+    
+    // Format action type with badge
+    const actionType = item.action_type || 'N/A';
+    const actionBadge = `<span class="status-badge status-${this.getActionTypeClass(actionType)}">${actionType}</span>`;
+    
+    row.innerHTML = `
+      <td>${rowNumber}</td>
+      <td>${item.ingredient_name || 'N/A'}</td>
+      <td>${actionBadge}</td>
+      <td>${(item.quantity_before != null ? item.quantity_before.toFixed(2) : 'N/A')}</td>
+      <td>${(item.quantity_after != null ? item.quantity_after.toFixed(2) : 'N/A')}</td>
+      <td>${(item.quantity_changed != null ? item.quantity_changed.toFixed(2) : 'N/A')}</td>
+      <td>${item.performed_by || 'N/A'}</td>
+      <td class="action-header">
+        <button class="table-action-btn" onclick="inventoryManager.viewAuditHistory(${item.id})"><i class="fas fa-eye"></i></button>
+      </td>
+    `;
+    return row;
+  }
+
+  getActionTypeClass(actionType) {
+    const actionMap = {
+      'consume': 'success',
+      'edit_stock': 'success',
+      'edit_minimum': 'success',
+      'rollback': 'warning',
+      'restock': 'success',
+      'make_available': 'success',
+      'make_unavailable': 'danger'
+    };
+    return actionMap[actionType.toLowerCase()] || 'default';
+  }
+
+  renderAuditPagination() {
+    const pageNumbers = document.getElementById('audit-history-page-numbers');
+    if (!pageNumbers) return;
+
+    const paginationInfo = document.getElementById('audit-history-pagination-info');
+    if (paginationInfo) {
+      paginationInfo.textContent = `Page ${this.currentAuditPage} of ${this.totalAuditPages}`;
+    }
+
+    const prevBtn = document.getElementById('audit-history-prev-btn');
+    const nextBtn = document.getElementById('audit-history-next-btn');
+    
+    // If all data fits on one page, disable navigation and show only "1"
+    if (this.totalAuditPages <= 1) {
+      if (prevBtn) prevBtn.disabled = true;
+      if (nextBtn) nextBtn.disabled = true;
+      
+      pageNumbers.innerHTML = '';
+      const pageBtn = document.createElement('button');
+      pageBtn.className = 'page-number active';
+      pageBtn.textContent = '1';
+      pageBtn.disabled = true;
+      pageNumbers.appendChild(pageBtn);
+      return;
+    }
+
+    // Normal pagination for multiple pages
+    if (prevBtn) prevBtn.disabled = this.currentAuditPage === 1;
+    if (nextBtn) nextBtn.disabled = this.currentAuditPage === this.totalAuditPages;
+
+    pageNumbers.innerHTML = '';
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, this.currentAuditPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(this.totalAuditPages, startPage + maxVisiblePages - 1);
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      const pageBtn = document.createElement('button');
+      pageBtn.className = `page-number ${i === this.currentAuditPage ? 'active' : ''}`;
+      pageBtn.textContent = i;
+      pageBtn.onclick = () => {
+        this.currentAuditPage = i;
+        this.renderAuditHistoryTable();
+      };
+      pageNumbers.appendChild(pageBtn);
+    }
+  }
+
+  changeAuditHistoryPage(direction) {
+    this.currentAuditPage += direction;
+    if (this.currentAuditPage < 1) this.currentAuditPage = 1;
+    if (this.currentAuditPage > this.totalAuditPages) this.currentAuditPage = this.totalAuditPages;
+    this.renderAuditHistoryTable();
+  }
+
+  changeAuditHistoryPageSize() {
+    const entriesPerPage = document.getElementById('audit-history-page-size');
+    if (entriesPerPage) {
+      this.auditItemsPerPage = parseInt(entriesPerPage.value);
+      this.currentAuditPage = 1;
+      this.renderAuditHistoryTable();
+    }
+  }
+
+  toggleFilterAuditHistory() {
+    const dropdown = document.getElementById('audit-history-filter-dropdown');
+    const filterBtn = document.querySelector('#tab-audit-history-content .filter-btn');
+    if (!dropdown || !filterBtn) return;
+
+    const isShown = dropdown.classList.toggle('show');
+
+    if (isShown) {
+      const btnRect = filterBtn.getBoundingClientRect();
+      const table = document.getElementById('audit-history-table');
+      let maxHeight = 200;
+
+      const availableHeight = window.innerHeight - btnRect.bottom - 20;
+
+      let tableHeight = availableHeight; 
+      if (table) {
+        const tableRect = table.getBoundingClientRect();
+        tableHeight = tableRect.height;
+      }
+
+      maxHeight = Math.min(availableHeight, tableHeight, 450);
+      maxHeight = Math.max(300, maxHeight); 
+
+      dropdown.style.maxHeight = maxHeight + 'px';
+    } else {
+      dropdown.style.maxHeight = 'none';
+    }
+
+    // if (isShown) {
+    //   const btnRect = filterBtn.getBoundingClientRect();
+    //   const availableHeight = window.innerHeight - btnRect.bottom - 20;
+    //   dropdown.style.maxHeight = Math.max(200, availableHeight) + 'px';
+    // } else {
+    //   dropdown.style.maxHeight = 'none'
+    // }
+  }
+
+  applyAuditHistoryFilter() {
+    const sortFilter = document.getElementById('audit-sort-filter');
+    const actionFilter = document.getElementById('audit-action-filter');
+    const dateFilter = document.getElementById('audit-date-filter');
+    const userFilter = document.getElementById('audit-user-filter');
+    
+    if (sortFilter) this.currentAuditFilters.sort = sortFilter.value;
+    if (actionFilter) this.currentAuditFilters.actionType = actionFilter.value;
+    if (dateFilter) this.currentAuditFilters.dateRange = dateFilter.value;
+    if (userFilter) this.currentAuditFilters.user = userFilter.value;
+    
+    this.applyAuditFiltersAndSearch(true);
+    this.toggleFilterAuditHistory();
+  }
+
+  clearAuditHistoryFilter() {
+    const sortFilter = document.getElementById('audit-sort-filter');
+    const actionFilter = document.getElementById('audit-action-filter');
+    const dateFilter = document.getElementById('audit-date-filter');
+    const userFilter = document.getElementById('audit-user-filter');
+    const searchInput = document.getElementById('audit-history-search');
+    
+    if (sortFilter) sortFilter.value = '';
+    if (actionFilter) actionFilter.value = '';
+    if (dateFilter) dateFilter.value = '';
+    if (userFilter) userFilter.value = '';
+    if (searchInput) searchInput.value = '';
+    
+    this.currentAuditFilters.sort = '';
+    this.currentAuditFilters.actionType = '';
+    this.currentAuditFilters.dateRange = '';
+    this.currentAuditFilters.user = '';
+    this.currentAuditSearchTerm = '';
+    
+    this.applyAuditFiltersAndSearch(true);
+    this.toggleFilterAuditHistory();
+  }
+
+  viewAuditHistory(id) {
+    const item = this.auditHistory.find(h => h.id === id);
+    if (!item) {
+      this.showError('Audit history item not found');
+      return;
+    }
+
+    let date = 'N/A';
+    if (item.created_at) {
+      // Asumsikan format input 'DD/MM/YYYY' atau 'DD/MM/YYYY HH:MM:SS'
+      const parts = item.created_at.trim().split(/[\s\/:]+/); // Split oleh space, slash, atau colon
+      if (parts.length >= 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1; // Bulan di JS mulai dari 0
+        const year = parseInt(parts[2], 10);
+        let hour = 0, minute = 0, second = 0;
+        if (parts.length > 3) {
+          hour = parseInt(parts[3], 10) || 0;
+          minute = parseInt(parts[4], 10) || 0;
+          second = parseInt(parts[5], 10) || 0;
+        }
+        const parsedDate = new Date(year, month, day, hour, minute, second);
+        if (!isNaN(parsedDate.getTime())) {
+          date = parsedDate.toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+          });
+        } else {
+          date = 'Invalid Date';
+        }
+      }
+    }
+
+    // const date = item.created_at ? new Date(item.created_at).toLocaleDateString('en-GB', {
+    //   day: 'numeric',
+    //   month: 'short',
+    //   year: 'numeric',
+    //   hour: '2-digit',
+    //   minute: '2-digit',
+    //   second: '2-digit',
+    //   hour12: false
+    // }) : 'N/A';
+
+    document.getElementById('view-audit-ingredient-name').textContent = item.ingredient_name || 'N/A';
+    document.getElementById('view-audit-action-type').textContent = item.action_type || 'N/A';
+    document.getElementById('view-audit-quantity-before').textContent = (item.quantity_before != null ? item.quantity_before.toFixed(2) : 'N/A');
+    document.getElementById('view-audit-quantity-after').textContent = (item.quantity_after != null ? item.quantity_after.toFixed(2) : 'N/A');
+    document.getElementById('view-audit-quantity-changed').textContent = (item.quantity_changed != null ? item.quantity_changed.toFixed(2) : 'N/A');
+    document.getElementById('view-audit-performed-by').textContent = item.performed_by || 'N/A';
+    document.getElementById('view-audit-notes').textContent = item.notes || 'N/A';
+    document.getElementById('view-audit-created-at').textContent = date || 'N/A';
+    document.getElementById('view-audit-order-id').textContent = item.order_id || 'N/A';
+
+    this.showModal('view-audit-modal');
   }
 
   // Consumption Log Modal Methods
@@ -1257,6 +1799,18 @@ window.closeViewItemModal = function() {
 window.editFromView = function() {
   if (window.inventoryManager) {
     window.inventoryManager.editFromView();
+  }
+};
+
+window.closeSuccessModal = function() {
+  if (window.inventoryManager) {
+    window.inventoryManager.closeModal('success-modal');
+  }
+};
+
+window.closeErrorModal = function() {
+  if (window.inventoryManager) {
+    window.inventoryManager.closeModal('error-modal');
   }
 };
 

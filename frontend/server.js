@@ -3,6 +3,7 @@ const path = require("path");
 const swaggerUi = require("swagger-ui-express");
 const swaggerJsdoc = require("swagger-jsdoc");
 const fetch = require("node-fetch");
+const { error } = require("console");
 
 const app = express();
 const PORT = 8080;
@@ -22,7 +23,7 @@ const swaggerSpec = swaggerJsdoc({
       version: "1.0.0",
       description: "Dokumentasi untuk frontend Infinity Cafe",
     },
-    servers: [{ url: "http://localhost:8080" }],
+    servers: [{ url: "http://frontend:8080" }],
   },
   apis: ["./server.js"],
 });
@@ -194,10 +195,24 @@ app.get("/menu", async (req, res) => {
   try {
     const resp = await fetch("http://menu_service:8001/menu");
     const data = await resp.json();
+    res.set('Cache-Control', 'no-store');
     res.json(data);
   } catch (err) {
     console.error("Failed to fetch menu ", err);
     res.status(500).json({ error: "Failed to fetch menu" });
+  }
+});
+
+// Admin passthrough for all menus (same as list, explicit path)
+app.get("/menu/all", async (req, res) => {
+  try {
+    const resp = await fetch("http://menu_service:8001/menu");
+    const data = await resp.json();
+    res.set('Cache-Control', 'no-store');
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to fetch all menus ", err);
+    res.status(500).json({ error: "Failed to fetch all menus" });
   }
 });
 
@@ -287,6 +302,38 @@ app.put("/menu/:menu_id", async (req, res) => {
   }
 });
 
+// Update menu recipe (menu service)
+app.post("/menu/:menu_id/recipe", async (req, res) => {
+  try {
+    const { menu_id } = req.params;
+    const body = req.body;
+    const resp = await fetch(`http://menu_service:8001/menu/${menu_id}/recipe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to update menu recipe", err);
+    res.status(500).json({ error: "Failed to update menu recipe" });
+  }
+});
+
+app.get("/menu/:menu_id/recipe", async (req, res) => {
+  try {
+    const { menu_id } = req.params;
+    const resp = await fetch(`http://menu_service:8001/menu/${menu_id}/recipe`, {
+      method: "GET"
+    });
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to load menu recipe", err);
+    res.status(500).json({ error: "Failed to load menu recipe" });
+  }
+});
+
 app.delete("/menu/:menu_id", async (req, res) => {
   try {
     const { menu_id } = req.params;
@@ -302,6 +349,17 @@ app.delete("/menu/:menu_id", async (req, res) => {
 });
 
 // Flavor endpoints
+app.get("/flavors/all", async (req, res) => {
+  try {
+    const resp = await fetch("http://menu_service:8001/flavors/all");
+    const data = await resp.json();
+    res.set('Cache-Control', 'no-store');
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to fetch all flavors ", err);
+    res.status(500).json({ error: "Failed to fetch all flavors" });
+  }
+});
 app.get("/flavors", async (req, res) => {
   try {
     const resp = await fetch("http://menu_service:8001/flavors");
@@ -364,7 +422,17 @@ app.delete("/flavors/:flavor_id", async (req, res) => {
     const resp = await fetch(`http://menu_service:8001/flavors/${flavor_id}`, {
       method: "DELETE"
     });
-    const data = await resp.json();
+    let data;
+    try {
+      data = await resp.json();
+    } catch (_) {
+      // Fallback when backend returns empty body
+      data = {
+        status: resp.ok ? "success" : "error",
+        message: resp.ok ? "Flavor deleted" : `HTTP ${resp.status}: ${resp.statusText}`,
+        data: { id: flavor_id }
+      };
+    }
     res.status(resp.status).json(data);
   } catch (err) {
     console.error("Failed to delete flavor ", err);
@@ -507,24 +575,73 @@ app.get("/inventory/list", async (req, res) => {
   }
 });
 
-app.get("/inventory/order/:orderId/ingredients", async (req, res) => {
+app.get("/report/order/:orderId/ingredients", async (req, res) => {
   try {
     const { orderId } = req.params;
     
     // Encode the orderId for the internal service call
     const encodedOrderId = encodeURIComponent(orderId);
     
-    const resp = await fetch(`http://inventory_service:8006/order/${encodedOrderId}/ingredients`, {
+    const resp = await fetch(`http://report_service:8004/report/order/${encodedOrderId}/ingredients`, {
       method: "GET",
       headers: { "Content-Type": "application/json" }
     });
 
-    const data = await resp.json();
-    res.status(resp.status).json(data);
+    if (resp.ok) {
+      const data = await resp.json();
+      return res.status(resp.status).json(data);
+    }
+
+    // Fallback: if report service doesn't have the endpoint or returns 404,
+    // emulate the behavior here ensuring only 'done' orders are returned
+    if (resp.status === 404) {
+      try {
+        const statusResp = await fetch(`http://order_service:8002/order_status/${encodedOrderId}`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" }
+        });
+        const statusJson = await statusResp.json().catch(() => ({}));
+        const orderStatus = (statusJson && statusJson.data && statusJson.data.status) || null;
+
+        if (orderStatus !== "done") {
+          return res.status(200).json({
+            status: "success",
+            order_id: orderId,
+            message: `Order ${orderId} tidak berstatus 'done'`,
+            ingredients_breakdown: { details: [] }
+          });
+        }
+
+        // Fetch from inventory service for actual breakdown details
+        const invResp = await fetch(`http://inventory_service:8006/order/${encodedOrderId}/ingredients`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" }
+        });
+
+        const invJson = await invResp.json().catch(() => ({}));
+        const details = (invJson && invJson.data && invJson.data.ingredients_breakdown && invJson.data.ingredients_breakdown.details)
+          || (invJson && invJson.ingredients_breakdown && invJson.ingredients_breakdown.details)
+          || invJson.details
+          || [];
+
+        return res.status(200).json({
+          status: "success",
+          order_id: orderId,
+          ingredients_breakdown: { details: Array.isArray(details) ? details : [] }
+        });
+      } catch (fallbackErr) {
+        console.error("Fallback failed for order ingredients details", fallbackErr);
+        return res.status(500).json({ error: "Failed to get order ingredients details via fallback" });
+      }
+    }
+
+    // Any other error from report service
+    const text = await resp.text().catch(() => "");
+    return res.status(resp.status).send(text || { error: "Upstream error" });
 
   } catch (err) {
-    console.error("Failed to get order ingredients details", err);
-    res.status(500).json({ error: "Failed to get order ingredients details" });
+    console.error("Failed to get order ingredients details via report service", err);
+    res.status(500).json({ error: "Failed to get order ingredients details via report service" });
   }
 });
 
@@ -783,13 +900,42 @@ app.get("/inventory/history", async (req, res) => {
   }
 });
 
+// Audit History
+// app.get("/inventory/stock/history", async (req,res) => {
+//   try {
+//     const { limit, action_type, performed_by } = req.query;
+
+//     let queryParams = '';
+//     if (limit || action_type || performed_by) {
+//       queryParams = '?';
+//       if (limit) queryParams += `limit=${encodeURIComponent(limit)}&`;
+//       if (action_type) queryParams += `action_type=${encodeURIComponent(action_type)}&`;
+//       if (performed_by) queryParams += `performed_by=${encodeURIComponent(performed_by)}&`;
+//       queryParams = queryParams.slice(0, -1);
+//     }
+
+//     const resp = await fetch(`http://inventory_service:8006/stock/history${queryParams}`, {
+//       method: "GET",
+//       headers: { "Content-Type": "application/json" }
+//     });
+
+//     const data = await resp.json();
+//     res.status(resp.status).json(data);
+
+//   } catch (err) {
+//     console.error("Failed to get stock history", err);
+//     res.status(500).json({ error: "Failed to get stock history" });
+//   }
+// });
+
 app.patch("/inventory/toggle/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const body = req.body;
+    const auth = req.headers["authorization"] || "";
     const resp = await fetch(`http://inventory_service:8006/toggle_ingredient_availability/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(auth ? { Authorization: auth } : {}) },
       body: JSON.stringify(body)
     });
     const data = await resp.json();
@@ -834,6 +980,7 @@ app.get("/menu/list", async (req, res) => {
   try {
     const resp = await fetch("http://menu_service:8001/menu");
     const data = await resp.json();
+    res.set('Cache-Control', 'no-store');
     res.json(data);
   } catch (err) {
     console.error("Failed to fetch menu list ", err);
@@ -886,28 +1033,87 @@ app.post('/register', async (req, res) => {
   }
 });
 
+// JWT validation function
+function validateJWT(token) {
+  try {
+    if (!token) return false;
+    
+    // Split JWT into parts
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    
+    // Decode payload (middle part)
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    
+    // Check if token is expired
+    const currentTime = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < currentTime) {
+      console.log('Token expired');
+      return false;
+    }
+    
+    // Check if token has required fields
+    if (!payload.sub) {
+      console.log('Token missing subject');
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.log('JWT validation error:', error.message);
+    return false;
+  }
+}
+
+// Authentication middleware
+function requireAuth(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
+  const tempToken = req.query.temp;
+  
+  // If we have a temporary token, allow access (client-side will handle validation)
+  if (tempToken) {
+    console.log('Temporary token provided, allowing access');
+    return next();
+  }
+  
+  // If we have a regular token, validate it
+  if (token) {
+    if (!validateJWT(token)) {
+      console.log('Invalid or expired token');
+      return res.redirect('/login');
+    }
+    console.log('Token validated successfully');
+    return next();
+  }
+  
+  // No token provided - let client-side handle authentication
+  // This allows page refreshes to work properly
+  console.log('No token provided, allowing access for client-side auth check');
+  return next();
+}
+
 // ========== PAGE ROUTES ==========
 app.get("/", (req, res) => {
-  res.redirect("/dashboard");
+  res.redirect("/login");
 });
 
-app.get("/dashboard", (req, res) => {
+app.get("/dashboard", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.get("/menu-management", (req, res) => {
+app.get("/menu-management", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "menu.html"));
 });
 
-app.get("/reportkitchen", (req, res) => {
+app.get("/reportkitchen", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "report.html"));
 });
 
-app.get("/stock-management", (req, res) => {
+app.get("/stock-management", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "kelola-stok.html"));
 });
 
-app.get("/menu-suggestion", (req, res) => {
+app.get("/menu-suggestion", requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "menu-suggestion.html"));
 });
 

@@ -19,11 +19,11 @@
             <p class="header-subtitle">Stephany | Barista</p>
         </div>
         <div class="header-menu">
-            <button class="nav-btn" id="nav-dashboard" onclick="window.location.href = '/dashboard';">Dashboard</button>
-            <button class="nav-btn" id="nav-menu" onclick="window.location.href = '/menu-management';">Menu Management</button>
-            <!-- <button class="nav-btn" id="nav-suggestion" onclick="window.location.href = '/menu-suggestion';">Usulan Menu</button> -->
-            <button class="nav-btn" id="nav-stok" onclick="window.location.href = '/stock-management';">Stock Management</button>
-            <button class="nav-btn active" id="nav-report" onclick="window.location.href = '/reportkitchen';">Reports</button>
+            <button class="nav-btn" id="nav-dashboard">Dashboard</button>
+            <button class="nav-btn" id="nav-menu">Menu Management</button>
+            <!-- <button class="nav-btn" id="nav-suggestion">Usulan Menu</button> -->
+            <button class="nav-btn" id="nav-stok">Stock Management</button>
+            <button class="nav-btn active" id="nav-report">Reports</button>
             <!-- <button class="nav-btn" id="nav-kitchen-report" onclick="showKitchenReport()">Kitchen Report</button> -->
             <!-- <button class="nav-btn" id="nav-ingredient-analysis" onclick="showIngredientAnalysis()">Analisis Bahan</button> -->
         </div>
@@ -244,20 +244,7 @@
             </div>
 
             <!-- Additional Info Section -->
-            <div class="dashboard-layout" style="margin-top: 2rem; flex-wrap: wrap;">
-                <div class="column" id="loyal-card" style="flex: 1 1 0; min-width: 320px;">
-                    <h3 class="column-title">🏆 Top 5 Pembeli Loyal</h3>
-                    <div class="column-content">
-                        <ul id="loyal-list" class="summary-table" style="list-style: none; padding: 0;"></ul>
-                    </div>
-                </div>
-                <div class="column" id="usulan-card" style="flex: 1 1 0; min-width: 320px;">
-                    <h3 class="column-title">💡 Menu Usulan Pelanggan</h3>
-                    <div class="column-content">
-                        <ul id="usulan-list" class="summary-table" style="list-style: none; padding: 0;"></ul>
-                    </div>
-                </div>
-            </div>
+            <!-- Removed loyal buyers and customer suggestions per request -->
 
             <!-- Kitchen Report Section -->
             <div id="kitchen-report-section" class="kitchen-report-section hidden">

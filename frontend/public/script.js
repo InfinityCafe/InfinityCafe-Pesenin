@@ -127,7 +127,18 @@ function setupNavigation() {
 
             if (route) {
                 console.log('Navigating to:', route);
-                window.location.href = route;
+                const token = localStorage.getItem('access_token');
+                if (token) {
+                    // Create a temporary token for secure navigation
+                    const tempToken = btoa(token).substring(0, 20) + Date.now();
+                    sessionStorage.setItem('temp_token', token);
+                    sessionStorage.setItem('temp_token_id', tempToken);
+                    
+                    // Navigate with temporary token that will be immediately removed
+                    window.location.href = `${route}?temp=${tempToken}`;
+                } else {
+                    window.location.href = '/login';
+                }
             }
         });
     });
@@ -212,8 +223,16 @@ function updateKitchenStatusUI(isOpen) {
 // Fungsi logout
 function logout() {
     console.log('Logging out...');
-    localStorage.removeItem('access_token');
-    window.location.href = '/login';
+    // Hapus semua token dari storage
+    try {
+        localStorage.removeItem('access_token');
+        sessionStorage.removeItem('temp_token');
+        sessionStorage.removeItem('temp_token_id');
+    } catch (e) {
+        console.warn('Error clearing storage on logout:', e);
+    }
+    // Redirect pakai replace agar tidak bisa back ke halaman sebelumnya
+    window.location.replace('/login');
 }
 
 // Fungsi untuk menambahkan tombol logout ke header
@@ -231,18 +250,70 @@ function setupLogoutButton() {
     }
 }
 
+// JWT validation function (client-side)
+function validateJWTClient(token) {
+    try {
+        if (!token) return false;
+        
+        // Split JWT into parts
+        const parts = token.split('.');
+        if (parts.length !== 3) return false;
+        
+        // Decode payload (middle part)
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        
+        // Check if token is expired
+        const currentTime = Math.floor(Date.now() / 1000);
+        if (payload.exp && payload.exp < currentTime) {
+            console.log('Token expired on client side');
+            localStorage.removeItem('access_token');
+            return false;
+        }
+        
+        // Check if token has required fields
+        if (!payload.sub) {
+            console.log('Token missing subject on client side');
+            return false;
+        }
+        
+        return true;
+    } catch (error) {
+        console.log('JWT validation error on client:', error.message);
+        localStorage.removeItem('access_token');
+        return false;
+    }
+}
+
 // Login guard
 function checkAuth() {
     console.log('Checking auth...');
     const publicPages = ['login'];
     const currentPage = document.body.dataset.page || window.location.pathname.split('/').pop().replace('.html', '');
     
-    if (!publicPages.includes(currentPage) && !localStorage.getItem('access_token')) {
-        console.log('No access token, redirecting to /login');
-        window.location.href = '/login';
-    } else {
-        console.log('Auth passed, current page:', currentPage);
+    if (!publicPages.includes(currentPage)) {
+        // Check for regular token first (persistent across refreshes)
+        const regularToken = localStorage.getItem('access_token');
+        const tempToken = sessionStorage.getItem('temp_token');
+        const token = regularToken || tempToken;
+        
+        if (!token || !validateJWTClient(token)) {
+            console.log('No valid access token, redirecting to /login');
+            // Clean up any temporary tokens
+            sessionStorage.removeItem('temp_token');
+            sessionStorage.removeItem('temp_token_id');
+            localStorage.removeItem('access_token');
+            window.location.href = '/login';
+            return;
+        }
+        
+        // If we used a temporary token, move it to localStorage for persistence
+        if (tempToken && !regularToken) {
+            localStorage.setItem('access_token', tempToken);
+            sessionStorage.removeItem('temp_token');
+            sessionStorage.removeItem('temp_token_id');
+        }
     }
+    console.log('Auth passed, current page:', currentPage);
 }
 
 // Fungsi untuk mendekode token JWT
@@ -354,21 +425,40 @@ function switchTab(tabId) {
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOMContentLoaded event triggered in script.js');
+    
+    // Clean up temporary token from URL immediately
+    const urlParams = new URLSearchParams(window.location.search);
+    const tempToken = urlParams.get('temp');
+    if (tempToken) {
+        // Verify the temporary token matches what we stored
+        const storedTokenId = sessionStorage.getItem('temp_token_id');
+        if (storedTokenId === tempToken) {
+            // Remove temp token from URL and sessionStorage
+            urlParams.delete('temp');
+            const newUrl = window.location.pathname + 
+                          (urlParams.toString() ? '?' + urlParams.toString() : '') + 
+                          window.location.hash;
+            window.history.replaceState({}, document.title, newUrl);
+            sessionStorage.removeItem('temp_token_id');
+            console.log('Temporary token cleaned from URL');
+        } else {
+            console.warn('Temporary token mismatch, redirecting to login');
+            window.location.href = '/login';
+            return;
+        }
+    }
+    
     checkAuth();
     updateGreetingDate();
 
     const page = document.body.getAttribute('data-page');
     const hash = window.location.hash.replace('#', '');
-    console.log('Current page:', page, 'Hash:', hash);
-
     const validTabs = ['menu', 'flavors'];
 
     if (page === 'menu') {
         const activeTab = validTabs.includes(hash) ? hash : 'menu';
-        console.log('Active tab set to:', activeTab);
         switchTab(activeTab);
-        if (validTabs.includes(hash)) {
-            console.log('Clearing hash from URL');
+        if (window.location.hash) {
             window.history.replaceState({}, document.title, '/menu-management');
         }
         // Ensure data is loaded for the active tab
