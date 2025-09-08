@@ -380,7 +380,7 @@ class InventoryManager {
           }
         } catch (error) {
           console.error('Polling error:', error);
-          this.showError('Gagal memperbarui data. Coba lagi nanti.');
+          showErrorModal('Gagal memperbarui data. Coba lagi nanti.');
         }
         // this.loadAndRefreshData();
       } else {
@@ -747,7 +747,7 @@ class InventoryManager {
   viewItem(itemId) {
     const item = this.inventory.find(i => i.id === itemId);
     if (!item) {
-      this.showError('Item not found');
+      showErrorModal('Item not found');
       return;
     }
 
@@ -772,7 +772,7 @@ class InventoryManager {
   editFromView() {
     const itemId = document.getElementById('view-item-modal').getAttribute('data-item-id');
     if (!itemId) {
-      this.showError('No item selected for editing');
+      showErrorModal('No item selected for editing');
       return;
     }
 
@@ -865,12 +865,12 @@ class InventoryManager {
       });
 
       if (response.ok) {
-        this.showSuccess(`Item availability changed to ${isAvailable ? 'Available' : 'Unavailable'}`);
+        showSuccessModal(`Item availability changed to ${isAvailable ? 'Available' : 'Unavailable'}`);
         this.closeModal('change-status-modal');
         this.loadAndRefreshData();
       } else {
         const errorData = await response.json();
-        this.showError(errorData.error || 'Failed to change availability');
+        showErrorModal(errorData.error || 'Failed to change availability');
       }
     } catch (error) {
       console.error('Error changing availability:', error);
@@ -882,7 +882,7 @@ class InventoryManager {
     const index = this.inventory.findIndex(item => item.id === this.editingItem.id);
     if (index !== -1) {
       this.inventory[index].is_available = isAvailable;
-      this.showSuccess(`Item availability changed to ${isAvailable ? 'Available' : 'Unavailable'} (local demo)`);
+      showSuccessModal(`Item availability changed to ${isAvailable ? 'Available' : 'Unavailable'} (local demo)`);
       this.closeModal('change-status-modal');
       this.applyCurrentFiltersAndSearch();
       this.updateOverviewCards({
@@ -951,12 +951,12 @@ class InventoryManager {
       }
 
       if (response.ok) {
-        this.showSuccess(isEditing ? 'Item updated successfully' : 'Item added successfully');
+        showSuccessModal(isEditing ? 'Item updated successfully' : 'Item added successfully');
         this.closeModal('item-modal');
         this.loadAndRefreshData();
       } else {
         const errorData = await response.json();
-        this.showError(errorData.error || 'Failed to save item');
+        showErrorModal(errorData.error || 'Failed to save item');
       }
     } catch (error) {
       console.error('Error saving item:', error);
@@ -969,14 +969,14 @@ class InventoryManager {
       const index = this.inventory.findIndex(item => item.id === parseInt(itemId));
       if (index !== -1) {
         this.inventory[index] = { ...this.inventory[index], ...itemData };
-        this.showSuccess('Item updated successfully (local demo)');
+        showSuccessModal('Item updated successfully (local demo)');
       }
     } else {
       // Add new item to local data
       const newId = Math.max(...this.inventory.map(item => item.id), 0) + 1;
       const newItem = { ...itemData, id: newId, is_available: true };
       this.inventory.push(newItem);
-      this.showSuccess('Item added successfully (local demo)');
+      showSuccessModal('Item added successfully (local demo)');
     }
 
     this.applyCurrentFiltersAndSearch();
@@ -997,12 +997,12 @@ class InventoryManager {
       });
 
       if (response.ok) {
-        this.showSuccess('Item deleted successfully');
+        showSuccessModal('Item deleted successfully');
         this.closeModal('delete-modal');
         this.loadAndRefreshData();
       } else {
         const errorData = await response.json();
-        this.showError(errorData.error || 'Failed to delete item');
+        showErrorModal(errorData.error || 'Failed to delete item');
       }
     } catch (error) {
       console.error('Error deleting item:', error);
@@ -1015,7 +1015,7 @@ class InventoryManager {
     const index = this.inventory.findIndex(item => item.id === this.editingItem.id);
     if (index !== -1) {
       this.inventory.splice(index, 1);
-      this.showSuccess('Item deleted successfully (local demo)');
+      showSuccessModal('Item deleted successfully (local demo)');
       this.closeModal('delete-modal');
       this.applyCurrentFiltersAndSearch();
       this.updateOverviewCards({
@@ -1051,33 +1051,7 @@ class InventoryManager {
     }
   }
 
-  showSuccess(message) {
-    const modal = document.getElementById('success-modal');
-    const messageElement = document.getElementById('success-message');
-
-    if (modal && messageElement) {
-      messageElement.textContent = message;
-      modal.classList.remove('hidden');
-    } else {
-      // Fallback jika modal tidak ditemukan
-      console.log('SUCCESS:', message);
-      alert(message);
-    }
-  }
-
-  showError(message) {
-    const modal = document.getElementById('error-modal');
-    const messageElement = document.getElementById('error-message');
-
-    if (modal && messageElement) {
-      messageElement.textContent = message;
-      modal.classList.remove('hidden');
-    } else {
-      // Fallback jika modal tidak ditemukan
-      console.error('ERROR:', message);
-      alert(message);
-    }
-  }
+  
 
   handleKitchenToggle(isOpen) {
     // Handle kitchen open/close toggle
@@ -1194,7 +1168,7 @@ class InventoryManager {
       });
 
       if (response.ok) {
-        this.showSuccess('Stock added successfully');
+        showSuccessModal('Stock added successfully');
         this.closeModal('add-stock-modal');
         this.loadAndRefreshData();
         document.getElementById('add-stock-form').reset();
@@ -1202,11 +1176,11 @@ class InventoryManager {
         let errorMsg = 'Failed to add stock';
         try { const errorData = await response.json(); errorMsg = errorData.error || errorData.message || errorMsg; } catch (_) {}
         if (response.status === 401) errorMsg = 'Unauthorized: silakan login ulang.';
-        this.showError(errorMsg);
+        showErrorModal(errorMsg);
       }
     } catch (error) {
       console.error('Error adding stock:', error);
-      this.showError('Failed to add stock');
+      showErrorModal('Failed to add stock');
     }
   }
 
@@ -1230,14 +1204,14 @@ class InventoryManager {
         
           this.auditLoaded = true;
         } else {
-          this.showError(data.message || 'Failed to load audit history');
+          showErrorModal(data.message || 'Failed to load audit history');
         }
       } else {
-        this.showError('Failed to load audit history');
+        showErrorModal('Failed to load audit history');
       }
     } catch (error) {
       console.error('Error loading audit history:', error);
-      this.showError('Failed to load audit history');
+      showErrorModal('Failed to load audit history');
     }
   }
 
@@ -1578,7 +1552,7 @@ class InventoryManager {
   viewAuditHistory(id) {
     const item = this.auditHistory.find(h => h.id === id);
     if (!item) {
-      this.showError('Audit history item not found');
+      showErrorModal('Audit history item not found');
       return;
     }
 
@@ -1649,13 +1623,13 @@ class InventoryManager {
         const logs = await response.json();
         this.renderConsumptionLogs(logs);
       } else {
-        this.showError('Failed to load consumption logs');
+        showErrorModal('Failed to load consumption logs');
         const offlineBanner = document.getElementById('offline-banner');
         if (offlineBanner) offlineBanner.classList.remove('hidden');
       }
     } catch (error) {
       console.error('Error loading consumption logs:', error);
-      this.showError('Failed to load consumption logs');
+      showErrorModal('Failed to load consumption logs');
       const offlineBanner = document.getElementById('offline-banner');
       if (offlineBanner) offlineBanner.classList.remove('hidden');
     }
@@ -1749,7 +1723,7 @@ class InventoryManager {
       this.renderStockHistory(rows);
     } catch (e) {
       console.error('Failed to load stock history:', e);
-      this.showError('Failed to load stock history');
+      showErrorModal('Failed to load stock history');
     }
   }
 
@@ -1802,17 +1776,8 @@ window.editFromView = function() {
   }
 };
 
-window.closeSuccessModal = function() {
-  if (window.inventoryManager) {
-    window.inventoryManager.closeModal('success-modal');
-  }
-};
 
-window.closeErrorModal = function() {
-  if (window.inventoryManager) {
-    window.inventoryManager.closeModal('error-modal');
-  }
-};
+
 
 // Initialize the inventory manager when the page loads
 document.addEventListener('DOMContentLoaded', () => {
