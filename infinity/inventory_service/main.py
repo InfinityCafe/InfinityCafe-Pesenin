@@ -625,6 +625,26 @@ def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)
     print(f"🚀 DEBUG: Starting add_ingredient for: {req.name}")
     logging.info(f"🚀 DEBUG: Starting add_ingredient for: {req.name}")
     try:
+        existing_ingredient = db.query(Inventory).filter(
+            Inventory.name.ilike(f"%{req.name.strip()}%")
+        ).first()
+        
+        if existing_ingredient:
+            print(f"❌ DEBUG: Ingredient with similar name already exists: {existing_ingredient.name}")
+            logging.warning(f"❌ DEBUG: Duplicate ingredient attempt: {req.name} (existing: {existing_ingredient.name})")
+            return JSONResponse(status_code=400, content={
+                "status": "error",
+                "message": f"Bahan dengan nama '{req.name}' sudah ada dalam database",
+                "data": {
+                    "existing_ingredient": {
+                        "id": existing_ingredient.id,
+                        "name": existing_ingredient.name,
+                        "category": existing_ingredient.category.value,
+                        "unit": existing_ingredient.unit.value
+                    }
+                }
+            })
+        
         ing = Inventory(
             name=req.name,
             current_quantity=req.current_quantity,
@@ -698,8 +718,10 @@ def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)
         }
         
     except Exception as e:
+        print(f"❌ DEBUG: Exception in add_ingredient: {str(e)}")
+        logging.error(f"❌ DEBUG: Exception in add_ingredient: {str(e)}")
         db.rollback()
-        return JSONResponse(status_code=200, content={
+        return JSONResponse(status_code=500, content={
             "status": "error", 
             "message": f"Gagal menambahkan bahan: {str(e)}", 
             "data": None
