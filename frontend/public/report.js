@@ -25,7 +25,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
 let barChart, pieChart, ingredientChart;
 let currentReportData = null;
-let currentPage = 1;
+// let currentPage = 1;
 let itemsPerPage = 10;
 let filteredData = [];
 let baseData = [];
@@ -44,6 +44,11 @@ let menuValidFlavors = {}; // { menuName: Set(lowercase flavor names) }
 let kitchenOrdersCache = [];
 let globalFlavorMap = {};
 let ingredientMenuFlavorGroups = {}; // global store for menu+flavor groups per date
+
+//Pagination Variables
+let reportCurrentPage = 1;
+let reportPageSize = 10;
+let reportTotalPages = 1;
 
 // ========== MODAL FUNCTIONS ==========
 function closePieModal() {
@@ -620,9 +625,9 @@ async function loadIngredientAnalysisData() {
                         (i.status_text || '').toLowerCase().includes(term)
                     )
                     : [...currentViewData];
-                currentPage = 1;
-                renderTablePage();
-                updatePagination();
+                reportCurrentPage = 1;
+                renderReportTable();
+                updateReportPagination();
             } else {
                 // On failure, clear
                 menuRecipes = {};
@@ -633,9 +638,9 @@ async function loadIngredientAnalysisData() {
                 if (currentDataType === 'ingredient') {
                     baseData = [];
                     filteredData = [];
-                    currentPage = 1;
-                    renderTablePage();
-                    updatePagination();
+                    reportCurrentPage = 1;
+                    renderReportTable();
+                    updateReportPagination();
                 }
                 // Clear global groups when failing
                 ingredientMenuFlavorGroups = {};
@@ -648,9 +653,9 @@ async function loadIngredientAnalysisData() {
             if (currentDataType === 'ingredient') {
                 baseData = [];
                 filteredData = [];
-                currentPage = 1;
-                renderTablePage();
-                updatePagination();
+                reportCurrentPage = 1;
+                renderReportTable();
+                updateReportPagination();
             }
             ingredientMenuFlavorGroups = {};
         }
@@ -728,11 +733,11 @@ function hideIngredientDetailsPanel() {
             // Switch header to menu breakdown for daily view (5 columns)
             if (headRow) {
                 headRow.innerHTML = `
-                    <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">No</th>
-                    <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Menu</th>
-                    <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Flavor</th>
-                    <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Total Bahan</th>
-                    <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Total Pesanan</th>`;
+                    <th>No</th>
+                    <th>Menu</th>
+                    <th>Flavor</th>
+                    <th>Total Bahan</th>
+                    <th>Total Pesanan</th>`;
             }
              // Show aggregated daily consumption data
              await showDailyAggregatedConsumption(dateStr, statusText);
@@ -741,12 +746,12 @@ function hideIngredientDetailsPanel() {
             // Restore header for per-order ingredient details (6 columns)
             if (headRow) {
                 headRow.innerHTML = `
-                    <th style=\"background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;\">No</th>
-                    <th style=\"background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;\">Nama Bahan</th>
-                    <th style=\"background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;\">Qty Terpakai</th>
-                    <th style=\"background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;\">Unit</th>
-                    <th style=\"background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;\">Stok Sebelum</th>
-                    <th style=\"background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;\">Stok Sesudah</th>`;
+                    <th>No</th>
+                    <th>Nama Bahan</th>
+                    <th>Qty Terpakai</th>
+                    <th>Unit</th>
+                    <th>Stok Sebelum</th>
+                    <th>Stok Sesudah</th>`;
             }
         }
 
@@ -2243,9 +2248,9 @@ async function loadReport() {
                 const tableSearch = document.getElementById('table-search-input');
                 const term = tableSearch ? tableSearch.value : '';
                 filteredData = term ? baseData.filter(i => (i.menu_name || '').toLowerCase().includes(term.toLowerCase())) : [...baseData];
-                currentPage = 1;
-                renderTablePage();
-                updatePagination();
+                reportCurrentPage = 1;
+                renderReportTable();
+                updateReportPagination();
                 // Re-render charts only when data changed (using aggregated data)
         const chartData = details.map(item => ({
             menu_name: item.menu_name || 'N/A',
@@ -2260,9 +2265,9 @@ async function loadReport() {
             // Show empty state instead of fallback
             baseData = [];
             filteredData = [];
-            currentPage = 1;
-            renderTablePage();
-            updatePagination();
+            reportCurrentPage = 1;
+            renderReportTable();
+            updateReportPagination();
             showEmptyState('Tidak ada data penjualan untuk periode ini', 'info');
         }
     } catch (err) {
@@ -2316,9 +2321,9 @@ async function loadBestSellerData(start, end) {
                 const tableSearch = document.getElementById('table-search-input');
                 const term = tableSearch ? tableSearch.value : '';
                 filteredData = term ? baseData.filter(i => (i.menu_name || '').toLowerCase().includes(term.toLowerCase())) : [...baseData];
-                currentPage = 1;
-                renderTablePage();
-                updatePagination();
+                reportCurrentPage = 1;
+                renderReportTable();
+                updateReportPagination();
                 renderCharts(chartData);
                 // Update table header for best seller data
                 const tableHeader = document.querySelector('#report-table thead tr');
@@ -2337,8 +2342,8 @@ async function loadBestSellerData(start, end) {
             renderCharts([]);
             baseData = [];
             filteredData = [];
-            renderTablePage();
-            updatePagination();
+            renderReportTable();
+            updateReportPagination();
             updateSummaryWithData(data, 'empty');
             // Update table header for empty state
             const tableHeader = document.querySelector('#report-table thead tr');
@@ -2357,8 +2362,8 @@ async function loadBestSellerData(start, end) {
         // Show error in table
         baseData = [];
         filteredData = [];
-        renderTablePage();
-        updatePagination();
+        renderReportTable();
+        updateReportPagination();
         showEmptyState(err.message || 'Gagal memuat data best seller', 'error');
     }
 }
@@ -2449,6 +2454,19 @@ async function exportPDF() {
     if (kitchenVisible) { return exportKitchenPDF(); }
     if (ingredientVisible) { return exportIngredientPDF(); }
     return exportSalesPDFEnhanced();
+}
+
+// ========== GLOBAL EXCEL EXPORT DISPATCHER ==========
+function exportExcel() {
+    const kitchenVisible = !document.getElementById('kitchen-report-section')?.classList.contains('hidden');
+    const ingredientVisible = !document.getElementById('ingredient-analysis-section')?.classList.contains('hidden');
+    if (kitchenVisible) {
+        return exportKitchenExcel();
+    }
+    if (ingredientVisible) {
+        return exportIngredientExcel();
+    }
+    return exportSalesExcelEnhanced();
 }
 
 // ========== SALES EXPORT (AGGREGATED) ==========
@@ -2856,27 +2874,111 @@ function aggregateSalesData(rawTransactions) {
 }
 
 // ========== PAGINATION FUNCTIONS ==========
-function changePage(direction) {
-    const newPage = currentPage + direction;
-    const maxPage = Math.ceil(filteredData.length / itemsPerPage);
+// function changePage(direction) {
+//     const newPage = reportCurrentPage + direction;
+//     const maxPage = Math.ceil(filteredData.length / itemsPerPage);
     
-    if (newPage >= 1 && newPage <= maxPage) {
-        currentPage = newPage;
-        renderTablePage();
-        updatePagination();
+//     if (newPage >= 1 && newPage <= maxPage) {
+//         reportCurrentPage = newPage;
+//         renderReportTable();
+//         updateReportPagination();
+//     }
+// }
+
+function initPagination() {
+    const prevBtn = document.getElementById('report-prev-btn');
+    const nextBtn = document.getElementById('report-next-btn');
+    const pageSizeSelect = document.getElementById('report-page-size');
+
+    prevBtn.addEventListener('click', () => changeReportPage(-1));
+    nextBtn.addEventListener('click', () => changeReportPage(1));
+    pageSizeSelect.addEventListener('change', changeReportPageSize);
+}
+
+async function changeReportPage(direction) {
+    const newPage = reportCurrentPage + direction;
+
+    if (newPage >= 1 && newPage <= reportTotalPages) {
+        reportCurrentPage = newPage;
+        renderReportTable();
+        renderReportPagination();
     }
 }
 
-function renderTablePage() {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const pageData = filteredData.slice(startIndex, endIndex);
+async function changeReportPageSize() {
+    reportPageSize = parseInt(document.getElementById('report-page-size').value);
+    reportCurrentPage = 1;
+    updateReportPagination();
+    renderReportTable();
+}
+
+function updateReportPagination() {
+    reportTotalPages = Math.ceil(filteredData.length / reportPageSize);
+    if (reportTotalPages === 0) reportTotalPages = 1;
+
+    if (reportCurrentPage > reportTotalPages) {
+        reportCurrentPage = reportTotalPages;
+    }
+
+    renderReportPagination();
+}
+
+function renderReportPagination() {
+    const pageNumbers = document.getElementById('report-page-numbers');
+    const prevBtn = document.getElementById('report-prev-btn');
+    const nextBtn = document.getElementById('report-next-btn');
+    const paginationInfo = document.getElementById('report-pagination-info');
+
+    paginationInfo.textContent = `Page ${reportCurrentPage} of ${reportTotalPages}`;
+
+    prevBtn.disabled = reportCurrentPage === 1;
+    nextBtn.disabled = reportCurrentPage === reportTotalPages;
+
+    pageNumbers.innerHTML = '';
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, reportCurrentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(reportTotalPages, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+        const pageBtn = document.createElement('button');
+        pageBtn.className = `page-number ${i === reportCurrentPage ? 'active' : ''}`;
+        pageBtn.textContent = i;
+        pageBtn.onclick = () => {
+            reportCurrentPage =i;
+            renderReportTable();
+            renderReportPagination();
+        };
+        pageNumbers.appendChild(pageBtn);
+    }
+}
+
+function updateReportTableInfo() {
+    const tableInfo = document.getElementById('report-table-info');
+    const startIndex = (reportCurrentPage -1) * reportPageSize + 1;
+    const endIndex = Math.min(reportCurrentPage * reportPageSize, filteredData.length);
+    const total = filteredData.length;
+
+    if (total === 0) {
+        tableInfo.textContent = "No entries available";
+    } else {
+        tableInfo.textContent = `Showing ${startIndex} to ${endIndex} of ${total} entries`;
+    }
+}
+
+function renderReportTable() {
+    const startIndex = (reportCurrentPage - 1) * reportPageSize;
+    const endIndex = startIndex + reportPageSize;
+    const currentPageData = filteredData.slice(startIndex, endIndex);
     
     const tbody = document.getElementById("report-tbody");
     tbody.innerHTML = "";
     
-    if (pageData.length > 0) {
-        pageData.forEach((item, i) => {
+    if (currentPageData.length > 0) {
+        currentPageData.forEach((item, i) => {
             const actualIndex = startIndex + i;
             if (currentDataType === 'ingredient') {
                 // Debug: log the item being rendered
@@ -2896,8 +2998,8 @@ function renderTablePage() {
                             <td>${item.status_text || '-'}</td>
                             <td>${(item.ingredients_affected ?? 0).toLocaleString()}</td>
                             <td>
-                                <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); openGroupedConsumptionModal('${(item.order_ids || []).join(',')}', '${item.date || ''}', '${item.status_text || ''}', '${item.menu_name || ''}', '${item.flavor || ''}')" title="Lihat Detail">
-                                    <i class="fas fa-eye"></i> Detail
+                                <button class="table-action-btn" onclick="event.stopPropagation(); openGroupedConsumptionModal('${(item.order_ids || []).join(',')}', '${item.date || ''}', '${item.status_text || ''}', '${item.menu_name || ''}', '${item.flavor || ''}')" title="Lihat Detail">
+                                    <i class="fas fa-eye"></i>
                                 </button>
                             </td>
                         </tr>`;
@@ -2922,8 +3024,8 @@ function renderTablePage() {
                              <td style="text-align: center; font-weight: 600; color: #059669;">${totalOrders.toLocaleString()}</td>
                              <td style="text-align: center; font-weight: 600; color: #DC2626;">${totalConsumption.toLocaleString()}</td>
                              <td>
-                                 <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="white-space: nowrap; min-width: 80px;">
-                                     🔍 Detail
+                                 <button class="table-action-btn" onclick="event.stopPropagation(); viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="white-space: nowrap; min-width: 80px;">
+                                    <i class="fas fa-eye"></i>
                                  </button>
                              </td>
                          </tr>`;
@@ -2960,8 +3062,8 @@ function renderTablePage() {
             }
         });
         // Totals row for daily view (UX clarity)
-        if (currentDataType === 'ingredient' && pageData[0] && !pageData[0].menu_name) {
-            const totals = pageData.reduce((acc, it) => {
+        if (currentDataType === 'ingredient' && currentPageData[0] && !currentPageData[0].menu_name) {
+            const totals = currentPageData.reduce((acc, it) => {
                 const s = it.daily_summary || {}; 
                 acc.orders += (s.total_orders || 0);
                 acc.ingredients += (s.total_consumption || 0);
@@ -2984,41 +3086,59 @@ function renderTablePage() {
                 : 'Tidak ada data penjualan untuk periode ini';
         
         showEmptyState(message, 'info');
-        }
-        
-        // Update pagination info
-        document.getElementById("pagination-start").textContent = startIndex + 1;
-        document.getElementById("pagination-end").textContent = Math.min(endIndex, filteredData.length);
-        document.getElementById("pagination-total").textContent = filteredData.length;
     }
-
-function updatePagination() {
-    const maxPage = Math.ceil(filteredData.length / itemsPerPage);
-    const pageNumbers = document.getElementById("page-numbers");
-    const prevBtn = document.getElementById("prev-page");
-    const nextBtn = document.getElementById("next-page");
     
-    // Update button states
-    prevBtn.disabled = currentPage === 1;
-    nextBtn.disabled = currentPage === maxPage;
-    
-    // Generate page numbers
-    pageNumbers.innerHTML = "";
-    const startPage = Math.max(1, currentPage - 2);
-    const endPage = Math.min(maxPage, currentPage + 2);
-    
-    for (let i = startPage; i <= endPage; i++) {
-        const pageBtn = document.createElement("button");
-        pageBtn.className = `page-number ${i === currentPage ? 'active' : ''}`;
-        pageBtn.textContent = i;
-        pageBtn.onclick = () => {
-            currentPage = i;
-            renderTablePage();
-            updatePagination();
-        };
-        pageNumbers.appendChild(pageBtn);
-    }
+    updateReportTableInfo();
 }
+
+let elements = {};
+
+function init() {
+    initializeElements();
+    // setupEventListeners();
+    initPagination();
+    loadReport();
+    startAutoRefresh();
+}
+
+function initializeElements() {
+    elements.prevPageBtn = document.getElementById('report-prev-btn');
+    elements.nextPageBtn = document.getElementById('report-next-btn');
+    elements.pageSizeSelect = document.getElementById('report-page-size');
+    elements.pageNumbers = document.getElementById('report-page-numbers');
+    elements.paginationInfo = document.getElementById('report-pagination-info');
+    elements.reportBody = document.getElementById('report-body')
+};
+
+
+    
+    // function updatePagination() {
+    //     const maxPage = Math.ceil(filteredData.length / itemsPerPage);
+    //     const pageNumbers = document.getElementById("page-numbers");
+    //     const prevBtn = document.getElementById("prev-page");
+    //     const nextBtn = document.getElementById("next-page");
+        
+    //     // Update button states
+    //     prevBtn.disabled = reportCurrentPage === 1;
+    //     nextBtn.disabled = reportCurrentPage === maxPage;
+        
+    //     // Generate page numbers
+    //     pageNumbers.innerHTML = "";
+    //     const startPage = Math.max(1, reportCurrentPage - 2);
+    //     const endPage = Math.min(maxPage, reportCurrentPage + 2);
+        
+    //     for (let i = startPage; i <= endPage; i++) {
+    //         const pageBtn = document.createElement("button");
+    //         pageBtn.className = `page-number ${i === reportCurrentPage ? 'active' : ''}`;
+    //         pageBtn.textContent = i;
+    //         pageBtn.onclick = () => {
+    //             reporturrentPage = i;
+    //             renderReportTable();
+    //             updateReportPagination();
+    //         };
+    //         pageNumbers.appendChild(pageBtn);
+    //     }
+    // }
     
     // ========== SEARCH FUNCTIONS ==========
     function filterTableData(searchTerm) {
@@ -3050,9 +3170,9 @@ function updatePagination() {
         : [...source];
     }
     
-    currentPage = 1;
-    renderTablePage();
-    updatePagination();
+    reportCurrentPage = 1;
+    renderReportTable();
+    updateReportPagination();
 }
 
 function filterIngredientTableData(searchTerm) {
@@ -3112,9 +3232,9 @@ async function applyReportFilter() {
                 // Clear data if no dates
                 baseData = [];
                 filteredData = [];
-                currentPage = 1;
-                renderTablePage();
-                updatePagination();
+                reportCurrentPage = 1;
+                renderReportTable();
+                updateReportPagination();
             }
         } else {
             // Load sales data
@@ -3126,9 +3246,9 @@ async function applyReportFilter() {
                 // Clear data if no dates
                 baseData = [];
                 filteredData = [];
-                currentPage = 1;
-                renderTablePage();
-                updatePagination();
+                reportCurrentPage = 1;
+                renderReportTable();
+                updateReportPagination();
             }
         }
     }
@@ -3163,9 +3283,9 @@ async function applyReportFilter() {
             return 0;
         });
         }
-        currentPage = 1;
-        renderTablePage();
-        updatePagination();
+        reportCurrentPage = 1;
+        renderReportTable();
+        updateReportPagination();
     }
     
     // Handle ingredient mode sorting
@@ -3562,14 +3682,14 @@ document.addEventListener('visibilitychange', () => {
         if (entriesSelect) {
             entriesSelect.addEventListener('change', function() {
                 itemsPerPage = parseInt(this.value, 10) || 10;
-                currentPage = 1;
+                reportCurrentPage = 1;
                 const dataType = document.getElementById('data-type-select')?.value || 'sales';
                 if (dataType === 'ingredient') {
                     // For ingredient mode, we don't use pagination, so just re-render the table
                     renderIngredientTable();
                 } else {
-                renderTablePage();
-                updatePagination();
+                renderReportTable();
+                updateReportPagination();
                 }
             });
         }
@@ -3620,7 +3740,7 @@ document.addEventListener('visibilitychange', () => {
         const startInput = document.getElementById('start_date');
         const endInput = document.getElementById('end_date');
         const onDateChange = () => {
-            currentPage = 1;
+            reportCurrentPage = 1;
             const dataType = document.getElementById('data-type-select')?.value || 'sales';
             if (dataType === 'best') {
                 loadBestSellerData(startInput.value, endInput.value);
