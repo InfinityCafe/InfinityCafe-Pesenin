@@ -2456,6 +2456,19 @@ async function exportPDF() {
     return exportSalesPDFEnhanced();
 }
 
+// ========== GLOBAL EXCEL EXPORT DISPATCHER ==========
+function exportExcel() {
+    const kitchenVisible = !document.getElementById('kitchen-report-section')?.classList.contains('hidden');
+    const ingredientVisible = !document.getElementById('ingredient-analysis-section')?.classList.contains('hidden');
+    if (kitchenVisible) {
+        return exportKitchenExcel();
+    }
+    if (ingredientVisible) {
+        return exportIngredientExcel();
+    }
+    return exportSalesExcelEnhanced();
+}
+
 // ========== SALES EXPORT (AGGREGATED) ==========
 function exportSalesExcelEnhanced() {
     const data = Array.isArray(baseData) ? baseData : [];
@@ -3013,7 +3026,7 @@ function renderReportTable() {
                              <td>
                                  <button class="table-action-btn" onclick="event.stopPropagation(); viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="white-space: nowrap; min-width: 80px;">
                                     <i class="fas fa-eye"></i>
-                                </button>
+                                 </button>
                              </td>
                          </tr>`;
                  }
@@ -3050,7 +3063,7 @@ function renderReportTable() {
         });
         // Totals row for daily view (UX clarity)
         if (currentDataType === 'ingredient' && currentPageData[0] && !currentPageData[0].menu_name) {
-            const totals = pageData.reduce((acc, it) => {
+            const totals = currentPageData.reduce((acc, it) => {
                 const s = it.daily_summary || {}; 
                 acc.orders += (s.total_orders || 0);
                 acc.ingredients += (s.total_consumption || 0);
