@@ -4578,6 +4578,56 @@ body[data-page="login"] {
   background: #6d5a5a;
 }
 
+/* Export Buttons Styles */
+.export-buttons {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.btn-export {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 5px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.btn-excel {
+    background: #217346;
+    color: white;
+}
+
+.btn-excel:hover {
+    background: #1a5d38;
+    transform: translateY(-1px);
+}
+
+.btn-csv {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-csv:hover {
+    background: #5a6268;
+    transform: translateY(-1px);
+}
+
+.btn-pdf {
+    background: #dc3545;
+    color: white;
+}
+
+.btn-pdf:hover {
+    background: #c82333;
+    transform: translateY(-1px);
+}
+
 /* Delete Modal Specific */
 .delete-modal .modal-body {
   margin-bottom: 1.5rem;

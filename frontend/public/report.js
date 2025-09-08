@@ -476,7 +476,7 @@ async function loadIngredientAnalysisData() {
                         if (!kitchenOrder || kitchenOrder.status !== 'done') {
                             continue;
                         }
-
+                        
                         if (!orderDetails[orderId]) {
                             orderDetails[orderId] = {
                                 order_id: orderId,
@@ -487,9 +487,9 @@ async function loadIngredientAnalysisData() {
                                 menu_items: kitchenOrder.items || []
                             };
                         }
-
+                        
                         console.log(`Log ${orderId} matched with kitchen order (status=${kitchenOrder.status}):`, 'YES');
-                        console.log(`Kitchen order items for ${orderId}:`, kitchenOrder.items);
+                            console.log(`Kitchen order items for ${orderId}:`, kitchenOrder.items);
                     }
                     
                     // Group by actual menu name and flavor from kitchen orders
@@ -586,7 +586,7 @@ async function loadIngredientAnalysisData() {
                         total_orders: group.total_orders,
                         unique_menus: group.unique_menus ? group.unique_menus.size || group.unique_menus : 0,
                         total_consumption: group.total_ingredients,
-                        order_ids: Array.from(group.order_ids)
+                    order_ids: Array.from(group.order_ids)
                     }
                 }));
                 
@@ -711,20 +711,20 @@ function hideIngredientDetailsPanel() {
     if (panel) panel.classList.add('hidden');
 }
 
-async function viewConsumptionDetails(orderId, dateStr, statusText) {
-    try {
-        // If orderId looks like aggregated daily row, show aggregated data
-        const isAggregated = (orderId || '').toLowerCase().startsWith('daily');
-        const panel = document.getElementById('ingredient-details-panel');
-        const body = document.getElementById('ingredient-details-body');
+ async function viewConsumptionDetails(orderId, dateStr, statusText) {
+     try {
+         // If orderId looks like aggregated daily row, show aggregated data
+         const isAggregated = (orderId || '').toLowerCase().startsWith('daily');
+         const panel = document.getElementById('ingredient-details-panel');
+         const body = document.getElementById('ingredient-details-body');
         const headRow = document.querySelector('#ingredient-details-table thead tr');
-        document.getElementById('detail-order-id').textContent = isAggregated ? `Harian - ${dateStr}` : (orderId || '-');
-        document.getElementById('detail-order-date').textContent = dateStr || '-';
-        document.getElementById('detail-order-status').textContent = statusText || '-';
-        body.innerHTML = '';
-        if (panel) panel.classList.remove('hidden');
-        
-        if (isAggregated) {
+         document.getElementById('detail-order-id').textContent = isAggregated ? `Harian - ${dateStr}` : (orderId || '-');
+         document.getElementById('detail-order-date').textContent = dateStr || '-';
+         document.getElementById('detail-order-status').textContent = statusText || '-';
+         body.innerHTML = '';
+         if (panel) panel.classList.remove('hidden');
+         
+         if (isAggregated) {
             // Switch header to menu breakdown for daily view (5 columns)
             if (headRow) {
                 headRow.innerHTML = `
@@ -734,9 +734,9 @@ async function viewConsumptionDetails(orderId, dateStr, statusText) {
                     <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Total Bahan</th>
                     <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Total Pesanan</th>`;
             }
-            // Show aggregated daily consumption data
-            await showDailyAggregatedConsumption(dateStr, statusText);
-            return;
+             // Show aggregated daily consumption data
+             await showDailyAggregatedConsumption(dateStr, statusText);
+             return;
         } else {
             // Restore header for per-order ingredient details (6 columns)
             if (headRow) {
@@ -762,8 +762,8 @@ async function viewConsumptionDetails(orderId, dateStr, statusText) {
         // Handle different possible response structures
         const details = json?.ingredients_breakdown?.details ||
                         json?.data?.ingredients_breakdown?.details ||
-                        json?.details ||
-                        [];
+                       json?.details || 
+                       [];
 
         if (!Array.isArray(details)) {
             console.warn('Expected array of details but got:', details);
@@ -806,107 +806,302 @@ async function viewConsumptionDetails(orderId, dateStr, statusText) {
             body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 1.5rem; font-weight: 500;">Failed to load ingredient details</td></tr>';
         }
          }
-}
-
-async function showDailyAggregatedConsumption(dateStr, statusText) {
-    try {
-        const body = document.getElementById('ingredient-details-body');
-        
-        // Get the daily summary data for the specific date
-        const dailyItem = filteredData.find(item => 
-            item.date === dateStr && item.daily_summary
-        );
-        
-        if (!dailyItem || !dailyItem.daily_summary) {
+ }
+ 
+ async function showDailyAggregatedConsumption(dateStr, statusText) {
+     try {
+         const body = document.getElementById('ingredient-details-body');
+         
+         // Get the daily summary data for the specific date
+         const dailyItem = filteredData.find(item => 
+             item.date === dateStr && item.daily_summary
+         );
+         
+         if (!dailyItem || !dailyItem.daily_summary) {
             body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #615a5a; padding: 1.5rem; font-weight: 500;">Tidak ada data detail untuk tanggal ini</td></tr>';
-            return;
-        }
-        
-        const dailySummary = dailyItem.daily_summary;
-        
-        // Create a summary header row
-        const summaryRow = `
-            <tr style="background-color: #F9FAFB; border-bottom: 2px solid #E5E7EB;">
+             return;
+         }
+         
+         const dailySummary = dailyItem.daily_summary;
+         
+         // Create a summary header row
+         const summaryRow = `
+             <tr style="background-color: #F9FAFB; border-bottom: 2px solid #E5E7EB;">
                 <td colspan="5" style="padding: 1rem; text-align: center;">
-                    <div style="font-size: 1.1rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;">
-                        📅 Ringkasan Konsumsi Harian - ${dateStr}
-                    </div>
-                    <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
-                        <div style="text-align: center;">
-                            <div style="font-size: 1.5rem; font-weight: 700; color: #059669;">${dailySummary.total_orders}</div>
-                            <div style="font-size: 0.9rem; color: #6B7280;">Total Pesanan</div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">${dailySummary.unique_menus}</div>
-                            <div style="font-size: 0.9rem; color: #6B7280;">Menu Unik</div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${dailySummary.total_consumption.toLocaleString()}</div>
-                            <div style="font-size: 0.9rem; color: #6B7280;">Total Bahan</div>
-                        </div>
-                    </div>
-                </td>
-            </tr>
-        `;
-        
+                     <div style="font-size: 1.1rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;">
+                         📅 Ringkasan Konsumsi Harian - ${dateStr}
+                     </div>
+                     <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
+                         <div style="text-align: center;">
+                             <div style="font-size: 1.5rem; font-weight: 700; color: #059669;">${dailySummary.total_orders}</div>
+                             <div style="font-size: 0.9rem; color: #6B7280;">Total Pesanan</div>
+                         </div>
+                         <div style="text-align: center;">
+                             <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">${dailySummary.unique_menus}</div>
+                             <div style="font-size: 0.9rem; color: #6B7280;">Menu Unik</div>
+                         </div>
+                         <div style="text-align: center;">
+                             <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${dailySummary.total_consumption.toLocaleString()}</div>
+                             <div style="font-size: 0.9rem; color: #6B7280;">Total Bahan</div>
+                         </div>
+                     </div>
+                 </td>
+             </tr>
+         `;
+         
         // Use global groups captured during load
         const dateMenuData = Object.values(ingredientMenuFlavorGroups).filter(group => 
-            group.date === dateStr
-        );
-        
-        if (dateMenuData.length === 0) {
-            body.innerHTML = summaryRow + `
-                <tr>
+             group.date === dateStr
+         );
+         
+         if (dateMenuData.length === 0) {
+             body.innerHTML = summaryRow + `
+                 <tr>
                     <td colspan="5" style="text-align: center; color: #6B7280; padding: 1.5rem; font-weight: 500;">
-                        Tidak ada detail menu untuk tanggal ini
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-        
+                         Tidak ada detail menu untuk tanggal ini
+                     </td>
+                 </tr>
+             `;
+             return;
+         }
+         
         // Generate table rows for menu breakdown (5 columns)
-        const menuRows = dateMenuData.map((group, idx) => `
-            <tr style="border-bottom: 1px solid #F3F4F6;">
-                <td style="padding: 0.75rem; color: #1F2937; font-weight: 500; text-align: center;">${idx + 1}</td>
-                <td style="padding: 0.75rem; color: #1F2937; font-weight: 600;">${group.menu_name}</td>
-                <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${group.flavor}</td>
-                <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${group.total_ingredients.toLocaleString()}</td>
-                <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${group.total_orders}</td>
-            </tr>
-        `).join('');
-        
-        body.innerHTML = summaryRow + menuRows;
-        
-    } catch (e) {
-        console.error('Failed to load daily aggregated consumption:', e);
-        const body = document.getElementById('ingredient-details-body');
-        if (body) {
+         const menuRows = dateMenuData.map((group, idx) => `
+             <tr style="border-bottom: 1px solid #F3F4F6;">
+                 <td style="padding: 0.75rem; color: #1F2937; font-weight: 500; text-align: center;">${idx + 1}</td>
+                 <td style="padding: 0.75rem; color: #1F2937; font-weight: 600;">${group.menu_name}</td>
+                 <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${group.flavor}</td>
+                 <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${group.total_ingredients.toLocaleString()}</td>
+                 <td style="padding: 0.75rem; color: #1F2937; text-align: center; font-weight: 500;">${group.total_orders}</td>
+             </tr>
+         `).join('');
+         
+         body.innerHTML = summaryRow + menuRows;
+         
+     } catch (e) {
+         console.error('Failed to load daily aggregated consumption:', e);
+         const body = document.getElementById('ingredient-details-body');
+         if (body) {
             body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #ef4444; padding: 1.5rem; font-weight: 500;">Gagal memuat data konsumsi harian</td></tr>';
         }
     }
 }
 
-function exportIngredientCSV() {
+// ========== INGREDIENT ANALYSIS EXPORT FUNCTIONS ==========
+function exportIngredientExcel() {
+    // Get current data based on the active view
+    let exportData = [];
+    let headers = [];
+    
+    if (document.getElementById('ingredient-daily-view').classList.contains('active')) {
+        // Daily consumption view
+        headers = ['No', 'Tanggal', 'Ringkasan', 'Total Pesanan', 'Total Konsumsi', 'Detail'];
+        exportData = (Array.isArray(baseData) ? baseData : []).map((r, index) => [
+            index + 1,
+            r.date || '-',
+            r.daily_summary ? `${r.daily_summary.total_orders || 0} pesanan, ${r.daily_summary.unique_menus || 0} menu unik` : '-',
+            r.daily_summary?.total_orders || 0,
+            r.daily_summary?.total_consumption || 0,
+            'Lihat detail untuk informasi lengkap'
+        ]);
+    } else {
+        // Grouped consumption view (logs)
+        headers = ['No', 'Menu', 'Flavor', 'Tanggal', 'Status', 'Bahan Terpengaruh', 'Order IDs'];
+        exportData = (Array.isArray(baseData) ? baseData : []).map((r, index) => [
+            index + 1,
+            r.menu_name || '-',
+            r.flavor || '-',
+            r.date || '-',
+            r.status_text || '-',
+            r.ingredients_affected ?? 0,
+            Array.isArray(r.order_ids) ? r.order_ids.join(', ') : (r.order_id || '-')
+        ]);
+    }
+    
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...exportData]);
+    
+    // Set column widths
+    const colWidths = headers.map((header, index) => {
+        if (header.includes('Detail') || header.includes('Bahan yang Digunakan')) {
+            return { wch: 50 };
+        } else if (header.includes('Tanggal') || header.includes('Menu')) {
+            return { wch: 25 };
+        } else {
+            return { wch: 15 };
+        }
+    });
+    ws['!cols'] = colWidths;
+    
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Ingredient Analysis');
+    
+    // Add summary sheet
+    const summaryData = [
+        ['Ingredient Analysis Summary'],
+        [''],
+        ['Total Records', exportData.length],
+        ['Analysis Type', document.getElementById('ingredient-daily-view').classList.contains('active') ? 'Daily Consumption' : 'Grouped by Menu+Flavor'],
+        [''],
+        ['Generated on', new Date().toLocaleString('id-ID')]
+    ];
+    
+    const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
+    
+    // Save file
+    const fileName = `ingredient_analysis_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+}
+ 
+ function exportIngredientCSV() {
     // Export aligned with ingredient mode (daily history aggregation)
-    const rows = (Array.isArray(baseData) ? baseData : []).map(r => [
-        r.order_id || '-',
+    let exportData = [];
+    let headers = [];
+    
+    if (document.getElementById('ingredient-daily-view').classList.contains('active')) {
+        // Daily consumption view
+        headers = ['No', 'Tanggal', 'Order ID', 'Status', 'Total Bahan', 'Total Qty', 'Detail Bahan'];
+        exportData = (Array.isArray(baseData) ? baseData : []).map((r, index) => [
+            index + 1,
         r.date || '-',
+            r.order_id || '-',
         r.status_text || '-',
         r.ingredients_affected ?? 0,
-        r.total_qty ?? 0
-    ]);
+            r.total_qty ?? 0,
+            r.ingredients_detail || '-'
+        ]);
+    } else {
+        // Grouped consumption view
+        headers = ['No', 'Menu + Flavor', 'Total Order', 'Bahan yang Digunakan'];
+        exportData = Object.entries(ingredientMenuFlavorGroups).map(([key, data], index) => {
+            const [menuName, flavorName] = key.split('|');
+            const ingredients = Object.entries(data.ingredients || {})
+                .map(([ingId, ingData]) => {
+                    const ingredient = ingredientData[ingId];
+                    return `${ingredient?.name || 'Unknown'}: ${ingData.totalQuantity} ${ingData.unit}`;
+                })
+                .join('; ');
+            
+            return [
+                index + 1,
+                `${menuName} (${flavorName})`,
+                data.totalOrder || 0,
+                ingredients || 'Tidak ada data'
+            ];
+        });
+    }
+    
     const csvContent = [
-        ['Order ID/Day', 'Tanggal', 'Status', 'Total Bahan', 'Total Qty'],
-        ...rows
+        headers,
+        ...exportData
     ].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ingredient_consumption_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `ingredient_analysis_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
+}
+
+function exportIngredientPDF() {
+    const isDaily = document.getElementById('ingredient-daily-view').classList.contains('active');
+    const rows = Array.isArray(baseData) ? baseData : [];
+    const startDate = (document.getElementById('ingredient-start-date')?.value) || '-';
+    const endDate = (document.getElementById('ingredient-end-date')?.value) || '-';
+
+    const jsPdfNs = (window.jspdf || window.jsPDF || null);
+    const JSPDF_CTOR = jsPdfNs ? (jsPdfNs.jsPDF || jsPdfNs) : null;
+    if (!JSPDF_CTOR) { alert('jsPDF tidak tersedia.'); return; }
+    const doc = new JSPDF_CTOR('p','mm','a4');
+
+    // Theme colors aligned with app
+    const colorPrimary = [68, 45, 45]; // #442D2D
+    const colorAccent = [220, 208, 168]; // #DCD0A8
+    const colorBg = [245, 239, 230]; // #F5EFE6
+
+    // Header
+    doc.setFillColor(colorBg[0], colorBg[1], colorBg[2]);
+    doc.rect(10, 10, 190, 18, 'F');
+    doc.setFont('helvetica','bold');
+    doc.setTextColor(colorPrimary[0], colorPrimary[1], colorPrimary[2]);
+    doc.setFontSize(14);
+    doc.text('Ingredient Analysis - Infinity Cafe', 14, 20);
+
+    // Meta
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(10);
+    doc.text(`Periode: ${startDate} s/d ${endDate}`, 14, 30);
+    doc.text(`Mode: ${isDaily ? 'Harian' : 'Per-Order (Logs)'}`, 120, 30);
+
+    // Summary box
+    let y = 38;
+    doc.setDrawColor(colorAccent[0], colorAccent[1], colorAccent[2]);
+    doc.setLineWidth(0.4);
+    doc.rect(10, y, 190, 20);
+    doc.setFont('helvetica','bold'); doc.text('Ringkasan', 14, y+7);
+    doc.setFont('helvetica','normal');
+    if (isDaily) {
+        const totals = rows.reduce((acc, r)=>{ const ds=r.daily_summary||{}; acc.days++; acc.orders+=(ds.total_orders||0); acc.cons+=(ds.total_consumption||0); return acc;}, {days:0,orders:0,cons:0});
+        doc.text(`Total Hari: ${totals.days}`, 14, y+14);
+        doc.text(`Total Pesanan: ${totals.orders}`, 70, y+14);
+        doc.text(`Total Konsumsi: ${totals.cons}`, 140, y+14);
+    } else {
+        const totals = rows.reduce((acc, r)=>{ acc.logs++; acc.aff+=(r.ingredients_affected||0); return acc;}, {logs:0,aff:0});
+        doc.text(`Total Log: ${totals.logs}`, 14, y+14);
+        doc.text(`Total Bahan Terpengaruh: ${totals.aff}`, 70, y+14);
+    }
+    y += 28;
+
+    // Table using AutoTable for consistent layout
+    const headers = isDaily
+        ? ['No','Tanggal','Ringkasan','Total Pesanan','Total Konsumsi']
+        : ['No','Menu','Flavor','Tanggal','Status','Bahan Terpengaruh'];
+    const body = isDaily
+        ? rows.map((r,i)=>[
+            i+1,
+            r.date || '-',
+            r.daily_summary ? `${r.daily_summary.total_orders || 0} pesanan, ${r.daily_summary.unique_menus || 0} menu unik` : '-',
+            r.daily_summary?.total_orders || 0,
+            r.daily_summary?.total_consumption || 0
+        ])
+        : rows.map((r,i)=>[
+            i+1,
+            r.menu_name || '-',
+            r.flavor || '-',
+            r.date || '-',
+            r.status_text || '-',
+            r.ingredients_affected ?? 0
+        ]);
+
+    const auto = doc.autoTable || (doc.autoTable && typeof doc.autoTable === 'function');
+    if (!doc.autoTable) { alert('AutoTable tidak tersedia.'); return; }
+    doc.autoTable({
+        startY: y,
+        head: [headers],
+        body,
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 9, textColor: [68,45,45] },
+        headStyles: { fillColor: colorAccent, textColor: [68,45,45], halign: 'left' },
+        alternateRowStyles: { fillColor: [250, 247, 240] },
+        tableLineColor: colorAccent,
+        tableLineWidth: 0.2,
+        margin: { left: 10, right: 10 }
+    });
+
+    // Footer
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(9);
+        doc.setTextColor(120);
+        doc.text(`Generated: ${new Date().toLocaleString('id-ID')}  |  Page ${i}/${pageCount}` , 10, 290);
+    }
+
+    doc.save(`ingredient_analysis_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
 async function loadKitchenData() {
@@ -1203,7 +1398,278 @@ function viewMenuIngredients(menuName) {
     document.getElementById('ingredient-modal').classList.remove('hidden');
 }
 
+// ========== EXPORT AGGREGATION UTILITIES ==========
+function computeKitchenKPIs(allOrders) {
+    const totals = { totalOrders: 0, done: 0, cancelled: 0, durations: [] };
+    const statusCountMap = {};
+    for (const order of (allOrders || [])) {
+        totals.totalOrders += 1;
+        statusCountMap[order.status] = (statusCountMap[order.status] || 0) + 1;
+        if (order.status === 'done') totals.done += 1;
+        if (order.status === 'cancelled') totals.cancelled += 1;
+        if (order.time_receive && order.time_done) {
+            const start = new Date(order.time_receive);
+            const end = new Date(order.time_done);
+            const diffMin = Math.max(0, Math.round((end - start) / 60000));
+            if (Number.isFinite(diffMin)) totals.durations.push(diffMin);
+        }
+    }
+    const avg = totals.durations.length ? Math.round(totals.durations.reduce((a,b)=>a+b,0)/totals.durations.length) : 0;
+    const sorted = totals.durations.slice().sort((a,b)=>a-b);
+    const median = sorted.length ? (sorted.length % 2 ? sorted[(sorted.length-1)/2] : Math.round((sorted[sorted.length/2-1]+sorted[sorted.length/2])/2)) : 0;
+    const p95 = sorted.length ? sorted[Math.min(sorted.length-1, Math.floor(0.95 * sorted.length))] : 0;
+    const doneRate = totals.totalOrders ? Math.round((totals.done / totals.totalOrders) * 100) : 0;
+    const cancelRate = totals.totalOrders ? Math.round((totals.cancelled / totals.totalOrders) * 100) : 0;
+    return { statusCountMap, avgDurationMin: avg, medianDurationMin: median, p95DurationMin: p95, doneRatePct: doneRate, cancelRatePct: cancelRate };
+}
+
+function buildTopMenus(allOrders, limit = 10) {
+    const menuCount = {};
+    for (const order of (allOrders || [])) {
+        if (!order.items) continue;
+        for (const item of order.items) {
+            const key = item.menu_name || 'Unknown';
+            menuCount[key] = (menuCount[key] || 0) + (item.quantity || 0);
+        }
+    }
+    const totalQty = Object.values(menuCount).reduce((a,b)=>a+b,0) || 1;
+    return Object.entries(menuCount)
+        .sort((a,b)=>b[1]-a[1])
+        .slice(0, limit)
+        .map(([menuName, qty]) => ({ menuName, totalQty: qty, contributionPct: Math.round((qty/totalQty)*100) }));
+}
+
+function buildTopIngredients(allOrders, limit = 10) {
+    const ingredientTotals = {}; // { ingName: { qty, unit } }
+    for (const order of (allOrders || [])) {
+        const usage = getOrderIngredientUsage(order) || [];
+        for (const u of usage) {
+            const name = u.name || 'Unknown';
+            if (!ingredientTotals[name]) ingredientTotals[name] = { qty: 0, unit: u.unit || '' };
+            ingredientTotals[name].qty += Number(u.totalQuantity || 0);
+            if (!ingredientTotals[name].unit && u.unit) ingredientTotals[name].unit = u.unit;
+        }
+    }
+    const totalQty = Object.values(ingredientTotals).reduce((a,b)=>a + (b.qty||0), 0) || 1;
+    return Object.entries(ingredientTotals)
+        .map(([name, v]) => ({ ingredientName: name, totalQty: v.qty, unit: v.unit, contributionPct: Math.round((v.qty/totalQty)*100) }))
+        .sort((a,b)=>b.totalQty-a.totalQty)
+        .slice(0, limit);
+}
+
+function normalizeKitchenOrdersRaw(allOrders) {
+    // One row per ordered menu item for analysis
+    const rows = [];
+    (allOrders || []).forEach((order) => {
+        const base = {
+            order_id: order.order_id,
+            customer: order.customer_name || '',
+            room: order.room_name || '',
+            status: getStatusText(order.status),
+            time_receive: order.time_receive || '',
+            time_done: order.time_done || ''
+        };
+        if (order.items && order.items.length) {
+            order.items.forEach((item) => {
+                rows.push({
+                    ...base,
+                    menu_name: item.menu_name || 'Unknown',
+                    quantity: item.quantity || 0
+                });
+            });
+        } else {
+            rows.push({ ...base, menu_name: order.detail || '-', quantity: 0 });
+        }
+    });
+    return rows;
+}
+
+function normalizeKitchenIngredientLines(allOrders) {
+    // One row per ingredient usage
+    const rows = [];
+    (allOrders || []).forEach((order) => {
+        const usage = getOrderIngredientUsage(order) || [];
+        usage.forEach((u) => {
+            rows.push({
+                order_id: order.order_id,
+                status: getStatusText(order.status),
+                ingredient: u.name || 'Unknown',
+                total_qty: u.totalQuantity || 0,
+                unit: u.unit || ''
+            });
+        });
+    });
+    return rows;
+}
+
+// ========== KITCHEN EXPORT FUNCTIONS ==========
+function exportKitchenExcel() {
+    const statusFilter = document.getElementById('kitchen-status-filter').value;
+    const allOrders = Array.isArray(kitchenData) ? kitchenData : [];
+    const filteredData = statusFilter ? allOrders.filter(o => o.status === statusFilter) : allOrders;
+    
+    // Prepare data for Excel (Orders Summary)
+    const excelData = [
+        ['No', 'Order ID', 'Customer', 'Room', 'Menu Items', 'Status', 'Time Receive', 'Time Done', 'Durasi (menit)']
+    ];
+    
+    filteredData.forEach((order, index) => {
+            const ingredientUsage = getOrderIngredientUsage(order);
+        const ingredientSummary = ingredientUsage.length > 0 ? ingredientUsage.map(ing => `${ing.name} (${ing.totalQuantity} ${ing.unit})`).join('; ') : 'Tidak ada data bahan';
+        
+        // Calculate duration
+        let duration = '-';
+        if (order.time_receive && order.time_done) {
+            const start = new Date(order.time_receive);
+            const end = new Date(order.time_done);
+            const diffMs = end - start;
+            duration = Math.round(diffMs / (1000 * 60)); // Convert to minutes
+        }
+        
+        excelData.push([
+            index + 1,
+                order.order_id,
+                order.customer_name || '',
+                order.room_name || '',
+            order.items ? order.items.map(item => `${item.menu_name} (${item.quantity})`).join('; ') : order.detail || '-',
+            getStatusText(order.status),
+                order.time_receive || '',
+            order.time_done || '',
+            duration
+        ]);
+    });
+    
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(excelData);
+    
+    // Set column widths
+    ws['!cols'] = [
+        { wch: 5 },   // No
+        { wch: 15 },  // Order ID
+        { wch: 20 },  // Customer
+        { wch: 15 },  // Room
+        { wch: 40 },  // Menu Items
+        { wch: 12 },  // Status
+        { wch: 20 },  // Time Receive
+        { wch: 20 },  // Time Done
+        { wch: 12 }   // Durasi
+    ];
+    
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Orders Summary');
+    
+    // Executive Summary
+    const kpis = computeKitchenKPIs(allOrders);
+    const topMenus = buildTopMenus(allOrders, 10);
+    const topIngredients = buildTopIngredients(allOrders, 10);
+    const summaryData = [
+        ['Kitchen Executive Summary'],
+        ['Generated on', new Date().toLocaleString('id-ID')],
+        ['Total Orders', allOrders.length],
+        ['Done Rate (%)', kpis.doneRatePct],
+        ['Cancel Rate (%)', kpis.cancelRatePct],
+        ['Avg Duration (min)', kpis.avgDurationMin],
+        ['Median Duration (min)', kpis.medianDurationMin],
+        ['P95 Duration (min)', kpis.p95DurationMin],
+        [''],
+        ['Orders by Status'],
+        ...Object.entries(kpis.statusCountMap).map(([s,c]) => [getStatusText(s), c]),
+        [''],
+        ['Top 10 Menus'],
+        ['Menu Name','Total Qty','Contribution %'],
+        ...topMenus.map(m => [m.menuName, m.totalQty, m.contributionPct]),
+        [''],
+        ['Top 10 Ingredients'],
+        ['Ingredient','Total Qty','Unit','Contribution %'],
+        ...topIngredients.map(i => [i.ingredientName, i.totalQty, i.unit, i.contributionPct])
+    ];
+    
+    const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
+
+    // Orders Raw (normalized per item)
+    const ordersRawRows = normalizeKitchenOrdersRaw(allOrders);
+    const ordersRawHeader = ['Order ID','Customer','Room','Status','Time Receive','Time Done','Menu Name','Quantity'];
+    const ordersRawAoA = [ordersRawHeader, ...ordersRawRows.map(r => [r.order_id, r.customer, r.room, r.status, r.time_receive, r.time_done, r.menu_name, r.quantity])];
+    const ordersRawWs = XLSX.utils.aoa_to_sheet(ordersRawAoA);
+    XLSX.utils.book_append_sheet(wb, ordersRawWs, 'Orders Raw');
+
+    // Ingredient Lines (normalized per ingredient)
+    const ingLines = normalizeKitchenIngredientLines(allOrders);
+    const ingHeader = ['Order ID','Status','Ingredient','Total Qty','Unit'];
+    const ingAoA = [ingHeader, ...ingLines.map(r => [r.order_id, r.status, r.ingredient, r.total_qty, r.unit])];
+    const ingWs = XLSX.utils.aoa_to_sheet(ingAoA);
+    XLSX.utils.book_append_sheet(wb, ingWs, 'Ingredient Lines');
+    
+    // Save file
+    const fileName = `kitchen_report_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+}
+
 function exportKitchenCSV() {
+    const statusFilter = document.getElementById('kitchen-status-filter').value;
+    const allOrders = Array.isArray(kitchenData) ? kitchenData : [];
+    const filteredData = statusFilter ? allOrders.filter(o => o.status === statusFilter) : allOrders;
+    
+    const kpis = computeKitchenKPIs(allOrders);
+    const topMenus = buildTopMenus(allOrders, 5);
+    const topIngredients = buildTopIngredients(allOrders, 5);
+    
+    const headerSummary = [
+        ['Kitchen Executive Summary'],
+        ['Generated on', new Date().toLocaleString('id-ID')],
+        ['Total Orders', allOrders.length],
+        ['Done Rate (%)', kpis.doneRatePct],
+        ['Cancel Rate (%)', kpis.cancelRatePct],
+        ['Avg Duration (min)', kpis.avgDurationMin],
+        ['Median Duration (min)', kpis.medianDurationMin],
+        ['P95 Duration (min)', kpis.p95DurationMin],
+        [''],
+        ['Orders by Status'],
+        ...Object.entries(kpis.statusCountMap).map(([s,c]) => [getStatusText(s), c]),
+        [''],
+        ['Top 5 Menus'],
+        ['Menu Name','Total Qty','Contribution %'],
+        ...topMenus.map(m => [m.menuName, m.totalQty, m.contributionPct]),
+        [''],
+        ['Top 5 Ingredients'],
+        ['Ingredient','Total Qty','Unit','Contribution %'],
+        ...topIngredients.map(i => [i.ingredientName, i.totalQty, i.unit, i.contributionPct]),
+        [''],
+        ['Orders Summary'],
+        ['No','Order ID','Customer','Room','Menu Items','Status','Time Receive','Time Done','Durasi (menit)']
+    ];
+    
+    const dataRows = filteredData.map((order, index) => {
+            const ingredientUsage = getOrderIngredientUsage(order);
+            const ingredientSummary = ingredientUsage.length > 0 ? 
+                ingredientUsage.map(ing => `${ing.name} (${ing.totalQuantity} ${ing.unit})`).join('; ') : 'Tidak ada data bahan';
+            
+            // Calculate duration
+            let duration = '-';
+            if (order.time_receive && order.time_done) {
+                const start = new Date(order.time_receive);
+                const end = new Date(order.time_done);
+                const diffMs = end - start;
+                duration = Math.round(diffMs / (1000 * 60)); // Convert to minutes
+            }
+            
+            return [index + 1, order.order_id, order.customer_name || '', order.room_name || '', order.items ? order.items.map(item => `${item.menu_name} (${item.quantity})`).join('; ') : order.detail || '-', getStatusText(order.status), order.time_receive || '', order.time_done || '', duration];
+    });
+    
+    const csvContent = [...headerSummary, ...dataRows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `kitchen_report_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+
+function exportKitchenPDF() {
     const statusFilter = document.getElementById('kitchen-status-filter').value;
     let filteredData = kitchenData;
     
@@ -1211,36 +1677,143 @@ function exportKitchenCSV() {
         filteredData = kitchenData.filter(order => order.status === statusFilter);
     }
     
-    const csvContent = [
-        ['Order ID', 'Queue', 'Customer', 'Room', 'Menu Items', 'Bahan yang Digunakan', 'Status', 'Time Receive', 'Time Done'],
-        ...filteredData.map(order => {
-            const ingredientUsage = getOrderIngredientUsage(order);
-            const ingredientSummary = ingredientUsage.length > 0 ? 
-                ingredientUsage.slice(0, 3).map(ing => `${ing.name} (${ing.totalQuantity} ${ing.unit})`).join('; ') + 
-                (ingredientUsage.length > 3 ? `; +${ingredientUsage.length - 3} bahan lain` : '') 
-                : 'Tidak ada data bahan';
-            
-            return [
-                order.order_id,
-                order.queue_number || '',
-                order.customer_name || '',
-                order.room_name || '',
-                order.items ? order.items.map(item => `${item.menu_name} (${item.quantity})`).join('; ') : order.detail || '',
-                ingredientSummary,
-                order.status,
-                order.time_receive || '',
-                order.time_done || ''
-            ];
-        })
-    ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+    // Create new PDF document
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('l', 'mm', 'a4'); // Landscape orientation
     
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `kitchen_report_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    // Set font
+    doc.setFont('helvetica');
+    
+    // Title
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Kitchen Report - Infinity Cafe', 20, 20);
+    
+    // Subtitle
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Generated on: ${new Date().toLocaleString('id-ID')}`, 20, 30);
+    doc.text(`Total Orders: ${filteredData.length}`, 20, 35);
+    
+    if (statusFilter) {
+        doc.text(`Filter: ${getStatusText(statusFilter)}`, 20, 40);
+    }
+    
+    // Summary statistics
+    const statusCounts = filteredData.reduce((acc, order) => {
+        acc[order.status] = (acc[order.status] || 0) + 1;
+        return acc;
+    }, {});
+    
+    let yPos = 50;
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Summary by Status:', 20, yPos);
+    
+    yPos += 10;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    Object.entries(statusCounts).forEach(([status, count]) => {
+        doc.text(`${getStatusText(status)}: ${count} orders`, 30, yPos);
+        yPos += 6;
+    });
+    
+    // Table headers
+    yPos += 10;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    
+    const headers = ['No', 'Order ID', 'Customer', 'Menu Items', 'Status', 'Time Receive', 'Time Done'];
+    const colWidths = [10, 25, 30, 50, 20, 25, 25];
+    let xPos = 20;
+    
+    // Draw header background
+    doc.setFillColor(240, 240, 240);
+    doc.rect(20, yPos - 5, 185, 8, 'F');
+    
+    // Draw header text
+    headers.forEach((header, index) => {
+        doc.text(header, xPos, yPos);
+        xPos += colWidths[index];
+    });
+    
+    // Table data
+    yPos += 10;
+    doc.setFont('helvetica', 'normal');
+    
+    filteredData.forEach((order, index) => {
+        if (yPos > 180) { // New page if needed
+            doc.addPage();
+            yPos = 20;
+        }
+        
+        xPos = 20;
+        const rowData = [
+            index + 1,
+            order.order_id,
+            order.customer_name || '-',
+            order.items ? order.items.map(item => `${item.menu_name} (${item.quantity})`).join(', ') : order.detail || '-',
+            getStatusText(order.status),
+            order.time_receive ? new Date(order.time_receive).toLocaleString('id-ID') : '-',
+            order.time_done ? new Date(order.time_done).toLocaleString('id-ID') : '-'
+        ];
+        
+        rowData.forEach((cell, colIndex) => {
+            // Truncate long text
+            let cellText = String(cell);
+            if (colIndex === 3 && cellText.length > 40) { // Menu Items column
+                cellText = cellText.substring(0, 37) + '...';
+            }
+            
+            doc.text(cellText, xPos, yPos);
+            xPos += colWidths[colIndex];
+        });
+        
+        yPos += 6;
+    });
+    
+    // Add ingredient usage details on separate pages if needed
+    if (filteredData.length > 0) {
+        doc.addPage();
+        yPos = 20;
+        
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Detailed Ingredient Usage', 20, yPos);
+        
+        yPos += 15;
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        
+        filteredData.forEach((order, index) => {
+            if (yPos > 180) {
+                doc.addPage();
+                yPos = 20;
+            }
+            
+            doc.setFont('helvetica', 'bold');
+            doc.text(`Order ${order.order_id} - ${order.customer_name || 'Unknown'}`, 20, yPos);
+            yPos += 8;
+            
+            const ingredientUsage = getOrderIngredientUsage(order);
+            if (ingredientUsage.length > 0) {
+                doc.setFont('helvetica', 'normal');
+                ingredientUsage.forEach(ing => {
+                    doc.text(`• ${ing.name}: ${ing.totalQuantity} ${ing.unit}`, 30, yPos);
+                    yPos += 6;
+                });
+            } else {
+                doc.text('No ingredient data available', 30, yPos);
+                yPos += 6;
+            }
+            
+            yPos += 5;
+        });
+    }
+    
+    // Save PDF
+    const fileName = `kitchen_report_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
 }
 
 function getStatusText(status) {
@@ -1307,6 +1880,45 @@ function getOrderIngredientUsage(order) {
     });
     
     return Object.values(ingredientUsage);
+}
+
+function updateSummaryWithFinancialData(data, type = 'sales') {
+    const summaryPeriod = document.getElementById("summary-period");
+    const summaryIncome = document.getElementById("summary-income");
+    const summaryOrders = document.getElementById("summary-orders");
+    const statusEl = document.getElementById("summary-status-badge");
+    
+    if (summaryPeriod) {
+        const dateRange = data.report_info?.date_range;
+        if (dateRange) {
+            summaryPeriod.textContent = `${dateRange.start_date || 'N/A'} s/d ${dateRange.end_date || 'N/A'}`;
+        } else {
+            summaryPeriod.textContent = 'N/A';
+        }
+    }
+    
+    if (summaryIncome) {
+        const summary = data.summary;
+        if (summary) {
+            summaryIncome.textContent = `Rp ${(summary.total_omzet || 0).toLocaleString()}`;
+        } else {
+            summaryIncome.textContent = 'Rp 0';
+        }
+    }
+    
+    if (summaryOrders) {
+        const summary = data.summary;
+        if (summary) {
+            summaryOrders.textContent = `${summary.total_transactions || 0}`;
+        } else {
+            summaryOrders.textContent = '0';
+        }
+    }
+    
+    if (statusEl) {
+        statusEl.textContent = type === 'best' ? 'Best Seller' : 'Data Sales';
+        statusEl.className = `status-badge ${type === 'best' ? 'status-warning' : 'status-deliver'}`;
+    }
 }
 
 // ========== UTILITY FUNCTIONS ==========
@@ -1582,81 +2194,83 @@ async function loadReport() {
         alert("Tanggal awal tidak boleh melebihi tanggal akhir!");
         return;
     }
+    
+    // Show loading state
+    showLoading();
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
 
     try {
-        // Build URL with optional menu filter
-        let url = `/report?start_date=${start}&end_date=${end}`;
-        if (menuFilter) {
-            url += `&menu_name=${encodeURIComponent(menuFilter)}`;
-        }
+            // Build URL with optional menu filter - use financial_sales endpoint for flavor data
+            let url = `/report/financial_sales?start_date=${start}&end_date=${end}`;
+            if (menuFilter) {
+                url += `&menu_name=${encodeURIComponent(menuFilter)}`;
+            }
 
-        const res = await fetch(url, { signal: controller.signal });
-        if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(errorData.detail || "Gagal mengambil data laporan");
-        }
-        
-        const data = await res.json();
+            const res = await fetch(url, { signal: controller.signal });
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.detail || "Gagal mengambil data laporan");
+            }
+            
+            const data = await res.json();
         console.log('Report data received:', data);
-        currentReportData = data;
+            currentReportData = data;
         // Set current type as early as possible to avoid stale state
         const previousType = currentDataType;
-        currentDataType = 'sales';
+            currentDataType = 'sales';
 
-        // Update summary
-        updateSummaryWithData(data, 'sales');
-        applyModeLayout('sales');
+            // Update summary with new structure
+        updateSummaryWithFinancialData(data, 'sales');
+            applyModeLayout('sales');
 
-        const details = Array.isArray(data.details) ? data.details : [];
-        console.log('Report details:', details);
+            // Use transactions array for detailed data with flavor information
+            const rawDetails = Array.isArray(data.transactions) ? data.transactions : [];
+        console.log('Report transactions:', rawDetails);
+        console.log('Data structure:', data);
+        console.log('Transactions length:', rawDetails.length);
         
-        const newHash = computeDataHash(details);
-        // Force refresh if coming from a different data type to avoid stale ingredient/log rows
-        if (newHash !== lastReportHash || previousType !== 'sales') {
-            lastReportHash = newHash;
-            baseData = details;
-            // preserve current search if any
-            const tableSearch = document.getElementById('table-search-input');
-            const term = tableSearch ? tableSearch.value : '';
-            filteredData = term ? baseData.filter(i => (i.menu_name || '').toLowerCase().includes(term.toLowerCase())) : [...baseData];
+            // Aggregate sales data by menu + flavor combination
+            const details = aggregateSalesData(rawDetails);
+        console.log('Aggregated sales data:', details);
+        
+            const newHash = computeDataHash(details);
+        // Always update data and render, regardless of hash
+                lastReportHash = newHash;
+                baseData = details;
+                // preserve current search if any
+                const tableSearch = document.getElementById('table-search-input');
+                const term = tableSearch ? tableSearch.value : '';
+                filteredData = term ? baseData.filter(i => (i.menu_name || '').toLowerCase().includes(term.toLowerCase())) : [...baseData];
+                currentPage = 1;
+                renderTablePage();
+                updatePagination();
+                // Re-render charts only when data changed (using aggregated data)
+        const chartData = details.map(item => ({
+            menu_name: item.menu_name || 'N/A',
+            quantity: item.quantity || 0,
+            unit_price: item.base_price || 0,
+            total: item.total_price || 0
+        }));
+        renderCharts(chartData);
+
+        if (details.length === 0) {
+            console.log('No sales data found');
+            // Show empty state instead of fallback
+            baseData = [];
+            filteredData = [];
             currentPage = 1;
             renderTablePage();
             updatePagination();
-            // Re-render charts only when data changed
-            const chartData = details.map(item => ({
-                menu_name: item.menu_name || 'N/A',
-        quantity: item.quantity || 0,
-        unit_price: item.unit_price || 0,
-        total: item.total || 0
-            }));
-            renderCharts(chartData);
-        } else {
-            // Even if hash same, ensure header matches sales mode after returning from ingredient
-            const tableHeader = document.querySelector('#report-table thead tr');
-            if (tableHeader) {
-                tableHeader.innerHTML = `
-                    <th>No</th>
-                    <th>Menu</th>
-                    <th>Qty</th>
-                    <th>Price</th>
-                    <th>Total</th>
-                `;
-            }
-        }
-
-        if (details.length === 0) {
-            // When no sales data, try best seller as fallback
-            console.log('No sales data found, loading best seller data instead');
-            await loadBestSellerData(start, end);
+            showEmptyState('Tidak ada data penjualan untuk periode ini', 'info');
         }
     } catch (err) {
         console.error("Error loading report:", err);
         showEmptyState(err.message || 'Gagal memuat data laporan', 'error');
     } finally {
         clearTimeout(timeout);
+        hideLoading();
     }
 }
 
@@ -1820,51 +2434,402 @@ async function fetchSuggestedMenu() {
     }
 }
 
-// ========== EXPORT FUNCTIONS ==========
+// ========== GLOBAL EXPORT DISPATCHERS (AGGREGATED) ==========
 function exportCSV() {
-    const rows = [["No", "Menu", "Qty", "Price", "Total"]];
-    document.querySelectorAll("#report-tbody tr").forEach((tr, i) => {
-        const cols = [...tr.children].map(td => td.innerText);
-        if (cols.length > 1 && !cols[0].includes("Tidak ada data")) {
-        rows.push([i + 1, ...cols.slice(1)]);
-        }
-    });
-    
-    if (rows.length <= 1) {
-        alert("Tidak ada data untuk di-export!");
-        return;
-    }
-    
-    const csv = rows.map(row => row.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `laporan_penjualan_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
+    const kitchenVisible = !document.getElementById('kitchen-report-section')?.classList.contains('hidden');
+    const ingredientVisible = !document.getElementById('ingredient-analysis-section')?.classList.contains('hidden');
+    if (kitchenVisible) { return exportKitchenCSV(); }
+    if (ingredientVisible) { return exportIngredientCSV(); }
+    return exportSalesCSVEnhanced();
 }
 
 async function exportPDF() {
-    try {
-        const element = document.querySelector('.main-container') || document.body;
-        const canvas = await html2canvas(element, { useCORS: true, scale: 2 });
-        const imgData = canvas.toDataURL("image/png");
+    const kitchenVisible = !document.getElementById('kitchen-report-section')?.classList.contains('hidden');
+    const ingredientVisible = !document.getElementById('ingredient-analysis-section')?.classList.contains('hidden');
+    if (kitchenVisible) { return exportKitchenPDF(); }
+    if (ingredientVisible) { return exportIngredientPDF(); }
+    return exportSalesPDFEnhanced();
+}
 
-        // Use UMD global (robust detection)
-        const jspdfGlobal = window.jspdf;
-        const JS_PDF = (window.jsPDF && typeof window.jsPDF === 'function')
-            ? window.jsPDF
-            : (jspdfGlobal && typeof jspdfGlobal.jsPDF === 'function' ? jspdfGlobal.jsPDF : null);
-        if (!JS_PDF) {
-            throw new Error('jsPDF tidak tersedia atau tidak valid');
+// ========== SALES EXPORT (AGGREGATED) ==========
+function exportSalesExcelEnhanced() {
+    const data = Array.isArray(baseData) ? baseData : [];
+    const wb = XLSX.utils.book_new();
+    
+    // Determine data type and structure
+    const dataType = currentDataType || 'sales';
+    let totalQty = 0, totalRevenue = 0;
+    const itemMap = {};
+    
+    // Process data based on current data type
+    data.forEach(r => {
+        let qty, price, total, menu, flavor;
+        
+        if (dataType === 'sales') {
+            // Sales data structure (aggregated by menu + flavor)
+            qty = Number(r.quantity || 0);
+            price = Number(r.base_price || 0);
+            total = Number(r.total_price || 0);
+            menu = r.menu_name || 'Unknown';
+            flavor = r.flavor || '-';
+        } else if (dataType === 'best') {
+            // Best seller data structure
+            qty = Number(r.total_quantity || r.quantity || 0);
+            price = Number(r.unit_price || 0);
+            total = Number(r.total_revenue || r.total || 0);
+            menu = r.menu_name || 'Unknown';
+            flavor = '-'; // Best seller doesn't have flavor
+        } else {
+            // Fallback for other data types
+            qty = Number(r.qty || r.quantity || r.amount || 0);
+            price = Number(r.price || r.price_per_unit || r.unit_price || 0);
+            total = Number(r.total || r.revenue || (qty * price));
+            menu = r.menu_name || r.name || r.menu || 'Unknown';
+            flavor = r.flavor || '-';
         }
-        const pdf = new JS_PDF({ orientation: "portrait", unit: "px", format: [canvas.width, canvas.height] });
-        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-        pdf.save(`laporan_penjualan_${new Date().toISOString().slice(0, 10)}.pdf`);
-    } catch (err) {
-        console.error("Error exporting PDF:", err);
-        alert("❌ Gagal export PDF. Pastikan koneksi internet stabil.");
+        
+        totalQty += qty; 
+        totalRevenue += total;
+        
+        // Create unique key for aggregation (include flavor for sales)
+        const key = dataType === 'sales' ? `${menu}|${flavor}` : menu;
+        if (!itemMap[key]) itemMap[key] = { qty: 0, revenue: 0, menu, flavor };
+        itemMap[key].qty += qty; 
+        itemMap[key].revenue += total;
+    });
+    
+    const topItems = Object.entries(itemMap)
+        .map(([key, v]) => ({ name: v.menu, flavor: v.flavor, qty: v.qty, revenue: v.revenue }))
+        .sort((a,b) => b.qty - a.qty)
+        .slice(0, 10);
+    const allItems = Object.entries(itemMap)
+        .map(([key, v]) => ({ name: v.menu, flavor: v.flavor, qty: v.qty, revenue: v.revenue }))
+        .sort((a,b) => b.qty - a.qty);
+    
+    // Executive Summary
+    const summaryAoA = [
+        [`${dataType === 'sales' ? 'Sales' : dataType === 'best' ? 'Best Seller' : 'Data'} Executive Summary`],
+        ['Generated on', new Date().toLocaleString('id-ID')],
+        ['Data Type', dataType === 'sales' ? 'Data Sales' : dataType === 'best' ? 'Best Seller' : 'Data'],
+        ['Total Records', data.length],
+        ['Total Qty', totalQty],
+        ['Total Revenue', totalRevenue],
+        [''],
+        ['Top 10 Items (by Qty)'],
+        dataType === 'sales' ? ['Item','Flavor','Qty','Revenue'] : ['Item','Qty','Revenue'],
+        ...topItems.map(i => dataType === 'sales' ? [i.name, i.flavor, i.qty, i.revenue] : [i.name, i.qty, i.revenue]),
+        [''],
+        ['All Items Summary'],
+        dataType === 'sales' ? ['Item','Flavor','Qty','Revenue'] : ['Item','Qty','Revenue'],
+        ...allItems.map(i => dataType === 'sales' ? [i.name, i.flavor, i.qty, i.revenue] : [i.name, i.qty, i.revenue])
+    ];
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryAoA);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+    
+    // Data Summary (raw rows)
+    const dataAoA = dataType === 'sales' ? 
+        [['No','Item','Flavor','Qty','Price','Total']] : 
+        [['No','Item','Qty','Price','Total']];
+    
+    data.forEach((r, i) => {
+        let name, flavor, qty, price, total;
+        
+        if (dataType === 'sales') {
+            name = r.menu_name || '-';
+            flavor = r.flavor || '-';
+            qty = Number(r.quantity || 0);
+            price = Number(r.base_price || 0);
+            total = Number(r.total_price || 0);
+            dataAoA.push([i+1, name, flavor, qty, price, total]);
+        } else if (dataType === 'best') {
+            name = r.menu_name || '-';
+            qty = Number(r.total_quantity || r.quantity || 0);
+            price = Number(r.unit_price || 0);
+            total = Number(r.total_revenue || r.total || 0);
+            dataAoA.push([i+1, name, qty, price, total]);
+        } else {
+            name = r.menu_name || r.name || r.menu || '-';
+            flavor = r.flavor || '-';
+            qty = Number(r.qty || r.quantity || r.amount || 0);
+            price = Number(r.price || r.price_per_unit || r.unit_price || 0);
+            total = Number(r.total || r.revenue || (qty * price));
+            dataAoA.push([i+1, name, flavor, qty, price, total]);
+        }
+    });
+    
+    const wsData = XLSX.utils.aoa_to_sheet(dataAoA);
+    wsData['!cols'] = dataType === 'sales' ? 
+        [{wch:6},{wch:30},{wch:18},{wch:10},{wch:12},{wch:14}] :
+        [{wch:6},{wch:30},{wch:10},{wch:12},{wch:14}];
+    XLSX.utils.book_append_sheet(wb, wsData, dataType === 'sales' ? 'Sales Data' : dataType === 'best' ? 'Best Seller Data' : 'Data');
+    
+    XLSX.writeFile(wb, `${dataType}_report_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+function exportSalesCSVEnhanced() {
+    const data = Array.isArray(baseData) ? baseData : [];
+    const dataType = currentDataType || 'sales';
+    
+    // Process data based on current data type
+    let totalOrders = data.length;
+    let totalQty = 0;
+    let totalRevenue = 0;
+    const itemMap = {};
+    
+    data.forEach(r => {
+        let qty, price, total, menu, flavor;
+        
+        if (dataType === 'sales') {
+            qty = Number(r.quantity || 0);
+            price = Number(r.base_price || 0);
+            total = Number(r.total_price || 0);
+            menu = r.menu_name || 'Unknown';
+            flavor = r.flavor || '-';
+        } else if (dataType === 'best') {
+            qty = Number(r.total_quantity || r.quantity || 0);
+            price = Number(r.unit_price || 0);
+            total = Number(r.total_revenue || r.total || 0);
+            menu = r.menu_name || 'Unknown';
+            flavor = '-';
+        } else {
+            qty = Number(r.qty || r.quantity || r.amount || 0);
+            price = Number(r.price || r.price_per_unit || r.unit_price || 0);
+            total = Number(r.total || r.revenue || (qty * price));
+            menu = r.menu_name || r.name || r.menu || 'Unknown';
+            flavor = r.flavor || '-';
+        }
+        
+        totalQty += qty;
+        totalRevenue += total;
+        
+        const key = dataType === 'sales' ? `${menu}|${flavor}` : menu;
+        if (!itemMap[key]) itemMap[key] = { qty: 0, revenue: 0, menu, flavor };
+        itemMap[key].qty += qty;
+        itemMap[key].revenue += total;
+    });
+    
+    const topItems = Object.entries(itemMap)
+        .map(([key, v]) => ({ name: v.menu, flavor: v.flavor, qty: v.qty, revenue: v.revenue }))
+        .sort((a,b)=>b.qty-a.qty)
+        .slice(0, 10);
+    const allItems = Object.entries(itemMap)
+        .map(([key, v]) => ({ name: v.menu, flavor: v.flavor, qty: v.qty, revenue: v.revenue }))
+        .sort((a,b)=>b.qty-a.qty);
+
+    // Build CSV content: Executive Summary + Table
+    const summary = [
+        [`${dataType === 'sales' ? 'Sales' : dataType === 'best' ? 'Best Seller' : 'Data'} Executive Summary`],
+        ['Generated on', new Date().toLocaleString('id-ID')],
+        ['Data Type', dataType === 'sales' ? 'Data Sales' : dataType === 'best' ? 'Best Seller' : 'Data'],
+        ['Total Records', totalOrders],
+        ['Total Qty', totalQty],
+        ['Total Revenue', totalRevenue],
+        [''],
+        ['Top 10 Items (by Qty)'],
+        dataType === 'sales' ? ['Item','Flavor','Qty','Revenue'] : ['Item','Qty','Revenue'],
+        ...topItems.map(i => dataType === 'sales' ? [i.name, i.flavor, i.qty, i.revenue] : [i.name, i.qty, i.revenue]),
+        [''],
+        ['All Items Summary'],
+        dataType === 'sales' ? ['Item','Flavor','Qty','Revenue'] : ['Item','Qty','Revenue'],
+        ...allItems.map(i => dataType === 'sales' ? [i.name, i.flavor, i.qty, i.revenue] : [i.name, i.qty, i.revenue]),
+        [''],
+        [dataType === 'sales' ? 'Sales Summary' : dataType === 'best' ? 'Best Seller Summary' : 'Data Summary'],
+        dataType === 'sales' ? ['No','Item','Flavor','Qty','Price','Total'] : ['No','Item','Qty','Price','Total']
+    ];
+
+    const table = [];
+    if (data.length) {
+        data.forEach((r, i) => {
+            let name, flavor, qty, price, total;
+            
+            if (dataType === 'sales') {
+                name = r.menu_name || '-';
+                flavor = r.flavor || '-';
+                qty = Number(r.quantity || 0);
+                price = Number(r.base_price || 0);
+                total = Number(r.total_price || 0);
+                table.push([i+1, name, flavor, qty, price, total]);
+            } else if (dataType === 'best') {
+                name = r.menu_name || '-';
+                qty = Number(r.total_quantity || r.quantity || 0);
+                price = Number(r.unit_price || 0);
+                total = Number(r.total_revenue || r.total || 0);
+                table.push([i+1, name, qty, price, total]);
+            } else {
+                name = r.menu_name || r.name || r.menu || '-';
+                flavor = r.flavor || '-';
+                qty = Number(r.qty || r.quantity || r.amount || 0);
+                price = Number(r.price || r.price_per_unit || r.unit_price || 0);
+                total = Number(r.total || r.revenue || (qty * price));
+                table.push([i+1, name, flavor, qty, price, total]);
+            }
+        });
+    } else {
+        // Fallback read from DOM
+        document.querySelectorAll('#report-tbody tr').forEach((tr, i) => {
+            const tds = [...tr.children].map(td => td.innerText.trim());
+            if (dataType === 'sales' && tds.length >= 6) {
+                table.push([i+1, tds[1], tds[2], tds[3], tds[4], tds[5]]);
+            } else if (dataType === 'best' && tds.length >= 5) {
+                table.push([i+1, tds[1], tds[2], tds[3], tds[4]]);
+            } else if (tds.length >= 5) {
+                table.push([i+1, tds[1], '-', tds[2], tds[3], tds[4]]);
+            }
+        });
     }
+
+    const csvContent = [...summary, ...table].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${dataType}_report_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+
+function exportSalesPDFEnhanced() {
+    const jsPdfNs = (window.jspdf || window.jsPDF || null);
+    const JSPDF_CTOR = jsPdfNs ? (jsPdfNs.jsPDF || jsPdfNs) : null;
+    if (!JSPDF_CTOR) { alert('jsPDF tidak tersedia.'); return; }
+    const doc = new JSPDF_CTOR('p','mm','a4');
+    doc.setFont('helvetica');
+    doc.setFontSize(16);
+    doc.setFont('helvetica','bold');
+    
+    const dataType = currentDataType || 'sales';
+    const title = dataType === 'sales' ? 'Sales Executive Summary' : dataType === 'best' ? 'Best Seller Executive Summary' : 'Data Executive Summary';
+    doc.text(`${title} - Infinity Cafe`, 14, 18);
+    doc.setFontSize(10);
+    doc.setFont('helvetica','normal');
+
+    const data = Array.isArray(baseData) ? baseData : [];
+    let totalQty = 0, totalAmount = 0;
+    const itemMap = {};
+    
+    data.forEach(r => {
+        let qty, price, total, menu, flavor;
+        
+        if (dataType === 'sales') {
+            qty = Number(r.quantity || 0);
+            price = Number(r.base_price || 0);
+            total = Number(r.total_price || 0);
+            menu = r.menu_name || 'Unknown';
+            flavor = r.flavor || '-';
+        } else if (dataType === 'best') {
+            qty = Number(r.total_quantity || r.quantity || 0);
+            price = Number(r.unit_price || 0);
+            total = Number(r.total_revenue || r.total || 0);
+            menu = r.menu_name || 'Unknown';
+            flavor = '-';
+        } else {
+            qty = Number(r.qty || r.quantity || 0);
+            price = Number(r.price || 0);
+            total = Number(r.total || (qty * price));
+            menu = r.menu_name || r.name || 'Unknown';
+            flavor = r.flavor || '-';
+        }
+        
+        totalQty += qty; 
+        totalAmount += total;
+        
+        const key = dataType === 'sales' ? `${menu}|${flavor}` : menu;
+        if (!itemMap[key]) itemMap[key] = { qty: 0, total: 0, menu, flavor };
+        itemMap[key].qty += qty; 
+        itemMap[key].total += total;
+    });
+    
+    const topItems = Object.entries(itemMap)
+        .map(([key, v]) => ({ name: v.menu, flavor: v.flavor, qty: v.qty, total: v.total }))
+        .sort((a,b) => b.qty - a.qty)
+        .slice(0, 10);
+
+    let y = 28;
+    doc.text(`Generated on: ${new Date().toLocaleString('id-ID')}`, 14, y); y+=6;
+    doc.text(`Data Type: ${dataType === 'sales' ? 'Data Sales' : dataType === 'best' ? 'Best Seller' : 'Data'}`, 14, y); y+=6;
+    doc.text(`Total Records: ${data.length}`, 14, y); y+=6;
+    doc.text(`Total Qty: ${totalQty}`, 14, y); y+=6;
+    doc.text(`Total Revenue: ${totalAmount}`, 14, y); y+=10;
+
+    doc.setFont('helvetica','bold'); doc.text('Top 10 Items (by Qty):', 14, y); y+=6; doc.setFont('helvetica','normal');
+    topItems.forEach((it, idx) => { 
+        if (y>270){doc.addPage(); y=20;} 
+        const itemText = dataType === 'sales' ? 
+            `${idx+1}. ${it.name} (${it.flavor}) - Qty: ${it.qty} | Total: ${it.total}` :
+            `${idx+1}. ${it.name} - Qty: ${it.qty} | Total: ${it.total}`;
+        doc.text(itemText, 14, y); y+=6; 
+    });
+
+    y+=6; if (y>270){doc.addPage(); y=20;}
+    const summaryTitle = dataType === 'sales' ? 'Sales Summary (first 25 rows):' : dataType === 'best' ? 'Best Seller Summary (first 25 rows):' : 'Data Summary (first 25 rows):';
+    doc.setFont('helvetica','bold'); doc.text(summaryTitle, 14, y); y+=8; doc.setFont('helvetica','normal');
+    
+    const header = dataType === 'sales' ? ['No','Item','Flavor','Qty','Price','Total'] : ['No','Item','Qty','Price','Total'];
+    let x = 14; 
+    const colW = dataType === 'sales' ? [10, 60, 30, 20, 30, 30] : [10, 90, 20, 30, 30];
+    header.forEach((h,i)=>{doc.text(h, x, y); x+=colW[i];}); y+=6;
+    
+    data.slice(0,25).forEach((r,i)=>{
+        if (y>270){doc.addPage(); y=20; x=14; header.forEach((h,idx)=>{doc.text(h, x, y); x+=colW[idx];}); y+=6;}
+        x=14; 
+        
+        let name, flavor, qty, price, total;
+        if (dataType === 'sales') {
+            name = r.menu_name || '-';
+            flavor = r.flavor || '-';
+            qty = Number(r.quantity || 0);
+            price = Number(r.base_price || 0);
+            total = Number(r.total_price || 0);
+        } else if (dataType === 'best') {
+            name = r.menu_name || '-';
+            qty = Number(r.total_quantity || r.quantity || 0);
+            price = Number(r.unit_price || 0);
+            total = Number(r.total_revenue || r.total || 0);
+        } else {
+            name = r.menu_name || r.name || '-';
+            flavor = r.flavor || '-';
+            qty = Number(r.qty || r.quantity || 0);
+            price = Number(r.price || 0);
+            total = Number(r.total || (qty * price));
+        }
+        
+        const row = dataType === 'sales' ? 
+            [i+1, name.length>40?name.slice(0,37)+'...':name, flavor.length>15?flavor.slice(0,12)+'...':flavor, qty, price, total] :
+            [i+1, name.length>50?name.slice(0,47)+'...':name, qty, price, total];
+        row.forEach((cell,idx)=>{doc.text(String(cell), x, y); x+=colW[idx];}); y+=6;
+    });
+
+    doc.save(`${dataType}_report_${new Date().toISOString().slice(0,10)}.pdf`);
+}
+
+// ========== DATA AGGREGATION FUNCTIONS ==========
+function aggregateSalesData(rawTransactions) {
+    // Group transactions by menu_name + flavor combination
+    const groupedData = {};
+    
+    rawTransactions.forEach(transaction => {
+        const menuName = transaction.menu_name || 'Unknown';
+        const flavor = transaction.flavor || 'Default';
+        const key = `${menuName}|${flavor}`;
+        
+        if (!groupedData[key]) {
+            groupedData[key] = {
+                menu_name: menuName,
+                flavor: flavor,
+                quantity: 0,
+                base_price: transaction.base_price || 0,
+                total_price: 0,
+                transaction_count: 0
+            };
+        }
+        
+        // Aggregate quantities and totals
+        groupedData[key].quantity += (transaction.quantity || 0);
+        groupedData[key].total_price += (transaction.total_price || 0);
+        groupedData[key].transaction_count += 1;
+    });
+    
+    // Convert grouped data to array and sort by total_price descending
+    return Object.values(groupedData).sort((a, b) => b.total_price - a.total_price);
 }
 
 // ========== PAGINATION FUNCTIONS ==========
@@ -1913,44 +2878,62 @@ function renderTablePage() {
                                 </button>
                             </td>
                         </tr>`;
-                } else {
-                    console.log('Using daily view format');
-                    // Daily view - show aggregated data with detail button
-                    const dailySummary = item.daily_summary || {};
-                    const totalOrders = dailySummary.total_orders || 0;
-                    const uniqueMenus = dailySummary.unique_menus || 0;
-                    const totalConsumption = dailySummary.total_consumption || 0;
-                    
-                    tbody.innerHTML += `
-                        <tr onclick="viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="cursor: pointer;">
-                            <td>${actualIndex + 1}</td>
-                            <td style="font-weight: 600; color: #1F2937;">${item.date || '-'}</td>
-                            <td style="color: #6B7280; line-height: 1.4;">
+                                 } else {
+                     console.log('Using daily view format');
+                     // Daily view - show aggregated data with detail button
+                     const dailySummary = item.daily_summary || {};
+                     const totalOrders = dailySummary.total_orders || 0;
+                     const uniqueMenus = dailySummary.unique_menus || 0;
+                     const totalConsumption = dailySummary.total_consumption || 0;
+                     
+                     tbody.innerHTML += `
+                         <tr onclick="viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="cursor: pointer;">
+                             <td>${actualIndex + 1}</td>
+                             <td style="font-weight: 600; color: #1F2937;">${item.date || '-'}</td>
+                             <td style="color: #6B7280; line-height: 1.4;">
                                 <div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
                                     <span style="background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; padding:.2rem .5rem; border-radius:9999px; font-weight:600;">${totalOrders} pesanan</span>
                                     <span style="background:#F5F3FF; color:#4C1D95; border:1px solid #DDD6FE; padding:.2rem .5rem; border-radius:9999px; font-weight:600;">${uniqueMenus} menu unik</span>
-                                </div>
-                            </td>
-                            <td style="text-align: center; font-weight: 600; color: #059669;">${totalOrders.toLocaleString()}</td>
-                            <td style="text-align: center; font-weight: 600; color: #DC2626;">${totalConsumption.toLocaleString()}</td>
-                            <td>
-                                <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="white-space: nowrap; min-width: 80px;">
-                                    🔍 Detail
-                                </button>
-                            </td>
-                        </tr>`;
-                }
-            } else {
-                // Sales or Best Seller data
-                console.log('Rendering sales/best seller item:', item);
+                                 </div>
+                             </td>
+                             <td style="text-align: center; font-weight: 600; color: #059669;">${totalOrders.toLocaleString()}</td>
+                             <td style="text-align: center; font-weight: 600; color: #DC2626;">${totalConsumption.toLocaleString()}</td>
+                             <td>
+                                 <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="white-space: nowrap; min-width: 80px;">
+                                     🔍 Detail
+                                 </button>
+                             </td>
+                         </tr>`;
+                 }
+            } else if (currentDataType === 'sales') {
+                // Sales data - show aggregated flavor information
+                console.log('Rendering sales item:', item);
+                const flavor = item.flavor || '-';
+                const totalPrice = item.total_price || 0;
+                const unitPrice = item.base_price || 0;
+                const quantity = item.quantity || 0;
+                const transactionCount = item.transaction_count || 1;
+                
                 tbody.innerHTML += `
                     <tr>
                         <td>${actualIndex + 1}</td>
                         <td>${item.menu_name || 'N/A'}</td>
-                        <td>${item.quantity || item.total_quantity || 0}</td>
-                        <td>Rp ${(item.unit_price || 0).toLocaleString()}</td>
-                        <td>Rp ${(item.total || item.total_revenue || 0).toLocaleString()}</td>
+                        <td>${flavor}</td>
+                        <td>${quantity.toLocaleString()}</td>
+                        <td>Rp ${unitPrice.toLocaleString()}</td>
+                        <td>Rp ${totalPrice.toLocaleString()}</td>
                     </tr>`;
+            } else {
+                // Best Seller data - aggregated view
+                console.log('Rendering best seller item:', item);
+            tbody.innerHTML += `
+                <tr>
+                    <td>${actualIndex + 1}</td>
+                    <td>${item.menu_name || 'N/A'}</td>
+                    <td>${item.quantity || item.total_quantity || 0}</td>
+                    <td>Rp ${(item.unit_price || 0).toLocaleString()}</td>
+                    <td>Rp ${(item.total || item.total_revenue || 0).toLocaleString()}</td>
+                </tr>`;
             }
         });
         // Totals row for daily view (UX clarity)
@@ -1967,7 +2950,7 @@ function renderTablePage() {
                     <td style="text-align:center; color:#059669;">${totals.orders.toLocaleString()}</td>
                     <td style="text-align:center; color:#DC2626;">${totals.ingredients.toLocaleString()}</td>
                     <td></td>
-                </tr>`;
+             </tr>`;
         }
     } else {
         // No data to display
@@ -1978,41 +2961,41 @@ function renderTablePage() {
                 : 'Tidak ada data penjualan untuk periode ini';
         
         showEmptyState(message, 'info');
-    }
-    
-    // Update pagination info
-    document.getElementById("pagination-start").textContent = startIndex + 1;
-    document.getElementById("pagination-end").textContent = Math.min(endIndex, filteredData.length);
-    document.getElementById("pagination-total").textContent = filteredData.length;
-}
-    
-    function updatePagination() {
-        const maxPage = Math.ceil(filteredData.length / itemsPerPage);
-        const pageNumbers = document.getElementById("page-numbers");
-        const prevBtn = document.getElementById("prev-page");
-        const nextBtn = document.getElementById("next-page");
-        
-        // Update button states
-        prevBtn.disabled = currentPage === 1;
-        nextBtn.disabled = currentPage === maxPage;
-        
-        // Generate page numbers
-        pageNumbers.innerHTML = "";
-        const startPage = Math.max(1, currentPage - 2);
-        const endPage = Math.min(maxPage, currentPage + 2);
-        
-        for (let i = startPage; i <= endPage; i++) {
-            const pageBtn = document.createElement("button");
-            pageBtn.className = `page-number ${i === currentPage ? 'active' : ''}`;
-            pageBtn.textContent = i;
-            pageBtn.onclick = () => {
-                currentPage = i;
-                renderTablePage();
-                updatePagination();
-            };
-            pageNumbers.appendChild(pageBtn);
         }
+        
+        // Update pagination info
+        document.getElementById("pagination-start").textContent = startIndex + 1;
+        document.getElementById("pagination-end").textContent = Math.min(endIndex, filteredData.length);
+        document.getElementById("pagination-total").textContent = filteredData.length;
     }
+
+function updatePagination() {
+    const maxPage = Math.ceil(filteredData.length / itemsPerPage);
+    const pageNumbers = document.getElementById("page-numbers");
+    const prevBtn = document.getElementById("prev-page");
+    const nextBtn = document.getElementById("next-page");
+    
+    // Update button states
+    prevBtn.disabled = currentPage === 1;
+    nextBtn.disabled = currentPage === maxPage;
+    
+    // Generate page numbers
+    pageNumbers.innerHTML = "";
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(maxPage, currentPage + 2);
+    
+    for (let i = startPage; i <= endPage; i++) {
+        const pageBtn = document.createElement("button");
+        pageBtn.className = `page-number ${i === currentPage ? 'active' : ''}`;
+        pageBtn.textContent = i;
+        pageBtn.onclick = () => {
+            currentPage = i;
+            renderTablePage();
+            updatePagination();
+        };
+        pageNumbers.appendChild(pageBtn);
+    }
+}
     
     // ========== SEARCH FUNCTIONS ==========
     function filterTableData(searchTerm) {
@@ -2029,7 +3012,16 @@ function renderTablePage() {
                 (item.status_text || '').toLowerCase().includes(term)
             )
             : [...source];
+    } else if (currentDataType === 'sales') {
+        // Sales data: filter by menu name and flavor
+        filteredData = term
+            ? source.filter(item => 
+                (item.menu_name || '').toLowerCase().includes(term) ||
+                (item.flavor || '').toLowerCase().includes(term)
+            )
+            : [...source];
     } else {
+        // Best seller data: filter by menu name only
     filteredData = term
         ? source.filter(item => (item.menu_name || '').toLowerCase().includes(term))
         : [...source];
@@ -2072,30 +3064,54 @@ function toggleReportFilter() {
     dd.classList.toggle('show');
 }
 
-function applyReportFilter() {
+async function applyReportFilter() {
     const dataTypeSelect = document.getElementById('data-type-select');
     const sortSelect = document.getElementById('sort-select');
+    const start = document.getElementById("start_date").value;
+    const end = document.getElementById("end_date").value;
     
     if (dataTypeSelect) {
         const dataType = dataTypeSelect.value;
         
         if (dataType === 'ingredient') {
             // Load ingredient analysis data
-            loadIngredientAnalysisData();
+            await loadIngredientAnalysisData();
             applyIngredientModeLayout();
             toggleReportFilter();
             return;
-        } else {
-            // Reset to normal mode when switching from ingredient to sales/best
+        } else if (dataType === 'best') {
+            // Load best seller data
             resetToNormalMode();
-            // Apply the correct mode layout based on data type
-            if (dataType === 'best') {
+            if (start && end) {
+                await loadBestSellerData(start, end);
+            } else {
                 applyModeLayout('best');
+                // Clear data if no dates
+                baseData = [];
+                filteredData = [];
+                currentPage = 1;
+                renderTablePage();
+                updatePagination();
+            }
+        } else {
+            // Load sales data
+            resetToNormalMode();
+            if (start && end) {
+                await loadReport();
             } else {
                 applyModeLayout('sales');
+                // Clear data if no dates
+                baseData = [];
+                filteredData = [];
+                currentPage = 1;
+                renderTablePage();
+                updatePagination();
             }
         }
     }
+    
+    // Close filter dropdown
+    toggleReportFilter();
     
     if (sortSelect && filteredData && filteredData.length) {
         const val = sortSelect.value;
@@ -2269,6 +3285,52 @@ function applyIngredientModeLayout() {
     if (chartPie) chartPie.style.display = 'flex';
     if (loyal) loyal.style.display = 'none';
     if (usulan) usulan.style.display = 'none';
+    
+    // Update summary with ingredient analysis insights
+    updateIngredientSummary();
+}
+
+function updateIngredientSummary() {
+    const data = Array.isArray(baseData) ? baseData : [];
+    if (data.length === 0) return;
+    
+    // Calculate ingredient analysis insights
+    let totalOrders = 0;
+    let totalIngredients = 0;
+    let uniqueMenus = new Set();
+    let totalConsumption = 0;
+    
+    data.forEach(item => {
+        if (item.daily_summary) {
+            // Daily view data
+            totalOrders += item.daily_summary.total_orders || 0;
+            totalConsumption += item.daily_summary.total_consumption || 0;
+        } else if (item.menu_name) {
+            // Logs view data
+            totalOrders += 1;
+            totalIngredients += item.ingredients_affected || 0;
+            uniqueMenus.add(item.menu_name);
+        }
+    });
+    
+    // Update summary display
+    const summaryPeriod = document.getElementById('summary-period');
+    const summaryIncome = document.getElementById('summary-income');
+    const summaryOrders = document.getElementById('summary-orders');
+    
+    if (summaryPeriod) {
+        const startDate = document.getElementById('ingredient-start-date')?.value || 'N/A';
+        const endDate = document.getElementById('ingredient-end-date')?.value || 'N/A';
+        summaryPeriod.textContent = `${startDate} - ${endDate}`;
+    }
+    
+    if (summaryIncome) {
+        summaryIncome.textContent = `${totalConsumption.toLocaleString()} bahan`;
+    }
+    
+    if (summaryOrders) {
+        summaryOrders.textContent = `${totalOrders.toLocaleString()} pesanan`;
+    }
 }
 
 function updateIngredientTableHeader() {
@@ -2302,6 +3364,7 @@ function updateIngredientTableHeader() {
 
 function applyModeLayout(mode) {
     const isBest = mode === 'best';
+    const isSales = mode === 'sales';
     const chartBar = document.getElementById('chart-bar-card');
     const chartPie = document.getElementById('chart-pie-card');
     const loyal = null;
@@ -2317,28 +3380,35 @@ function applyModeLayout(mode) {
         statusEl.className = `status-badge ${isBest ? 'status-warning' : 'status-deliver'}`;
     }
 
-    // Sync dropdown and state
-    if (dataTypeSelect && dataTypeSelect.value !== (isBest ? 'best' : 'sales')) {
-        dataTypeSelect.value = isBest ? 'best' : 'sales';
-    }
-    currentDataType = isBest ? 'best' : 'sales';
-
-    // Table header
+    // Update table header based on mode
     if (tableHeader) {
-        tableHeader.innerHTML = isBest ? `
+        if (isSales) {
+            // Sales mode: show flavor column
+            tableHeader.innerHTML = `
             <th>No</th>
             <th>Menu</th>
-            <th>Total Qty</th>
-            <th>Unit Price</th>
-            <th>Total Revenue</th>
-        ` : `
+                <th>Flavor</th>
+                <th>Qty</th>
+                <th>Price</th>
+                <th>Total</th>
+            `;
+        } else if (isBest) {
+            // Best Seller mode: no flavor column
+            tableHeader.innerHTML = `
             <th>No</th>
             <th>Menu</th>
             <th>Qty</th>
             <th>Price</th>
             <th>Total</th>
         `;
+        }
     }
+
+    // Sync dropdown and state
+    if (dataTypeSelect && dataTypeSelect.value !== (isBest ? 'best' : 'sales')) {
+        dataTypeSelect.value = isBest ? 'best' : 'sales';
+    }
+    currentDataType = isBest ? 'best' : 'sales';
 
     // Hide ingredient view selector when not in ingredient mode
     const viewContainer = document.getElementById('ingredient-view-container');
@@ -2446,7 +3516,7 @@ document.addEventListener('visibilitychange', () => {
                 }, 500);
             });
         }
-
+        
         // Table search input
         const tableSearch = document.getElementById('table-search-input');
         if (tableSearch) {
@@ -2458,12 +3528,12 @@ document.addEventListener('visibilitychange', () => {
                     if (dataType === 'ingredient') {
                         filterIngredientTableData(this.value);
                     } else {
-                        filterTableData(this.value);
+                    filterTableData(this.value);
                     }
                 }, 300);
             });
         }
-
+        
         // Entries per page select
         const entriesSelect = document.getElementById('entries-per-page');
         if (entriesSelect) {
@@ -2475,8 +3545,8 @@ document.addEventListener('visibilitychange', () => {
                     // For ingredient mode, we don't use pagination, so just re-render the table
                     renderIngredientTable();
                 } else {
-                    renderTablePage();
-                    updatePagination();
+                renderTablePage();
+                updatePagination();
                 }
             });
         }
@@ -2484,26 +3554,22 @@ document.addEventListener('visibilitychange', () => {
         // Data type select (Sales / Best Seller / Ingredient Analysis)
         const dataTypeSelect = document.getElementById('data-type-select');
         if (dataTypeSelect) {
-            dataTypeSelect.addEventListener('change', async function() {
-                const start = document.getElementById("start_date").value;
-                const end = document.getElementById("end_date").value;
-                if (this.value === 'best') {
-                    resetToNormalMode();
-                    await loadBestSellerData(start, end);
-                    applyModeLayout('best');
-                } else if (this.value === 'ingredient') {
-                    await loadIngredientAnalysisData();
-                    applyIngredientModeLayout();
-                } else {
-                    resetToNormalMode();
-                    await loadReport();
-                    applyModeLayout('sales');
-                }
+            dataTypeSelect.addEventListener('change', function() {
+                // Just trigger the filter application, don't duplicate logic
+                applyReportFilter();
             });
         }
 
         // Auto refresh start
         startAutoRefresh();
+        
+        // Load initial data if dates are set
+        const startDate = document.getElementById("start_date").value;
+        const endDate = document.getElementById("end_date").value;
+        if (startDate && endDate) {
+            // Load sales data by default
+            loadReport();
+        }
 
         // Kitchen status filter
         const kitchenStatusFilter = document.getElementById('kitchen-status-filter');
@@ -2560,13 +3626,13 @@ window.onload = () => {
         // Load initial data
         setTimeout(() => {
             console.log('Loading initial report data...');
-            loadReport();
+    loadReport();
         }, 100);
     } else {
         console.error('Date input elements not found');
     }
     
-    startAutoRefresh();
+        startAutoRefresh();
 };
 
 function getItemFlavorRaw(item) {

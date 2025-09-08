@@ -10,6 +10,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body data-page="report">
     <!-- Header -->
@@ -84,6 +86,7 @@
                         <span style="color: #312929; font-weight: 600; margin-right: 8px;">Sampai:</span>
                         <input type="date" id="end_date" class="price-input" style="width: 200px;">
         </label>
+                    <button onclick="exportSalesExcelEnhanced()" class="btn-secondary">📊 Excel</button>
                     <button onclick="exportCSV()" class="btn-secondary">⬇️ CSV</button>
                     <button onclick="exportPDF()" class="btn-secondary">📄 PDF</button>
                 </div>
@@ -269,7 +272,11 @@
                                 </select>
                             </label>
                             <button onclick="refreshKitchenData()" class="btn-secondary">🔄 Refresh</button>
-                            <button onclick="exportKitchenCSV()" class="btn-secondary">⬇️ CSV</button>
+                            <div class="export-buttons">
+                                <button onclick="exportKitchenExcel()" class="btn-export btn-excel">📊 Excel</button>
+                                <button onclick="exportKitchenCSV()" class="btn-export btn-csv">📄 CSV</button>
+                                <button onclick="exportKitchenPDF()" class="btn-export btn-pdf">📋 PDF</button>
+                            </div>
                         </div>
                     </div>
 
@@ -329,7 +336,11 @@
                         <input type="date" id="ingredient-end-date" class="price-input" style="width: 150px;">
                     </label>
                     <button onclick="refreshIngredientAnalysis()" class="btn-secondary">🔄 Refresh</button>
-                    <button onclick="exportIngredientCSV()" class="btn-secondary">⬇️ CSV</button>
+                    <div class="export-buttons">
+                        <button onclick="exportIngredientExcel()" class="btn-export btn-excel">📊 Excel</button>
+                        <button onclick="exportIngredientCSV()" class="btn-export btn-csv">📄 CSV</button>
+                        <button onclick="exportIngredientPDF()" class="btn-export btn-pdf">📋 PDF</button>
+                    </div>
                 </div>
             </div>
 
@@ -406,7 +417,7 @@
     <div id="pie-modal" class="modal hidden">
         <div class="modal-content view-modal">
             <button onclick="closePieModal()" class="modal-close">×</button>
-            <div class="modal-title">�� Detail Menu</div>
+            <div class="modal-title">Detail Menu</div>
             <div id="pie-modal-content" class="view-content"></div>
         </div>
     </div>
