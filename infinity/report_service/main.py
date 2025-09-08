@@ -37,6 +37,7 @@ class SuggestionIn(BaseModel):
 ORDER_SERVICE_URL = "http://order_service:8002"
 KITCHEN_SERVICE_URL = "http://kitchen_service:8003"
 MENU_SERVICE_URL = "http://menu_service:8001"
+INVENTORY_SERVICE_URL = "http://inventory_service:8006"
 
 def make_request(url: str, timeout: int = 10):
     """Helper function untuk HTTP requests dengan error handling"""
@@ -66,6 +67,85 @@ def submit_suggestion(suggestion: SuggestionIn):
         return response.json()
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=503, detail=f"Menu service unavailable: {e}")
+
+@app.get("/report/order/{order_id}/ingredients", tags=["Report"], summary="Detail konsumsi bahan per order (hanya DONE)")
+def get_order_ingredients_via_report(order_id: str):
+    """
+    Mengambil detail konsumsi bahan untuk sebuah order melalui report service.
+    - Hanya mengembalikan data untuk order dengan status 'done'.
+    - Order yang dibatalkan atau belum selesai tidak akan ditampilkan (kembalikan details kosong).
+    - Data diambil dari inventory service endpoint untuk konsistensi breakdown bahan.
+    """
+    try:
+        # Cek status order dari order service
+        try:
+            status_resp = requests.get(f"{ORDER_SERVICE_URL}/order_status/{order_id}", timeout=10)
+            status_resp.raise_for_status()
+            status_json = status_resp.json()
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error getting order status for {order_id}: {e}")
+            raise HTTPException(status_code=503, detail="Order service unavailable")
+
+        order_status = None
+        if isinstance(status_json, dict) and status_json.get("status") == "success":
+            order_info = status_json.get("data", {})
+            order_status = order_info.get("status")
+        else:
+            # Fallback kalau struktur berbeda
+            order_status = (status_json or {}).get("data", {}).get("status")
+
+        # Hanya proses jika status done
+        if order_status != "done":
+            return {
+                "status": "success",
+                "message": f"Order {order_id} tidak berstatus 'done' (status saat ini: {order_status})",
+                "ingredients_breakdown": {"details": []}
+            }
+
+        # Ambil detail konsumsi bahan dari inventory service
+        try:
+            inv_resp = requests.get(f"{INVENTORY_SERVICE_URL}/order/{order_id}/ingredients", timeout=10)
+            inv_resp.raise_for_status()
+            inv_json = inv_resp.json()
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error calling inventory for order ingredients {order_id}: {e}")
+            raise HTTPException(status_code=503, detail="Inventory service unavailable")
+
+        # Pastikan ada struktur standar agar frontend mudah membaca
+        if isinstance(inv_json, dict):
+            details = (
+                inv_json.get("data", {})
+                      .get("ingredients_breakdown", {})
+                      .get("details")
+            )
+            if details is None:
+                details = (
+                    inv_json.get("ingredients_breakdown", {})
+                           .get("details")
+                )
+            if details is None:
+                details = inv_json.get("details", [])
+
+            return {
+                "status": "success",
+                "order_id": order_id,
+                "ingredients_breakdown": {
+                    "details": details if isinstance(details, list) else []
+                }
+            }
+
+        # Fallback jika response bukan dict
+        return {
+            "status": "success",
+            "order_id": order_id,
+            "ingredients_breakdown": {"details": []}
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Unexpected error in get_order_ingredients_via_report: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/report/suggested_menu", tags=["Report"])
 def get_suggested_menu(
