@@ -98,30 +98,7 @@ function highlightOrderCard(orderId) {
 }
 
 // Modal functions
-function openConfirmModal(orderId) {
-  selectedOrderId = orderId;
-  document.getElementById("confirm-modal").classList.remove("hidden");
-}
 
-// Ensure error modal helpers exist and avoid overlapping modals
-function showErrorModal(message) {
-  const success = document.getElementById('success-modal');
-  if (success) success.classList.add('hidden');
-  const msg = document.getElementById('error-message');
-  if (msg) msg.textContent = message;
-  const modal = document.getElementById('error-modal');
-  if (modal) modal.classList.remove('hidden');
-}
-
-function closeErrorModal() {
-  const modal = document.getElementById('error-modal');
-  if (modal) modal.classList.add('hidden');
-}
-
-function closeConfirmModal() {
-  selectedOrderId = null;
-  document.getElementById("confirm-modal").classList.add("hidden");
-}
 
 function openDetailModal(order) {
   selectedOrder = order;
@@ -178,11 +155,11 @@ async function confirmCancel(type) {
     reason = 'Habis';
   } else if (type === 'cancel') {
     reason = prompt("Masukkan alasan pembatalan:", "Tidak jadi");
-    if (!reason) return closeConfirmModal();
+    if (!reason) return closeModal('confirm-modal');
   }
 
   await cancelOrder(selectedOrderId, reason);
-  closeConfirmModal();
+  closeModal('confirm-modal');
 }
 
 // New function to cancel order using proper endpoint
@@ -1265,18 +1242,16 @@ if (addOrderBtn) addOrderBtn.onclick = openAddOrderModal;
 
 // Handle submit
 const addOrderForm = document.getElementById('add-order-form');
-function showSuccessModal(message) {
-  // Hide error modal if visible to avoid overlap
-  const err = document.getElementById('error-modal');
-  if (err) err.classList.add('hidden');
-  const modal = document.getElementById('success-modal');
-  const msgBox = document.getElementById('success-message');
-  if (msgBox) msgBox.textContent = message;
-  if (modal) modal.classList.remove('hidden');
-}
-function closeSuccessModal() {
-  document.getElementById('success-modal').classList.add('hidden');
-}
+// function showSuccessModal(message) {
+//   // Hide error modal if visible to avoid overlap
+//   const err = document.getElementById('error-modal');
+//   if (err) err.classList.add('hidden');
+//   const modal = document.getElementById('success-modal');
+//   const msgBox = document.getElementById('success-message');
+//   if (msgBox) msgBox.textContent = message;
+//   if (modal) modal.classList.remove('hidden');
+// }
+
 addOrderForm.onsubmit = async function(e) {
   e.preventDefault();
   
@@ -1537,7 +1512,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Global functions for event handlers
 window.switchTab = switchTab;
 window.openConfirmModal = openConfirmModal;
-window.closeConfirmModal = closeConfirmModal;
+// window.closeConfirmModal = closeConfirmModal;
 window.confirmCancel = confirmCancel;
 window.openDetailModal = openDetailModal;
 window.closeDetailModal = closeDetailModal;
@@ -1545,7 +1520,7 @@ window.syncUpdate = syncUpdate;
 window.openAddOrderModal = openAddOrderModal;
 window.closeAddOrderModal = closeAddOrderModal;
 window.showSuccessModal = showSuccessModal;
-window.closeSuccessModal = closeSuccessModal;
+// window.closeSuccessModal = closeSuccessModal;
 window.switchOrderTab = switchOrderTab; // Expose tab switching function for modal
 
 // // fungsi untuk menampilkan tanggal

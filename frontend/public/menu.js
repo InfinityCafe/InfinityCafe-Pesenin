@@ -714,6 +714,10 @@ async function saveMenu() {
         const result = await response.json();
         console.log('Menu saved successfully:', result);
 
+        if (result.status === 'error') {
+            throw new Error(result.message || 'Terjadi kesalahan dari server.');
+        }
+
         // Save recipe ingredients via dedicated endpoint
         try {
             const createdMenuId = (result && result.id) ? result.id : (menuId || (result.data && result.data.id));
@@ -1478,45 +1482,7 @@ function clearAllEditFlavors() {
 }
 
 // Modal Functions for Delete, Success, and Error
-function showDeleteConfirmModal(message, onConfirm) {
-    document.getElementById('delete-confirm-message').textContent = message;
-    document.getElementById('delete-confirm-modal').classList.remove('hidden');
-    
-    // Set up confirm button action
-    const confirmBtn = document.getElementById('delete-confirm-btn');
-    confirmBtn.onclick = () => {
-        closeDeleteConfirmModal();
-        onConfirm();
-    };
-}
 
-function closeDeleteConfirmModal() {
-    document.getElementById('delete-confirm-modal').classList.add('hidden');
-}
-
-function showSuccessModal(message) {
-    // Hide error modal if visible
-    const err = document.getElementById('error-modal');
-    if (err) err.classList.add('hidden');
-    document.getElementById('success-message').textContent = message;
-    document.getElementById('success-modal').classList.remove('hidden');
-}
-
-function closeSuccessModal() {
-    document.getElementById('success-modal').classList.add('hidden');
-}
-
-function showErrorModal(message) {
-    // Hide success modal if visible
-    const suc = document.getElementById('success-modal');
-    if (suc) suc.classList.add('hidden');
-    document.getElementById('error-message').textContent = message;
-    document.getElementById('error-modal').classList.remove('hidden');
-}
-
-function closeErrorModal() {
-    document.getElementById('error-modal').classList.add('hidden');
-}
 
 // Initial load
 window.addEventListener('load', async () => {
