@@ -2692,15 +2692,27 @@ function exportSalesPDFEnhanced() {
     const JSPDF_CTOR = jsPdfNs ? (jsPdfNs.jsPDF || jsPdfNs) : null;
     if (!JSPDF_CTOR) { alert('jsPDF tidak tersedia.'); return; }
     const doc = new JSPDF_CTOR('p','mm','a4');
-    doc.setFont('helvetica');
-    doc.setFontSize(16);
+    
+    // Theme colors aligned with app UI
+    const colorPrimary = [68, 45, 45]; // #442D2D
+    const colorAccent = [220, 208, 168]; // #DCD0A8
+    const colorBg = [245, 239, 230]; // #F5EFE6
+
+    // Header bar
+    doc.setFillColor(colorBg[0], colorBg[1], colorBg[2]);
+    doc.rect(10, 10, 190, 16, 'F');
     doc.setFont('helvetica','bold');
+    doc.setTextColor(colorPrimary[0], colorPrimary[1], colorPrimary[2]);
+    doc.setFontSize(14);
     
     const dataType = currentDataType || 'sales';
     const title = dataType === 'sales' ? 'Sales Executive Summary' : dataType === 'best' ? 'Best Seller Executive Summary' : 'Data Executive Summary';
-    doc.text(`${title} - Infinity Cafe`, 14, 18);
-    doc.setFontSize(10);
+    doc.text(`${title} - Infinity Cafe`, 14, 20);
+    
+    // Meta font
     doc.setFont('helvetica','normal');
+    doc.setTextColor(0,0,0);
+    doc.setFontSize(10);
 
     const data = Array.isArray(baseData) ? baseData : [];
     let totalQty = 0, totalAmount = 0;
@@ -2743,12 +2755,18 @@ function exportSalesPDFEnhanced() {
         .sort((a,b) => b.qty - a.qty)
         .slice(0, 10);
 
-    let y = 28;
-    doc.text(`Generated on: ${new Date().toLocaleString('id-ID')}`, 14, y); y+=6;
-    doc.text(`Data Type: ${dataType === 'sales' ? 'Data Sales' : dataType === 'best' ? 'Best Seller' : 'Data'}`, 14, y); y+=6;
-    doc.text(`Total Records: ${data.length}`, 14, y); y+=6;
-    doc.text(`Total Qty: ${totalQty}`, 14, y); y+=6;
-    doc.text(`Total Revenue: ${totalAmount}`, 14, y); y+=10;
+    // Summary card (appearance only; content unchanged)
+    let y = 30;
+    doc.setDrawColor(colorAccent[0], colorAccent[1], colorAccent[2]);
+    doc.setLineWidth(0.4);
+    doc.rect(10, y, 190, 18);
+    doc.setFont('helvetica','bold'); doc.text('Ringkasan', 14, y+7);
+    doc.setFont('helvetica','normal');
+    doc.text(`Generated: ${new Date().toLocaleString('id-ID')}`, 60, y+7);
+    doc.text(`Total Records: ${data.length}`, 120, y+7);
+    doc.text(`Total Qty: ${totalQty}`, 60, y+14);
+    doc.text(`Total Revenue: ${totalAmount}`, 120, y+14);
+    y += 26;
 
     doc.setFont('helvetica','bold'); doc.text('Top 10 Items (by Qty):', 14, y); y+=6; doc.setFont('helvetica','normal');
     topItems.forEach((it, idx) => { 
@@ -2761,41 +2779,46 @@ function exportSalesPDFEnhanced() {
 
     y+=6; if (y>270){doc.addPage(); y=20;}
     const summaryTitle = dataType === 'sales' ? 'Sales Summary (first 25 rows):' : dataType === 'best' ? 'Best Seller Summary (first 25 rows):' : 'Data Summary (first 25 rows):';
-    doc.setFont('helvetica','bold'); doc.text(summaryTitle, 14, y); y+=8; doc.setFont('helvetica','normal');
-    
-    const header = dataType === 'sales' ? ['No','Item','Flavor','Qty','Price','Total'] : ['No','Item','Qty','Price','Total'];
-    let x = 14; 
-    const colW = dataType === 'sales' ? [10, 60, 30, 20, 30, 30] : [10, 90, 20, 30, 30];
-    header.forEach((h,i)=>{doc.text(h, x, y); x+=colW[i];}); y+=6;
-    
-    data.slice(0,25).forEach((r,i)=>{
-        if (y>270){doc.addPage(); y=20; x=14; header.forEach((h,idx)=>{doc.text(h, x, y); x+=colW[idx];}); y+=6;}
-        x=14; 
-        
-        let name, flavor, qty, price, total;
+    doc.setFont('helvetica','bold'); doc.text(summaryTitle, 14, y); y+=4; doc.setFont('helvetica','normal');
+
+    // Build table data (content unchanged)
+    const tableHead = dataType === 'sales' ? ['No','Item','Flavor','Qty','Price','Total'] : ['No','Item','Qty','Price','Total'];
+    const tableBody = data.slice(0,25).map((r,i)=>{
         if (dataType === 'sales') {
-            name = r.menu_name || '-';
-            flavor = r.flavor || '-';
-            qty = Number(r.quantity || 0);
-            price = Number(r.base_price || 0);
-            total = Number(r.total_price || 0);
+            const name = r.menu_name || '-';
+            const flavor = r.flavor || '-';
+            const qty = Number(r.quantity || 0);
+            const price = Number(r.base_price || 0);
+            const total = Number(r.total_price || 0);
+            return [i+1, name, flavor, qty, price, total];
         } else if (dataType === 'best') {
-            name = r.menu_name || '-';
-            qty = Number(r.total_quantity || r.quantity || 0);
-            price = Number(r.unit_price || 0);
-            total = Number(r.total_revenue || r.total || 0);
+            const name = r.menu_name || '-';
+            const qty = Number(r.total_quantity || r.quantity || 0);
+            const price = Number(r.unit_price || 0);
+            const total = Number(r.total_revenue || r.total || 0);
+            return [i+1, name, qty, price, total];
         } else {
-            name = r.menu_name || r.name || '-';
-            flavor = r.flavor || '-';
-            qty = Number(r.qty || r.quantity || 0);
-            price = Number(r.price || 0);
-            total = Number(r.total || (qty * price));
+            const name = r.menu_name || r.name || '-';
+            const flavor = r.flavor || '-';
+            const qty = Number(r.qty || r.quantity || 0);
+            const price = Number(r.price || 0);
+            const total = Number(r.total || (qty * price));
+            return [i+1, name, flavor, qty, price, total];
         }
-        
-        const row = dataType === 'sales' ? 
-            [i+1, name.length>40?name.slice(0,37)+'...':name, flavor.length>15?flavor.slice(0,12)+'...':flavor, qty, price, total] :
-            [i+1, name.length>50?name.slice(0,47)+'...':name, qty, price, total];
-        row.forEach((cell,idx)=>{doc.text(String(cell), x, y); x+=colW[idx];}); y+=6;
+    });
+
+    if (!doc.autoTable) { alert('AutoTable tidak tersedia.'); doc.save(`${dataType}_report_${new Date().toISOString().slice(0,10)}.pdf`); return; }
+    doc.autoTable({
+        startY: y + 4,
+        head: [tableHead],
+        body: tableBody,
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 9, textColor: [68,45,45] },
+        headStyles: { fillColor: colorAccent, textColor: [68,45,45], halign: 'left' },
+        alternateRowStyles: { fillColor: [250, 247, 240] },
+        tableLineColor: colorAccent,
+        tableLineWidth: 0.2,
+        margin: { left: 10, right: 10 }
     });
 
     doc.save(`${dataType}_report_${new Date().toISOString().slice(0,10)}.pdf`);
