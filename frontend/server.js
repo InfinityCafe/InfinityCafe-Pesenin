@@ -23,7 +23,7 @@ const swaggerSpec = swaggerJsdoc({
       version: "1.0.0",
       description: "Dokumentasi untuk frontend Infinity Cafe",
     },
-    servers: [{ url: "http://localhost:8080" }],
+    servers: [{ url: "http://frontend:8080" }],
   },
   apis: ["./server.js"],
 });
@@ -575,24 +575,73 @@ app.get("/inventory/list", async (req, res) => {
   }
 });
 
-app.get("/inventory/order/:orderId/ingredients", async (req, res) => {
+app.get("/report/order/:orderId/ingredients", async (req, res) => {
   try {
     const { orderId } = req.params;
     
     // Encode the orderId for the internal service call
     const encodedOrderId = encodeURIComponent(orderId);
     
-    const resp = await fetch(`http://inventory_service:8006/order/${encodedOrderId}/ingredients`, {
+    const resp = await fetch(`http://report_service:8004/report/order/${encodedOrderId}/ingredients`, {
       method: "GET",
       headers: { "Content-Type": "application/json" }
     });
 
-    const data = await resp.json();
-    res.status(resp.status).json(data);
+    if (resp.ok) {
+      const data = await resp.json();
+      return res.status(resp.status).json(data);
+    }
+
+    // Fallback: if report service doesn't have the endpoint or returns 404,
+    // emulate the behavior here ensuring only 'done' orders are returned
+    if (resp.status === 404) {
+      try {
+        const statusResp = await fetch(`http://order_service:8002/order_status/${encodedOrderId}`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" }
+        });
+        const statusJson = await statusResp.json().catch(() => ({}));
+        const orderStatus = (statusJson && statusJson.data && statusJson.data.status) || null;
+
+        if (orderStatus !== "done") {
+          return res.status(200).json({
+            status: "success",
+            order_id: orderId,
+            message: `Order ${orderId} tidak berstatus 'done'`,
+            ingredients_breakdown: { details: [] }
+          });
+        }
+
+        // Fetch from inventory service for actual breakdown details
+        const invResp = await fetch(`http://inventory_service:8006/order/${encodedOrderId}/ingredients`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" }
+        });
+
+        const invJson = await invResp.json().catch(() => ({}));
+        const details = (invJson && invJson.data && invJson.data.ingredients_breakdown && invJson.data.ingredients_breakdown.details)
+          || (invJson && invJson.ingredients_breakdown && invJson.ingredients_breakdown.details)
+          || invJson.details
+          || [];
+
+        return res.status(200).json({
+          status: "success",
+          order_id: orderId,
+          ingredients_breakdown: { details: Array.isArray(details) ? details : [] }
+        });
+      } catch (fallbackErr) {
+        console.error("Fallback failed for order ingredients details", fallbackErr);
+        return res.status(500).json({ error: "Failed to get order ingredients details via fallback" });
+      }
+    }
+
+    // Any other error from report service
+    const text = await resp.text().catch(() => "");
+    return res.status(resp.status).send(text || { error: "Upstream error" });
 
   } catch (err) {
-    console.error("Failed to get order ingredients details", err);
-    res.status(500).json({ error: "Failed to get order ingredients details" });
+    console.error("Failed to get order ingredients details via report service", err);
+    res.status(500).json({ error: "Failed to get order ingredients details via report service" });
   }
 });
 

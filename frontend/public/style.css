@@ -2455,7 +2455,7 @@ body.tab-audit-history .add-item-btn {
 }
 
 /* Flavour Table Styles */
-.flavour-table {
+/* .flavour-table {
     width: 100%;
     border-collapse: collapse;
     margin-top: 1.5rem;
@@ -2520,7 +2520,7 @@ body.tab-audit-history .add-item-btn {
 
 .add-flavour-btn:hover {
     background-color: #503A3A;
-}
+} */
 
 /* --- STYLE TABEL --- */
 .tab-panel {
@@ -2538,7 +2538,7 @@ body.tab-audit-history .add-item-btn {
     overflow: hidden;
 }
 
-#menu-table, #flavors-table, #inventory-table, #suggestions-table, #report-table, #audit-history-table {
+#menu-table, #flavors-table, #inventory-table, #suggestions-table, #report-table, #audit-history-table, #ingredient-details-table, #ingredient-analysis-table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0.75rem;
@@ -2550,7 +2550,9 @@ body.tab-audit-history .add-item-btn {
 #inventory-table th, #inventory-table td,
 #suggestions-table th, #suggestions-table td,
 #report-table th, #report-table td,
-#audit-history-table th, #audit-history-table td {
+#audit-history-table th, #audit-history-table td,
+#ingredient-details-table th, #ingredient-details-table td,
+#ingredient-analysis-table th, #ingredient-analysis-table td {
     position: relative;
 }
 
@@ -2559,11 +2561,13 @@ body.tab-audit-history .add-item-btn {
 #inventory-table thead tr,
 #suggestions-table thead tr,
 #report-table thead tr,
-#audit-history-table thead tr {
+#audit-history-table thead tr,
+#ingredient-details-table thead tr,
+#ingredient-analysis-table thead tr {
     background-color: #CAB99D;
 }
 
-#menu-table th, #flavors-table th, #inventory-table th, #suggestions-table th, #report-table th, #audit-history-table th {
+#menu-table th, #flavors-table th, #inventory-table th, #suggestions-table th, #report-table th, #audit-history-table th, #ingredient-details-table th, #ingredient-analysis-table th {
     padding: 0.75rem 1rem;
     text-align: center;
     font-weight: bold;
@@ -2579,7 +2583,9 @@ body.tab-audit-history .add-item-btn {
 #inventory-table th:first-child,
 #suggestions-table th:first-child,
 #report-table th:first-child,
-#audit-history-table th:first-child {
+#audit-history-table th:first-child,
+#ingredient-details-table th:first-child,
+#ingredient-analysis-table th:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
 }
@@ -2614,7 +2620,27 @@ body.tab-audit-history .add-item-btn {
     border-bottom-right-radius: 0.5rem;
 }
 
+#report-table th:last-child {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
 #audit-history-table th:nth-child(7) {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
+#ingredient-details-table th:nth-child(6) {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
+#ingredient-details-table th:last-child {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
+#ingredient-analysis-table th:nth-child(6) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
@@ -2624,7 +2650,9 @@ body.tab-audit-history .add-item-btn {
 #inventory-table th:not(:first-child):not(.action-header)::before,
 #suggestions-table th:not(:first-child):not(.action-header)::before,
 #report-table th:not(:first-child):not(.action-header)::before,
-#audit-history-table th:not(:first-child):not(.action-header)::before {
+#audit-history-table th:not(:first-child):not(.action-header)::before,
+#ingredient-details-table th:not(:first-child):not(.action-header)::before,
+#ingredient-analysis-table th:not(:first-child):not(.action-header)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2638,18 +2666,19 @@ body.tab-audit-history .add-item-btn {
 #flavors-table th.action-header,
 #inventory-table th.action-header,
 #suggestions-table th.action-header,
-#audit-history-table th.action-header {
+#audit-history-table th.action-header,
+#ingredient-details-table th.action-header {
     background-color: #CAB99D;
     border-radius: 0.5rem;
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
 
-#menu-table tbody tr, #flavors-table tbody tr, #inventory-table, #suggestions-table tbody tr, #report-table tbody tr, #audit-history-table tbody tr {
+#menu-table tbody tr, #flavors-table tbody tr, #inventory-table, #suggestions-table tbody tr, #report-table tbody tr, #audit-history-table tbody tr, #ingredient-details-table tbody tr, #ingredient-analysis-table tbody tr {
     background-color: transparent;
 }
 
-#menu-table td, #flavors-table td, #inventory-table td, #suggestions-table td, #report-table td, #audit-history-table td {
+#menu-table td, #flavors-table td, #inventory-table td, #suggestions-table td, #report-table td, #audit-history-table td, #ingredient-details-table td, #ingredient-analysis-table td {
     padding: 1rem;
     vertical-align: middle;
     background-color: #F4F1E8;
@@ -2662,7 +2691,9 @@ body.tab-audit-history .add-item-btn {
 #inventory-table td:first-child,
 #suggestions-table td:first-child,
 #report-table td:first-child,
-#audit-history-table td:first-child {
+#audit-history-table td:first-child,
+#ingredient-details-table td:first-child,
+#ingredient-analysis-table td:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
 }
@@ -2702,12 +2733,29 @@ body.tab-audit-history .add-item-btn {
     border-bottom-right-radius: 0.5rem;
 }
 
+#ingredient-details-table td:nth-child(6) {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
+#ingredient-details-table td:last-child {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
+#ingredient-analysis-table td:nth-child(6) {
+    border-top-right-radius: 0.5rem;
+    border-bottom-right-radius: 0.5rem;
+}
+
 #menu-table td:not(:first-child):not(:last-child)::before,
 #flavors-table td:not(:first-child):not(:last-child)::before,
 #inventory-table td:not(:first-child):not(:last-child)::before,
 #suggestions-table td:not(:first-child):not(:last-child)::before,
 #report-table td:not(:first-child):not(:last-child)::before,
-#audit-history-table td:not(:first-child):not(:last-child)::before {
+#audit-history-table td:not(:first-child):not(:last-child)::before,
+#ingredient-details-table td:not(:first-child):not(:last-child)::before,
+#ingredient-analysis-table td:not(:first-child):not(:last-child)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2727,11 +2775,22 @@ body.tab-audit-history .add-item-btn {
     background-color: #F4F1E8;
 }
 
+#ingredient-details-table td:last-child:not(:first-child)::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -0.75rem;
+    width: 0.75rem;
+    height: 100%;
+    background-color: #F4F1E8;
+}
+
 #menu-table td:last-child,
 #flavors-table td:last-child,
 #inventory-table td:last-child,
 #suggestions-table td:last-child,
-#audit-history-table td:last-child {
+#audit-history-table td:last-child,
+#ingredient-details-table td:last-child,{
     background-color: #F4F1E8;
     padding: 0;
     border-top-left-radius: 0.5rem;
@@ -4576,6 +4635,56 @@ body[data-page="login"] {
 
 .btn-secondary:hover {
   background: #6d5a5a;
+}
+
+/* Export Buttons Styles */
+.export-buttons {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.btn-export {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 5px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.btn-excel {
+    background: #217346;
+    color: white;
+}
+
+.btn-excel:hover {
+    background: #1a5d38;
+    transform: translateY(-1px);
+}
+
+.btn-csv {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-csv:hover {
+    background: #5a6268;
+    transform: translateY(-1px);
+}
+
+.btn-pdf {
+    background: #dc3545;
+    color: white;
+}
+
+.btn-pdf:hover {
+    background: #c82333;
+    transform: translateY(-1px);
 }
 
 /* Delete Modal Specific */

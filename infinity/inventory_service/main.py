@@ -217,14 +217,14 @@ class StockHistory(Base):
     __tablename__ = "stock_history"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     ingredient_id = Column(Integer, ForeignKey('inventories.id'), nullable=False)
-    action_type = Column(String, nullable=False)  # 'restock', 'edit', 'consume', 'rollback'
+    action_type = Column(String, nullable=False)  
     quantity_before = Column(Float, nullable=False)
     quantity_after = Column(Float, nullable=False)
-    quantity_changed = Column(Float, nullable=False)  # bisa positif atau negatif
-    performed_by = Column(String, nullable=False)  # nama user yang melakukan
-    notes = Column(Text, nullable=True)  # catatan/alasan
+    quantity_changed = Column(Float, nullable=False)  
+    performed_by = Column(String, nullable=False)  
+    notes = Column(Text, nullable=True)  
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
-    order_id = Column(String, nullable=True)  # jika terkait dengan order tertentu
+    order_id = Column(String, nullable=True)  
     
     ingredient = relationship("Inventory", backref="stock_histories")
 
@@ -625,6 +625,26 @@ def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)
     print(f"🚀 DEBUG: Starting add_ingredient for: {req.name}")
     logging.info(f"🚀 DEBUG: Starting add_ingredient for: {req.name}")
     try:
+        existing_ingredient = db.query(Inventory).filter(
+            Inventory.name == req.name.strip()
+        ).first()
+        
+        if existing_ingredient:
+            print(f"❌ DEBUG: Ingredient with exact name already exists: {existing_ingredient.name}")
+            logging.warning(f"❌ DEBUG: Duplicate ingredient attempt: {req.name} (existing: {existing_ingredient.name})")
+            return JSONResponse(status_code=400, content={
+                "status": "error",
+                "message": f"Bahan dengan nama '{req.name}' sudah ada dalam database",
+                "data": {
+                    "existing_ingredient": {
+                        "id": existing_ingredient.id,
+                        "name": existing_ingredient.name,
+                        "category": existing_ingredient.category.value,
+                        "unit": existing_ingredient.unit.value
+                    }
+                }
+            })
+        
         ing = Inventory(
             name=req.name,
             current_quantity=req.current_quantity,
@@ -653,7 +673,7 @@ def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)
         print(f"🔍 DEBUG: Checking auto-flavor-mapping for {ing.name}: category={ing.category}, unit={ing.unit}")
         logging.info(f"🔍 DEBUG: Checking auto-flavor-mapping for {ing.name}: category={ing.category}, unit={ing.unit}")
         
-        if (ing.category == StockCategory.ingredient and 
+        if (ing.category == StockCategory.ingredients and 
             ing.unit in [UnitType.milliliter, UnitType.gram]):
             
             print(f"🎯 DEBUG: Conditions met for auto-flavor-mapping: {ing.name}")
@@ -698,8 +718,10 @@ def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)
         }
         
     except Exception as e:
+        print(f"❌ DEBUG: Exception in add_ingredient: {str(e)}")
+        logging.error(f"❌ DEBUG: Exception in add_ingredient: {str(e)}")
         db.rollback()
-        return JSONResponse(status_code=200, content={
+        return JSONResponse(status_code=500, content={
             "status": "error", 
             "message": f"Gagal menambahkan bahan: {str(e)}", 
             "data": None
@@ -1001,15 +1023,14 @@ def toggle_ingredient_availability(ingredient_id: int, db: Session = Depends(get
         
         ing.is_available = new_availability
         
-        # Tambahkan tracking history untuk perubahan availability
         action_type = "make_unavailable" if not new_availability else "make_available"
         create_stock_history(
             db=db,
             ingredient_id=ingredient_id,
             action_type=action_type,
-            quantity_before=1 if old_availability else 0,  # 1 = available, 0 = unavailable
+            quantity_before=1 if old_availability else 0,
             quantity_after=1 if new_availability else 0,
-            performed_by=current_username,  # Menggunakan user yang sedang login
+            performed_by=current_username,  
             notes=f"Toggle ketersediaan dari {old_status} menjadi {new_status}"
         )
         
@@ -1023,7 +1044,7 @@ def toggle_ingredient_availability(ingredient_id: int, db: Session = Depends(get
             "is_available": ing.is_available,
             "old_status": old_status,
             "new_status": new_status,
-            "performed_by": current_username  # Tambahkan info user di response
+            "performed_by": current_username
         }
         
         db.commit()
@@ -1079,21 +1100,20 @@ def set_ingredient_availability(ingredient_id: int, is_available: bool = Query(.
                     "name": ing.name,
                     "is_available": ing.is_available,
                     "status": new_status,
-                    "performed_by": current_username  # Tambahkan info user
+                    "performed_by": current_username
                 }
             })
         
         ing.is_available = is_available
         
-        # Tambahkan tracking history untuk perubahan availability
         action_type = "make_unavailable" if not is_available else "make_available"
         create_stock_history(
             db=db,
             ingredient_id=ingredient_id,
             action_type=action_type,
-            quantity_before=1 if old_availability else 0,  # 1 = available, 0 = unavailable
+            quantity_before=1 if old_availability else 0,  
             quantity_after=1 if is_available else 0,
-            performed_by=current_username,  # Menggunakan user yang sedang login
+            performed_by=current_username,
             notes=f"Set ketersediaan dari {old_status} menjadi {new_status}"
         )
         
@@ -1107,7 +1127,7 @@ def set_ingredient_availability(ingredient_id: int, is_available: bool = Query(.
             "is_available": ing.is_available,
             "old_status": old_status,
             "new_status": new_status,
-            "performed_by": current_username  # Tambahkan info user di response
+            "performed_by": current_username
         }
         
         db.commit()
@@ -1351,7 +1371,6 @@ def add_ingredient_stock(
         old_quantity = ingredient.current_quantity
         new_quantity = old_quantity + req.add_quantity
         
-        # Update stock
         ingredient.current_quantity = new_quantity
         
         create_stock_history(
@@ -1408,10 +1427,8 @@ def update_minimum_stock(
         
         old_minimum = ingredient.minimum_quantity
         
-        # Update minimum stock
         ingredient.minimum_quantity = req.new_minimum
         
-        # Buat history record (untuk minimum stock, kita track sebagai 'edit_minimum')
         create_stock_history(
             db=db,
             ingredient_id=req.ingredient_id,
@@ -1463,19 +1480,16 @@ def update_ingredient_with_audit(
         })
     
     try:
-        # Simpan data lama
         old_quantity = ing.current_quantity
         old_minimum = ing.minimum_quantity
         old_name = ing.name
         
-        # Update data
         ing.name = req.name
         ing.current_quantity = req.current_quantity
         ing.minimum_quantity = req.minimum_quantity
         ing.category = req.category
         ing.unit = req.unit
         
-        # Buat history jika ada perubahan quantity
         if old_quantity != req.current_quantity:
             create_stock_history(
                 db=db,
@@ -1487,7 +1501,6 @@ def update_ingredient_with_audit(
                 notes=f"Edit stock: {req.notes} (nama: {old_name} → {req.name})"
             )
         
-        # Buat history jika ada perubahan minimum
         if old_minimum != req.minimum_quantity:
             create_stock_history(
                 db=db,
@@ -1908,7 +1921,6 @@ def check_and_consume(
             if inv.current_quantity < 0:
                 raise ValueError(f"❌ FATAL: Stok {inv.name} menjadi negatif ({inv.current_quantity}) setelah dikurangi {deducted}")
             
-            # Tambahkan tracking history untuk consumption
             create_stock_history(
                 db=db,
                 ingredient_id=ing_id,
@@ -1968,7 +1980,6 @@ def rollback_stock(order_id: str, db: Session = Depends(get_db)):
                 ingredient.current_quantity += detail.quantity_consumed
                 after_rollback = ingredient.current_quantity
                 
-                # Tambahkan tracking history untuk rollback
                 create_stock_history(
                     db=db,
                     ingredient_id=detail.ingredient_id,
