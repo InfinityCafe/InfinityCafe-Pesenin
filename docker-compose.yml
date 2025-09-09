@@ -36,7 +36,7 @@ x-n8n: &service-n8n
 
 x-ollama: &service-ollama
   image: ollama/ollama:latest
-  container_name: ollama
+  # container_name: ollama
   networks: ['demo']
   restart: unless-stopped
   ports:
@@ -48,7 +48,7 @@ x-ollama: &service-ollama
 x-init-ollama: &init-ollama
   image: ollama/ollama:latest
   networks: ['demo']
-  container_name: ollama-pull-llama
+  # container_name: ollama-pull-llama
   volumes:
     - ./modelfile/cafe.modelfile:/cafe.modelfile   # dari folder `modelfile`
     - ollama_storage:/root/.ollama
@@ -60,11 +60,11 @@ x-init-ollama: &init-ollama
     - "-c"
     - "sleep 3; ollama pull nomic-embed-text"
 
-services:
+services:  
   n8n-import:
     <<: *service-n8n
     hostname: n8n-import
-    container_name: n8n-import
+    # container_name: n8n-import
     entrypoint: /bin/sh
     command:
       - "-c"
@@ -78,7 +78,7 @@ services:
   n8n:
     <<: *service-n8n
     hostname: n8n
-    container_name: n8n
+    # container_name: n8n
     restart: unless-stopped
     ports:
       - 15678:5678
@@ -155,10 +155,9 @@ services:
     image: ollama/ollama:rocm
     depends_on:
      - ollama-gpu-amd
-
   ngrok:
     image: ngrok/ngrok:latest
-    container_name: ngrok
+    # container_name: ngrok
     restart: unless-stopped
     environment:
       - NGROK_AUTHTOKEN=${NG_CRE}
@@ -168,10 +167,10 @@ services:
       n8n:
         condition: service_started
 
-  infinity-cafe-model:
+  user-parser-model:
     image: ollama/ollama:latest
     networks: ['demo']
-    container_name: infinity-cafe-model
+    # container_name: user-parser-model
     depends_on:
       n8n:
         condition: service_started
@@ -180,16 +179,33 @@ services:
       - ./modelfile:/modelfile
     entrypoint: /bin/sh
     environment:
-    - OLLAMA_HOST=host.docker.internal:11434
+    - OLLAMA_HOST=ollama:11434
     command:
       - "-c"
-      - "sleep 3; echo 'Creating infinityCafe Model'; ollama create infinityCafe -f /modelfile/cafe.modelfile"
+      - "sleep 3; echo 'Creating userParser Model'; ollama create userParser -f /modelfile/user2json.modelfile"
+  message-generator-model:
+    image: ollama/ollama:latest
+    networks: ['demo']
+    # container_name: message-generator-model
+    depends_on:
+      n8n:
+        condition: service_started
+    volumes:
+      - ollama_storage:/root/.ollama
+      - ./modelfile:/modelfile
+    entrypoint: /bin/sh
+    environment:
+    - OLLAMA_HOST=ollama:11434
+    command:
+      - "-c"
+      - "sleep 3; echo 'Creating messageGen Model'; ollama create messageGen -f /modelfile/messageGenerator.modelfile"
+
 
   pgadmin:
     image: dpage/pgadmin4
     networks: ['demo']
     hostname: pgadmin
-    container_name: pgadmin-container
+    # container_name: pgadmin-container
     depends_on:
       pgvector17:
         condition: service_healthy
@@ -199,12 +215,11 @@ services:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
     restart: unless-stopped
-
   pgvector17:
     image: pgvector/pgvector:pg17
     networks: ['demo']
     hostname: pgvector
-    container_name: pgvector
+    # container_name: pgvector
     ports:
      - 15555:5432
     restart: always
@@ -301,14 +316,13 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_HOST=${POSTGRES_HOST}
       - POSTGRES_HOST_AUTH_METHOD=trust
-
   menu_service:
     networks: ['demo', 'my_shared_network']
     hostname: menu_service
     build:
       context: ./infinity/
       dockerfile: menu_service/Dockerfile
-    container_name: menu_service
+    # container_name: menu_service
     depends_on:
       pgvector17:
         condition: service_healthy
@@ -333,7 +347,7 @@ services:
     build:
       context: ./infinity/
       dockerfile: order_service/Dockerfile
-    container_name: order_service
+    # container_name: order_service
     depends_on:
       pgvector17:
         condition: service_healthy
@@ -351,14 +365,13 @@ services:
       # timeout: 5s
       # retries: 3
 
-
   kitchen_service:
     networks: ['demo', 'my_shared_network']
     hostname: kitchen_service
     build:
       context: ./infinity/
       dockerfile: kitchen_service/Dockerfile
-    container_name: kitchen_service
+    # container_name: kitchen_service
     depends_on:
       pgvector17:
         condition: service_healthy
@@ -379,7 +392,7 @@ services:
     build:
       context: ./infinity/
       dockerfile: report_service/Dockerfile
-    container_name: report_service
+    # container_name: report_service
     depends_on:
       pgvector17:
         condition: service_healthy
@@ -396,14 +409,13 @@ services:
       interval: 5s
       timeout: 5s
       retries: 3
-
   inventory_service:
     networks: ['demo', 'my_shared_network']
     hostname: inventory_service
     build:
       context: ./infinity/
       dockerfile: inventory_service/Dockerfile
-    container_name: inventory_service
+    # container_name: inventory_service
     depends_on:
       pgvector17:
         condition: service_healthy
@@ -428,7 +440,7 @@ services:
     build:
       context: ./infinity/ 
       dockerfile: user_service/Dockerfile
-    container_name: user_service
+    # container_name: user_service
     depends_on:
       pgvector17:
         condition: service_healthy
@@ -460,11 +472,10 @@ services:
   #   #   - kitchen_service
   #   extra_hosts:
   #     - "ollama:host-gateway"
-
   frontend:
     build:
       context: ./frontend
-    container_name: infinity-frontend
+    # container_name: infinity-frontend
     hostname: frontend
     networks: ['demo']
     ports:

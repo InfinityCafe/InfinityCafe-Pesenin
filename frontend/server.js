@@ -7,7 +7,7 @@ const { error } = require("console");
 
 const app = express();
 const PORT = 8080;
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "https://liberal-relative-panther.ngrok-free.app/webhook/trigger-order-status";
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "https://allowed-airedale-darling.ngrok-free.app/webhook/trigger-order-status";
 
 // Middleware
 app.use(express.json());
