@@ -252,9 +252,7 @@ class InventoryManager {
         console.log('Summary data loaded:', summaryData);
         this.updateOverviewCards(summaryData);
       } else {
-        console.log('Summary API failed, loading sample data...');
-        this.loadSampleData();
-        return;
+        console.warn('Summary API failed');
       }
 
       // Load inventory list
@@ -279,8 +277,7 @@ class InventoryManager {
       this.renderInventoryTable();
     } catch (error) {
       console.error('Error loading inventory data:', error);
-      console.log('Loading sample data as fallback...');
-      this.loadSampleData();
+      showErrorModal('Failed to load inventory data');
     }
   }
 
@@ -305,10 +302,10 @@ class InventoryManager {
       }
 
       if (hasChanged || forceFullReload) {
-        this.renderInventoryTable();
-        this.updateOverviewCards();
-        if (forceFullReload) {
-          this.populateDynamicFilters();
+      this.renderInventoryTable();
+      this.updateOverviewCards();
+      if (forceFullReload) {
+        this.populateDynamicFilters();
         }
       }
     } catch (error) {
@@ -380,7 +377,7 @@ class InventoryManager {
           }
         } catch (error) {
           console.error('Polling error:', error);
-          this.showError('Gagal memperbarui data. Coba lagi nanti.');
+          showErrorModal('Gagal memperbarui data. Coba lagi nanti.');
         }
         // this.loadAndRefreshData();
       } else {
@@ -389,74 +386,7 @@ class InventoryManager {
     }, 3000);
   }
 
-  loadSampleData() {
-    // Sample data for demonstration when backend is not available
-    const sampleInventory = [
-      {
-        id: 1,
-        name: "Coffee Beans",
-        category: "ingredient",
-        current_quantity: 25.5,
-        minimum_quantity: 10.0,
-        unit: "gram",
-        is_available: true
-      },
-      {
-        id: 2,
-        name: "Milk",
-        category: "ingredient",
-        current_quantity: 8.0,
-        minimum_quantity: 15.0,
-        unit: "milliliter",
-        is_available: true
-      },
-      {
-        id: 3,
-        name: "Sugar",
-        category: "ingredient",
-        current_quantity: 0.0,
-        minimum_quantity: 5.0,
-        unit: "gram",
-        is_available: false
-      },
-      {
-        id: 4,
-        name: "Coffee Cups",
-        category: "packaging",
-        current_quantity: 50,
-        minimum_quantity: 100,
-        unit: "piece",
-        is_available: true
-      },
-      {
-        id: 5,
-        name: "Straws",
-        category: "packaging",
-        current_quantity: 75,
-        minimum_quantity: 200,
-        unit: "piece",
-        is_available: true
-      }
-    ];
-
-    this.inventory = sampleInventory;
-    this.filteredInventory = [...this.inventory];
-    this.currentFilters = { category: '', unit: '', status: '' };
-    this.currentSearchTerm = '';
-    this.currentPage = 1;
-    
-    this.applyCurrentFiltersAndSearch();
-    this.populateDynamicFilters();
-    
-    // Update overview cards with sample data
-    this.updateOverviewCards({
-      total_items: sampleInventory.length,
-      critical_count: sampleInventory.filter(item => item.current_quantity <= 0).length,
-      low_stock_count: sampleInventory.filter(item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length,
-    });
-    
-    console.log('Sample data loaded and table rendered');
-  }
+  // Removed: loadSampleData (local demo)
 
   updateOverviewCards(data = {}) {
     console.log('Updating overview cards with inventory:', this.inventory);
@@ -498,6 +428,43 @@ class InventoryManager {
     this.isUserInteracting = !!this.currentSearchTerm;
     this.applyCurrentFiltersAndSearch(true);
   }
+
+  // Normalize string for duplicate checks
+  normalizeValue(value) {
+    return (value || '')
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ');
+  }
+
+  // Check if an item with same name+category+unit already exists
+  hasDuplicateItem(name, category, unit, excludeId = null) {
+    const n = this.normalizeValue(name);
+    const c = this.normalizeValue(category);
+    const u = this.normalizeValue(unit);
+    return this.inventory.some(item => {
+      const sameTriple = this.normalizeValue(item.name) === n
+        && this.normalizeValue(item.category) === c
+        && this.normalizeValue(item.unit) === u;
+      if (!sameTriple) return false;
+      if (excludeId != null) return item.id !== excludeId;
+      return true;
+    });
+  }
+
+  // Check if an item name already exists (regardless of category/unit)
+  hasDuplicateName(name, excludeId = null) {
+    const n = this.normalizeValue(name);
+    return this.inventory.some(item => {
+      const sameName = this.normalizeValue(item.name) === n;
+      if (!sameName) return false;
+      if (excludeId != null) return item.id !== excludeId;
+      return true;
+    });
+  }
+
+  // Note: name-similarity validation is handled by backend. Client only checks exact triple.
 
   renderInventoryTable() {
     const tbody = document.getElementById('inventory-tbody');
@@ -607,6 +574,30 @@ class InventoryManager {
 
   capitalizeFirst(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+
+  // Normalize string for duplicate checks
+  normalizeValue(value) {
+    return (value || '')
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ');
+  }
+
+  // Check if an item with same name+category+unit already exists
+  hasDuplicateItem(name, category, unit, excludeId = null) {
+    const n = this.normalizeValue(name);
+    const c = this.normalizeValue(category);
+    const u = this.normalizeValue(unit);
+    return this.inventory.some(item => {
+      const sameTriple = this.normalizeValue(item.name) === n
+        && this.normalizeValue(item.category) === c
+        && this.normalizeValue(item.unit) === u;
+      if (!sameTriple) return false;
+      if (excludeId != null) return item.id !== excludeId;
+      return true;
+    });
   }
 
   updatePagination() {
@@ -747,7 +738,7 @@ class InventoryManager {
   viewItem(itemId) {
     const item = this.inventory.find(i => i.id === itemId);
     if (!item) {
-      this.showError('Item not found');
+      showErrorModal('Item not found');
       return;
     }
 
@@ -772,7 +763,7 @@ class InventoryManager {
   editFromView() {
     const itemId = document.getElementById('view-item-modal').getAttribute('data-item-id');
     if (!itemId) {
-      this.showError('No item selected for editing');
+      showErrorModal('No item selected for editing');
       return;
     }
 
@@ -865,33 +856,19 @@ class InventoryManager {
       });
 
       if (response.ok) {
-        this.showSuccess(`Item availability changed to ${isAvailable ? 'Available' : 'Unavailable'}`);
+        showSuccessModal(`Item availability changed to ${isAvailable ? 'Available' : 'Unavailable'}`);
         this.closeModal('change-status-modal');
         this.loadAndRefreshData();
       } else {
         const errorData = await response.json();
-        this.showError(errorData.error || 'Failed to change availability');
+        showErrorModal(errorData.error || 'Failed to change availability');
       }
     } catch (error) {
       console.error('Error changing availability:', error);
-      this.handleLocalChangeAvailability(isAvailable);
+      showErrorModal('Failed to change availability');
     }
   }
-
-  handleLocalChangeAvailability(isAvailable) {
-    const index = this.inventory.findIndex(item => item.id === this.editingItem.id);
-    if (index !== -1) {
-      this.inventory[index].is_available = isAvailable;
-      this.showSuccess(`Item availability changed to ${isAvailable ? 'Available' : 'Unavailable'} (local demo)`);
-      this.closeModal('change-status-modal');
-      this.applyCurrentFiltersAndSearch();
-      this.updateOverviewCards({
-        total_items: this.inventory.length,
-        critical_count: this.inventory.filter(item => item.current_quantity <= 0).length,
-        low_stock_count: this.inventory.filter(item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length,
-      });
-    }
-  }
+  // Removed: handleLocalChangeAvailability (local demo)
 
   async handleFormSubmit() {
     const itemForm = document.getElementById('item-form');
@@ -901,17 +878,48 @@ class InventoryManager {
     }
 
     const formData = new FormData(itemForm);
+    const nameRaw = (formData.get('name') || '').toString().trim();
+    const categoryRaw = (formData.get('category') || '').toString().trim().toLowerCase();
+    const unitRaw = (formData.get('unit') || '').toString().trim().toLowerCase();
+    const currentQtyRaw = formData.get('current_quantity');
+    const minimumQtyRaw = formData.get('minimum_quantity');
+
+    // Basic required validations
+    if (!nameRaw) { showErrorModal('Nama item wajib diisi.'); return; }
+    if (!categoryRaw) { showErrorModal('Kategori wajib dipilih.'); return; }
+    if (!unitRaw) { showErrorModal('Unit wajib dipilih.'); return; }
+
+    const currentQty = Number(parseFloat(currentQtyRaw));
+    const minimumQty = Number(parseFloat(minimumQtyRaw));
+    const safeCurrent = isNaN(currentQty) ? 0 : currentQty;
+    const safeMinimum = isNaN(minimumQty) ? 0 : minimumQty;
+
     const itemData = {
-      name: formData.get('name'),
-      category: (formData.get('category') || '').toString().trim().toLowerCase(),
-      unit: (formData.get('unit') || '').toString().trim().toLowerCase(),
-      current_quantity: parseFloat(formData.get('current_quantity')),
-      minimum_quantity: parseFloat(formData.get('minimum_quantity')),
+      name: nameRaw,
+      category: categoryRaw,
+      unit: unitRaw,
+      current_quantity: safeCurrent,
+      minimum_quantity: safeMinimum,
       notes: (formData.get('notes') || 'Stock opname update').toString()
     };
 
     const itemId = itemForm.getAttribute('data-item-id');
     const isEditing = !!itemId;
+
+    // Prevent duplicates on create and on edit when changing into a duplicate triple
+    if (isEditing) {
+      const excludeId = parseInt(itemId);
+      if (this.hasDuplicateItem(itemData.name, itemData.category, itemData.unit, excludeId)) {
+        showErrorModal('Item dengan nama, kategori, dan unit yang sama sudah ada.');
+        return;
+      }
+    } else {
+      // Client-side only blocks exact same name+category+unit; backend will enforce name uniqueness/similarity.
+      if (this.hasDuplicateItem(itemData.name, itemData.category, itemData.unit)) {
+        showErrorModal('Item dengan nama, kategori, dan unit yang sama sudah ada.');
+        return;
+      }
+    }
 
     try {
       let response;
@@ -935,8 +943,27 @@ class InventoryManager {
           body: JSON.stringify(itemData)
         });
         if (!createResp.ok) {
-          const err = await createResp.json();
-          throw new Error(err.detail || 'Failed to create ingredient');
+          let errMsg = 'Failed to create ingredient';
+          try { const err = await createResp.json(); errMsg = err.message || err.detail || errMsg; } catch(_) {}
+          // Highlight name field if backend says name already exists
+          if (createResp.status === 400 && /nama '\w+' sudah ada|already exists/i.test(errMsg)) {
+            const nameInput = document.querySelector('#item-form input[name="name"]');
+            if (nameInput) {
+              nameInput.focus();
+              try { nameInput.setCustomValidity(errMsg); nameInput.reportValidity(); } catch(_) {}
+            }
+          }
+          // If backend returns 500 but item actually created, treat as success after refresh
+          if (createResp.status >= 500) {
+            await this.loadAndRefreshData(true);
+            const exists = this.hasDuplicateName(itemData.name);
+            if (exists) {
+              showSuccessModal('Item added successfully');
+              this.closeModal('item-modal');
+              return;
+            }
+          }
+          throw new Error(errMsg);
         }
         const created = await createResp.json();
         const newId = created?.data?.id || created?.id;
@@ -951,16 +978,16 @@ class InventoryManager {
       }
 
       if (response.ok) {
-        this.showSuccess(isEditing ? 'Item updated successfully' : 'Item added successfully');
+        showSuccessModal(isEditing ? 'Item updated successfully' : 'Item added successfully');
         this.closeModal('item-modal');
         this.loadAndRefreshData();
       } else {
         const errorData = await response.json();
-        this.showError(errorData.error || 'Failed to save item');
+        showErrorModal(errorData.error || 'Failed to save item');
       }
     } catch (error) {
       console.error('Error saving item:', error);
-      this.handleLocalFormSubmission(itemData, isEditing, itemId);
+      showErrorModal(error?.message || 'Failed to save item');
     }
   }
 
@@ -969,14 +996,14 @@ class InventoryManager {
       const index = this.inventory.findIndex(item => item.id === parseInt(itemId));
       if (index !== -1) {
         this.inventory[index] = { ...this.inventory[index], ...itemData };
-        this.showSuccess('Item updated successfully (local demo)');
+        showSuccessModal('Item updated successfully (local demo)');
       }
     } else {
       // Add new item to local data
       const newId = Math.max(...this.inventory.map(item => item.id), 0) + 1;
       const newItem = { ...itemData, id: newId, is_available: true };
       this.inventory.push(newItem);
-      this.showSuccess('Item added successfully (local demo)');
+      showSuccessModal('Item added successfully (local demo)');
     }
 
     this.applyCurrentFiltersAndSearch();
@@ -997,35 +1024,20 @@ class InventoryManager {
       });
 
       if (response.ok) {
-        this.showSuccess('Item deleted successfully');
+        showSuccessModal('Item deleted successfully');
         this.closeModal('delete-modal');
         this.loadAndRefreshData();
       } else {
         const errorData = await response.json();
-        this.showError(errorData.error || 'Failed to delete item');
+        showErrorModal(errorData.error || 'Failed to delete item');
       }
     } catch (error) {
       console.error('Error deleting item:', error);
-      // Fallback: delete from local data for demonstration
-      this.handleLocalDelete();
+      showErrorModal('Failed to delete item');
     }
   }
 
-  handleLocalDelete() {
-    const index = this.inventory.findIndex(item => item.id === this.editingItem.id);
-    if (index !== -1) {
-      this.inventory.splice(index, 1);
-      this.showSuccess('Item deleted successfully (local demo)');
-      this.closeModal('delete-modal');
-      this.applyCurrentFiltersAndSearch();
-      this.updateOverviewCards({
-        total_items: this.inventory.length,
-        critical_count: this.inventory.filter(item => item.current_quantity <= 0).length,
-        low_stock_count: this.inventory.filter(item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length,
-        // warning_count: this.inventory.filter(item => item.current_quantity > item.minimum_quantity && item.current_quantity <= item.minimum_quantity * 1.5).length
-      });
-    }
-  }
+  // Removed: handleLocalDelete (local demo)
 
   showModal(modalId) {
     const modal = document.getElementById(modalId);
@@ -1051,33 +1063,7 @@ class InventoryManager {
     }
   }
 
-  showSuccess(message) {
-    const modal = document.getElementById('success-modal');
-    const messageElement = document.getElementById('success-message');
-
-    if (modal && messageElement) {
-      messageElement.textContent = message;
-      modal.classList.remove('hidden');
-    } else {
-      // Fallback jika modal tidak ditemukan
-      console.log('SUCCESS:', message);
-      alert(message);
-    }
-  }
-
-  showError(message) {
-    const modal = document.getElementById('error-modal');
-    const messageElement = document.getElementById('error-message');
-
-    if (modal && messageElement) {
-      messageElement.textContent = message;
-      modal.classList.remove('hidden');
-    } else {
-      // Fallback jika modal tidak ditemukan
-      console.error('ERROR:', message);
-      alert(message);
-    }
-  }
+  
 
   handleKitchenToggle(isOpen) {
     // Handle kitchen open/close toggle
@@ -1194,7 +1180,7 @@ class InventoryManager {
       });
 
       if (response.ok) {
-        this.showSuccess('Stock added successfully');
+        showSuccessModal('Stock added successfully');
         this.closeModal('add-stock-modal');
         this.loadAndRefreshData();
         document.getElementById('add-stock-form').reset();
@@ -1202,11 +1188,11 @@ class InventoryManager {
         let errorMsg = 'Failed to add stock';
         try { const errorData = await response.json(); errorMsg = errorData.error || errorData.message || errorMsg; } catch (_) {}
         if (response.status === 401) errorMsg = 'Unauthorized: silakan login ulang.';
-        this.showError(errorMsg);
+        showErrorModal(errorMsg);
       }
     } catch (error) {
       console.error('Error adding stock:', error);
-      this.showError('Failed to add stock');
+      showErrorModal('Failed to add stock');
     }
   }
 
@@ -1230,14 +1216,14 @@ class InventoryManager {
         
           this.auditLoaded = true;
         } else {
-          this.showError(data.message || 'Failed to load audit history');
+          showErrorModal(data.message || 'Failed to load audit history');
         }
       } else {
-        this.showError('Failed to load audit history');
+        showErrorModal('Failed to load audit history');
       }
     } catch (error) {
       console.error('Error loading audit history:', error);
-      this.showError('Failed to load audit history');
+      showErrorModal('Failed to load audit history');
     }
   }
 
@@ -1578,7 +1564,7 @@ class InventoryManager {
   viewAuditHistory(id) {
     const item = this.auditHistory.find(h => h.id === id);
     if (!item) {
-      this.showError('Audit history item not found');
+      showErrorModal('Audit history item not found');
       return;
     }
 
@@ -1649,13 +1635,13 @@ class InventoryManager {
         const logs = await response.json();
         this.renderConsumptionLogs(logs);
       } else {
-        this.showError('Failed to load consumption logs');
+        showErrorModal('Failed to load consumption logs');
         const offlineBanner = document.getElementById('offline-banner');
         if (offlineBanner) offlineBanner.classList.remove('hidden');
       }
     } catch (error) {
       console.error('Error loading consumption logs:', error);
-      this.showError('Failed to load consumption logs');
+      showErrorModal('Failed to load consumption logs');
       const offlineBanner = document.getElementById('offline-banner');
       if (offlineBanner) offlineBanner.classList.remove('hidden');
     }
@@ -1749,7 +1735,7 @@ class InventoryManager {
       this.renderStockHistory(rows);
     } catch (e) {
       console.error('Failed to load stock history:', e);
-      this.showError('Failed to load stock history');
+      showErrorModal('Failed to load stock history');
     }
   }
 
@@ -1802,17 +1788,8 @@ window.editFromView = function() {
   }
 };
 
-window.closeSuccessModal = function() {
-  if (window.inventoryManager) {
-    window.inventoryManager.closeModal('success-modal');
-  }
-};
 
-window.closeErrorModal = function() {
-  if (window.inventoryManager) {
-    window.inventoryManager.closeModal('error-modal');
-  }
-};
+
 
 // Initialize the inventory manager when the page loads
 document.addEventListener('DOMContentLoaded', () => {

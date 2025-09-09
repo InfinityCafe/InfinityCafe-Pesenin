@@ -54,7 +54,7 @@ async function loadSuggestions() {
     }
   } catch (error) {
     console.error('Error loading suggestions:', error);
-    showError('Gagal memuat usulan menu: ' + error.message);
+    showErrorModal('Gagal memuat usulan menu: ' + error.message);
   } finally {
     showLoading(false);
   }
@@ -265,19 +265,7 @@ function closeSuggestionModal() {
   }
 }
 
-function closeSuccessModal() {
-  const modal = document.getElementById('success-modal');
-  if (modal) {
-    modal.classList.add('hidden');
-  }
-}
 
-function closeErrorModal() {
-  const modal = document.getElementById('error-modal');
-  if (modal) {
-    modal.classList.add('hidden');
-  }
-}
 
 // Submit suggestion
 async function submitSuggestion() {
@@ -289,7 +277,7 @@ async function submitSuggestion() {
   const description = formData.get('description')?.trim();
   
   if (!menuName || !customerName) {
-    showError('Nama menu dan nama customer harus diisi');
+    showErrorModal('Nama menu dan nama customer harus diisi');
     return;
   }
   
@@ -310,17 +298,17 @@ async function submitSuggestion() {
     
     if (result.status === 'success') {
       closeSuggestionModal();
-      showSuccess('Usulan menu berhasil dikirim!');
+      showSuccessModal('Usulan menu berhasil dikirim!');
       // Reload suggestions
       loadSuggestions();
     } else if (result.status === 'duplicate') {
-      showError('Menu ini sudah ada atau sudah diusulkan sebelumnya');
+      showErrorModal('Menu ini sudah ada atau sudah diusulkan sebelumnya');
     } else {
-      showError('Gagal mengirim usulan menu');
+      showErrorModal('Gagal mengirim usulan menu');
     }
   } catch (error) {
     console.error('Error submitting suggestion:', error);
-    showError('Gagal mengirim usulan menu. Silakan coba lagi.');
+    showErrorModal('Gagal mengirim usulan menu. Silakan coba lagi.');
   }
 }
 
@@ -391,25 +379,7 @@ function showLoading(show) {
   }
 }
 
-function showSuccess(message) {
-  const modal = document.getElementById('success-modal');
-  const messageEl = document.getElementById('success-message');
-  
-  if (modal && messageEl) {
-    messageEl.textContent = message;
-    modal.classList.remove('hidden');
-  }
-}
 
-function showError(message) {
-  const modal = document.getElementById('error-modal');
-  const messageEl = document.getElementById('error-message');
-  
-  if (modal && messageEl) {
-    messageEl.textContent = message;
-    modal.classList.remove('hidden');
-  }
-}
 
 function refreshSuggestions() {
   loadSuggestions();
