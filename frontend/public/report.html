@@ -10,6 +10,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body data-page="report">
     <!-- Header -->
@@ -79,15 +81,16 @@
                     <label class="filter-group">
                         <span style="color: #312929; font-weight: 600; margin-right: 8px;">Dari:</span>
                         <input type="date" id="start_date" class="price-input" style="width: 200px;">
-        </label>
+                    </label>
                     <label class="filter-group">
                         <span style="color: #312929; font-weight: 600; margin-right: 8px;">Sampai:</span>
                         <input type="date" id="end_date" class="price-input" style="width: 200px;">
-        </label>
+                    </label>
+                    <button onclick="exportExcel()" class="btn-secondary">📊 Excel</button>
                     <button onclick="exportCSV()" class="btn-secondary">⬇️ CSV</button>
                     <button onclick="exportPDF()" class="btn-secondary">📄 PDF</button>
                 </div>
-    </div>
+            </div>
 
             <!-- Summary Section -->
             <div id="summary" class="summary-details" style="margin-bottom: 1rem;">
@@ -160,6 +163,13 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Table Info -->
+                <div class="table-info">
+                    <span id="report-table-info">Showing 0 of 0 entries</span>
+                </div>
+
+
                 <table id="report-table">
                     <thead>
                         <tr>
@@ -172,76 +182,89 @@
                     </thead>
                     <tbody id="report-tbody"></tbody>
                 </table>
+                <table id="ingredient-analysis-table" class="hidden">
+                    <thead>
+                        <tr>
+                            <th>NO</th>
+                            <th>TANGGAL</th>
+                            <th>RINGKASAN HARIAN</th>
+                            <th>TOTAL PESANAN</th>
+                            <th>TOTAL BAHAN TERPAKAI</th>
+                            <th>AKSI</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ingredient-analysis-tbody"></tbody>
+                </table>
 
-                    <!-- Pagination -->
-                    <div class="pagination-container">
-                        <div class="pagination-info">
-                            Menampilkan <span id="pagination-start">1</span> - <span id="pagination-end">10</span> dari <span id="pagination-total">0</span> data
-                        </div>
-                        <div class="pagination-controls">
-                            <button class="pagination-btn" id="prev-page" onclick="changePage(-1)">
-                                <i class="fas fa-chevron-left"></i>
-                            </button>
-                            <div class="page-numbers" id="page-numbers"></div>
-                            <button class="pagination-btn" id="next-page" onclick="changePage(1)">
-                                <i class="fas fa-chevron-right"></i>
-                            </button>
-                        </div>
-                        <div class="entries-per-page">
-                            <span>Tampilkan</span>
-                            <select id="entries-per-page" class="form-select">
-                                <option value="10" selected>10</option>
-                                <option value="25">25</option>
-                                <option value="50">50</option>
-                            </select>
-                            <span>entri</span>
-                        </div>
+                <!-- Pagination -->
+                <div class="pagination-container">
+                    <div class="pagination-info">
+                        <span id="report-pagination-info">Page 1 of 1</span>
                     </div>
-                    <!-- Ingredient Details Panel (for Analisis Bahan mode) -->
-                    <div id="ingredient-details-panel" class="summary-item hidden" style="margin-top: 1.5rem;">
-                        <div class="summary-header">
-                            <span class="summary-name">🥤 Detail Konsumsi Bahan</span>
-                            <span class="summary-close" onclick="hideIngredientDetailsPanel()">×</span>
-                        </div>
-                        <div class="summary-details" style="margin: 1rem 0 1.5rem 0;">
-                            <span class="summary-detail--order">Order ID: <strong id="detail-order-id">-</strong></span>
-                            <span class="summary-detail--order">Tanggal: <strong id="detail-order-date">-</strong></span>
-                            <span class="summary-detail--order">Status: <strong id="detail-order-status">-</strong></span>
-                        </div>
-                        <div class="table-container" style="margin-top: 0;">
-                            <table id="ingredient-details-table" class="flavour-table" style="margin-top: 0;">
+                    <div class="pagination-controls">
+                        <button class="pagination-btn" id="report-prev-btn">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <div class="page-numbers" id="report-page-numbers"></div>
+                        <button class="pagination-btn" id="report-next-btn">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                    <div class="pagination-size">
+                        <label>Show</label>
+                        <select id="report-page-size" class="form-select">
+                            <option value="10" selected>10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                        </select>
+                        <span>entri</span>
+                    </div>
+                </div>
+                <!-- Ingredient Details Panel (for Analisis Bahan mode) -->
+                <div id="ingredient-details-panel" class="summary-item hidden" style="margin-top: 1.5rem;">
+                    <div class="summary-header">
+                        <span class="summary-name">🥤 Detail Konsumsi Bahan</span>
+                        <span class="summary-close" onclick="hideIngredientDetailsPanel()">×</span>
+                    </div>
+                    <div class="summary-details" style="margin: 1rem 0 1.5rem 0;">
+                        <span class="summary-detail--order">Order ID: <strong id="detail-order-id">-</strong></span>
+                        <span class="summary-detail--order">Tanggal: <strong id="detail-order-date">-</strong></span>
+                        <span class="summary-detail--order">Status: <strong id="detail-order-status">-</strong></span>
+                    </div>
+                    <div class="table-container" style="margin-top: 0;">
+                        <table id="ingredient-details-table" style="margin-top: 0;">
                             <thead>
                                 <tr>
-                                        <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">No</th>
-                                        <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Nama Bahan</th>
-                                        <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Qty Terpakai</th>
-                                        <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Unit</th>
-                                        <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Stok Sebelum</th>
-                                        <th style="background-color: #DCD0A8; font-weight: 600; color: #442D2D; padding: 0.75rem; text-align: left; border-bottom: 1px solid #F3F4F6;">Stok Sesudah</th>
+                                    <th>No</th>
+                                    <th>Nama Bahan</th>
+                                    <th>Qty Terpakai</th>
+                                    <th>Unit</th>
+                                    <th>Stok Sebelum</th>
+                                    <th>Stok Sesudah</th>
                                 </tr>
                             </thead>
                             <tbody id="ingredient-details-body"></tbody>
                         </table>
-                        </div>
                     </div>
                 </div>
             </div>
-
-            <!-- Charts Section -->
-            <div class="dashboard-layout" style="margin-top: 2rem; flex-wrap: wrap;">
-                <div class="column" id="chart-bar-card" style="flex: 1 1 0; min-width: 320px;">
-                    <h3 class="column-title">📊 Top Menu Terlaris</h3>
-                    <div class="column-content" style="height: 320px;">
-            <canvas id="barChart"></canvas>
         </div>
-                </div>
-                <div class="column" id="chart-pie-card" style="flex: 1 1 0; min-width: 320px;">
-                    <h3 class="column-title">🥧 Komposisi Penjualan</h3>
-                    <div class="column-content" style="height: 320px;">
-            <canvas id="pieChart"></canvas>
-                    </div>
+
+        <!-- Charts Section -->
+        <div class="dashboard-layout" style="margin-top: 2rem; flex-wrap: wrap;">
+            <div class="column" id="chart-bar-card" style="flex: 1 1 0; min-width: 320px;">
+                <h3 class="column-title">📊 Top Menu Terlaris</h3>
+                <div class="column-content" style="height: 320px;">
+                    <canvas id="barChart"></canvas>
                 </div>
             </div>
+            <div class="column" id="chart-pie-card" style="flex: 1 1 0; min-width: 320px;">
+                <h3 class="column-title">🥧 Komposisi Penjualan</h3>
+                <div class="column-content" style="height: 320px;">
+                    <canvas id="pieChart"></canvas>
+                </div>
+            </div>
+        </div>
 
             <!-- Additional Info Section -->
             <!-- Removed loyal buyers and customer suggestions per request -->
@@ -269,42 +292,43 @@
                                 </select>
                             </label>
                             <button onclick="refreshKitchenData()" class="btn-secondary">🔄 Refresh</button>
-                            <button onclick="exportKitchenCSV()" class="btn-secondary">⬇️ CSV</button>
+                            <div class="export-buttons">
+                                <button onclick="exportKitchenExcel()" class="btn-export btn-excel">📊 Excel</button>
+                                <button onclick="exportKitchenCSV()" class="btn-export btn-csv">📄 CSV</button>
+                                <button onclick="exportKitchenPDF()" class="btn-export btn-pdf">📋 PDF</button>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Kitchen Orders Table -->
-                    <div class="table-container">
-                        <table id="kitchen-table" class="flavour-table">
-                            <thead>
-                                <tr>
-                                    <th>No</th>
-                                    <th>Order ID</th>
-                                    <th>Queue</th>
-                                    <th>Customer</th>
-                                    <th>Room</th>
-                                    <th>Menu Items</th>
-                                    <th>Bahan yang Digunakan</th>
-                                    <th>Status</th>
-                                    <th>Time Receive</th>
-                                    <th>Time Done</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="kitchen-body"></tbody>
-                        </table>
-                    </div>
-
-                    <!-- Kitchen Summary -->
-                    <div id="kitchen-summary" class="summary-details" style="margin-top: 1rem;">
-                        <span class="summary-detail--order">Total Orders: <strong id="kitchen-total-orders">-</strong></span>
-                        <span class="summary-detail--order">In Progress: <strong id="kitchen-in-progress">-</strong></span>
-                        <span class="summary-detail--order">Completed: <strong id="kitchen-completed">-</strong></span>
-                        <span class="summary-detail--order">Cancelled: <strong id="kitchen-cancelled">-</strong></span>
-                    </div>
+                <!-- Kitchen Orders Table -->
+                <div class="table-container">
+                    <table id="kitchen-table" class="flavour-table">
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Order ID</th>
+                                <th>Queue</th>
+                                <th>Customer</th>
+                                <th>Room</th>
+                                <th>Menu Items</th>
+                                <th>Bahan yang Digunakan</th>
+                                <th>Status</th>
+                                <th>Time Receive</th>
+                                <th>Time Done</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="kitchen-body"></tbody>
+                    </table>
                 </div>
 
-
+                <!-- Kitchen Summary -->
+                <div id="kitchen-summary" class="summary-details" style="margin-top: 1rem;">
+                    <span class="summary-detail--order">Total Orders: <strong id="kitchen-total-orders">-</strong></span>
+                    <span class="summary-detail--order">In Progress: <strong id="kitchen-in-progress">-</strong></span>
+                    <span class="summary-detail--order">Completed: <strong id="kitchen-completed">-</strong></span>
+                    <span class="summary-detail--order">Cancelled: <strong id="kitchen-cancelled">-</strong></span>
+                </div>
             </div>
         </div>
     </div>
@@ -329,7 +353,11 @@
                         <input type="date" id="ingredient-end-date" class="price-input" style="width: 150px;">
                     </label>
                     <button onclick="refreshIngredientAnalysis()" class="btn-secondary">🔄 Refresh</button>
-                    <button onclick="exportIngredientCSV()" class="btn-secondary">⬇️ CSV</button>
+                    <div class="export-buttons">
+                        <button onclick="exportIngredientExcel()" class="btn-export btn-excel">📊 Excel</button>
+                        <button onclick="exportIngredientCSV()" class="btn-export btn-csv">📄 CSV</button>
+                        <button onclick="exportIngredientPDF()" class="btn-export btn-pdf">📋 PDF</button>
+                    </div>
                 </div>
             </div>
 
@@ -358,7 +386,7 @@
             </div>
 
             <!-- Ingredient Usage Table -->
-            <div class="table-container" style="margin-top: 1rem;">
+            <!-- <div class="table-container" style="margin-top: 1rem;">
                 <div class="summary-item">
                     <div class="summary-header">
                         <span class="summary-name">📊 Tabel Penggunaan Bahan per Menu</span>
@@ -376,7 +404,7 @@
                         <tbody id="ingredient-table-body"></tbody>
                     </table>
                 </div>
-            </div>
+            </div> -->
         </div>
     </div>
 
@@ -406,7 +434,7 @@
     <div id="pie-modal" class="modal hidden">
         <div class="modal-content view-modal">
             <button onclick="closePieModal()" class="modal-close">×</button>
-            <div class="modal-title">�� Detail Menu</div>
+            <div class="modal-title">Detail Menu</div>
             <div id="pie-modal-content" class="view-content"></div>
         </div>
     </div>

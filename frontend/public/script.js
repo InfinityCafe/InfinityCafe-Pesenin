@@ -423,8 +423,75 @@ function switchTab(tabId) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+// FUNGSI UNTUK MODAL GLOBAL
+
+async function loadGlobalModals() {
+  if (document.getElementById('success-modal')) {
+    return;
+  }
+  
+  try {
+    const response = await fetch('/modals.html');
+    const modalHTML = await response.text();
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+  }
+  catch (error) {
+    console.error('Error loading global modals:', error);
+  }
+}
+
+function showSuccessModal(message) {
+  closeModal('error-modal');
+  closeModal('delete-confirm-modal');
+
+  const modal = document.getElementById('success-modal');
+  const messageElement = document.getElementById('success-message');
+  if (modal && messageElement) {
+    messageElement.textContent = message;
+    modal.classList.remove('hidden');
+  }
+}
+
+function showDeleteConfirmModal(message, onConfirm) {
+  closeModal('error-modal');
+  closeModal('delete-confirm-modal');
+  
+  document.getElementById('delete-confirm-message').textContent = message;
+  document.getElementById('delete-confirm-modal').classList.remove('hidden');
+    
+  // Set up confirm button action
+  const confirmBtn = document.getElementById('delete-confirm-btn');
+  confirmBtn.onclick = () => {
+    closeModal('delete-confirm-modal');
+    onConfirm();
+  };
+}
+
+function openConfirmModal(orderId) {
+  selectedOrderId = orderId;
+  document.getElementById("confirm-modal").classList.remove("hidden");
+}
+
+function showErrorModal(message) {
+  const modal = document.getElementById('error-modal');
+  const messageElement = document.getElementById('error-message');
+  if (modal && messageElement) {
+    messageElement.textContent = message;
+    modal.classList.remove('hidden');
+  }
+}
+
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async function() {
     console.log('DOMContentLoaded event triggered in script.js');
+
+    await loadGlobalModals();
     
     // Clean up temporary token from URL immediately
     const urlParams = new URLSearchParams(window.location.search);

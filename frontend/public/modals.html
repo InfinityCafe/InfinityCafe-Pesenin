@@ -1,0 +1,76 @@
+<!-- Success Modal -->
+<div id="success-modal" class="modal hidden">
+  <div class="modal-content success-modal">
+    <button class="modal-close" onclick="closeModal('success-modal')">
+      &times;
+    </button>
+    <div class="modal-header">
+      <i class="fas fa-check-circle success-icon"></i>
+      <h3 class="modal-title">Success!</h3>
+    </div>
+    <div class="modal-body">
+      <p id="success-message" class="modal-text">Operation Completed Successfully</p>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn" onclick="closeModal('success-modal')">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="delete-confirm-modal" class="modal hidden">
+  <div class="modal-content delete-confirm-modal">
+    <button class="modal-close" onclick="closeModal('delete-confirm-modal')">
+      &times;
+    </button>
+    <div class="modal-header">
+      <i class="fas fa-exclamation-triangle warning-icon"></i>
+      <h3 class="modal-title">Warning</h3>
+    </div>
+    <div class="modal-body">
+      <p id="delete-confirm-message">Are you sure you want to delete this item?</p>
+      <p class="delete-warning">You won’t be able to revert this action!</p>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-cancel" onclick="closeModal('delete-confirm-modal')">Batal</button>
+      <button class="modal-btn modal-btn-danger" id="delete-confirm-btn">Hapus</button>
+    </div>
+  </div>
+</div>
+
+<!-- Error Modal -->
+<div id="error-modal" class="modal hidden">
+  <div class="modal-content error-modal">
+    <button class="modal-close" onclick="closeModal('error-modal')">
+      &times;
+    </button>
+    <div class="modal-header">
+      <i class="fas fa-exclamation-circle error-icon"></i>
+      <h3 class="modal-title">Error</h3>
+    </div>
+    <div class="modal-body">
+      <p id="error-message">Failed to complete the operation.</p>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn" onclick="closeModal('error-modal')">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div id="confirm-modal" class="modal hidden">
+  <div class="modal-content delete-confirm-modal">
+    <button onclick="closeModal('confirm-modal')" class="modal-close">&times;</button>
+    <div class="modal-header">
+        <i class="fas fa-exclamation-triangle warning-icon"></i>
+        <h3 class="modal-title">Konfirmasi Pembatalan</h3>
+    </div>
+    <div class="modal-body">
+        <p class="modal-text">Pilih alasan pembatalan atau kehabisan bahan.</p>
+    </div>
+    <div class="modal-actions">
+      <button onclick="confirmCancel('cancel')" class="modal-btn modal-btn-cancel">Alasan Lain</button>
+      <button onclick="confirmCancel('habis')" class="modal-btn modal-btn-habis">Habis</button>
+    </div>
+  </div>
+</div>
