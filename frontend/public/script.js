@@ -344,7 +344,7 @@ function displayUserInfo() {
             // Update header subtitle (nama dan peran)
             const headerSubtitle = document.querySelector('.header-subtitle');
             if (headerSubtitle) {
-                headerSubtitle.textContent = `${username} | Barista`;
+                headerSubtitle.textContent = `${username}`;
             }
             
             // Update greeting message berdasarkan halaman

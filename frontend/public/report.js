@@ -3274,6 +3274,7 @@ async function applyReportFilter() {
     const sortSelect = document.getElementById('sort-select');
     const start = document.getElementById("start_date").value;
     const end = document.getElementById("end_date").value;
+    toggleReportFilter();
     
     // Close filter dropdown
     toggleReportFilter();

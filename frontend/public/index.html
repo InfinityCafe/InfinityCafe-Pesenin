@@ -14,7 +14,7 @@
   <nav class="header">
     <div class="header-brand">
       <h1 class="header-title" id="navbar-title">Dashboard Kitchen</h1>
-      <p class="header-subtitle">Stephany | Barista</p>
+      <p class="header-subtitle">Stephany</p>
     </div>
     <div class="header-menu">
       <button class="nav-btn active" id="nav-dashboard">Dashboard</button>
@@ -24,10 +24,10 @@
       <button class="nav-btn" id="nav-report">Reports</button>
     </div>
     <div class="header-right">
-      <div class="search-container">
+      <!-- <div class="search-container">
         <i class="fa-solid fa-magnifying-glass search-icon"></i>
         <input type="text" placeholder="Search" class="search-input">
-      </div>
+      </div> -->
       <div class="kitchen-status-container">
         <label class="switch">
           <input type="checkbox" id="kitchen-toggle" checked>
@@ -61,6 +61,10 @@
       <div class="tab-navigation">
         <button id="tab-active" class="tab-btn tab-active" onclick="switchTab('active')">ACTIVE</button>
         <button id="tab-done" class="tab-btn" onclick="switchTab('done')">DONE</button>
+        <div class="search-container">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" placeholder="Search" class="search-input">
+        </div>
         <button class="add-order-btn">ADD NEW ORDER</button>
       </div>
 

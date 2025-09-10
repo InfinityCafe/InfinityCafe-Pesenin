@@ -175,6 +175,10 @@ async function cancelOrder(orderId, reason) {
         reason: reason
       })
     });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     
     const result = await response.json();
     
@@ -187,7 +191,7 @@ async function cancelOrder(orderId, reason) {
       showErrorModal(result.message || 'Gagal membatalkan pesanan');
     }
   } catch (err) {
-    showErrorModal("Gagal membatalkan pesanan");
+    showErrorModal("Gagal membatalkan pesanan: " + err.message);
   }
 }
 
@@ -291,7 +295,7 @@ function createOrderCard(order) {
     <div class="order-header">
       <span class="order-number">${queueNumber ? `#${queueNumber}` : ''}</span>
       <span class="customer-name">${order.customer_name ?? 'John Doe'}</span>
-      ${order.status === "receive" ? `<button class="order-close" onclick="event.stopPropagation(); openConfirmModal('${order.order_id}', 'cancelled')">&times;</button>` : ""}
+      ${["receive", "making"].includes(order.status) ? `<button class="order-close" onclick="event.stopPropagation(); openConfirmModal('${order.order_id}', 'cancelled')">&times;</button>` : ""}
     </div>
     <div class="order-contents">
         <div class="order-location">
@@ -1468,7 +1472,7 @@ function displayUserInfo() {
       // Update header subtitle (nama dan peran)
       const headerSubtitle = document.querySelector('.header-subtitle');
       if (headerSubtitle) {
-        headerSubtitle.textContent = `${username} | Barista`;
+        headerSubtitle.textContent = `${username}`;
       }
       
       // Update greeting message
