@@ -170,31 +170,65 @@
                 </div>
 
 
-                <table id="report-table">
-                    <thead>
-                        <tr>
-                                <th>No</th>
-                                <th>Menu</th>
-                                <th>Qty</th>
-                                <th>Price</th>
-                                <th>Total</th>
-                        </tr>
-                    </thead>
-                    <tbody id="report-tbody"></tbody>
-                </table>
-                <table id="ingredient-analysis-table" class="hidden">
-                    <thead>
-                        <tr>
-                            <th>NO</th>
-                            <th>TANGGAL</th>
-                            <th>RINGKASAN HARIAN</th>
-                            <th>TOTAL PESANAN</th>
-                            <th>TOTAL BAHAN TERPAKAI</th>
-                            <th>AKSI</th>
-                        </tr>
-                    </thead>
-                    <tbody id="ingredient-analysis-tbody"></tbody>
-                </table>
+          <!-- Sales Table -->
+          <table id="sales-table">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Menu</th>
+                <th>Flavor</th>
+                <th>Qty</th>
+                <th>Price</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody id="sales-tbody"></tbody>
+          </table>
+
+          <!-- Best Seller Table -->
+          <table id="bestseller-table" class="hidden">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Menu</th>
+                <th>Total Qty</th>
+                <th>Unit Price</th>
+                <th>Total Revenue</th>
+              </tr>
+            </thead>
+            <tbody id="bestseller-tbody"></tbody>
+          </table>
+
+          <!-- Ingredient Analysis Table - Daily View -->
+          <table id="ingredient-table" class="hidden">
+            <thead>
+              <tr id="ingredient-thead">
+                <th>No</th>
+                <th>Tanggal</th>
+                <th>Ringkasan Harian</th>
+                <th>Total Pesanan</th>
+                <th>Total Bahan Terpakai</th>
+                <th class="action-header">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="ingredient-tbody"></tbody>
+          </table>
+
+          <!-- Ingredient Analysis Table - Logs View -->
+          <table id="ingredient-logs-table" class="hidden">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Menu</th>
+                <th>Flavor</th>
+                <th>Tanggal</th>
+                <th>Total Pesanan</th>
+                <th>Total Bahan Terpakai</th>
+                <th class="action-header">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="ingredient-logs-tbody"></tbody>
+          </table>
 
                 <!-- Pagination -->
                 <div class="pagination-container">
