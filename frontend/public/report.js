@@ -3269,16 +3269,44 @@ function toggleReportFilter() {
     dd.classList.toggle('show');
 }
 
+function closeReportFilter() {
+    const dd = document.getElementById('report-filter-dropdown');
+    console.log('Closing filter dropdown, element found:', dd);
+    if (!dd) {
+        console.log('Filter dropdown element not found!');
+        return;
+    }
+    dd.classList.remove('show');
+    console.log('Filter dropdown closed, classes:', dd.className);
+}
+
 async function applyReportFilter() {
+    console.log('applyReportFilter called');
     const dataTypeSelect = document.getElementById('data-type-select');
     const sortSelect = document.getElementById('sort-select');
     const start = document.getElementById("start_date").value;
     const end = document.getElementById("end_date").value;
-    toggleReportFilter();
     
-    // Close filter dropdown
-    toggleReportFilter();
-
+    // Close filter dropdown immediately
+    const dd = document.getElementById('report-filter-dropdown');
+    console.log('Filter dropdown element:', dd);
+    if (dd) {
+        console.log('Before closing - classes:', dd.className);
+        dd.classList.remove('show');
+        console.log('After closing - classes:', dd.className);
+        console.log('Filter dropdown closed immediately');
+        
+        // Also try to close it after a short delay to ensure it closes
+        setTimeout(() => {
+            if (dd.classList.contains('show')) {
+                dd.classList.remove('show');
+                console.log('Filter dropdown closed with delay');
+            }
+        }, 100);
+    } else {
+        console.log('Filter dropdown element not found!');
+    }
+    
     if (dataTypeSelect) {
         const dataType = dataTypeSelect.value;
         
@@ -3404,17 +3432,38 @@ async function applyReportFilter() {
 }
 
 function clearReportFilter() {
+    console.log('clearReportFilter called');
     const sortSelect = document.getElementById('sort-select');
     const dataTypeSelect = document.getElementById('data-type-select');
     if (sortSelect) sortSelect.value = 'name';
     if (dataTypeSelect) dataTypeSelect.value = 'sales';
+    
+    // Close filter dropdown immediately
+    const dd = document.getElementById('report-filter-dropdown');
+    console.log('Filter dropdown element (reset):', dd);
+    if (dd) {
+        console.log('Before closing (reset) - classes:', dd.className);
+        dd.classList.remove('show');
+        console.log('After closing (reset) - classes:', dd.className);
+        console.log('Filter dropdown closed on reset');
+        
+        // Also try to close it after a short delay to ensure it closes
+        setTimeout(() => {
+            if (dd.classList.contains('show')) {
+                dd.classList.remove('show');
+                console.log('Filter dropdown closed with delay (reset)');
+            }
+        }, 100);
+    } else {
+        console.log('Filter dropdown element not found on reset!');
+    }
+    
     // Re-load sales view by default
     const start = document.getElementById("start_date").value;
     const end = document.getElementById("end_date").value;
     resetToNormalMode();
     loadReport(start, end);
     applyModeLayout('sales');
-    toggleReportFilter();
 }
 
 function resetToNormalMode() {
@@ -3759,13 +3808,7 @@ document.addEventListener('visibilitychange', () => {
         }
 
         // Data type select (Sales / Best Seller / Ingredient Analysis)
-        const dataTypeSelect = document.getElementById('data-type-select');
-        if (dataTypeSelect) {
-            dataTypeSelect.addEventListener('change', function() {
-                // Just trigger the filter application, don't duplicate logic
-                applyReportFilter();
-            });
-        }
+        // Removed auto-change event listener - now only applies when "Terapkan" button is clicked
 
         // Auto refresh start
         startAutoRefresh();
@@ -3816,6 +3859,16 @@ document.addEventListener('visibilitychange', () => {
         };
         if (startInput) startInput.addEventListener('change', onDateChange);
         if (endInput) endInput.addEventListener('change', onDateChange);
+
+        // Close filter dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const filterDropdown = document.getElementById('report-filter-dropdown');
+            const filterBtn = document.querySelector('.filter-btn');
+            
+            if (filterDropdown && !event.target.closest('.filter-container')) {
+                filterDropdown.classList.remove('show');
+            }
+        });
     });
     
     // ========== INITIALIZATION ==========
