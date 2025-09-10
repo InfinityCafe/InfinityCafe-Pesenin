@@ -63,7 +63,7 @@ app.add_middleware(
 
 mcp = FastApiMCP(app,name="Server MCP Infinity",
         description="Server MCP Infinity Descr",
-        include_operations=["add order","list order","cancel order","order status"]
+        include_operations=["add order","list order","cancel order","cancel kitchen order","order status"]
         )
 mcp.mount(mount_path="/mcp",transport="sse")
 jakarta_tz = pytz_timezone('Asia/Jakarta')
@@ -861,6 +861,102 @@ def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
     return JSONResponse(status_code=200, content={
         "status": "success", 
         "message": f"Pesanan dengan menu {menu_list} telah berhasil dibatalkan.", 
+        "data": cancelled_order_details
+    })
+
+@app.post("/cancel_kitchen", summary="Batalkan pesanan dari kitchen (tanpa batasan status)", tags=["Kitchen"], operation_id="cancel kitchen order")
+def cancel_order_kitchen(req: CancelOrderRequest, db: Session = Depends(get_db)):
+    """Membatalkan pesanan dari kitchen tanpa batasan status."""
+    
+    order = db.query(Order).filter(Order.order_id == req.order_id).first()
+    if not order:
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Pesanan dengan ID: {req.order_id} tidak ditemukan.", 
+            "data": None
+        })
+    
+    if order.status == "cancelled":
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Pesanan dengan ID: {req.order_id} sudah dibatalkan sebelumnya.", 
+            "data": None
+        })
+    
+    if order.status == "done":
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Pesanan dengan ID: {req.order_id} sudah selesai dan tidak dapat dibatalkan.", 
+            "data": None
+        })
+
+    previous_status = order.status
+    
+    order_items = db.query(OrderItem).filter(OrderItem.order_id == req.order_id).all()
+    
+    menu_names = [item.menu_name for item in order_items]
+    if len(menu_names) == 1:
+        menu_list = menu_names[0]
+    elif len(menu_names) == 2:
+        menu_list = " dan ".join(menu_names)
+    else:
+        menu_list = ", ".join(menu_names[:-1]) + f", dan {menu_names[-1]}"
+    
+    order.status = "cancelled"
+    order.cancel_reason = f"[KITCHEN CANCEL] {req.reason}"
+    
+    cancel_payload = { 
+        "order_id": req.order_id, 
+        "reason": req.reason, 
+        "previous_status": previous_status,
+        "cancelled_by": "kitchen",
+        "cancelled_at": datetime.now(jakarta_tz).isoformat() 
+    }
+    create_outbox_event(db, req.order_id, "order_cancelled", cancel_payload)
+    db.commit()
+    
+    try:
+        rollback_response = requests.post(f"{INVENTORY_SERVICE_URL}/stock/rollback/{req.order_id}")
+        if rollback_response.status_code == 200:
+            rollback_data = rollback_response.json()
+            logging.info(f"✅ Kitchen cancel - Inventory rollback berhasil untuk order {req.order_id}: {rollback_data}")
+        else:
+            logging.warning(f"⚠️ Kitchen cancel - Inventory rollback gagal untuk order {req.order_id}: {rollback_response.text}")
+    except Exception as e:
+        logging.error(f"❌ Kitchen cancel - Error saat rollback inventory untuk order {req.order_id}: {e}")
+    
+    try:
+        process_outbox_events(db)
+    except Exception as e:
+        logging.warning(f"⚠️ Kitchen cancel - Gagal memproses cancel outbox event: {e}")
+    
+    cancelled_order_details = {
+        "order_id": order.order_id,
+        "queue_number": order.queue_number,
+        "customer_name": order.customer_name,
+        "room_name": order.room_name,
+        "status": "cancelled",
+        "previous_status": previous_status,
+        "cancel_reason": req.reason,
+        "cancelled_by": "kitchen",
+        "created_at": order.created_at.isoformat(),
+        "cancelled_at": datetime.now(jakarta_tz).isoformat(),
+        "is_custom": order.is_custom,
+        "orders": [
+            {
+                "menu_name": item.menu_name,
+                "quantity": item.quantity,
+                "preference": item.preference if item.preference else "",
+                "notes": item.notes
+            } for item in order_items
+        ]
+    }
+    
+    logging.info(f"🍳 Kitchen membatalkan pesanan {req.order_id} (status sebelumnya: {previous_status}) - Reason: {req.reason}")
+    
+    return JSONResponse(status_code=200, content={
+        "status": "success", 
+        "message": f"Pesanan dengan menu {menu_list} telah berhasil dibatalkan oleh kitchen (status sebelumnya: {previous_status}).", 
         "data": cancelled_order_details
     })
 
