@@ -3212,6 +3212,7 @@ async function applyReportFilter() {
     const sortSelect = document.getElementById('sort-select');
     const start = document.getElementById("start_date").value;
     const end = document.getElementById("end_date").value;
+    toggleReportFilter();
     
     if (dataTypeSelect) {
         const dataType = dataTypeSelect.value;
@@ -3220,7 +3221,6 @@ async function applyReportFilter() {
             // Load ingredient analysis data
             await loadIngredientAnalysisData();
             applyIngredientModeLayout();
-            toggleReportFilter();
             return;
         } else if (dataType === 'best') {
             // Load best seller data
