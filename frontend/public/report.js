@@ -2,7 +2,6 @@
 if (!localStorage.getItem('access_token')) {
   window.location.href = '/login';
 }
-
 // Fungsi logout
 function logout() {
   localStorage.removeItem('access_token');
@@ -48,6 +47,13 @@ let ingredientMenuFlavorGroups = {}; // global store for menu+flavor groups per 
 //Pagination Variables
 let reportCurrentPage = 1;
 let reportPageSize = 10;
+
+// Initialize jsPDF
+if (window.jspdf && window.jspdf.jsPDF) {
+    window.jsPDF = window.jspdf.jsPDF;
+} else {
+    console.error('jsPDF not found. Make sure the library is loaded.');
+}
 let reportTotalPages = 1;
 
 // ========== MODAL FUNCTIONS ==========
@@ -1675,150 +1681,206 @@ function exportKitchenCSV() {
 }
 
 function exportKitchenPDF() {
-    const statusFilter = document.getElementById('kitchen-status-filter').value;
-    let filteredData = kitchenData;
-    
-    if (statusFilter) {
-        filteredData = kitchenData.filter(order => order.status === statusFilter);
+    if (!window.jsPDF) {
+        alert('Error: PDF library not loaded. Please refresh the page.');
+        return;
     }
-    
-    // Create new PDF document
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('l', 'mm', 'a4'); // Landscape orientation
-    
-    // Set font
-    doc.setFont('helvetica');
-    
-    // Title
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Kitchen Report - Infinity Cafe', 20, 20);
-    
-    // Subtitle
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Generated on: ${new Date().toLocaleString('id-ID')}`, 20, 30);
-    doc.text(`Total Orders: ${filteredData.length}`, 20, 35);
-    
-    if (statusFilter) {
-        doc.text(`Filter: ${getStatusText(statusFilter)}`, 20, 40);
-    }
-    
-    // Summary statistics
-    const statusCounts = filteredData.reduce((acc, order) => {
-        acc[order.status] = (acc[order.status] || 0) + 1;
-        return acc;
-    }, {});
-    
-    let yPos = 50;
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Summary by Status:', 20, yPos);
-    
-    yPos += 10;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    Object.entries(statusCounts).forEach(([status, count]) => {
-        doc.text(`${getStatusText(status)}: ${count} orders`, 30, yPos);
-        yPos += 6;
-    });
-    
-    // Table headers
-    yPos += 10;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    
-    const headers = ['No', 'Order ID', 'Customer', 'Menu Items', 'Status', 'Time Receive', 'Time Done'];
-    const colWidths = [10, 25, 30, 50, 20, 25, 25];
-    let xPos = 20;
-    
-    // Draw header background
-    doc.setFillColor(240, 240, 240);
-    doc.rect(20, yPos - 5, 185, 8, 'F');
-    
-    // Draw header text
-    headers.forEach((header, index) => {
-        doc.text(header, xPos, yPos);
-        xPos += colWidths[index];
-    });
-    
-    // Table data
-    yPos += 10;
-    doc.setFont('helvetica', 'normal');
-    
-    filteredData.forEach((order, index) => {
-        if (yPos > 180) { // New page if needed
-            doc.addPage();
-            yPos = 20;
+
+    try {
+        // Create new PDF document
+        const pdf = new window.jsPDF({
+            orientation: 'landscape',
+            unit: 'mm',
+            format: 'a4'
+        });
+        
+        // Get filtered data
+        const filterStatus = document.getElementById('kitchen-status-filter').value;
+        const selectedOrders = filterStatus ? 
+            kitchenData.filter(order => order.status === filterStatus) : 
+            kitchenData;
+
+        // Modern color scheme
+        const colorTheme = {
+            primary: [65, 46, 39],      // Dark brown
+            accent: [179, 142, 93],     // Warm brown
+            background: [245, 239, 230], // Soft cream
+            text: [49, 41, 41],         // Dark gray
+            lightText: [108, 117, 125],  // Medium gray
+            status: {
+                receive: [41, 128, 185],   // Blue
+                making: [243, 156, 18],    // Orange
+                deliver: [46, 204, 113],   // Green
+                done: [39, 174, 96],       // Dark Green
+                cancelled: [231, 76, 60],  // Red
+                pending: [149, 165, 166]   // Gray
+            }
+        };
+
+        // Header background
+        pdf.setFillColor(...colorTheme.background);
+        pdf.rect(0, 0, 297, 35, 'F');
+        
+        // Accent line
+        pdf.setFillColor(...colorTheme.accent);
+        pdf.rect(0, 35, 297, 2, 'F');
+
+        // Title
+        pdf.setFontSize(24);
+        pdf.setTextColor(...colorTheme.primary);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Infinity Cafe', 20, 20);
+
+        // Subtitle
+        pdf.setFontSize(16);
+        pdf.setTextColor(...colorTheme.text);
+        pdf.text('Kitchen Report', 20, 30);
+
+        // Report info
+        pdf.setFontSize(10);
+        pdf.setTextColor(...colorTheme.lightText);
+        pdf.setFont('helvetica', 'normal');
+        
+        const pdfTimestamp = new Date().toLocaleDateString('id-ID', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        pdf.text(`Generated: ${pdfTimestamp}`, 150, 20);
+        pdf.text(`Total Orders: ${selectedOrders.length}`, 150, 30);
+        
+        if (filterStatus) {
+            pdf.text(`Filter: ${getStatusText(filterStatus)}`, 240, 20);
         }
-        
-        xPos = 20;
-        const rowData = [
-            index + 1,
-            order.order_id,
-            order.customer_name || '-',
-            order.items ? order.items.map(item => `${item.menu_name} (${item.quantity})`).join(', ') : order.detail || '-',
-            getStatusText(order.status),
-            order.time_receive ? new Date(order.time_receive).toLocaleString('id-ID') : '-',
-            order.time_done ? new Date(order.time_done).toLocaleString('id-ID') : '-'
-        ];
-        
-        rowData.forEach((cell, colIndex) => {
-            // Truncate long text
-            let cellText = String(cell);
-            if (colIndex === 3 && cellText.length > 40) { // Menu Items column
-                cellText = cellText.substring(0, 37) + '...';
-            }
-            
-            doc.text(cellText, xPos, yPos);
-            xPos += colWidths[colIndex];
+
+        // Order summary section
+        let verticalPos = 50;
+        const orderCounts = selectedOrders.reduce((acc, order) => {
+            acc[order.status] = (acc[order.status] || 0) + 1;
+            return acc;
+        }, {});
+
+        // Summary section header
+        pdf.setFillColor(...colorTheme.primary);
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.rect(15, verticalPos - 6, 60, 8, 'F');
+        pdf.text('Order Summary', 20, verticalPos);
+
+        // Status cards
+        verticalPos += 10;
+        let cardX = 20;
+        const card = {
+            width: 50,
+            height: 25,
+            gap: 10
+        };
+
+        Object.entries(orderCounts).forEach(([status, count]) => {
+            // Card background
+            pdf.setFillColor(...colorTheme.background);
+            pdf.rect(cardX, verticalPos, card.width, card.height, 'F');
+
+            // Status label
+            pdf.setTextColor(...colorTheme.primary);
+            pdf.setFontSize(9);
+            pdf.text(getStatusText(status), cardX + 5, verticalPos + 8);
+
+            // Count value
+            pdf.setTextColor(...colorTheme.accent);
+            pdf.setFontSize(14);
+            pdf.text(count.toString(), cardX + 5, verticalPos + 20);
+
+            // "orders" label
+            pdf.setTextColor(...colorTheme.lightText);
+            pdf.setFontSize(8);
+            pdf.text('orders', cardX + 15, verticalPos + 20);
+
+            cardX += card.width + card.gap;
         });
-        
-        yPos += 6;
-    });
-    
-    // Add ingredient usage details on separate pages if needed
-    if (filteredData.length > 0) {
-        doc.addPage();
-        yPos = 20;
-        
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Detailed Ingredient Usage', 20, yPos);
-        
-        yPos += 15;
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        
-        filteredData.forEach((order, index) => {
-            if (yPos > 180) {
-                doc.addPage();
-                yPos = 20;
-            }
-            
-            doc.setFont('helvetica', 'bold');
-            doc.text(`Order ${order.order_id} - ${order.customer_name || 'Unknown'}`, 20, yPos);
-            yPos += 8;
-            
-            const ingredientUsage = getOrderIngredientUsage(order);
-            if (ingredientUsage.length > 0) {
-                doc.setFont('helvetica', 'normal');
-                ingredientUsage.forEach(ing => {
-                    doc.text(`• ${ing.name}: ${ing.totalQuantity} ${ing.unit}`, 30, yPos);
-                    yPos += 6;
-                });
-            } else {
-                doc.text('No ingredient data available', 30, yPos);
-                yPos += 6;
-            }
-            
-            yPos += 5;
+
+        // Order details table
+        verticalPos += card.height + 15;
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(...colorTheme.primary);
+        pdf.text('Order Details', 20, verticalPos);
+
+        // Table headers
+        verticalPos += 10;
+        const tableColumns = ['No', 'Order ID', 'Customer', 'Menu Items', 'Status', 'Time Receive', 'Time Done'];
+        const colWidths = [15, 30, 35, 85, 30, 35, 35];
+        const tableWidth = colWidths.reduce((sum, w) => sum + w, 0);
+        let headerX = 20;
+
+        // Header background
+        pdf.setFillColor(...colorTheme.background);
+        pdf.rect(headerX, verticalPos - 5, tableWidth, 10, 'F');
+
+        // Header text
+        pdf.setTextColor(...colorTheme.primary);
+        pdf.setFontSize(9);
+        tableColumns.forEach((header, index) => {
+            pdf.text(header, headerX + 2, verticalPos);
+            headerX += colWidths[index];
         });
+
+        // Table rows
+        verticalPos += 8;
+        let rowNum = 1;
+        selectedOrders.forEach((order) => {
+            const rowFields = [
+                rowNum.toString(),
+                order.orderId,
+                order.customerName || 'N/A',
+                order.items.map(item => `${item.quantity}x ${item.name}`).join(', '),
+                getStatusText(order.status),
+                order.timeReceive ? new Date(order.timeReceive).toLocaleTimeString() : 'N/A',
+                order.timeDone ? new Date(order.timeDone).toLocaleTimeString() : 'N/A'
+            ];
+
+            if (verticalPos > 180) { // Add new page if near bottom
+                pdf.addPage();
+                verticalPos = 20;
+            }
+
+            headerX = 20;
+            pdf.setTextColor(...colorTheme.text);
+            pdf.setFontSize(8);
+            pdf.setFont('helvetica', 'normal');
+
+            // Status background
+            const statusX = headerX + colWidths.slice(0, 4).reduce((a, b) => a + b, 0);
+            pdf.setFillColor(...(colorTheme.status[order.status] || colorTheme.status.pending));
+            pdf.setTextColor(255, 255, 255);
+            pdf.rect(statusX, verticalPos - 4, colWidths[4], 6, 'F');
+
+            rowFields.forEach((cell, index) => {
+                if (index === 4) { // Status cell
+                    pdf.setTextColor(255, 255, 255);
+                } else {
+                    pdf.setTextColor(...colorTheme.text);
+                }
+                pdf.text(cell.toString(), headerX + 2, verticalPos);
+                headerX += colWidths[index];
+            });
+
+            verticalPos += 8;
+            rowNum++;
+        });
+
+        // Save PDF
+        const pdfFilename = `kitchen-report-${new Date().toISOString().split('T')[0]}.pdf`;
+        pdf.save(pdfFilename);
+    } catch (error) {
+        console.error('Error generating PDF:', error);
+        alert('Error generating PDF. Please try again.');
     }
-    
-    // Save PDF
-    const fileName = `kitchen_report_${new Date().toISOString().split('T')[0]}.pdf`;
-    doc.save(fileName);
 }
 
 function getStatusText(status) {
@@ -3213,6 +3275,9 @@ async function applyReportFilter() {
     const start = document.getElementById("start_date").value;
     const end = document.getElementById("end_date").value;
     
+    // Close filter dropdown
+    toggleReportFilter();
+
     if (dataTypeSelect) {
         const dataType = dataTypeSelect.value;
         
@@ -3220,7 +3285,6 @@ async function applyReportFilter() {
             // Load ingredient analysis data
             await loadIngredientAnalysisData();
             applyIngredientModeLayout();
-            toggleReportFilter();
             return;
         } else if (dataType === 'best') {
             // Load best seller data
@@ -3253,8 +3317,7 @@ async function applyReportFilter() {
         }
     }
     
-    // Close filter dropdown
-    toggleReportFilter();
+    
     
     if (sortSelect && filteredData && filteredData.length) {
         const val = sortSelect.value;
