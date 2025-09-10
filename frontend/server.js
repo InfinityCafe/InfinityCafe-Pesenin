@@ -82,7 +82,7 @@ app.post("/cancel_order", async (req, res) => {
     const body = req.body;
 
     // Panggil service untuk cancel order
-    const resp = await fetch("http://order_service:8002/cancel_order", {
+    const resp = await fetch("http://order_service:8002/cancel_kitchen", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)

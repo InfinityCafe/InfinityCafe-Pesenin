@@ -175,6 +175,10 @@ async function cancelOrder(orderId, reason) {
         reason: reason
       })
     });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     
     const result = await response.json();
     
@@ -187,7 +191,7 @@ async function cancelOrder(orderId, reason) {
       showErrorModal(result.message || 'Gagal membatalkan pesanan');
     }
   } catch (err) {
-    showErrorModal("Gagal membatalkan pesanan");
+    showErrorModal("Gagal membatalkan pesanan: " + err.message);
   }
 }
 
