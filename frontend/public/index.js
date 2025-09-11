@@ -1302,6 +1302,8 @@ addOrderForm.onsubmit = async function(e) {
     is_custom = true;
   }
   
+  const telegram_id = "0"; // Ensure top-level telegram_id is always provided
+
   // Validasi form secara manual
   let isValid = true;
   
@@ -1393,6 +1395,7 @@ addOrderForm.onsubmit = async function(e) {
         table_no, 
         room_name, 
         orders,
+        telegram_id,
         is_custom // Mengirim flag untuk menandai apakah ini custom order
       })
     });

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self' http://localhost:*;">
+    <title>Infinity Cafe - Track Order</title>
+    <link rel="stylesheet" href="css/checkout.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="icon" type="image/png" href="img/logo-GIK.png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="qr-page">
+    <div class="gradient-bg">
+        <!-- Header -->
+        <div class="glassmorphism">
+            <div class="container-responsive py-4">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                    <div>
+                        <h1 style="font-size:1.25rem;font-weight:700;color:#312929;">☕ Infinity Cafe</h1>
+                        <p style="font-size:.95rem;color:#685454;">Status Pesanan</p>
+                    </div>
+                    <div class="room-info" style="font-weight:600;color:#312929;">
+                        <span id="room-display">Ruangan: -</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="container-responsive py-4">
+            <div class="spacing-responsive">
+            <!-- Customer Info -->
+            <div class="greeting-message">
+                <h2 style="color:#312929;">Hi, <span id="customer-display">-</span>!</h2>
+                <p class="greeting-date" id="greeting-date">Status pesanan Anda</p>
+            </div>
+
+            <!-- Order Status -->
+            <div class="card">
+                <div class="card-body">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
+                        <span class="summary-name" style="font-weight:700;color:#312929;">📋 Status Pesanan</span>
+                        <span class="queue-number" id="queue-number">#-</span>
+                    </div>
+                <div class="order-status">
+                    <div class="status-indicator">
+                        <div class="status-icon" id="status-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="status-text">
+                            <div class="status-title" id="status-title">Menunggu</div>
+                            <div class="status-description" id="status-description">Pesanan sedang diproses</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Progress Bar -->
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progress-fill"></div>
+                        </div>
+                        <div class="progress-labels">
+                            <span class="progress-label active" id="label-receive">Diterima</span>
+                            <span class="progress-label" id="label-making">Dibuat</span>
+                            <span class="progress-label" id="label-deliver">Diantar</span>
+                            <span class="progress-label" id="label-done">Selesai</span>
+                        </div>
+                    </div>
+                </div>
+                </div>
+            </div>
+
+            <!-- Order Details -->
+            <div class="card">
+                <div class="card-body">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
+                        <span class="summary-name" style="font-weight:700;color:#312929;">🍽️ Detail Pesanan</span>
+                    </div>
+                    <div id="order-items" class="order-items">
+                        <!-- Order items will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Order Info -->
+            <div class="card">
+                <div class="card-body">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
+                        <span class="summary-name" style="font-weight:700;color:#312929;">ℹ️ Informasi Pesanan</span>
+                    </div>
+                <div class="order-info">
+                    <div class="info-row">
+                        <span>Nomor Antrian:</span>
+                        <span id="info-queue">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span>Nama:</span>
+                        <span id="info-customer">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span>Ruangan:</span>
+                        <span id="info-room">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span>Waktu Pesan:</span>
+                        <span id="info-time">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span>Estimasi Selesai:</span>
+                        <span id="info-estimated">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span>Status:</span>
+                        <span id="info-status" class="status-badge">-</span>
+                    </div>
+                </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons" style="display:flex;gap:.5rem;">
+                <button id="cancel-btn" onclick="cancelOrder()" class="checkout-btn" style="display:none;width:auto;padding:.5rem 1rem;background:linear-gradient(to right,#8D7272,#503A3A);">
+                    Batalkan Pesanan
+                </button>
+                <button onclick="orderNew()" class="btn-primary" style="width:auto;padding:.5rem 1rem;">
+                    Pesan Lagi
+                </button>
+                <button onclick="refreshStatus()" class="btn-primary" style="width:auto;padding:.5rem 1rem;">
+                    Refresh Status
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Complete Modal -->
+    <div id="complete-modal" class="modal hidden">
+        <div class="modal-content success-modal">
+            <div class="success-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="success-title">Pesanan Selesai!</div>
+            <div class="success-message">Pesanan Anda sudah siap diambil. Terima kasih!</div>
+            <div class="order-details">
+                <div class="info-row">
+                    <span>Nomor Antrian:</span>
+                    <span id="complete-queue">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Ruangan:</span>
+                    <span id="complete-room">-</span>
+                </div>
+            </div>
+            <button onclick="orderNew()" class="action-btn action-btn-green">
+                <i class="fas fa-plus"></i>
+                Pesan Lagi
+            </button>
+        </div>
+    </div>
+
+    <!-- Order Cancelled Modal -->
+    <div id="cancel-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="success-icon">
+                <i class="fas fa-times-circle"></i>
+            </div>
+            <div class="success-title">Pesanan Dibatalkan</div>
+            <div class="success-message">Pesanan Anda telah dibatalkan. Silakan mulai pesanan baru.</div>
+            <button onclick="orderNew()" class="action-btn action-btn-orange">
+                <i class="fas fa-arrow-right"></i>
+                Mulai Pesanan Baru
+            </button>
+        </div>
+    </div>
+
+    <script src="qr-track.js"></script>
+</body>
+</html>

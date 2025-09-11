@@ -129,6 +129,7 @@ class CreateOrderRequest(BaseModel):
     customer_name: str = Field(..., min_length=1, description="Nama pelanggan tidak boleh kosong.")
     room_name: str = Field(..., min_length=1, description="Nama ruangan tidak boleh kosong.")
     orders: List[OrderItemSchema] = Field(..., min_length=1, description="Daftar pesanan tidak boleh kosong.")
+    telegram_id: str = Field(..., min_length=1, description="ID Telegram tidak boleh kosong.")
 
     order_id: Optional[str] = None
 
@@ -1119,6 +1120,36 @@ def get_today_orders(db: Session = Depends(get_db)):
         "date": today_jakarta.isoformat(),
         "orders": today_orders,
         "total_orders": len(today_orders)
+    }
+
+@app.get("/order/status/{queue_number}", summary="Get order status by queue number", tags=["Order"])
+def get_order_status(queue_number: int, db: Session = Depends(get_db)):
+    """Mengambil status pesanan berdasarkan nomor antrian."""
+    order = db.query(Order).filter(Order.queue_number == queue_number).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail=f"Pesanan dengan nomor antrian {queue_number} tidak ditemukan")
+    
+    # Get order items
+    order_items = db.query(OrderItem).filter(OrderItem.order_id == order.order_id).all()
+    
+    return {
+        "order_id": order.order_id,
+        "queue_number": order.queue_number,
+        "customer_name": order.customer_name,
+        "room_name": order.room_name,
+        "status": order.status,
+        "created_at": order.created_at.isoformat(),
+        "cancel_reason": order.cancel_reason,
+        "is_custom": order.is_custom,
+        "items": [
+            {
+                "menu_name": item.menu_name,
+                "quantity": item.quantity,
+                "preference": item.preference,
+                "notes": item.notes
+            } for item in order_items
+        ]
     }
 
 @app.get("/health", summary="Health check", tags=["Utility"])

@@ -54,6 +54,22 @@ app.post("/create_order", async (req, res) => {
   }
 });
 
+// QR Order status endpoint
+app.get("/order/status/:queueNumber", async (req, res) => {
+  try {
+    const { queueNumber } = req.params;
+    const resp = await fetch(`http://order_service:8002/order/status/${queueNumber}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" }
+    });
+    const data = await resp.json();
+    res.json(data);
+  } catch (error) {
+    console.error("Failed to get order status ", error);
+    res.status(500).json({ error: "Failed to get order status" });
+  }
+});
+
 app.post("/custom_order", async (req, res) => {
   try {
     const body = req.body;
@@ -1119,6 +1135,43 @@ app.get("/menu-suggestion", requireAuth, (req, res) => {
 
 app.get("/login", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "login.html"));
+});
+
+// QR Ordering routes (no auth required)
+app.get("/qr-menu", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "qr-menu.html"));
+});
+
+app.get("/qr-cart", (req, res) => {
+  setQrCspHeaders(res);
+  res.sendFile(path.join(__dirname, "public", "qr-cart.html"));
+});
+
+// Apply relaxed CSP for QR routes to allow required connections/assets
+function setQrCspHeaders(res) {
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
+      "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
+      "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com",
+      "img-src 'self' data:",
+      "connect-src 'self' http://localhost:*"
+    ].join('; ')
+  );
+}
+
+// Optional alias (not used by QR flow)
+app.get("/checkout", (req, res) => {
+  setQrCspHeaders(res);
+  res.sendFile(path.join(__dirname, "public", "checkout.html"));
+});
+
+app.get("/qr-track", (req, res) => {
+  setQrCspHeaders(res);
+  res.sendFile(path.join(__dirname, "public", "qr-track.html"));
 });
 
 // ========== STATIC FILES (MUST COME LAST) ==========

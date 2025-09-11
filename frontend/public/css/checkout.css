@@ -72,7 +72,7 @@ body {
 
 /* Button primary adapted with green from palette */
 .btn-primary {
-    background: linear-gradient(to right, #207156, #379777);
+    background: linear-gradient(to right, #207156, #60B7A6);
     color: white;
     border: none;
     padding: 1rem;
@@ -174,7 +174,7 @@ body {
 
 /* Checkout button adapted */
 .checkout-btn {
-    background: linear-gradient(to right, #207156, #379777);
+    background: linear-gradient(to right, #207156, #60B7A6);
     color: white;
     padding: 1rem;
     border: none;
@@ -213,5 +213,12 @@ body {
 
     .card {
         padding: 0.5rem;
+    }
+}
+
+/* Hide small floating cart button on desktop */
+@media (min-width: 1024px) {
+    .cart-fab {
+        display: none !important;
     }
 }

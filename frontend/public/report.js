@@ -808,19 +808,19 @@ function hideIngredientDetailsPanel() {
                     <td>${Number(stockAfter).toLocaleString()}</td>
                 </tr>
             `;
-      }).join('');
-
+        }).join('');
+        
     } catch (e) {
-      console.error('Failed loading consumption details for orderId:', orderId, 'Error:', e);
-
-      // Show error message in the table
-      const body = document.getElementById('ingredient-details-body');
-      if (body) {
-        body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 1.5rem; font-weight: 500;">Failed to load ingredient details</td></tr>';
-      }
-    }
-  }
-
+        console.error('Failed loading consumption details for orderId:', orderId, 'Error:', e);
+        
+        // Show error message in the table
+        const body = document.getElementById('ingredient-details-body');
+        if (body) {
+            body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 1.5rem; font-weight: 500;">Failed to load ingredient details</td></tr>';
+        }
+         }
+ }
+ 
  async function showDailyAggregatedConsumption(dateStr, statusText) {
      try {
          const body = document.getElementById('ingredient-details-body');
@@ -2374,7 +2374,7 @@ async function loadBestSellerData(start, end) {
             const errorData = await res.json();
             throw new Error(errorData.detail || "Gagal mengambil data best seller");
         }
-
+        
         const data = await res.json();
         console.log('Best seller data received:', data);
 
@@ -2425,7 +2425,7 @@ async function loadBestSellerData(start, end) {
             updateSummaryWithData(data, 'empty');
             // Update table header for empty state
             updateReportTableHeader();
-    }
+        }
 
     } catch (err) {
         console.error("Error loading best seller data:", err);
@@ -3273,11 +3273,11 @@ function initializeElements() {
     const term = (searchTerm || '').toLowerCase();
     if (currentDataType === 'ingredient') {
         filteredData = term
-            ? source.filter(item =>
-                (item.menu_name || '').toLowerCase().includes(term) ||
+            ? source.filter(item => 
+                (item.menu_name || '').toLowerCase().includes(term) || 
                 (item.flavor || '').toLowerCase().includes(term) ||
-                (item.order_id || '').toLowerCase().includes(term) ||
-                (item.date || '').toLowerCase().includes(term) ||
+                (item.order_id || '').toLowerCase().includes(term) || 
+                (item.date || '').toLowerCase().includes(term) || 
                 (item.status_text || '').toLowerCase().includes(term)
             )
             : [...source];
@@ -3426,22 +3426,22 @@ async function applyReportFilter() {
 
         } else {
             // Penyortiran untuk sales dan best seller
-            filteredData.sort((a, b) => {
-                if (val === 'name') {
-                    return (a.menu_name || '').localeCompare(b.menu_name || '');
-                }
-                if (val === 'qty') {
-                    const qa = a.quantity ?? a.total_quantity ?? 0;
-                    const qb = b.quantity ?? b.total_quantity ?? 0;
-                    return qb - qa; // desc
-                }
-                if (val === 'total') {
-                    const ta = a.total ?? a.total_revenue ?? 0;
-                    const tb = b.total ?? b.total_revenue ?? 0;
-                    return tb - ta; // desc
-                }
-                return 0;
-            });
+        filteredData.sort((a, b) => {
+            if (val === 'name') {
+                return (a.menu_name || '').localeCompare(b.menu_name || '');
+            }
+            if (val === 'qty') {
+                const qa = a.quantity ?? a.total_quantity ?? 0;
+                const qb = b.quantity ?? b.total_quantity ?? 0;
+                return qb - qa; // desc
+            }
+            if (val === 'total') {
+                const ta = a.total ?? a.total_revenue ?? 0;
+                const tb = b.total ?? b.total_revenue ?? 0;
+                return tb - ta; // desc
+            }
+            return 0;
+        });
         }
         reportCurrentPage = 1;
         renderReportTable();
