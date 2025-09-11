@@ -75,15 +75,15 @@
             <div class="search-filter-section" id="search-filter-section-report">
                 <div class="search-container">
                     <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                    <input type="text" id="menu-filter" placeholder="Filter berdasarkan nama menu..." class="search-input">
+                    <input type="text" id="menu-filter" placeholder="Filter by menu name.." class="search-input">
                 </div>
-                <div class="filter-container">
+                <div class="filter-container" style="justify-content: center; margin: auto;">
                     <label class="filter-group">
-                        <span style="color: #312929; font-weight: 600; margin-right: 8px;">Dari:</span>
+                        <span style="color: #312929; font-weight: 600; margin-right: 8px;">From:</span>
                         <input type="date" id="start_date" class="price-input" style="width: 200px;">
                     </label>
                     <label class="filter-group">
-                        <span style="color: #312929; font-weight: 600; margin-right: 8px;">Sampai:</span>
+                        <span style="color: #312929; font-weight: 600; margin-right: 8px;">To:</span>
                         <input type="date" id="end_date" class="price-input" style="width: 200px;">
                     </label>
                     <button onclick="exportExcel()" class="btn-secondary">📊 Excel</button>
@@ -95,9 +95,9 @@
             <!-- Summary Section -->
             <div id="summary" class="summary-details" style="margin-bottom: 1rem;">
                 <span class="summary-detail--order">Periode: <strong id="summary-period">-</strong></span>
-                <span class="summary-detail--order">Pendapatan: <strong id="summary-income">-</strong></span>
-                <span class="summary-detail--order">Transaksi: <strong id="summary-orders">-</strong></span>
-                <span class="summary-detail--order">Mode Data: <span id="summary-status-badge" class="status-badge">-</span></span>
+                <span class="summary-detail--order">Total Revenue: <strong id="summary-income">-</strong></span>
+                <span class="summary-detail--order">Transactions: <strong id="summary-orders">-</strong></span>
+                <span class="summary-detail--order">Report Type: <span id="summary-status-badge" class="status-badge">-</span></span>
             </div>
 
             <!-- Insight Box -->
@@ -113,21 +113,21 @@
             <div class="table-container">
                 <div class="summary-item">
                     <div class="summary-header">
-                        <span class="summary-name">📊 Data Laporan</span>
+                        <span class="summary-name">📊 Report Data</span>
                     </div>
                     <div class="table-header">
                         <div class="search-filter-section"> 
                             <div class="search-container">
                                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                                <input type="text" id="table-search-input" class="search-input" placeholder="Cari di tabel...">
+                                <input type="text" id="table-search-input" class="search-input" placeholder="Search Report...">
                             </div>
                             <div class="right-controls" style="display: flex; align-items: center; gap: 12px; margin-left: auto;">
                                 <!-- Ingredient view mode (visible when Analisis Bahan active) -->
                                 <div class="filter-container" id="ingredient-view-container" style="display:none; gap: 8px; align-items: center;">
                                     <label for="ingredient-view-select" style="color:#312929; font-weight:600;">Tampilan:</label>
                                     <select id="ingredient-view-select" class="form-select" onchange="onIngredientViewChange()">
-                                        <option value="daily" selected>Harian</option>
-                                        <option value="logs">Per-Order (Logs)</option>
+                                        <option value="daily" selected>Daily</option>
+                                        <option value="logs">Per Order (Logs)</option>
                                     </select>
                                 </div>
                                 <div class="filter-container">
@@ -137,26 +137,26 @@
                                     </button>
                                 <div class="filter-dropdown" id="report-filter-dropdown">
                                     <div class="filter-group">
-                                        <label>Jenis Data:</label>
+                                        <label>Report Type:</label>
                                         <select id="data-type-select" class="form-select">
-                                            <option value="sales" selected>Data Sales</option>
+                                            <option value="sales" selected>Sales Data</option>
                                             <option value="best">Best Seller</option>
-                                            <option value="ingredient">Analisis Bahan</option>
+                                            <option value="ingredient">Ingredients Analysis</option>
                                         </select>
                                     </div>
                                     <div class="filter-group">
-                                        <label>Urutkan:</label>
+                                        <label>Sort by:</label>
                                         <select id="sort-select" class="form-select">
-                                            <option value="name" selected>Nama Menu</option>
+                                            <option value="name" selected>Menu Name</option>
                                             <option value="qty">Quantity</option>
                                             <option value="total">Total</option>
-                                            <option value="ingredients">Jumlah Bahan</option>
+                                            <option value="ingredients">Total Ingredient</option>
                                             <option value="quantity">Total Quantity</option>
                                         </select>
                                     </div>
                                     <div class="filter-actions">
-                                        <button class="apply-filter-btn" type="button" onclick="applyReportFilter()">Terapkan</button>
-                                        <button class="clear-filter-btn" type="button" onclick="clearReportFilter()">Reset</button>
+                                        <button class="apply-filter-btn" type="button" onclick="applyReportFilter()">Apply</button>
+                                        <button class="clear-filter-btn" type="button" onclick="clearReportFilter()">Clear</button>
                                     </div>
                                 </div>
                             </div>
@@ -204,11 +204,11 @@
             <thead>
               <tr id="ingredient-thead">
                 <th>No</th>
-                <th>Tanggal</th>
-                <th>Ringkasan Harian</th>
-                <th>Total Pesanan</th>
-                <th>Total Bahan Terpakai</th>
-                <th class="action-header">Aksi</th>
+                <th>Date</th>
+                <th>Daily Summary</th>
+                <th>Total Orders</th>
+                <th>Total Ingredients Used</th>
+                <th class="action-header">Action</th>
               </tr>
             </thead>
             <tbody id="ingredient-tbody"></tbody>
@@ -221,10 +221,10 @@
                 <th>No</th>
                 <th>Menu</th>
                 <th>Flavor</th>
-                <th>Tanggal</th>
-                <th>Total Pesanan</th>
-                <th>Total Bahan Terpakai</th>
-                <th class="action-header">Aksi</th>
+                <th>Date</th>
+                <th>Total Orders</th>
+                <th>Total Ingredients Used</th>
+                <th class="action-header">Action</th>
               </tr>
             </thead>
             <tbody id="ingredient-logs-tbody"></tbody>
@@ -251,18 +251,18 @@
                             <option value="25">25</option>
                             <option value="50">50</option>
                         </select>
-                        <span>entri</span>
+                        <span>entries</span>
                     </div>
                 </div>
                 <!-- Ingredient Details Panel (for Analisis Bahan mode) -->
                 <div id="ingredient-details-panel" class="summary-item hidden" style="margin-top: 1.5rem;">
                     <div class="summary-header">
-                        <span class="summary-name">🥤 Detail Konsumsi Bahan</span>
+                        <span class="summary-name">🥤 Ingredient Consumption Details</span>
                         <span class="summary-close" onclick="hideIngredientDetailsPanel()">×</span>
                     </div>
                     <div class="summary-details" style="margin: 1rem 0 1.5rem 0;">
                         <span class="summary-detail--order">Order ID: <strong id="detail-order-id">-</strong></span>
-                        <span class="summary-detail--order">Tanggal: <strong id="detail-order-date">-</strong></span>
+                        <span class="summary-detail--order">Date: <strong id="detail-order-date">-</strong></span>
                         <span class="summary-detail--order">Status: <strong id="detail-order-status">-</strong></span>
                     </div>
                     <div class="table-container" style="margin-top: 0;">
@@ -270,11 +270,11 @@
                             <thead>
                                 <tr>
                                     <th>No</th>
-                                    <th>Nama Bahan</th>
-                                    <th>Qty Terpakai</th>
+                                    <th>Ingredient Name</th>
+                                    <th>Qty Used</th>
                                     <th>Unit</th>
-                                    <th>Stok Sebelum</th>
-                                    <th>Stok Sesudah</th>
+                                    <th>Stock Before</th>
+                                    <th>Stock After</th>
                                 </tr>
                             </thead>
                             <tbody id="ingredient-details-body"></tbody>
@@ -287,13 +287,13 @@
         <!-- Charts Section -->
         <div class="dashboard-layout" style="margin-top: 2rem; flex-wrap: wrap;">
             <div class="column" id="chart-bar-card" style="flex: 1 1 0; min-width: 320px;">
-                <h3 class="column-title">📊 Top Menu Terlaris</h3>
+                <h3 class="column-title">📊 Top Bestselling Menu</h3>
                 <div class="column-content" style="height: 320px;">
                     <canvas id="barChart"></canvas>
                 </div>
             </div>
             <div class="column" id="chart-pie-card" style="flex: 1 1 0; min-width: 320px;">
-                <h3 class="column-title">🥧 Komposisi Penjualan</h3>
+                <h3 class="column-title">🥧 Sales Composition</h3>
                 <div class="column-content" style="height: 320px;">
                     <canvas id="pieChart"></canvas>
                 </div>
@@ -317,12 +317,12 @@
                             <label class="filter-group">
                                 <span style="color: #312929; font-weight: 600; margin-right: 8px;">Status:</span>
                                 <select id="kitchen-status-filter" class="form-select">
-                                    <option value="">Semua Status</option>
-                                    <option value="receive">Diterima</option>
-                                    <option value="making">Sedang Dibuat</option>
-                                    <option value="deliver">Siap Antar</option>
-                                    <option value="done">Selesai</option>
-                                    <option value="cancelled">Dibatalkan</option>
+                                    <option value="">All</option>
+                                    <option value="receive">Receive</option>
+                                    <option value="making">Making</option>
+                                    <option value="deliver">Deliver</option>
+                                    <option value="done">Done</option>
+                                    <option value="cancelled">Cancelled</option>
                                 </select>
                             </label>
                             <button onclick="refreshKitchenData()" class="btn-secondary">🔄 Refresh</button>
@@ -345,7 +345,7 @@
                                 <th>Customer</th>
                                 <th>Room</th>
                                 <th>Menu Items</th>
-                                <th>Bahan yang Digunakan</th>
+                                <th>Ingredients Used</th>
                                 <th>Status</th>
                                 <th>Time Receive</th>
                                 <th>Time Done</th>
@@ -371,7 +371,7 @@
     <div id="ingredient-analysis-section" class="ingredient-analysis-section hidden">
         <div class="summary-item">
             <div class="summary-header">
-                <span class="summary-name">🥤 Analisis Penggunaan Bahan</span>
+                <span class="summary-name">🥤 Ingredients Usage Analysis</span>
                 <span class="summary-close" onclick="hideIngredientAnalysis()">×</span>
             </div>
             
@@ -383,7 +383,7 @@
                         <input type="date" id="ingredient-start-date" class="price-input" style="width: 150px;">
                     </label>
                     <label class="filter-group">
-                        <span style="color: #312929; font-weight: 600; margin-right: 8px;">Sampai:</span>
+                        <span style="color: #312929; font-weight: 600; margin-right: 8px;">From:</span>
                         <input type="date" id="ingredient-end-date" class="price-input" style="width: 150px;">
                     </label>
                     <button onclick="refreshIngredientAnalysis()" class="btn-secondary">🔄 Refresh</button>
@@ -397,10 +397,10 @@
 
             <!-- Ingredient Summary -->
             <div id="ingredient-summary" class="summary-details" style="margin-top: 1rem;">
-                <span class="summary-detail--order">Total Menu: <strong id="ingredient-total-menu">-</strong></span>
-                <span class="summary-detail--order">Total Bahan: <strong id="ingredient-total-ingredients">-</strong></span>
-                <span class="summary-detail--order">Menu Terbanyak Bahan: <strong id="ingredient-most-ingredients">-</strong></span>
-                <span class="summary-detail--order">Bahan Paling Sering Digunakan: <strong id="ingredient-most-used">-</strong></span>
+                <span class="summary-detail--order">Menu Total: <strong id="ingredient-total-menu">-</strong></span>
+                <span class="summary-detail--order">Ingredients Total: <strong id="ingredient-total-ingredients">-</strong></span>
+                <span class="summary-detail--order">Menu with Most Ingredients Used: <strong id="ingredient-most-ingredients">-</strong></span>
+                <span class="summary-detail--order">Frequently Used Ingredients: <strong id="ingredient-most-used">-</strong></span>
             </div>
 
             <!-- Ingredient Analysis Dashboard -->
@@ -412,57 +412,14 @@
                     </div>
                 </div>
                 <div class="column" style="flex: 1 1 0; min-width: 320px;">
-                    <h4 class="column-title">📋 Detail Bahan per Menu</h4>
+                    <h4 class="column-title">📋 Ingredient Detail by Menu</h4>
                     <div class="column-content">
                         <div id="ingredient-details" class="ingredient-details"></div>
                     </div>
                 </div>
             </div>
-
-            <!-- Ingredient Usage Table -->
-            <!-- <div class="table-container" style="margin-top: 1rem;">
-                <div class="summary-item">
-                    <div class="summary-header">
-                        <span class="summary-name">📊 Tabel Penggunaan Bahan per Menu</span>
-                    </div>
-                    <table id="ingredient-table" class="flavour-table">
-                        <thead>
-                            <tr>
-                                <th>No</th>
-                                <th>Nama Menu</th>
-                                <th>Flavor</th>
-                                <th>Qty Pesanan</th>
-                                <th>Detail Bahan (Terpakai)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="ingredient-table-body"></tbody>
-                    </table>
-                </div>
-            </div> -->
         </div>
     </div>
-
-    <!-- Menu Suggestion Modal -->
-    <div id="suggestion-modal" class="modal hidden">
-        <div class="modal-content add-menu-modal">
-            <button onclick="closeSuggestionModal()" class="modal-close">×</button>
-            <div class="modal-title">💡 Usulkan Menu Baru</div>
-            <div class="form-group">
-                <label for="suggestion-menu-name">Nama Menu:</label>
-                <input type="text" id="suggestion-menu-name" placeholder="Masukkan nama menu yang diusulkan">
-            </div>
-            <div class="form-group">
-                <label for="suggestion-customer-name">Nama Customer (Opsional):</label>
-                <input type="text" id="suggestion-customer-name" placeholder="Nama customer yang mengusulkan">
-            </div>
-            <div class="modal-actions">
-                <button onclick="submitSuggestion()" class="save-button">Kirim Usulan</button>
-                <button onclick="closeSuggestionModal()" class="modal-btn-cancel">Batal</button>
-            </div>
-        </div>
-    </div>
-
-
 
     <!-- Pie Chart Modal -->
     <div id="pie-modal" class="modal hidden">

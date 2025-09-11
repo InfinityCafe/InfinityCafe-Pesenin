@@ -174,6 +174,25 @@ function hideIngredientAnalysis() {
 async function loadIngredientAnalysisData() {
     try {
         showLoading();
+        currentDataType = 'ingredient';
+
+        // Fungsi internal untuk menangani state kosong/error
+        const handleEmptyOrError = (message) => {
+            menuRecipes = {};
+            menuConsumption = {};
+            ingredientMenuFlavorGroups = {};
+            const details = document.getElementById('ingredient-details');
+            if (details) details.innerHTML = `<div class="ingredient-menu-item">${message}</div>`;
+            
+            baseData = { daily: [], logs: [] };
+            const currentViewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
+            filteredData = baseData[currentViewMode] || [];
+            
+            reportCurrentPage = 1;
+            renderReportTable();
+            updateReportPagination();
+            updateIngredientSummary();
+        };
         
         // Dates for filtering done orders
         const startEl = document.getElementById('ingredient-start-date');
@@ -334,7 +353,6 @@ async function loadIngredientAnalysisData() {
                 updateIngredientSummary();
 
                 // Integrate into main report table and pagination/search
-                currentDataType = 'ingredient';
                 
                 // Determine ingredient view mode: daily vs logs
                 const viewSelect = document.getElementById('ingredient-view-select');
@@ -398,7 +416,7 @@ async function loadIngredientAnalysisData() {
                     }).map(([displayDate, v]) => ({
                         order_id: `Daily ${displayDate}`,
                         date: displayDate, // keep dd/mm/yyyy for UI
-                        status_text: `${v.total_orders} pesanan • ${v.unique_menus.size} menu`,
+                        status_text: `${v.total_orders} order • ${v.unique_menus.size} menu`,
                         ingredients_affected: v.total_consumption,
                         total_qty: v.total_consumption,
                         daily_summary: {
@@ -550,7 +568,7 @@ async function loadIngredientAnalysisData() {
                         menu_name: group.menu_name,
                         flavor: group.flavor,
                         date: group.date,
-                        status_text: `${group.total_orders} pesanan`,
+                        status_text: `${group.total_orders} order`,
                         ingredients_affected: group.total_ingredients,
                         total_qty: group.total_ingredients,
                         order_ids: Array.from(group.order_ids),
@@ -584,7 +602,7 @@ async function loadIngredientAnalysisData() {
                 // Create daily rows
                 const dailyRows = Object.values(dailyGroups).map(group => ({
                     date: group.date,
-                    status_text: `${group.total_orders} pesanan selesai`,
+                    status_text: `${group.total_orders} completed orders`,
                     ingredients_affected: group.total_ingredients,
                     order_id: Array.from(group.order_ids)[0] || '',
                     // For daily view, we don't need menu_name and flavor
@@ -642,42 +660,19 @@ async function loadIngredientAnalysisData() {
                 renderReportTable();
                 updateReportPagination();
             } else {
-                // On failure, clear
-                menuRecipes = {};
-                menuConsumption = {};
-                const details = document.getElementById('ingredient-details');
-                if (details) details.innerHTML = '<div class="ingredient-menu-item">Tidak ada data resep untuk dianalisis.</div>';
-                // Clear main table data when failure in ingredient mode
-                if (currentDataType === 'ingredient') {
-                    baseData = [];
-                    filteredData = [];
-                    reportCurrentPage = 1;
-                    renderReportTable();
-                    updateReportPagination();
-                }
-                // Clear global groups when failing
-                ingredientMenuFlavorGroups = {};
+                handleEmptyOrError('No recipe data available for analysis.');
             }
         } else {
-            menuRecipes = {};
-            menuConsumption = {};
-            const details = document.getElementById('ingredient-details');
-            if (details) details.innerHTML = '<div class="ingredient-menu-item">Tidak ada data pesanan selesai pada periode ini.</div>';
-            if (currentDataType === 'ingredient') {
-                baseData = [];
-                filteredData = [];
-                reportCurrentPage = 1;
-                renderReportTable();
-                updateReportPagination();
-            }
-            ingredientMenuFlavorGroups = {};
+            handleEmptyOrError('No completed order data for this period.');
         }
         
         hideLoading();
     } catch (error) {
         console.error('Error loading ingredient analysis data:', error);
         hideLoading();
-        alert('Gagal memuat data analisis bahan');
+        alert('Failed to load material analysis data.');
+        
+        handleEmptyOrError('Error occurred during data loading.');
     }
 }
 
@@ -697,7 +692,7 @@ function renderIngredientConsumptionChart() {
     const totals = rows.map(r => Number(r.total_qty || 0));
     ingredientChart = new Chart(ctx, {
         type: 'bar',
-        data: { labels, datasets: [{ label: 'Total Bahan Terpakai', data: totals, backgroundColor: '#DCD0A8', borderColor: '#C1B8A0', borderWidth: 1 }] },
+        data: { labels, datasets: [{ label: 'Total Ingredients Used', data: totals, backgroundColor: '#DCD0A8', borderColor: '#C1B8A0', borderWidth: 1 }] },
         options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
     });
 }
@@ -749,8 +744,8 @@ function hideIngredientDetailsPanel() {
                     <th>No</th>
                     <th>Menu</th>
                     <th>Flavor</th>
-                    <th>Total Bahan</th>
-                    <th>Total Pesanan</th>`;
+                    <th>Ingredients Total</th>
+                    <th>Order Detail</th>`;
             }
              // Show aggregated daily consumption data
              await showDailyAggregatedConsumption(dateStr, statusText);
@@ -760,7 +755,7 @@ function hideIngredientDetailsPanel() {
             if (headRow) {
                 headRow.innerHTML = `
                     <th>No</th>
-                    <th>Nama Bahan</th>
+                    <th>Ingredient Name</th>
                     <th>Qty Terpakai</th>
                     <th>Unit</th>
                     <th>Stok Sebelum</th>
@@ -1892,11 +1887,11 @@ function exportKitchenPDF() {
 
 function getStatusText(status) {
     const statusMap = {
-        'receive': 'Diterima',
-        'making': 'Sedang Dibuat',
-        'deliver': 'Siap Antar',
-        'done': 'Selesai',
-        'cancelled': 'Dibatalkan'
+        'receive': 'Receive',
+        'making': 'Making',
+        'deliver': 'Deliver',
+        'done': 'Done',
+        'cancelled': 'Cancelled'
     };
     return statusMap[status] || status;
 }
@@ -1965,7 +1960,7 @@ function updateSummaryWithFinancialData(data, type = 'sales') {
     if (summaryPeriod) {
         const dateRange = data.report_info?.date_range;
         if (dateRange) {
-            summaryPeriod.textContent = `${dateRange.start_date || 'N/A'} s/d ${dateRange.end_date || 'N/A'}`;
+            summaryPeriod.textContent = `${dateRange.start_date || 'N/A'} to ${dateRange.end_date || 'N/A'}`;
         } else {
             summaryPeriod.textContent = 'N/A';
         }
@@ -2000,7 +1995,11 @@ function showEmptyState(message, type = 'info') {
     // Get appropriate tbody based on current data type
     let tbody;
     if (currentDataType === 'ingredient') {
-      tbody = document.getElementById("ingredient-tbody");
+      const viewSelect = document.getElementById('ingredient-view-select');
+      const viewMode = viewSelect ? viewSelect.value : 'daily';
+      tbody = viewMode === 'daily' 
+          ? document.getElementById("ingredient-tbody") 
+          : document.getElementById("ingredient-logs-tbody");
     } else if (currentDataType === 'best') {
       tbody = document.getElementById("bestseller-tbody");
     } else {
@@ -2032,7 +2031,7 @@ function showEmptyState(message, type = 'info') {
                     ${message}
                 </div>
                 <div style="font-size: 0.9rem; color: #9CA3AF;">
-                    Coba pilih periode tanggal yang berbeda atau periksa data pesanan
+                    Please select a different date range or verify the order data.
                 </div>
             </td>
         </tr>`;
@@ -2074,7 +2073,7 @@ function updateSummaryWithData(data, type = 'sales') {
             statusEl.textContent = "Best Seller";
             statusEl.className = 'status-badge status-warning';
         } else if (type === 'empty') {
-            statusEl.textContent = "Kosong";
+            statusEl.textContent = "Empty";
             statusEl.className = 'status-badge status-cancel';
         } else if (type === 'error') {
             statusEl.textContent = "Error";
@@ -2091,11 +2090,11 @@ function showPieModal(label, value, percent) {
             <span><strong>${label}</strong></span>
         </div>
         <div class="view-item">
-            <label>Jumlah:</label>
+            <label>Total:</label>
             <span>${value} item</span>
         </div>
         <div class="view-item">
-            <label>Kontribusi:</label>
+            <label>Percentage:</label>
             <span>${percent}%</span>
         </div>`;
     document.getElementById("pie-modal").classList.remove("hidden");
@@ -2114,7 +2113,7 @@ function renderCharts(details) {
         data: { 
             labels, 
             datasets: [{ 
-                label: "Jumlah Terjual", 
+                label: "Quantity Sold", 
                 data: quantities, 
                 backgroundColor: "#8D7272",
                 borderColor: "#503A3A",
@@ -3144,8 +3143,8 @@ function renderReportTable() {
                              <td style="font-weight: 600; color: #1F2937;">${item.date || '-'}</td>
                              <td style="color: #6B7280; line-height: 1.4;">
                                 <div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
-                                    <span style="background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; padding:.2rem .5rem; border-radius:9999px; font-weight:600;">${totalOrders} pesanan</span>
-                                    <span style="background:#F5F3FF; color:#4C1D95; border:1px solid #DDD6FE; padding:.2rem .5rem; border-radius:9999px; font-weight:600;">${uniqueMenus} menu unik</span>
+                                    <span style="background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; padding:.2rem .5rem; border-radius:9999px; font-weight:600;">${totalOrders} total orders</span>
+                                    <span style="background:#F5F3FF; color:#4C1D95; border:1px solid #DDD6FE; padding:.2rem .5rem; border-radius:9999px; font-weight:600;">${uniqueMenus} unique menus</span>
                                  </div>
                              </td>
                              <td style="text-align: center; font-weight: 600; color: #059669;">${totalOrders.toLocaleString()}</td>
@@ -3198,7 +3197,7 @@ function renderReportTable() {
             }, { orders: 0, ingredients: 0 });
             tbody.innerHTML += `
                 <tr style="background:#F9FAFB; font-weight:600;">
-                    <td colspan="3" style="text-align:right; padding-right:8px;">Total Harian</td>
+                    <td colspan="3" style="text-align:right; padding-right:8px;">Daily Total</td>
                     <td style="text-align:center; color:#059669;">${totals.orders.toLocaleString()}</td>
                     <td style="text-align:center; color:#DC2626; border-top-right-radius: 0.5rem; border-bottom-right-radius: 0.5rem;">${totals.ingredients.toLocaleString()}</td>
                     <td></td>
@@ -3352,30 +3351,16 @@ async function applyReportFilter() {
     const start = document.getElementById("start_date").value;
     const end = document.getElementById("end_date").value;
     
-    // Close filter dropdown immediately
-    const dd = document.getElementById('report-filter-dropdown');
-    console.log('Filter dropdown element:', dd);
-    if (dd) {
-        console.log('Before closing - classes:', dd.className);
-        dd.classList.remove('show');
-        console.log('After closing - classes:', dd.className);
-        console.log('Filter dropdown closed immediately');
-        
-        // Also try to close it after a short delay to ensure it closes
-        setTimeout(() => {
-            if (dd.classList.contains('show')) {
-                dd.classList.remove('show');
-                console.log('Filter dropdown closed with delay');
-            }
-        }, 100);
-    } else {
-        console.log('Filter dropdown element not found!');
-    }
+    toggleReportFilter();
     
     if (dataTypeSelect) {
         const dataType = dataTypeSelect.value;
         
         if (dataType === 'ingredient') {
+            const ingredientViewSelect = document.getElementById('ingredient-view-select');
+            if (ingredientViewSelect) {
+                ingredientViewSelect.value = 'daily';
+            }
             // Load ingredient analysis data
             await loadIngredientAnalysisData();
             applyIngredientModeLayout();
@@ -3420,84 +3405,48 @@ async function applyReportFilter() {
     if (sortSelect && filteredData && filteredData.length) {
         const val = sortSelect.value;
         if (currentDataType === 'ingredient') {
-            filteredData.sort((a, b) => {
-                if (val === 'name') return (a.order_id || '').localeCompare(b.order_id || '');
+            // Penyortiran untuk data analisis bahan
+            const currentViewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
+            const dataToSort = baseData[currentViewMode] || [];
+            dataToSort.sort((a, b) => {
+                if (val === 'name') return (a.date || a.menu_name || '').localeCompare(b.date || b.menu_name || '');
                 if (val === 'qty') return (b.ingredients_affected ?? 0) - (a.ingredients_affected ?? 0);
                 if (val === 'total') return (b.total_qty ?? 0) - (a.total_qty ?? 0);
                 return 0;
             });
+             // Terapkan kembali filter pencarian setelah menyortir
+            const term = document.getElementById('table-search-input')?.value.toLowerCase() || '';
+            filteredData = term ? dataToSort.filter(i => 
+                (i.menu_name || '').toLowerCase().includes(term) || 
+                (i.flavor || '').toLowerCase().includes(term) || 
+                (i.order_id || '').toLowerCase().includes(term) || 
+                (i.date || '').toLowerCase().includes(term) || 
+                (i.status_text || '').toLowerCase().includes(term)
+            ) : [...dataToSort];
+
         } else {
-        filteredData.sort((a, b) => {
-            if (val === 'name') {
-                return (a.menu_name || '').localeCompare(b.menu_name || '');
-            }
-            if (val === 'qty') {
-                const qa = a.quantity ?? a.total_quantity ?? 0;
-                const qb = b.quantity ?? b.total_quantity ?? 0;
-                return qb - qa; // desc
-            }
-            if (val === 'total') {
-                const ta = a.total ?? a.total_revenue ?? 0;
-                const tb = b.total ?? b.total_revenue ?? 0;
-                return tb - ta; // desc
-            }
-            return 0;
-        });
+            // Penyortiran untuk sales dan best seller
+            filteredData.sort((a, b) => {
+                if (val === 'name') {
+                    return (a.menu_name || '').localeCompare(b.menu_name || '');
+                }
+                if (val === 'qty') {
+                    const qa = a.quantity ?? a.total_quantity ?? 0;
+                    const qb = b.quantity ?? b.total_quantity ?? 0;
+                    return qb - qa; // desc
+                }
+                if (val === 'total') {
+                    const ta = a.total ?? a.total_revenue ?? 0;
+                    const tb = b.total ?? b.total_revenue ?? 0;
+                    return tb - ta; // desc
+                }
+                return 0;
+            });
         }
         reportCurrentPage = 1;
         renderReportTable();
         updateReportPagination();
     }
-    
-    // Handle ingredient mode sorting
-    const dataType = document.getElementById('data-type-select')?.value || 'sales';
-    if (dataType === 'ingredient' && sortSelect && menuRecipes) {
-        const val = sortSelect.value;
-        const sortedMenus = Object.entries(menuRecipes).sort(([, recipesA], [, recipesB]) => {
-            if (val === 'name') {
-                return recipesA[0]?.menu_name || ''.localeCompare(recipesB[0]?.menu_name || '');
-            }
-            if (val === 'ingredients') {
-                return recipesB.length - recipesA.length; // desc
-            }
-            if (val === 'quantity') {
-                const totalA = recipesA.reduce((sum, recipe) => sum + recipe.quantity, 0);
-                const totalB = recipesB.reduce((sum, recipe) => sum + recipe.quantity, 0);
-                return totalB - totalA; // desc
-            }
-            return 0;
-        });
-        
-        // Update ingredient table with sorted data
-        const tbody = document.getElementById('ingredient-table-body');
-        if (tbody) {
-            const menuData = sortedMenus.map(([menuName, recipes], index) => {
-                const totalIngredients = recipes.length;
-                const totalQuantity = recipes.reduce((sum, recipe) => sum + recipe.quantity, 0);
-                const mainIngredient = recipes.length > 0 ? 
-                    (ingredientData[recipes[0].ingredient_id] ? ingredientData[recipes[0].ingredient_id].name : `ID ${recipes[0].ingredient_id}`) : 
-                    'Tidak ada data';
-                
-                return `
-                    <tr>
-                        <td>${index + 1}</td>
-                        <td>${menuName}</td>
-                        <td>${totalIngredients}</td>
-                        <td>${totalQuantity.toFixed(2)}</td>
-                        <td>${mainIngredient}</td>
-                        <td>
-                            <button onclick="viewMenuIngredients('${menuName}')" class="btn-secondary btn-sm">
-                                📋 Detail Bahan
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-            
-            tbody.innerHTML = menuData;
-        }
-    }
-    toggleReportFilter();
 }
 
 function clearReportFilter() {
@@ -3569,8 +3518,8 @@ function resetToNormalMode() {
     }
     
     // Reset titles
-    if (barTitle) barTitle.textContent = '📊 Top Menu Terlaris';
-    if (pieTitle) pieTitle.textContent = '🥧 Komposisi Penjualan';
+    if (barTitle) barTitle.textContent = '📊 Top Bestselling Menu';
+    if (pieTitle) pieTitle.textContent = '🥧 Sales Composition';
     
     // Hide ingredient view container
     if (ingredientViewContainer) ingredientViewContainer.style.display = 'none';
@@ -3722,7 +3671,7 @@ function applyModeLayout(mode) {
 
     // Bar chart title per mode
     if (barTitle) {
-        barTitle.textContent = isBest ? '🏆 Top Menu Terlaris (Best Seller)' : '📊 Top Menu Terlaris';
+        barTitle.textContent = isBest ? '🏆 Top Bestselling Menu' : '📊 Top Bestselling Menu';
     }
 
     // Ensure charts resize correctly after visibility changes
@@ -4000,7 +3949,7 @@ async function openGroupedConsumptionModal(orderIdsCsv, dateStr, statusText, men
                 🥤 ${menuName || 'Detail Pesanan'}${flavorName ? ' • ' + flavorName : ''}
             </div>
             <div class="summary-details" style="margin: 1rem 0 1.5rem 0; justify-content: center; flex-wrap: wrap; gap: 0.5rem;">
-                <span class="summary-detail--order">📅 Tanggal: <strong>${dateStr || '-'}</strong></span>
+                <span class="summary-detail--order">📅 Date: <strong>${dateStr || '-'}</strong></span>
                 <span class="summary-detail--order">📊 Status: <strong>${statusText || ''}</strong></span>
             </div>
             <div class="table-container">
