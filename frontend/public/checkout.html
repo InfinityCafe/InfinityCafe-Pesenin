@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout Page</title>
+    <link rel="stylesheet" href="css/checkout.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="gradient-bg">
+        <!-- Header -->
+        <div class="glassmorphism border-b border-white/20">
+            <div class="container-responsive py-4 sm:py-5">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center;">
+                        <button onclick="window.location.href='/menu'" style="margin-right: 1rem; color: #503A3A; background: #F5EFE6; border-radius: 20px; padding: 0.75rem; font-size: 1.5rem; cursor: pointer; transition: background 0.3s ease;" class="hover-scale">
+                            ←
+                        </button>
+                        <div>
+                            <h1 style="font-size: 1.5rem; font-weight: bold; color: #312929; margin-bottom: 0.25rem;">Checkout</h1>
+                            <p style="font-size: 1rem; color: #685454; display: flex; align-items: center;">
+                                <span style="margin-right: 0.5rem;">🍽️</span>
+                                Meja 5
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="container-responsive py-4 sm:py-6">
+            <!-- Sample cart items for demonstration (static) -->
+            <div class="spacing-responsive">
+                <!-- Cart Item 1 -->
+                <div class="card hover-lift">
+                    <div class="card-body">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
+                            <h3 style="font-weight: bold; color: #312929; font-size: 1rem;">Espresso</h3>
+                            <button style="color: #B3261E; background: #F5C1BD; border-radius: 10px; padding: 0.25rem 0.75rem; font-size: 0.875rem; cursor: pointer; transition: background 0.3s ease;" class="hover-scale">
+                                ✕ Hapus
+                            </button>
+                        </div>
+
+                        <!-- Variations -->
+                        <div class="variations">
+                            <h4 style="font-size: 0.875rem; font-weight: bold; color: #312929; margin-bottom: 0.5rem;">Pilihan:</h4>
+                            <p style="font-size: 0.875rem; color: #685454;">
+                                <span style="font-weight: medium;">Size:</span> Large
+                            </p>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="notes">
+                            <div style="display: flex; align-items: start; justify-content: between;">
+                                <div style="flex: 1;">
+                                    <h4 style="font-size: 0.875rem; font-weight: bold; color: #685454; margin-bottom: 0.25rem;">Catatan:</h4>
+                                    <p style="font-size: 0.875rem; color: #8D7272; line-height: 1.5;">
+                                        Less sugar please
+                                    </p>
+                                </div>
+                                <button style="margin-left: 0.75rem; color: #207156; background: #C5F0C0; border-radius: 10px; padding: 0.25rem 0.5rem; font-size: 0.875rem; cursor: pointer; transition: background 0.3s ease;" class="hover-scale">
+                                    ✏️ Edit
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Quantity and Price -->
+                        <div class="quantity-price">
+                            <div style="display: flex; align-items: center; gap: 1rem;">
+                                <span style="font-size: 0.875rem; font-weight: bold; color: #685454;">Jumlah:</span>
+                                <div class="quantity-controls">
+                                    <button class="quantity-btn decrease hover-scale">-</button>
+                                    <span style="font-weight: bold; font-size: 1.25rem; color: #207156; min-width: 2rem; text-align: center;">2</span>
+                                    <button class="quantity-btn hover-scale">+</button>
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <p style="font-size: 0.875rem; color: #685454; margin-bottom: 0.25rem;">Subtotal:</p>
+                                <p style="font-weight: bold; font-size: 1.25rem; color: #207156;">
+                                    Rp 50.000
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Total -->
+                <div class="total card">
+                    <div>
+                        <h3 style="font-size: 1.25rem; color: #312929; margin-bottom: 0.25rem;">Total Pembayaran</h3>
+                        <p style="font-size: 0.875rem; color: #685454;">Semua item sudah termasuk</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <p style="font-size: 2rem; font-weight: bold; color: #312929;">
+                            Rp 50.000
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Checkout Button -->
+                <button class="checkout-btn hover-scale">
+                    <span style="margin-right: 0.75rem; font-size: 1.5rem;">🚀</span>
+                    Konfirmasi Pembayaran
+                    <span style="margin-left: 0.75rem; font-size: 1.25rem;">→</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
