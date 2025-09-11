@@ -154,6 +154,10 @@ class QRTrackManager {
         const cancelBtn = document.getElementById('cancel-btn');
         if (cancelBtn) cancelBtn.style.display = this.currentOrder.status === 'receive' ? 'inline-flex' : 'none';
 
+        // Toggle "Pesan Lagi" button only when order is done
+        const orderNewBtn = document.getElementById('order-new-btn');
+        if (orderNewBtn) orderNewBtn.style.display = this.currentOrder.status === 'done' ? 'inline-flex' : 'none';
+
         // Update estimated time
         this.updateEstimatedTime();
     }
@@ -386,9 +390,8 @@ class QRTrackManager {
         }
     }
 
-    refreshStatus() {
-        this.fetchOrderStatus();
-    }
+    // Manual refresh disabled (auto-refresh already running)
+    refreshStatus() {}
 
     orderNew() {
         // Clear session data and redirect to menu (new session)
