@@ -1,0 +1,476 @@
+/* --- Base Styles --- */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #F8F9FA;
+  color: #212529;
+  line-height: 1.6;
+  font-size: 1rem;
+}
+
+/* --- Reusable Components --- */
+.main-container {
+  max-width: 768px;
+  margin: 0 auto;
+  padding: 1rem 1rem 4rem 1rem;
+}
+
+.card {
+  background-color: #F5EFE6;
+  border-radius: 1.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05),
+              0 2px 4px -2px rgba(0,0,0,0.05);
+  border: 1px solid #DCD0A8;
+}
+
+.card-header {
+  padding: 1.5rem;
+  text-align: center;
+  border-bottom: 1px solid #DCD0A8;
+}
+
+.card-header h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #212529;
+}
+
+.card-header p {
+  color: #64748b;
+}
+
+.card-body {
+  padding: 1.5rem;
+}
+
+/* --- Header --- */
+.header {
+  background-color: #ffffff;
+  height: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  border-bottom: 1px solid #DCD0A8;
+}
+
+.header-brand h1 {
+  color: #212529;
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* --- Page Header --- */
+.page-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.page-header .header-icon {
+  width: 4rem;
+  height: 4rem;
+  font-size: 2.5rem;
+  /* background-color: #3b82f6; */
+  background: linear-gradient(to right, #207156, #60B7A6);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem auto;
+  box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.2);
+}
+
+.page-header h1 {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #212529;
+  margin-bottom: 0.5rem;
+}
+
+.page-header p {
+  color: #64748b;
+  font-size: 1rem;
+}
+
+/* --- Info Box --- */
+.info-box {
+  margin-bottom: 2rem;
+  background-color: #f8fafc;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  border: 1px solid #DCD0A8;
+}
+
+.info-box h3 {
+  font-weight: 700;
+  color: #212529;
+  margin-bottom: 1rem;
+  font-size: 1.125rem;
+}
+
+.info-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.info-row span {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.info-row strong {
+  font-weight: 600;
+  color: #212529;
+}
+
+#order-number {
+  font-family: monospace;
+  background-color: #DCD0A8;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.table-badge {
+  /* background-color: #3b82f6; */
+  background-color: #8D7272;
+  color: white !important;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+}
+
+/* --- Order Status Tracker --- */
+.status-tracker-container {
+  margin-bottom: 2rem;
+}
+
+.status-tracker-container h3 {
+  font-weight: 700;
+  color: #212529;
+  margin-bottom: 1.5rem;
+  font-size: 1.125rem;
+  text-align: center;
+}
+
+.status-tracker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  flex-wrap: wrap; /* supaya step bisa wrap ke bawah jika ruang sempit */
+  gap: 1rem; /* spasi antar steps */
+}
+
+.status-line {
+  flex-grow: 1;
+  height: 4px;
+  background-color: #94a3b8;
+  border-radius: 10px;
+  margin: 1.25rem 0;
+  position: relative;
+  top: 0;
+}
+
+.status-line.completed {
+  background: linear-gradient(to right, #207156, #60B7A6);
+}
+
+.status-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  /* width: 60px; */
+  width: 45px;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  position: relative;
+}
+
+.status-icon {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background-color: #94a3b8;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.status-label {
+  font-weight: 600;
+  transition: color 0.3s ease;
+}
+
+/* Step States */
+.status-step.active .status-icon {
+  background: linear-gradient(to right, #8D7272, #B5A4A4);
+  transform: scale(1.1);
+}
+.status-step.active .status-label {
+  color: #212529;
+}
+
+.status-step.completed .status-icon {
+  background: linear-gradient(to right, #207156, #60B7A6);
+  color: white;
+}
+.status-step.completed .status-label {
+  color: #212529;
+}
+
+/* --- Order Items --- */
+.items-container {
+  margin-bottom: 2rem;
+}
+
+.items-container h3 {
+  font-weight: 700;
+  color: #212529;
+  margin-bottom: 1rem;
+  font-size: 1.125rem;
+}
+
+.order-item {
+  padding: 1rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.order-item:last-child {
+  border-bottom: none;
+}
+
+.item-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.item-name {
+  font-weight: 600;
+  color: #212529;
+}
+
+.item-quantity {
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.item-notes {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: #ca8a04;
+  background-color: #fefce8;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  border-left: 4px solid #facc15;
+}
+
+/* --- Action Buttons --- */
+.action-buttons {
+  margin-top: 1rem;
+}
+
+.action-btn-red {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  background: linear-gradient(90deg, #b3261e 0%, #f26060 100%);
+  color: white;
+  padding: 0.875rem 1rem;
+  border: none;
+  border-radius: 0.75rem;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  transform: scale(1);
+  border-width: initial;
+  border-style: none;
+  border-color: initial;
+  border-image: initial;
+  white-space: nowrap;
+}
+
+.action-btn-red:hover {
+  transition: opacity 0.3s ease;
+  background: #B3261E;
+  transform: scale(1.02);
+  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
+}
+
+.action-btn-red:disabled {
+  background: #9ca3af !important;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+  color: #f1f5f9 !important;
+  pointer-events: none;
+  opacity: 1;
+}
+
+/* --- Responsive Breakpoints --- */
+
+@media (max-width: 413px) {
+  .main-container {
+        padding: 0.5rem 0.5rem 3rem 0.5rem;
+    }
+    .page-header h1 {
+        font-size: 1.1rem;
+    }
+    .header-brand h1 {
+        font-size: 1rem;
+    }
+    /* .header {
+        height: 100%;
+    } */
+    .page-header p {
+        font-size: 0.85rem;
+    }
+    p {
+        font-size: 0.85rem;
+    }
+    h3 {
+        font-size: 1.1rem;
+    }
+    #order-number, #table-number, #order-timestamp {
+        font-size: 0.75rem;
+    }
+    .info-box h3 {
+        font-size: 1rem;
+    }
+    .info-row span {
+        font-size: 0.75rem;
+    }
+    .status-tracker-container h3, .items-container h3 {
+        font-size: 1rem;
+    }
+    .card-body, .card-header {
+        padding: 1rem;
+    }
+    .status-tracker {
+        align-items: center;
+    }
+    .status-step {
+        width: 25px;
+    }
+    .status-icon {
+        width: 0.75rem;
+        height: 0.75rem;
+    }
+    .status-label {
+        font-size: 0.65rem;
+    }
+    .status-line {
+        margin: 1rem 0;
+    }
+}
+
+/* Tablet / small desktop */
+@media (min-width: 640px) {
+  .main-container {
+    padding: 1.5rem 2rem 4rem 2rem;
+  }
+
+  .page-header h1 {
+    font-size: 2.25rem;
+  }
+
+  .header-brand h1 {
+    font-size: 1.5rem;
+  }
+
+  .page-header p {
+    font-size: 1.125rem;
+  }
+
+  .status-icon {
+    width: 1.1rem;
+    height: 1.1rem;
+  }
+
+  .status-label {
+    font-size: 0.875rem;
+  }
+
+  .status-step {
+    width: 70px;
+  }
+}
+
+/* Desktop */
+@media (min-width: 1024px) {
+  .main-container {
+    max-width: 1024px;
+    padding: 2rem 2rem 4rem 2rem;
+  }
+
+  .page-header h1 {
+    font-size: 2.75rem;
+  }
+
+  .header-brand h1 {
+    font-size: 1.75rem;
+  }
+
+  .page-header p {
+    font-size: 1.25rem;
+  }
+
+  .info-box h3 {
+    font-size: 1.5rem;
+  }
+
+  .items-container h3 {
+    font-size: 1.375rem;
+  }
+
+  .status-icon {
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+
+  .status-label {
+    font-size: 1rem;
+  }
+
+  .status-step {
+    width: 90px;
+  }
+}
+
+/* Large Screens */
+@media (min-width: 1440px) {
+  .main-container {
+    max-width: 1280px;
+  }
+
+  .page-header h1 {
+    font-size: 3rem;
+  }
+}

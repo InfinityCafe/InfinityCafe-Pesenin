@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Order</title>
+    <link rel="stylesheet" href="./css/track-order.css">
+</head>
+<body>
+    <!-- Header -->
+
+    <!-- Main Content -->
+    <main id="main-content" class="main-container" style="display: none;">
+        <!-- Page Header -->
+        <section class="page-header">
+            <div class="header-icon">✓</div>
+            <h1>Order Successful</h1>
+            <!-- <p>Pesanan Anda sedang kami proses. Lihat progresnya di bawah ini.</p> -->
+        </section>
+
+        <!-- Order Tracking Card -->
+        <div class="card">
+            <!-- Restaurant Info -->
+            <div class="card-header">
+                <p>Detail Order</p>
+            </div>
+
+            <div class="card-body">
+                <!-- Order Info -->
+                <div class="info-box">
+                    <h3>Order Informations</h3>
+                    <div class="info-details">
+                        <div class="info-row">
+                            <span>Order Number</span>
+                            <strong id="order-number"></strong>
+                        </div>
+                        <div class="info-row">
+                            <span>Table Number</span>
+                            <strong id="table-number" class="table-badge"></strong>
+                        </div>
+                        <div class="info-row">
+                            <span>Order Time</span>
+                            <strong id="order-timestamp"></strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Order Status Tracker -->
+                <div class="status-tracker-container">
+                    <h3>Order Status</h3>
+                    <div class="status-tracker">
+                        <div class="status-step" data-status="receive">
+                            <div class="status-icon"></div>
+                            <div class="status-label">Receive</div>
+                        </div>
+                        <div class="status-line"></div>
+                        <div class="status-step" data-status="making">
+                            <div class="status-icon"></div>
+                            <div class="status-label">Making</div>
+                        </div>
+                        <div class="status-line"></div>
+                        <div class="status-step" data-status="deliver">
+                            <div class="status-icon"></div>
+                            <div class="status-label">Deliver</div>
+                        </div>
+                        <div class="status-line"></div>
+                        <div class="status-step" data-status="Done">
+                            <div class="status-icon"></div>
+                            <div class="status-label">Done</div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Order Items -->
+                <div class="items-container">
+                    <h3>Order Items</h3>
+                    <div id="order-items-container">
+                        <!-- Items will be injected here -->
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons no-print">
+                    <button id="cancel-order-btn" class="action-btn-red">
+                        Cancel Order
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DUMMY ORDER DATA ---
+            const dummyOrderData = {
+                orderNumber: "CR-1662902400",
+                tableNumber: 12,
+                status: "making", // Possible values: "receive", "making", "deliver", "done"
+                items: [
+                    {
+                        quantity: 1,
+                        notes: "Jangan terlalu pedas.",
+                        menuItem: { id: 1, name: "Nasi Goreng Spesial" }
+                    },
+                    {
+                        quantity: 2,
+                        notes: "",
+                        menuItem: { id: 4, name: "Es Teh Manis" }
+                    },
+                    {
+                        quantity: 1,
+                        notes: "",
+                        menuItem: { id: 8, name: "Pisang Goreng Keju" }
+                    }
+                ],
+                timestamp: new Date().toISOString()
+            };
+
+            const loadingScreen = document.getElementById('loading-screen');
+            const mainContent = document.getElementById('main-content');
+            
+            // --- Function to format date and time ---
+            const formatDateTime = (timestamp) => {
+                const date = new Date(timestamp);
+                return date.toLocaleString('id-ID', {
+                    year: 'numeric', month: 'long', day: 'numeric',
+                    hour: '2-digit', minute: '2-digit'
+                });
+            };
+
+            // --- Function to update status tracker UI ---
+            const updateStatusTracker = (currentStatus) => {
+                const statuses = ["receive", "making", "deliver", "done"];
+                const currentStatusIndex = statuses.indexOf(currentStatus);
+                const steps = document.querySelectorAll('.status-step');
+                const lines = document.querySelectorAll('.status-line');
+
+                steps.forEach((step, index) => {
+                    step.classList.remove('completed', 'active');
+                    if (index < currentStatusIndex) {
+                        step.classList.add('completed');
+                    } else if (index === currentStatusIndex) {
+                        step.classList.add('active');
+                    }
+                });
+
+                lines.forEach((line, index) => {
+                    line.classList.remove('completed');
+                    if (index < currentStatusIndex) {
+                        line.classList.add('completed');
+                    }
+                });
+            };
+
+
+            // --- Function to render the order tracking data ---
+            const renderOrderTracking = (orderData) => {
+                // Populate order info
+                document.getElementById('order-number').textContent = orderData.orderNumber;
+                document.getElementById('table-number').textContent = `Meja ${orderData.tableNumber}`;
+                document.getElementById('order-timestamp').textContent = formatDateTime(orderData.timestamp);
+                
+                // Populate order items
+                const itemsContainer = document.getElementById('order-items-container');
+                itemsContainer.innerHTML = '';
+                
+                orderData.items.forEach(item => {
+                    const itemElement = document.createElement('div');
+                    itemElement.className = 'order-item';
+                    itemElement.innerHTML = `
+                        <div class="item-details">
+                            <p class="item-name">${item.menuItem.name}</p>
+                            <p class="item-quantity">Qty: ${item.quantity}</p>
+                        </div>
+                        ${item.notes ? `<div class="item-notes"><strong>Notes:</strong> ${item.notes}</div>` : ''}
+                    `;
+                    itemsContainer.appendChild(itemElement);
+                });
+
+                // Update the status tracker
+                updateStatusTracker(orderData.status);
+            };
+
+            // --- Event Listener for Cancel Button ---
+            document.getElementById('cancel-order-btn').addEventListener('click', () => {
+                // You can add a confirmation modal here for a better user experience
+                const isConfirmed = confirm("Apakah Anda yakin ingin membatalkan pesanan ini?");
+                if (isConfirmed) {
+                    alert("Pesanan telah dibatalkan.");
+                    // Here you would typically send a request to your server to cancel the order
+                    // For this dummy page, we can just disable the button
+                    document.getElementById('cancel-order-btn').disabled = true;
+                    document.getElementById('cancel-order-btn').textContent = "Pesanan Dibatalkan";
+                }
+            });
+
+            // --- Initial Load Simulation ---
+                renderOrderTracking(dummyOrderData);
+                mainContent.style.display = 'block';
+        });
+    </script>
+</body>
+</html>
