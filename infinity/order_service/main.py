@@ -63,7 +63,7 @@ app.add_middleware(
 
 mcp = FastApiMCP(app,name="Server MCP Infinity",
         description="Server MCP Infinity Descr",
-        include_operations=["add order","list order","cancel order","cancel kitchen order","order status"]
+        include_operations=["add order","list order","cancel order","cancel kitchen order","order status","list rooms"]
         )
 mcp.mount(mount_path="/mcp",transport="sse")
 jakarta_tz = pytz_timezone('Asia/Jakarta')
@@ -80,6 +80,13 @@ class OrderOutbox(Base):
     retry_count = Column(Integer, default=0)
     max_retries = Column(Integer, default=3)
     error_message = Column(Text, nullable=True)
+
+class Room(Base):
+    __tablename__ = "rooms"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
 
 class Order(Base):
     __tablename__ = "orders"
@@ -140,6 +147,15 @@ class CancelOrderRequest(BaseModel):
 class StatusUpdateRequest(BaseModel):
     status: str
 
+class RoomSchema(BaseModel):
+    id: int
+    name: str
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 def get_db():
     db = SessionLocal()
     try:
@@ -196,6 +212,26 @@ def validate_order_items(order_items: List[OrderItemSchema]) -> Optional[str]:
 
     if invalid_items:
         return f"Menu berikut tidak ditemukan atau tidak tersedia: {', '.join(invalid_items)}"
+    
+    return None
+
+def validate_room_name(room_name: str, db: Session) -> Optional[str]:
+    """Memvalidasi nama ruangan berdasarkan data di database."""
+    room = db.query(Room).filter(
+        Room.name == room_name,
+        Room.is_active == True
+    ).first()
+    
+    if not room:
+        # Ambil daftar ruangan yang tersedia untuk ditampilkan ke user
+        available_rooms = db.query(Room).filter(Room.is_active == True).all()
+        room_names = [room.name for room in available_rooms]
+        
+        if room_names:
+            room_list = "\n".join([f"{i+1}. {name}" for i, name in enumerate(room_names)])
+            return f"Nama ruangan '{room_name}' tidak valid. Ruangan yang tersedia:\n\n{room_list}\n\nSilakan pilih salah satu ruangan yang tersedia."
+        else:
+            return "Tidak ada ruangan yang tersedia saat ini."
     
     return None
     
@@ -285,6 +321,11 @@ def get_outbox_status(db: Session = Depends(get_db)):
 @app.post("/create_order", summary="Buat pesanan baru", tags=["Order"], operation_id="add order")
 def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     """Membuat pesanan baru dan mengirimkannya ke kitchen_service."""
+
+    # Validasi nama ruangan
+    room_validation_error = validate_room_name(req.room_name, db)
+    if room_validation_error:
+        return JSONResponse(status_code=200, content={"status": "error", "message": room_validation_error, "data": None})
 
     validation_error = validate_order_items(req.orders)
     if validation_error:
@@ -577,6 +618,11 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
 @app.post("/custom_order", summary="Buat pesanan custom (tanpa validasi menu)", tags=["Order"], operation_id="add custom order")
 def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     """Membuat pesanan custom baru dengan validasi menu tetapi flavor bebas."""
+
+    # Validasi nama ruangan
+    room_validation_error = validate_room_name(req.room_name, db)
+    if room_validation_error:
+        return JSONResponse(status_code=200, content={"status": "error", "message": room_validation_error, "data": None})
 
     validation_error = validate_order_items(req.orders)
     if validation_error:
@@ -1156,6 +1202,80 @@ def get_order_status(queue_number: int, db: Session = Depends(get_db)):
 def health_check():
     """Cek status hidup service."""
     return {"status": "ok", "service": "order_service"}
+
+@app.get("/rooms", summary="Daftar ruangan", tags=["Room"], operation_id="list rooms")
+def get_rooms(db: Session = Depends(get_db)):
+    """Mengambil daftar semua ruangan yang tersedia."""
+    rooms = db.query(Room).filter(Room.is_active == True).order_by(Room.name).all()
+    return {
+        "status": "success",
+        "message": "Daftar ruangan berhasil diambil.",
+        "data": {
+            "rooms": [{"id": room.id, "name": room.name} for room in rooms],
+            "total": len(rooms)
+        }
+    }
+
+@app.post("/rooms", summary="Tambah ruangan baru", tags=["Room"])
+def add_room(room_name: str, db: Session = Depends(get_db)):
+    """Menambahkan ruangan baru."""
+    # Cek apakah ruangan sudah ada
+    existing_room = db.query(Room).filter(Room.name == room_name).first()
+    if existing_room:
+        if existing_room.is_active:
+            return JSONResponse(status_code=200, content={
+                "status": "error", 
+                "message": f"Ruangan '{room_name}' sudah ada.", 
+                "data": None
+            })
+        else:
+            # Aktifkan kembali ruangan yang sudah ada tapi nonaktif
+            existing_room.is_active = True
+            db.commit()
+            return JSONResponse(status_code=200, content={
+                "status": "success", 
+                "message": f"Ruangan '{room_name}' berhasil diaktifkan kembali.", 
+                "data": {"id": existing_room.id, "name": existing_room.name}
+            })
+    
+    # Tambah ruangan baru
+    new_room = Room(name=room_name)
+    db.add(new_room)
+    db.commit()
+    db.refresh(new_room)
+    
+    return JSONResponse(status_code=200, content={
+        "status": "success", 
+        "message": f"Ruangan '{room_name}' berhasil ditambahkan.", 
+        "data": {"id": new_room.id, "name": new_room.name}
+    })
+
+@app.delete("/rooms/{room_id}", summary="Nonaktifkan ruangan", tags=["Room"])
+def deactivate_room(room_id: int, db: Session = Depends(get_db)):
+    """Menonaktifkan ruangan (tidak menghapus dari database)."""
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": "Ruangan tidak ditemukan.", 
+            "data": None
+        })
+    
+    if not room.is_active:
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Ruangan '{room.name}' sudah nonaktif.", 
+            "data": None
+        })
+    
+    room.is_active = False
+    db.commit()
+    
+    return JSONResponse(status_code=200, content={
+        "status": "success", 
+        "message": f"Ruangan '{room.name}' berhasil dinonaktifkan.", 
+        "data": {"id": room.id, "name": room.name}
+    })
 
 hostname = socket.gethostname()
 local_ip = socket.gethostbyname(hostname)
