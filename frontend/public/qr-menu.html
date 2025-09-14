@@ -13,22 +13,28 @@
     <link rel="icon" type="image/png" href="img/logo-GIK.png">
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="qr-page">
+<body class="qr-page" style="background: linear-gradient(135deg, #F5EFE6 0%, #F8F9FA 100%) !important; color: #312929 !important;">
     <div class="gradient-bg">
         <!-- Header -->
-        <div class="glassmorphism">
-            <div class="container-responsive py-4">
-                <div style="display:flex;align-items:center;justify-content:space-between;">
-                    <div>
-                        <h1 style="font-size:1.25rem;font-weight:700;color:#312929;">☕ Infinity Cafe</h1>
-                        <p style="font-size:.95rem;color:#685454;">QR Ordering System</p>
+        <header class="qr-header">
+            <div class="container-responsive">
+                <div class="qr-header-content">
+                    <div class="qr-brand">
+                        <div class="brand-icon">☕</div>
+                        <div class="brand-text">
+                            <h1 class="brand-title">Infinity Cafe</h1>
+                            <p class="brand-subtitle">QR Ordering System</p>
+                        </div>
                     </div>
-                    <div class="room-info" style="font-weight:600;color:#312929;">
-                        <span id="room-display">Ruangan: -</span>
+                    <div class="room-info">
+                        <div class="room-badge">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <span id="room-display">Ruangan: -</span>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </header>
 
         <!-- Main Content -->
         <div class="container-responsive py-4">
@@ -37,40 +43,63 @@
                     <div class="card-body">
             <!-- Name Input Section (shown initially) -->
             <div id="name-input-section" class="name-input-section">
-                <div class="greeting-message">
-                    <h2 style="color:#312929;">Selamat Datang di Infinity Cafe!</h2>
-                    <p class="greeting-date" id="greeting-date">Silakan masukkan nama Anda untuk memulai pemesanan</p>
+                <div class="welcome-section">
+                    <div class="welcome-icon">
+                        <i class="fas fa-coffee"></i>
+                    </div>
+                    <div class="welcome-content">
+                        <h2 class="welcome-title">Selamat Datang di Infinity Cafe!</h2>
+                        <p class="welcome-subtitle" id="greeting-date">Silakan masukkan nama Anda untuk memulai pemesanan</p>
+                    </div>
                 </div>
                 
-                <div class="summary-item">
-                    <div class="summary-header">
-                        <span class="summary-name">👤 Informasi Pelanggan</span>
+                <div class="customer-input-card">
+                    <div class="card-header-info">
+                        <div class="info-icon">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="info-content">
+                            <h3 class="info-title">Informasi Pelanggan</h3>
+                            <p class="info-desc">Kami akan menggunakan nama ini untuk pesanan Anda</p>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="customer-name">Nama Lengkap:</label>
-                        <input type="text" id="customer-name" class="form-input" placeholder="Masukkan nama lengkap Anda" maxlength="50">
+                    <div class="form-group-modern">
+                        <label for="customer-name" class="form-label-modern">Nama Lengkap</label>
+                        <div class="input-wrapper">
+                            <i class="fas fa-user input-icon"></i>
+                            <input type="text" id="customer-name" class="form-input-modern" placeholder="Masukkan nama lengkap Anda" maxlength="50">
+                        </div>
                     </div>
-                    <button onclick="startOrdering()" class="btn-primary" id="start-btn" disabled>
-                        Mulai Pemesanan
+                    <button onclick="startOrdering()" class="btn-start-modern" id="start-btn" disabled>
+                        <span class="btn-icon">🚀</span>
+                        <span class="btn-text">Mulai Pemesanan</span>
+                        <span class="btn-arrow">→</span>
                     </button>
                 </div>
             </div>
 
             <!-- Menu Section (hidden initially) -->
             <div id="menu-section" class="menu-section" style="display: none;">
-                <div class="greeting-message">
-                    <h2 style="color:#312929;">Hi, <span id="customer-display">-</span>!</h2>
-                    <p class="greeting-date" id="menu-greeting-date">Silakan pilih menu yang Anda inginkan</p>
+                <div class="menu-greeting">
+                    <div class="customer-avatar">
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                    <div class="customer-info">
+                        <h2 class="customer-name">Hi, <span id="customer-display">-</span>!</h2>
+                        <p class="menu-subtitle" id="menu-greeting-date">Silakan pilih menu yang Anda inginkan</p>
+                    </div>
                 </div>
 
                 <!-- Search and Category Tabs -->
-                <div class="search-filter-section">
-                    <div class="search-container">
-                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                        <input type="text" id="menu-search" placeholder="Cari menu..." class="search-input">
+                <div class="menu-controls">
+                    <div class="search-section-modern">
+                        <div class="search-input-wrapper">
+                            <i class="fas fa-search search-icon-modern"></i>
+                            <input type="text" id="menu-search" placeholder="Cari menu favorit Anda..." class="search-input-modern">
+                        </div>
                     </div>
-                    <div class="filter-container" style="gap:8px; align-items:center;">
-                        <div id="category-tabs" class="tab-navigation" style="display:flex; flex-wrap: wrap; gap: 8px;"></div>
+                    <div class="category-section">
+                        <div id="category-tabs" class="category-tabs-modern"></div>
                     </div>
                 </div>
 
@@ -80,24 +109,35 @@
                 </div>
 
                 <!-- Cart Summary (floating) -->
-                <div id="cart-summary" class="cart-summary" style="display: none;">
-                    <div class="cart-content">
-                        <div class="cart-items">
-                            <span id="cart-count">0</span> item
+                <div id="cart-summary" class="cart-summary-modern" style="display: none;">
+                    <div class="cart-summary-content">
+                        <div class="cart-info">
+                            <div class="cart-icon-wrapper">
+                                <i class="fas fa-shopping-bag"></i>
+                                <span class="cart-badge" id="cart-count">0</span>
+                            </div>
+                            <div class="cart-details">
+                                <div class="cart-items-text">
+                                    <span id="cart-count-text">0</span> item dipilih
+                                </div>
+                                <div class="cart-total-text">
+                                    Total: <span class="cart-price" id="cart-total">Rp 0</span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="cart-total">
-                            Total: Rp <span id="cart-total">0</span>
-                        </div>
-                        <button onclick="goToCart()" class="btn-primary" style="padding:.5rem 1rem;">
-                            Lihat Keranjang
+                        <button onclick="goToCart()" class="cart-checkout-btn">
+                            <span>Lihat Keranjang</span>
+                            <i class="fas fa-arrow-right"></i>
                         </button>
                     </div>
                 </div>
 
-                <!-- Small Floating Cart Button (mobile) -->
-                <button id="cart-fab" class="checkout-btn cart-fab" onclick="goToCart()" style="width:auto;display:flex;align-items:center;gap:.5rem;padding:.5rem 1rem;">
-                    <i class="fas fa-shopping-cart"></i>
-                    <span id="cart-fab-count" class="badge">0</span>
+                <!-- Floating Cart FAB (mobile) -->
+                <button id="cart-fab" class="cart-fab-modern" onclick="goToCart()" style="display: none;">
+                    <div class="fab-content">
+                        <i class="fas fa-shopping-bag"></i>
+                        <span id="cart-fab-count" class="fab-badge">0</span>
+                    </div>
                 </button>
             </div>
             </div>

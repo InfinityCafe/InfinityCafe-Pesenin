@@ -26,6 +26,7 @@ class QRTrackManager {
         this.currentOrder = null;
         this.updateInterval = null;
         this.isComplete = false;
+        this.loadRetryCount = 0;
         
         this.init();
     }
@@ -42,25 +43,118 @@ class QRTrackManager {
 
     loadOrderData() {
         try {
-            const orderId = sessionStorage.getItem('qr_order_id');
-            const customerName = sessionStorage.getItem('qr_customer_name');
-            const roomName = sessionStorage.getItem('qr_room_name');
+            console.log('=== TRACK PAGE LOADING ORDER DATA ===');
             
-            if (!orderId || !customerName || !roomName) {
+            // PRIORITIZE URL parameters first (more reliable)
+            const urlParams = new URLSearchParams(window.location.search);
+            let orderId = urlParams.get('order_id');
+            let customerName = urlParams.get('customer');
+            let roomName = urlParams.get('room');
+            
+            console.log('URL Parameters:', {
+                order_id: orderId,
+                customer: customerName,
+                room: roomName
+            });
+            
+            // Fall back to session storage only if URL params are empty
+            if (!orderId) {
+                orderId = sessionStorage.getItem('qr_order_id');
+                console.log('Fallback to session storage for order ID:', orderId);
+            }
+            if (!customerName) {
+                customerName = sessionStorage.getItem('qr_customer_name') || sessionStorage.getItem('qr_customer');
+                console.log('Fallback to session storage for customer:', customerName);
+            }
+            if (!roomName) {
+                roomName = sessionStorage.getItem('qr_room_name') || sessionStorage.getItem('qr_room');
+                console.log('Fallback to session storage for room:', roomName);
+            }
+            
+            console.log('Final tracking data:', {
+                orderId: orderId,
+                customerName: customerName,
+                roomName: roomName
+            });
+            
+            // ONLY redirect if absolutely no order ID found anywhere
+            if (!orderId || orderId === 'null' || orderId === 'undefined') {
+                console.log('❌ Absolutely no order ID found anywhere, redirecting to menu');
+                console.log('Debug info - all session storage:');
+                for (let i = 0; i < sessionStorage.length; i++) {
+                    const key = sessionStorage.key(i);
+                    console.log(`  ${key}: ${sessionStorage.getItem(key)}`);
+                }
+                
+                // Give one more chance with a short delay
+                if (this.loadRetryCount < 1) {
+                    this.loadRetryCount++;
+                    console.log('⏰ Giving one more chance in 1 second...');
+                    setTimeout(() => {
+                        this.loadOrderData();
+                    }, 1000);
+                    return;
+                }
+                
                 this.redirectToMenu();
                 return;
             }
+            
+            // Try to get customer and room data from multiple sources
+            if (!customerName) {
+                customerName = sessionStorage.getItem('qr_customer');
+            }
+            
+            if (!roomName) {
+                roomName = sessionStorage.getItem('qr_room');
+            }
+            
+            // Set defaults if still missing
+            if (!customerName) {
+                customerName = 'Customer';
+            }
+            
+            if (!roomName) {
+                roomName = 'Unknown';
+            }
+            
+            console.log('Track page loaded with data:', {
+                orderId: orderId,
+                customerName: customerName,
+                roomName: roomName
+            });
             
             this.orderId = orderId;
             this.customerName = customerName;
             this.roomName = roomName;
             
+            // Ensure session storage has the correct format
+            sessionStorage.setItem('qr_customer_name', customerName);
+            sessionStorage.setItem('qr_room_name', roomName);
+            
             document.getElementById('customer-display').textContent = this.customerName;
             document.getElementById('room-display').textContent = `Ruangan: ${this.roomName}`;
             
+            // Ensure main content becomes visible if a loader exists
+            const loader = document.getElementById('loading-screen');
+            const main = document.getElementById('main-content');
+            if (loader && main) {
+                loader.style.display = 'none';
+                main.style.display = 'block';
+            }
+            
         } catch (error) {
             console.error('Error loading order data:', error);
-            this.redirectToMenu();
+            
+            // Don't immediately redirect on error - try to continue with default values
+            console.log('🔄 Error occurred but attempting to continue with default values');
+            this.orderId = 'unknown';
+            this.customerName = 'Customer';  
+            this.roomName = 'Unknown';
+            
+            // Update display with fallback values
+            document.getElementById('customer-display').textContent = this.customerName;
+            document.getElementById('room-display').textContent = `Ruangan: ${this.roomName}`;
         }
     }
 

@@ -70,6 +70,29 @@ app.get("/order/status/:queueNumber", async (req, res) => {
   }
 });
 
+// Order status by order_id (safer binding)
+app.get("/order/status/by-id/:orderId", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const encodedOrderId = encodeURIComponent(orderId);
+    const resp = await fetch(`http://order_service:8002/order_status/${encodedOrderId}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" }
+    });
+    const text = await resp.text();
+    // Try parse JSON; if fail, passthrough text
+    try {
+      const data = JSON.parse(text);
+      res.status(resp.status).json(data);
+    } catch {
+      res.status(resp.status).send(text);
+    }
+  } catch (error) {
+    console.error("Failed to get order status by id ", error);
+    res.status(500).json({ error: "Failed to get order status by id" });
+  }
+});
+
 app.post("/custom_order", async (req, res) => {
   try {
     const body = req.body;
@@ -96,8 +119,29 @@ app.post("/custom_order", async (req, res) => {
 app.post("/cancel_order", async (req, res) => {
   try {
     const body = req.body;
+    const { order_id = "" } = body || {};
 
-    // Panggil service untuk cancel order
+    // Cek status pesanan terlebih dahulu: hanya boleh 'receive'
+    try {
+      const encodedOrderId = encodeURIComponent(String(order_id || ""));
+      const statusResp = await fetch(`http://order_service:8002/order_status/${encodedOrderId}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+      });
+      const statusJson = await statusResp.json().catch(() => ({}));
+      const currentStatus = (statusJson && (statusJson.data?.status || statusJson.status)) || "";
+      if (String(currentStatus).toLowerCase() !== "receive") {
+        return res.status(400).json({
+          status: "failed",
+          message: "Pesanan hanya bisa dibatalkan saat status 'receive'"
+        });
+      }
+    } catch (checkErr) {
+      console.error("Failed to verify order status before cancel ", checkErr);
+      return res.status(500).json({ error: "Gagal memverifikasi status pesanan sebelum batal" });
+    }
+
+    // Panggil service untuk cancel order (allowed)
     const resp = await fetch("http://order_service:8002/cancel_kitchen", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

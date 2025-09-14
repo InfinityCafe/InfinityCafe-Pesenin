@@ -14,71 +14,97 @@
     <link rel="stylesheet" href="style.css">
     
 </head>
-<body class="qr-page">
+<body class="qr-page" style="background: linear-gradient(135deg, #F5EFE6 0%, #F8F9FA 100%) !important; color: #312929 !important;">
     <div class="gradient-bg">
         <!-- Header -->
-        <div class="glassmorphism">
-            <div class="container-responsive py-4">
-                <div style="display:flex;align-items:center;justify-content:space-between;">
-                    <div style="display:flex;align-items:center;gap:.75rem;">
-                        <button onclick="goBackToMenu()" class="hover-scale" style="margin-right:.5rem;color:#503A3A;background:#F5EFE6;border-radius:20px;padding:.5rem 1rem;font-size:1rem;cursor:pointer;">
-                            ← Kembali
+        <header class="qr-header">
+            <div class="container-responsive">
+                <div class="cart-header-content">
+                    <div class="header-left">
+                        <button onclick="goBackToMenu()" class="back-btn-modern">
+                            <i class="fas fa-arrow-left"></i>
+                            <span>Kembali</span>
                         </button>
-                        <div>
-                            <h1 style="font-size:1.25rem;font-weight:700;color:#312929;">Checkout</h1>
-                            <p style="font-size:.95rem;color:#685454;display:flex;align-items:center;gap:.5rem;">
-                                <span>🍽️</span>
-                                <span id="room-display">Ruangan: -</span>
-                            </p>
+                        <div class="header-info">
+                            <div class="checkout-icon">
+                                <i class="fas fa-shopping-cart"></i>
+                            </div>
+                            <div class="header-text">
+                                <h1 class="page-title">Checkout</h1>
+                                <p class="page-subtitle">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <span id="room-display">Ruangan: -</span>
+                                </p>
+                            </div>
                         </div>
                     </div>
-                    <div style="font-weight:600;color:#312929;">
-                        Hi, <span id="customer-display">-</span>
+                    <div class="customer-badge">
+                        <i class="fas fa-user"></i>
+                        <span>Hi, <span id="customer-display">-</span></span>
                     </div>
                 </div>
             </div>
-        </div>
+        </header>
 
         <div class="container-responsive py-4">
             <div class="spacing-responsive">
                 <!-- Cart Items Card -->
-                <div class="card">
-                    <div class="card-body">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">
-                            <span class="summary-name" style="font-weight:700;color:#312929;">🛒 Keranjang Pesanan</span>
-                            <span class="item-count" id="item-count" style="color:#685454;">0 item</span>
+                <div class="cart-items-card">
+                    <div class="cart-card-header">
+                        <div class="cart-header-info">
+                            <div class="cart-icon">
+                                <i class="fas fa-shopping-bag"></i>
+                            </div>
+                            <div class="cart-title-section">
+                                <h3 class="cart-title">Keranjang Pesanan</h3>
+                                <p class="cart-description">Review pesanan Anda sebelum checkout</p>
+                            </div>
                         </div>
-                        <div id="cart-items" class="cart-items"></div>
+                        <div class="item-counter">
+                            <span class="item-count" id="item-count">0 item</span>
+                        </div>
+                    </div>
+                    <div class="cart-items-container">
+                        <div id="cart-items" class="cart-items-modern"></div>
                     </div>
                 </div>
 
-                <!-- Total Card -->
-                <div class="total card">
-                    <div>
-                        <h3 style="font-size:1.1rem;color:#312929;margin-bottom:.25rem;">Ringkasan Pesanan</h3>
-                        <p class="greeting-date" id="greeting-date" style="font-size:.9rem;color:#685454;">Konfirmasi pesanan Anda</p>
+                <!-- Order Summary Card -->
+                <div class="order-summary-card">
+                    <div class="summary-header">
+                        <div class="summary-icon">
+                            <i class="fas fa-receipt"></i>
+                        </div>
+                        <div class="summary-title-section">
+                            <h3 class="summary-title">Ringkasan Pesanan</h3>
+                            <p class="summary-subtitle" id="greeting-date">Konfirmasi pesanan Anda</p>
+                        </div>
                     </div>
-                    <div style="text-align:right;min-width:220px;">
-                        <div style="display:flex;justify-content:space-between;color:#685454;">
-                            <span>Total Item:</span>
-                            <span id="total-items">0</span>
+                    <div class="summary-details">
+                        <div class="summary-row">
+                            <span class="summary-label">Total Item:</span>
+                            <span class="summary-value" id="total-items">0</span>
                         </div>
-                        <div style="display:flex;justify-content:space-between;color:#685454;">
-                            <span>Estimasi Waktu:</span>
-                            <span id="estimated-time">0 menit</span>
+                        <div class="summary-row">
+                            <span class="summary-label">Estimasi Waktu:</span>
+                            <span class="summary-value" id="estimated-time">0 menit</span>
                         </div>
-                        <div style="display:flex;justify-content:space-between;margin-top:.25rem;color:#312929;">
-                            <span style="font-weight:600;">Total Harga:</span>
-                            <span id="total-price" style="font-weight:700;">Rp 0</span>
+                        <div class="summary-divider"></div>
+                        <div class="summary-row total-row">
+                            <span class="summary-label-total">Total Harga:</span>
+                            <span class="summary-value-total" id="total-price">Rp 0</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Checkout Button -->
-                <button class="checkout-btn hover-scale" id="confirm-btn" onclick="confirmOrder()" disabled>
-                    <span style="margin-right:.75rem;font-size:1.25rem;">🚀</span>
-                    Konfirmasi Pesanan
-                    <span style="margin-left:.75rem;font-size:1.1rem;">→</span>
+                <button class="checkout-btn-modern" id="confirm-btn" onclick="confirmOrder()" disabled>
+                    <div class="checkout-btn-content">
+                        <span class="checkout-icon">🚀</span>
+                        <span class="checkout-text">Konfirmasi Pesanan</span>
+                        <span class="checkout-arrow">→</span>
+                    </div>
+                    <div class="checkout-btn-bg"></div>
                 </button>
             </div>
         </div>

@@ -1170,15 +1170,26 @@ def get_today_orders(db: Session = Depends(get_db)):
 
 @app.get("/order/status/{queue_number}", summary="Get order status by queue number", tags=["Order"])
 def get_order_status(queue_number: int, db: Session = Depends(get_db)):
-    """Mengambil status pesanan berdasarkan nomor antrian."""
-    order = db.query(Order).filter(Order.queue_number == queue_number).first()
-    
+    """Mengambil status pesanan berdasarkan nomor antrian untuk HARI INI (Asia/Jakarta)."""
+    # Batasi pencarian ke hari ini sesuai logika dashboard (queue reset per hari)
+    today_jakarta = datetime.now(jakarta_tz).date()
+    start_of_day = datetime.combine(today_jakarta, datetime.min.time()).replace(tzinfo=jakarta_tz)
+    end_of_day = datetime.combine(today_jakarta, datetime.max.time()).replace(tzinfo=jakarta_tz)
+
+    order = db.query(Order).filter(
+        and_(
+            Order.queue_number == queue_number,
+            Order.created_at >= start_of_day,
+            Order.created_at <= end_of_day
+        )
+    ).first()
+
     if not order:
-        raise HTTPException(status_code=404, detail=f"Pesanan dengan nomor antrian {queue_number} tidak ditemukan")
-    
+        raise HTTPException(status_code=404, detail=f"Pesanan dengan nomor antrian {queue_number} tidak ditemukan untuk hari ini")
+
     # Get order items
     order_items = db.query(OrderItem).filter(OrderItem.order_id == order.order_id).all()
-    
+
     return {
         "order_id": order.order_id,
         "queue_number": order.queue_number,

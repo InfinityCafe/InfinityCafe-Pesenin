@@ -44,6 +44,19 @@ class QRCartManager {
             const customerData = sessionStorage.getItem('qr_customer');
             const roomData = sessionStorage.getItem('qr_room');
             
+            // Check if we have order tracking data (post-checkout state)
+            const orderId = sessionStorage.getItem('qr_order_id');
+            const customerName = sessionStorage.getItem('qr_customer_name');
+            const roomName = sessionStorage.getItem('qr_room_name');
+            
+            // If we have tracking data but no cart data, redirect to tracking
+            if (orderId && customerName && roomName && !cartData) {
+                console.log('Post-checkout state detected, redirecting to tracking');
+                this.goToTracking();
+                return;
+            }
+            
+            // If we don't have the required session data for cart, redirect to menu
             if (!cartData || !customerData || !roomData) {
                 this.redirectToMenu();
                 return;
@@ -219,9 +232,64 @@ class QRCartManager {
             const result = await response.json();
             
             if (result.status === 'success') {
-                this.orderId = result.data.queue_number;
+                console.log('Full order result:', result);
+                // Always keep both order_id (string) and queue_number (display)
+                const orderId = (result.data && (result.data.order_id || result.data.id || result.data.orderId)) || null;
+                const queueNumber = (result.data && (result.data.queue_number || result.data.queue || result.data.number)) || null;
+                
+                // Use order_id as the canonical tracking ID, and queue_number strictly from backend
+                this.orderId = orderId || null;
+                this.queueNumber = queueNumber || null; // no fallback to orderId
+                
+                console.log('Order successful, ID:', this.orderId, 'Queue:', this.queueNumber);
+                console.log('Customer data:', this.customerName, 'Room:', this.roomName);
+                
+                // Store tracking data FIRST before clearing cart
+                if (this.orderId) sessionStorage.setItem('qr_order_id', this.orderId);
+                if (this.queueNumber) sessionStorage.setItem('qr_queue_number', this.queueNumber);
+                sessionStorage.setItem('qr_customer_name', this.customerName);
+                sessionStorage.setItem('qr_room_name', this.roomName);
+                console.log('Tracking data stored preemptively:', {
+                    orderId: this.orderId,
+                    queueNumber: this.queueNumber,
+                    customerName: this.customerName,
+                    roomName: this.roomName
+                });
+                
+                // Verify it was stored correctly
+                console.log('Verification - stored session data:', {
+                    qr_order_id: sessionStorage.getItem('qr_order_id'),
+                    qr_queue_number: sessionStorage.getItem('qr_queue_number'),
+                    qr_customer_name: sessionStorage.getItem('qr_customer_name'),
+                    qr_room_name: sessionStorage.getItem('qr_room_name')
+                });
+                
+                // Persist a durable local session for the track page (prevents tampering via URL)
+                try {
+                    const orderSession = {
+                        orderId: this.orderId,
+                        queueNumber: this.queueNumber,
+                        customerName: this.customerName,
+                        roomNumber: this.roomName,
+                        status: 'receive',
+                        items: this.cart.map(i => ({
+                            menu_name: i.menu_name,
+                            quantity: i.quantity,
+                            preference: i.preference || '',
+                            notes: i.notes || ''
+                        })),
+                        timestamp: Date.now(),
+                        isActive: true
+                    };
+                    localStorage.setItem('qr_order_session', JSON.stringify(orderSession));
+                    console.log('Local order session saved');
+                } catch (e) {
+                    console.warn('Failed to save local order session:', e);
+                }
+                
                 this.showSuccessModal(result.data);
-                this.clearCartData();
+                // Don't clear cart data immediately - let it persist until user successfully reaches track page
+                console.log('Order confirmed, cart data preserved for tracking');
             } else {
                 throw new Error(result.message || 'Gagal membuat pesanan');
             }
@@ -273,18 +341,29 @@ class QRCartManager {
             </div>
         `;
         
-        // Store order ID for tracking
-        sessionStorage.setItem('qr_order_id', this.orderId);
-        sessionStorage.setItem('qr_customer_name', this.customerName);
-        sessionStorage.setItem('qr_room_name', this.roomName);
+        // Data already stored in confirmOrder method
+        console.log('Success modal shown, data already stored');
         
         document.getElementById('success-modal').classList.remove('hidden');
+        
+        // No automatic timer - user clicks button to proceed to tracking
+        console.log('Success modal displayed, ready for user to click track button');
     }
 
     clearCartData() {
+        // Only clear cart data, keep customer and room data for tracking
+        sessionStorage.removeItem('qr_cart');
+        // Keep qr_customer and qr_room for tracking page
+    }
+
+    clearAllSessionData() {
+        // Method to completely clear all QR session data when needed
         sessionStorage.removeItem('qr_cart');
         sessionStorage.removeItem('qr_customer');
         sessionStorage.removeItem('qr_room');
+        sessionStorage.removeItem('qr_order_id');
+        sessionStorage.removeItem('qr_customer_name');
+        sessionStorage.removeItem('qr_room_name');
     }
 
     redirectToMenu() {
@@ -293,7 +372,54 @@ class QRCartManager {
     }
 
     goToTracking() {
-        window.location.replace(`/qr-track`);
+        console.log('=== STARTING REDIRECT TO TRACK ===');
+        console.log('Current instance data:', {
+            orderId: this.orderId,
+            customerName: this.customerName,
+            roomName: this.roomName
+        });
+        
+        // Check current session storage
+        console.log('Current session storage before redirect:', {
+            qr_order_id: sessionStorage.getItem('qr_order_id'),
+            qr_customer_name: sessionStorage.getItem('qr_customer_name'),
+            qr_room_name: sessionStorage.getItem('qr_room_name'),
+            qr_customer: sessionStorage.getItem('qr_customer'),
+            qr_room: sessionStorage.getItem('qr_room')
+        });
+        
+        // Force store the data again to be absolutely sure
+        if (this.orderId) {
+            sessionStorage.setItem('qr_order_id', this.orderId);
+            console.log('Stored order ID:', this.orderId);
+        }
+        if (this.customerName) {
+            sessionStorage.setItem('qr_customer_name', this.customerName);
+            console.log('Stored customer name:', this.customerName);
+        }
+        if (this.roomName) {
+            sessionStorage.setItem('qr_room_name', this.roomName);
+            console.log('Stored room name:', this.roomName);
+        }
+        
+        console.log('Final session storage before redirect:', {
+            qr_order_id: sessionStorage.getItem('qr_order_id'),
+            qr_customer_name: sessionStorage.getItem('qr_customer_name'),
+            qr_room_name: sessionStorage.getItem('qr_room_name')
+        });
+        
+        console.log('=== REDIRECTING TO /qr-track ===');
+        
+        // Clear cart data just before redirect (after session storage is set)
+        this.clearCartData();
+        console.log('Cart cleared just before redirect');
+        
+        // Use a small timeout to ensure session storage is fully committed
+        setTimeout(() => {
+            console.log('Executing redirect now...');
+            // Redirect to clean URL (no params) so user cannot tamper
+            window.location.href = `/qr-track`;
+        }, 100);
     }
 
     updateDateDisplay() {
@@ -309,7 +435,30 @@ class QRCartManager {
     }
 
     showError(message) {
-        alert('Error: ' + message);
+        // Create or show error modal instead of alert
+        let errorModal = document.getElementById('error-modal');
+        if (!errorModal) {
+            // Create error modal if it doesn't exist
+            errorModal = document.createElement('div');
+            errorModal.id = 'error-modal';
+            errorModal.className = 'modal hidden';
+            errorModal.innerHTML = `
+                <div class="modal-content">
+                    <div class="error-icon" style="width: 80px; height: 80px; background: linear-gradient(135deg, #dc3545, #c82333); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; box-shadow: 0 12px 24px rgba(220, 53, 69, 0.3);">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 2rem; color: white;"></i>
+                    </div>
+                    <div class="error-title" style="font-size: 1.5rem; font-weight: 700; color: #312929; margin-bottom: 1rem;">Terjadi Kesalahan</div>
+                    <div class="error-message" id="error-message-text" style="font-size: 1rem; color: #685454; margin-bottom: 1.5rem; line-height: 1.6;"></div>
+                    <button onclick="document.getElementById('error-modal').classList.add('hidden')" class="btn-primary" style="background: linear-gradient(135deg, #dc3545, #c82333); box-shadow: 0 6px 20px rgba(220, 53, 69, 0.3);">
+                        Tutup
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(errorModal);
+        }
+        
+        document.getElementById('error-message-text').textContent = message;
+        errorModal.classList.remove('hidden');
     }
 }
 
