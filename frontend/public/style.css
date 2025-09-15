@@ -4516,6 +4516,7 @@ body.qr-page #name-input-section {
 
 /* Reuse tab navigation style */
 #category-tabs .tab-btn {
+  font-family: 'Inter', sans-serif;
   padding: 8px 14px;
   border: 1.2px solid #DCD0A8;
   border-radius: 10px;
@@ -4683,7 +4684,7 @@ body.qr-page .modal-title {
   font-weight: 700;
   color: #312929;
   margin-bottom: 1.5rem;
-  padding-right: 2rem;
+  /* padding-right: 2rem; */
 }
 
 body.qr-page .modal-body {
@@ -4699,6 +4700,7 @@ body.qr-page .menu-price {
   font-weight: 700;
   color: #207156;
   margin-bottom: 0.5rem;
+  text-wrap: nowrap;
 }
 
 body.qr-page .menu-description {
@@ -4795,6 +4797,7 @@ body.qr-page .quantity-input:focus {
 /* Notes Section */
 body.qr-page .notes-section {
   margin-bottom: 1.5rem;
+  background: white;
 }
 
 body.qr-page .form-textarea {
@@ -4899,6 +4902,7 @@ body.qr-page .item-price {
   font-weight: 700;
   color: #207156;
   font-size: 1rem;
+  margin: auto;
 }
 
 body.qr-page .remove-btn {
@@ -4984,11 +4988,11 @@ body.qr-page .status-indicator {
 }
 
 body.qr-page .status-icon {
-  width: 60px;
-  height: 60px;
+  width: 1rem;
+  height: 1rem;
   border-radius: 50%;
   background: #F5EFE6;
-  border: 3px solid #DCD0A8;
+  /* border: 3px solid #DCD0A8; */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5100,6 +5104,10 @@ body.qr-page .info-row {
 body.qr-page .info-row:last-child {
   border-bottom: none;
 }
+body.qr-page .status-receive {
+  /* background: #E8F5E8; */
+  color: white !important;
+}
 
 body.qr-page .status-badge {
   padding: 0.25rem 0.75rem;
@@ -5152,17 +5160,21 @@ body.qr-page .success-message {
 }
 
 body.qr-page .order-details {
-  background: #F5EFE6;
+  background: white;
   border-radius: 10px;
-  padding: 1.5rem;
-  margin-bottom: 2rem;
+  /* padding: 1.5rem; */
+  /* margin-bottom: 2rem; */
   text-align: left;
+}
+
+body.qr-page .order-info {
+  padding: 1rem;
 }
 
 /* Queue Number */
 body.qr-page .queue-number {
   background: #207156;
-  color: white;
+  color: white !important;
   padding: 0.5rem 1rem;
   border-radius: 8px;
   font-weight: 700;
@@ -5201,6 +5213,7 @@ body.qr-page .queue-number {
     align-items: stretch;
     flex-direction: row;
     justify-content: space-between;
+    margin: auto;
   }
 }
 

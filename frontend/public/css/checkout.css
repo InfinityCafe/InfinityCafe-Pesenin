@@ -1225,6 +1225,7 @@ body.qr-page .gradient-bg {
     display: flex;
     align-items: center;
     justify-content: center;
+    margin: auto;
 }
 
 .fab-content i {
@@ -1447,6 +1448,7 @@ body.qr-page .gradient-bg {
     align-items: center;
     gap: 1rem;
     background: linear-gradient(135deg, #F8F9FA, #F5EFE6);
+    border-radius: 10px;
 }
 
 .summary-icon {
@@ -2555,6 +2557,7 @@ body.qr-page .gradient-bg {
 
 .info-row span:last-child {
     color: #312929;
+    color: white;
     font-weight: 600;
     font-size: 0.9rem;
 }

@@ -154,13 +154,13 @@ body {
 /* --- Page Header --- */
 .page-header {
   text-align: center;
-  margin-bottom: 2rem;
+  /* margin-bottom: 2rem; */
 }
 
 .page-header .header-icon {
   width: 4rem;
   height: 4rem;
-  font-size: 2.5rem;
+  font-size: 2rem;
   /* background-color: #3b82f6; */
   background: linear-gradient(to right, #207156, #60B7A6);
   color: white;
@@ -335,38 +335,59 @@ body {
 }
 
 .order-item {
-  padding: 1rem 0;
-  border-bottom: 1px solid #f1f5f9;
+  background: #F8F9FA;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid #F5EFE6;
+  transition: all 0.3s ease;
 }
+
+.order-item:hover {
+  background: #F5EFE6;
+  border-color: #DCD0A8;
+}
+
 .order-item:last-child {
-  border-bottom: none;
+  margin-bottom: 0;
 }
 
-.item-details {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.item-name {
+.item-details .item-name {
   font-weight: 600;
-  color: #212529;
+  color: #312929;
+  margin-bottom: 0.25rem;
+  font-size: 1rem;
 }
 
-.item-quantity {
+.item-details .item-quantity {
+  color: #685454;
   font-size: 0.875rem;
-  color: #64748b;
+  margin-bottom: 0.25rem;
+}
+
+.item-details .item-flavor {
+  color: #8D7272;
+  font-size: 0.875rem;
+  font-style: italic;
 }
 
 .item-notes {
   margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #E5E7EB;
   font-size: 0.875rem;
-  color: #ca8a04;
-  background-color: #fefce8;
-  padding: 0.5rem;
-  border-radius: 0.5rem;
-  border-left: 4px solid #facc15;
+  color: #685454;
+}
+
+.item-notes strong {
+  color: #312929;
+}
+
+.no-items {
+  text-align: center;
+  color: #8D7272;
+  font-style: italic;
+  padding: 2rem;
 }
 
 /* --- Action Buttons --- */
