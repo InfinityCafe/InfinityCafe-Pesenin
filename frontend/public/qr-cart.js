@@ -89,6 +89,46 @@ class QRCartManager {
     setupEventListeners() {
         // Auto-update confirm button state
         this.updateConfirmButton();
+        
+        // Event delegation for cart items
+        const cartContainer = document.getElementById('cart-items');
+        if (cartContainer) {
+            cartContainer.addEventListener('click', (e) => {
+                const cartItem = e.target.closest('.cart-item');
+                if (!cartItem) return;
+                
+                const index = parseInt(cartItem.dataset.index);
+                
+                // Handle notes edit button click
+                if (e.target.closest('.notes-edit-btn')) {
+                    this.startInlineEdit(index);
+                }
+                
+                // Handle save button click
+                else if (e.target.closest('.btn-save-inline')) {
+                    this.saveInlineNotes(index);
+                }
+                
+                // Handle cancel button click
+                else if (e.target.closest('.btn-cancel-inline')) {
+                    this.cancelInlineEdit(index);
+                }
+                
+                // Handle quantity controls
+                else if (e.target.closest('.btn-decrease')) {
+                    this.updateQuantity(index, -1);
+                }
+                
+                else if (e.target.closest('.btn-increase')) {
+                    this.updateQuantity(index, 1);
+                }
+                
+                // Handle remove button
+                else if (e.target.closest('.btn-remove')) {
+                    this.removeItem(index);
+                }
+            });
+        }
     }
 
     renderCartItems() {
@@ -117,33 +157,105 @@ class QRCartManager {
     createCartItemElement(item, index) {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'cart-item';
+        itemDiv.dataset.index = index;
         
         const flavorText = item.preference ? `<div class="item-flavor">Rasa: ${item.preference}</div>` : '';
-        const notesText = item.notes ? `<div class="item-notes">Catatan: ${item.notes}</div>` : '';
+        
+        // Enhanced notes section with edit functionality
+        let notesSection = '';
+        if (item.notes) {
+            notesSection = `
+                <div class="notes-display" id="notes-display-${index}">
+                    <div class="notes-content">
+                        <span class="notes-text">Catatan: ${item.notes}</span>
+                    </div>
+                    <button class="notes-edit-btn">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                </div>
+                <div class="notes-inline-edit" id="notes-edit-${index}" style="display: none;">
+                    <textarea class="notes-inline-input" id="notes-input-${index}" placeholder="Tulis catatan untuk pesanan ini...">${item.notes}</textarea>
+                    <div class="notes-actions">
+                        <div class="keyboard-hint">Tekan Ctrl+Enter untuk simpan, Esc untuk batal</div>
+                        <div class="notes-action-buttons">
+                            <button class="btn-save-inline">
+                                <i class="fas fa-check"></i> Simpan
+                            </button>
+                            <button class="btn-cancel-inline">
+                                <i class="fas fa-times"></i> Batal
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            notesSection = `
+                <div class="notes-display" id="notes-display-${index}">
+                    <div class="notes-content notes-empty">
+                        <span class="notes-text">Tidak ada catatan</span>
+                    </div>
+                    <button class="notes-edit-btn">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                </div>
+                <div class="notes-inline-edit" id="notes-edit-${index}" style="display: none;">
+                    <textarea class="notes-inline-input" id="notes-input-${index}" placeholder="Tulis catatan untuk pesanan ini..."></textarea>
+                    <div class="notes-actions">
+                        <div class="keyboard-hint">Tekan Ctrl+Enter untuk simpan, Esc untuk batal</div>
+                        <div class="notes-action-buttons">
+                            <button class="btn-save-inline">
+                                <i class="fas fa-check"></i> Simpan
+                            </button>
+                            <button class="btn-cancel-inline">
+                                <i class="fas fa-times"></i> Batal
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
         
         itemDiv.innerHTML = `
-            <div class="item-info">
+            <div class="item-header">
                 <div class="item-name">${item.menu_name}</div>
-                <div class="item-name-id">${item.menu_name_id}</div>
-                ${flavorText}
-                ${notesText}
-                <div class="item-time">
-                    <i class="fas fa-clock"></i>
-                    ${item.making_time} menit
-                </div>
-            </div>
-            <div class="item-controls">
-                <div class="quantity-controls">
-                    <button onclick="qrCartManager.updateQuantity(${index}, -1)" class="quantity-btn">-</button>
-                    <span class="quantity-display">${item.quantity}</span>
-                    <button onclick="qrCartManager.updateQuantity(${index}, 1)" class="quantity-btn">+</button>
-                </div>
-                <div class="item-price">Rp ${(item.price * item.quantity).toLocaleString('id-ID')}</div>
-                <button onclick="qrCartManager.removeItem(${index})" class="remove-btn">
-                    <i class="fas fa-trash"></i>
+                <button class="remove-btn btn-remove">
+                    <i class="fa-solid fa-trash"></i>
                 </button>
             </div>
+            <div class="item-name-id">${item.menu_name_id}</div>
+            ${flavorText}
+
+            ${notesSection}
+    
+            <div class="item-time">
+                <i class="fas fa-clock"></i>
+                ${item.making_time} menit
+            </div>
+            <div class="item-footer">
+                <div class="item-price">Rp ${(item.price * item.quantity).toLocaleString('id-ID')}</div>
+                <div class="quantity-controls">
+                    <button class="quantity-btn btn-decrease">-</button>
+                    <span class="quantity-display">${item.quantity}</span>
+                    <button class="quantity-btn btn-increase">+</button>
+                </div>
+            </div>
         `;
+
+        // Add keyboard event listeners after element is created
+        setTimeout(() => {
+            const textarea = itemDiv.querySelector(`#notes-input-${index}`);
+            if (textarea) {
+                textarea.addEventListener('keydown', (e) => {
+                    if (e.ctrlKey && e.key === 'Enter') {
+                        e.preventDefault();
+                        this.saveInlineNotes(index);
+                    } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        this.cancelInlineEdit(index);
+                    }
+                });
+            }
+        }, 0);
 
         return itemDiv;
     }
@@ -181,6 +293,82 @@ class QRCartManager {
             sessionStorage.setItem('qr_cart', JSON.stringify(this.cart));
         } catch (e) {
             console.error('Failed to persist cart to sessionStorage', e);
+        }
+    }
+
+    // Inline Notes Editing Methods
+    startInlineEdit(index) {
+        const displayElement = document.getElementById(`notes-display-${index}`);
+        const editElement = document.getElementById(`notes-edit-${index}`);
+        const textarea = document.getElementById(`notes-input-${index}`);
+        
+        if (displayElement && editElement && textarea) {
+            displayElement.style.display = 'none';
+            editElement.style.display = 'block';
+            
+            // Focus on textarea and select all text if editing existing notes
+            textarea.focus();
+            if (textarea.value.trim()) {
+                textarea.select();
+            }
+            
+            // Store original value for cancel functionality
+            textarea.setAttribute('data-original', textarea.value);
+        }
+    }
+
+    saveInlineNotes(index) {
+        const textarea = document.getElementById(`notes-input-${index}`);
+        const displayElement = document.getElementById(`notes-display-${index}`);
+        const editElement = document.getElementById(`notes-edit-${index}`);
+        
+        if (textarea && displayElement && editElement) {
+            const newNotes = textarea.value.trim();
+            
+            // Update cart data
+            this.cart[index].notes = newNotes;
+            this.saveCartData();
+            
+            // Update display
+            if (newNotes) {
+                displayElement.innerHTML = `
+                    <div class="notes-content">
+                        <span class="notes-text">Catatan: ${newNotes}</span>
+                    </div>
+                    <button class="notes-edit-btn">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                `;
+            } else {
+                displayElement.innerHTML = `
+                    <div class="notes-content notes-empty">
+                        <span class="notes-text">Tidak ada catatan</span>
+                    </div>
+                    <button class="notes-edit-btn">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                `;
+            }
+            
+            // Hide edit mode
+            displayElement.style.display = 'flex';
+            editElement.style.display = 'none';
+        }
+    }
+
+    cancelInlineEdit(index) {
+        const textarea = document.getElementById(`notes-input-${index}`);
+        const displayElement = document.getElementById(`notes-display-${index}`);
+        const editElement = document.getElementById(`notes-edit-${index}`);
+        
+        if (textarea && displayElement && editElement) {
+            // Restore original value
+            const originalValue = textarea.getAttribute('data-original') || '';
+            textarea.value = originalValue;
+            
+            // Hide edit mode
+            displayElement.style.display = 'flex';
+            editElement.style.display = 'none';
         }
     }
 

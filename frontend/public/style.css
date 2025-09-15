@@ -4758,11 +4758,11 @@ body.qr-page .quantity-controls {
 }
 
 body.qr-page .quantity-btn {
-  width: 40px;
-  height: 40px;
+  width: 30px;
+  height: 30px;
   border: 2px solid #DCD0A8;
   background: #FFFFFF;
-  border-radius: 8px;
+  border-radius: 30px;
   font-size: 1.2rem;
   font-weight: 600;
   color: #312929;
@@ -4838,10 +4838,10 @@ body.qr-page .cart-items {
 }
 
 body.qr-page .cart-item {
-  display: flex;
+  /* display: flex; */
   justify-content: space-between;
   align-items: flex-start;
-  padding: 1rem;
+  padding: rem;
   border: 1px solid #E5E7EB;
   border-radius: 10px;
   margin-bottom: 1rem;
@@ -4903,10 +4903,10 @@ body.qr-page .item-price {
   font-weight: 700;
   color: #207156;
   font-size: 1rem;
-  margin: auto;
+  /* margin: auto; */
 }
 
-body.qr-page .remove-btn {
+/* body.qr-page .remove-btn {
   background: none;
   border: none;
   color: #B3261E;
@@ -4915,11 +4915,12 @@ body.qr-page .remove-btn {
   border-radius: 4px;
   transition: background-color 0.2s ease;
   margin: auto;
+  font-size: 1rem;
 }
 
 body.qr-page .remove-btn:hover {
   background-color: #FEE2E2;
-}
+} */
 
 /* Order Summary */
 body.qr-page .order-summary {
