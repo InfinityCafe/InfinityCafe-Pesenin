@@ -7,8 +7,7 @@ const { error } = require("console");
 
 const app = express();
 const PORT = 8080;
-const N8N_WEBHOOK_URL_ORDER_STATUS = process.env.N8N_WEBHOOK_URL +'/trigger-order-status' || "https://liberal-relative-panther.ngrok-free.app/webhook/trigger-order-status";
-const N8N_WEBHOOK_URL_KITCHEN_STATUS = process.env.N8N_WEBHOOK_URL +'/trigger-kitchen-status' || "https://liberal-relative-panther.ngrok-free.app/webhook/trigger-kitchen-status";
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "https://liberal-relative-panther.ngrok-free.app/webhook/trigger-order-status";
 
 // Middleware
 app.use(express.json());
@@ -100,7 +99,7 @@ app.post("/cancel_order", async (req, res) => {
         reason: String(reason || "Cancelled by user")
       });
 
-      fetch(`${N8N_WEBHOOK_URL_ORDER_STATUS}?${qs.toString()}`, { method: "GET" })
+      fetch(`${N8N_WEBHOOK_URL}?${qs.toString()}`, { method: "GET" })
         .catch(err => console.error("Failed to call n8n webhook ", err));
     } catch (whErr) {
       console.error("n8n webhook error ", whErr);
@@ -143,7 +142,7 @@ app.post("/kitchen/update_status/:order_id", async (req, res) => {
         status: String(status || ""),
         reason: String(reason || "")
       });
-      fetch(`${N8N_WEBHOOK_URL_ORDER_STATUS}?${qs.toString()}`, { method: "GET" })
+      fetch(`${N8N_WEBHOOK_URL}?${qs.toString()}`, { method: "GET" })
         .catch(err => console.error("Failed to call n8n webhook ", err));
     } catch (whErr) {
       console.error("n8n webhook error ", whErr);
@@ -173,26 +172,9 @@ app.post("/kitchen/status", async (req, res) => {
     const resp = await fetch("http://kitchen_service:8003/kitchen/status", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+       body: JSON.stringify(body)
     });
     const data = await resp.json();
-
-    // Trigger n8n webhook (GET) - non-blocking
-    try {
-      const status = body.is_open ? "ON" : (body.off_type === "temporary" ? "OFF_SEMENTARA" : "OFF");
-      const reason = body.reason || "";
-      const estimasi = body.estimasi_minutes || "";
-      const qs = new URLSearchParams({
-        status,
-        reason,
-        estimasi: String(estimasi)
-      });
-      fetch(`${N8N_WEBHOOK_URL_KITCHEN_STATUS}?${qs.toString()}`, { method: "GET" })
-        .catch(err => console.error("Failed to call n8n webhook for kitchen status", err));
-    } catch (whErr) {
-      console.error("n8n webhook error for kitchen status", whErr);
-    }
-
     res.json(data);
   } catch (err) {
     console.error("Failed to update kitchen status ", err);

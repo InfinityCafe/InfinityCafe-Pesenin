@@ -1,4 +1,3 @@
-
 from sqlalchemy import or_, and_, func, Boolean
 
 from fastapi import FastAPI, HTTPException, Depends, Request, Body
@@ -80,15 +79,8 @@ class KitchenStatus(Base):
     __tablename__ = "kitchen_status"
     id = Column(String, primary_key=True, default="kitchen")
     is_open = Column(Boolean, default=True)
-    temporary_off_reason = Column(Text, nullable=True)
-    temporary_off_until = Column(DateTime(timezone=True), nullable=True)
 
-class KitchenStatusRequest(BaseModel):
-    is_open: bool
-    off_type: Optional[str] = "permanent"  # "permanent" or "temporary"
-    reason: Optional[str] = None
-    estimasi_minutes: Optional[int] = None
-
+    
 class KitchenOrder(Base):
     __tablename__ = "kitchen_orders"
     order_id = Column(String, primary_key=True, index=True)
@@ -113,10 +105,8 @@ class OrderItem(BaseModel):
     preference: Optional[str] = ""
     notes: Optional[str] = ""
 
-## Removed duplicate KitchenStatusRequest definition. Only the correct model remains above.
-    off_type: Optional[str] = "permanent"  # "permanent" or "temporary"
-    reason: Optional[str] = None
-    until: Optional[datetime] = None
+class KitchenStatusRequest(BaseModel):
+    is_open: bool
 
 class KitchenOrderRequest(BaseModel):
     order_id: str
@@ -140,6 +130,8 @@ def get_kitchen_status(db: Session):  #
         db.commit()
     return status
 
+class KitchenStatusRequest(BaseModel):
+    is_open: bool
 
 @app.get("/kitchen/status", summary="Cek status dapur saat ini", tags=["Kitchen"])
 def get_kitchen_status_simple(db: Session = Depends(get_db)):
@@ -147,9 +139,7 @@ def get_kitchen_status_simple(db: Session = Depends(get_db)):
     return {
         "status": "success",
         "data": {
-            "is_open": status.is_open,
-            "temporary_off_reason": status.temporary_off_reason,
-            "temporary_off_until": status.temporary_off_until
+            "is_open": status.is_open
         }
     }
 
@@ -165,33 +155,14 @@ async def set_kitchen_status(
     status_request: KitchenStatusRequest, 
     db: Session = Depends(get_db)
 ):
+
     status = get_kitchen_status(db)
     status.is_open = status_request.is_open
-    if not status_request.is_open:
-        if status_request.off_type == "temporary":
-            status.temporary_off_reason = status_request.reason
-            if status_request.estimasi_minutes:
-                status.temporary_off_until = datetime.now(jakarta_tz) + timedelta(minutes=status_request.estimasi_minutes)
-            else:
-                status.temporary_off_until = None
-        else:
-            status.temporary_off_reason = None
-            status.temporary_off_until = None
-    else:
-        status.temporary_off_reason = None
-        status.temporary_off_until = None
     db.commit()
     return {
         "status": "success",
-        "message": (
-            f"Kitchen status set to {'ON' if status_request.is_open else 'OFF'}"
-            + (f" (Temporary OFF: {status_request.reason}, estimasi {status_request.estimasi_minutes} menit)" if status_request.off_type == "temporary" and not status_request.is_open else "")
-        ),
-        "data": {
-            "is_open": status.is_open,
-            "temporary_off_reason": status.temporary_off_reason,
-            "temporary_off_until": status.temporary_off_until
-        }
+        "message": f"Kitchen status set to {'ON' if status_request.is_open else 'OFF'}",
+        "data": {"is_open": status_request.is_open}
     }
 
 @app.post("/receive_order", summary="Terima pesanan", tags=["Kitchen"], operation_id="receive order")

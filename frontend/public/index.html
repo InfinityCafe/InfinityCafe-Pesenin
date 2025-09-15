@@ -33,40 +33,8 @@
           <input type="checkbox" id="kitchen-toggle" checked>
           <span class="slider"></span>
         </label>
+        <!-- <span id="kitchen-status-text" class="kitchen-status-text">BUKA</span> -->
       </div>
-  <!-- Modal Pilihan OFF -->
-  <div id="off-choice-modal" class="modal hidden">
-    <div class="modal-content">
-      <button class="modal-close" onclick="closeOffChoiceModal()">&times;</button>
-      <h3 class="modal-title">Close Kitchen</h3>
-      <p>Select OFF type:</p>
-      <div style="display:flex;gap:12px;margin-top:16px;">
-        <button class="modal-btn-outline" onclick="handleOffPermanen()">OFF</button>
-        <button class="modal-btn-outline" onclick="showOffSementaraForm()">Temporary OFF</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal Form OFF Sementara -->
-  <div id="off-sementara-modal" class="modal hidden">
-    <div class="modal-content">
-      <button class="modal-close" onclick="closeOffSementaraModal()">&times;</button>
-      <h3 class="modal-title">Temporary OFF</h3>
-      <form id="off-sementara-form" onsubmit="submitOffSementara(event)">
-        <div class="form-group">
-          <label for="off-reason">Reason</label>
-          <input type="text" id="off-reason" name="reason" required placeholder="E.g.: Urgent matter" />
-        </div>
-        <div class="form-group">
-          <label for="off-estimasi">Estimated Time (minutes)</label>
-          <input type="number" id="off-estimasi" name="estimasi" required min="1" placeholder="E.g.: 30" />
-        </div>
-        <div class="modal-actions">
-          <button type="submit" class="save-button">Submit</button>
-        </div>
-      </form>
-    </div>
-  </div>
     </div>
   </nav>
 
@@ -224,87 +192,6 @@
 
   <script src="script.js"></script>
   <script src="index.js"></script>
-  <script>
-    // Utility modal
-    function showModal(id) {
-      document.getElementById(id).classList.remove('hidden');
-    }
-    function closeModal(id) {
-      document.getElementById(id).classList.add('hidden');
-    }
-    // Kitchen toggle logic
-    const kitchenToggle = document.getElementById('kitchen-toggle');
-    let ignoreToggle = false;
-    kitchenToggle.addEventListener('change', function(e) {
-      if (ignoreToggle) return;
-      if (!kitchenToggle.checked) {
-        showModal('off-choice-modal');
-        // Prevent toggle from changing until user chooses
-        ignoreToggle = true;
-        setTimeout(() => { kitchenToggle.checked = true; ignoreToggle = false; }, 100);
-      } else {
-        // ON: langsung update status
-        updateKitchenStatus(true);
-      }
-    });
-
-    function closeOffChoiceModal() {
-      closeModal('off-choice-modal');
-    }
-    function handleOffPermanen() {
-      closeOffChoiceModal();
-      updateKitchenStatus(false, 'permanent');
-    }
-    function showOffSementaraForm() {
-      closeOffChoiceModal();
-      showModal('off-sementara-modal');
-    }
-    function closeOffSementaraModal() {
-      closeModal('off-sementara-modal');
-    }
-    function submitOffSementara(e) {
-      e.preventDefault();
-      const reason = document.getElementById('off-reason').value;
-      const estimasi = parseInt(document.getElementById('off-estimasi').value);
-      closeOffSementaraModal();
-      updateKitchenStatus(false, 'temporary', reason, estimasi);
-    }
-
-    // Update kitchen status to backend
-    function updateKitchenStatus(isOpen, offType = 'permanent', reason = '', estimasi = null) {
-      const payload = { is_open: isOpen };
-      if (!isOpen) {
-        payload.off_type = offType;
-        if (offType === 'temporary') {
-          payload.reason = reason;
-          payload.estimasi_minutes = estimasi;
-        }
-      }
-      fetch('/kitchen/status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-      .then(res => res.json())
-      .then(data => {
-        // Optionally show feedback
-        if (!isOpen) {
-          kitchenToggle.checked = false;
-        } else {
-          kitchenToggle.checked = true;
-        }
-        // Optionally show banner
-        if (!isOpen) {
-          document.getElementById('kitchen-off-banner').classList.remove('hidden');
-        } else {
-          document.getElementById('kitchen-off-banner').classList.add('hidden');
-        }
-      })
-      .catch(err => {
-        alert('Gagal update status dapur!');
-      });
-    }
-  </script>
 
 </body>
 </html>
