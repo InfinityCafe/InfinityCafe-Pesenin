@@ -506,6 +506,29 @@ function goToCart() {
   qrMenuManager.goToCart();
 }
 
+function updateMenuCategoriesPadding() {
+    const card = document.getElementById('card-container');
+    const cartSummary = document.getElementById('cart-summary');
+    const cartFab = document.getElementById('cart-fab');
+    // Deteksi apakah cart summary/fab sedang tampil
+    const isCartVisible = (cartSummary && cartSummary.style.display !== 'none') ||
+                          (cartFab && cartFab.style.display !== 'none');
+    if (isCartVisible) {
+        // Padding bawah sesuai tinggi card keranjang
+        if (window.innerWidth <= 768) {
+            card.style.marginBottom = '160px';
+        } else {
+            card.style.marginBottom = '120px';
+        }
+    } else {
+        card.style.marginBottom = '';
+    }
+}
+
+window.addEventListener('resize', updateMenuCategoriesPadding);
+setInterval(updateMenuCategoriesPadding, 400);
+document.addEventListener('DOMContentLoaded', updateMenuCategoriesPadding);
+
 // Initialize when DOM is loaded
 let qrMenuManager;
 document.addEventListener('DOMContentLoaded', () => {

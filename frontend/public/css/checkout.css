@@ -730,7 +730,7 @@ body.qr-page .gradient-bg {
     position: sticky;
     top: 0;
     z-index: 1000;
-    padding: 1rem 0;
+    /* padding: 1rem 0; */
 }
 
 .qr-header-content {
@@ -1004,7 +1004,7 @@ body.qr-page .gradient-bg {
 
 .customer-avatar i {
     font-size: 1.75rem;
-    color: #312929;
+    color: white;
 }
 
 .customer-name {
@@ -1265,7 +1265,9 @@ body.qr-page .gradient-bg {
 .header-left {
     display: flex;
     align-items: center;
+    justify-content: space-between; /* NEW: pisahkan kiri-kanan */
     gap: 1rem;
+    width: 100%;
 }
 
 .back-btn-modern {
@@ -1273,7 +1275,7 @@ body.qr-page .gradient-bg {
     backdrop-filter: blur(10px);
     border: 1px solid rgba(220, 208, 168, 0.3);
     border-radius: 25px;
-    padding: 0.75rem 1.25rem;
+    padding: 1rem;
     color: white;
     font-size: 0.875rem;
     font-weight: 600;
@@ -1294,6 +1296,7 @@ body.qr-page .gradient-bg {
     display: flex;
     align-items: center;
     gap: 0.75rem;
+    margin-right: auto;
 }
 
 .checkout-icon {
@@ -2118,6 +2121,15 @@ body.qr-page .gradient-bg {
 
 /* Responsive Design for Track */
 @media (max-width: 768px) {
+    .header-left {
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    .customer-badge {
+        align-self: flex-start;
+    }
+
     .track-header-content {
         flex-direction: column;
         gap: 0.75rem;
@@ -2231,14 +2243,14 @@ body.qr-page .gradient-bg {
 /* Responsive Design for Cart */
 @media (max-width: 768px) {
     .cart-header-content {
-        flex-direction: column;
+        flex-direction: row;
         gap: 1rem;
         align-items: flex-start;
     }
     
     .header-left {
         width: 100%;
-        justify-content: space-between;
+        /* justify-content: space-between; */
     }
     
     .customer-badge {
@@ -2274,8 +2286,10 @@ body.qr-page .gradient-bg {
 
 @media (max-width: 480px) {
     .back-btn-modern {
-        padding: 0.5rem 1rem;
+        padding: 0.5rem;
         font-size: 0.8rem;
+        align-items: center;
+        justify-content: center;
     }
     
     .page-title {
@@ -2312,7 +2326,7 @@ body.qr-page .gradient-bg {
 /* Responsive Design */
 @media (max-width: 768px) {
     .qr-header-content {
-        flex-direction: column;
+        flex-direction: row;
         gap: 0.75rem;
         text-align: center;
     }
@@ -2642,10 +2656,16 @@ body.qr-page .gradient-bg {
     
     /* Ensure buttons are finger-friendly */
     .checkout-btn-modern,
-    .btn-primary,
-    .back-btn-modern {
+    .btn-primary {
         min-height: 48px;
         min-width: 48px;
+    }
+    .back-btn-modern {
+        min-height: 30px;
+        min-width: 30px;
+        margin: auto;
+        margin-left: 0;
+        margin-right: 0.5rem;
     }
     
     /* Improve touch targets for small screens */

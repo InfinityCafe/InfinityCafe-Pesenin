@@ -67,7 +67,7 @@ class QRCartManager {
             this.roomName = roomData;
             
             document.getElementById('customer-display').textContent = this.customerName;
-            document.getElementById('room-display').textContent = `Ruangan: ${this.roomName}`;
+            document.getElementById('room-display').textContent = `${this.roomName}`;
             
         } catch (error) {
             console.error('Error loading cart data:', error);
@@ -83,7 +83,7 @@ class QRCartManager {
             const cleanUrl = window.location.pathname;
             history.replaceState({}, '', cleanUrl);
         } catch (e) {}
-        document.getElementById('room-display').textContent = `Ruangan: ${this.roomName}`;
+        document.getElementById('room-display').textContent = `${this.roomName}`;
     }
 
     setupEventListeners() {
@@ -327,7 +327,6 @@ class QRCartManager {
                     <span>${orderData.customer_name}</span>
                 </div>
                 <div class="info-row">
-                    <span>Ruangan:</span>
                     <span>${orderData.room_name}</span>
                 </div>
                 <div class="info-row">

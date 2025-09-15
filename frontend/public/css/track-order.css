@@ -92,7 +92,7 @@ body {
 /* Page Header */
 .page-header {
   text-align: center;
-  margin-bottom: 2rem;
+  /* margin-bottom: 2rem; */
   padding: 2rem 1rem;
 }
 
@@ -161,7 +161,6 @@ body {
   width: 4rem;
   height: 4rem;
   font-size: 2rem;
-  /* background-color: #3b82f6; */
   background: linear-gradient(to right, #207156, #60B7A6);
   color: white;
   border-radius: 50%;
@@ -169,7 +168,7 @@ body {
   align-items: center;
   justify-content: center;
   margin: 0 auto 1rem auto;
-  box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 12px 24px rgba(32, 113, 86, 0.3);
 }
 
 .page-header h1 {
@@ -457,7 +456,7 @@ body {
     h3 {
         font-size: 1.1rem;
     }
-    #order-number, #table-number, #order-timestamp {
+    #order-number, #table-number, #order-timestamp, #estimated-time {
         font-size: 0.75rem;
     }
     .info-box h3 {

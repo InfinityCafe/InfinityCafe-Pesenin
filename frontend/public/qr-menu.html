@@ -20,7 +20,7 @@
             <div class="container-responsive">
                 <div class="qr-header-content">
                     <div class="qr-brand">
-                        <div class="brand-icon">☕</div>
+                        <!-- <div class="brand-icon">☕</div> -->
                         <div class="brand-text">
                             <h1 class="brand-title">Infinity Cafe</h1>
                             <p class="brand-subtitle">QR Ordering System</p>
@@ -39,7 +39,7 @@
         <!-- Main Content -->
         <div class="container-responsive py-4">
             <div class="spacing-responsive">
-                <div class="card">
+                <div class="card" id="card-container">
                     <div class="card-body">
             <!-- Name Input Section (shown initially) -->
             <div id="name-input-section" class="name-input-section">
@@ -71,9 +71,10 @@
                         </div>
                     </div>
                     <button onclick="startOrdering()" class="btn-start-modern" id="start-btn" disabled>
-                        <span class="btn-icon">🚀</span>
+                        <!-- <span class="btn-icon">🚀</span> -->
                         <span class="btn-text">Mulai Pemesanan</span>
-                        <span class="btn-arrow">→</span>
+                        <!-- <span class="btn-arrow">→</span> -->
+                        <i class="fas fa-arrow-right btn-arrow"></i>
                     </button>
                 </div>
             </div>
@@ -188,5 +189,29 @@
     </div>
 
     <script src="qr-menu.js"></script>
+    <script>
+      function updateMenuCategoriesPadding() {
+          const card = document.getElementById('card-container');
+          const cartSummary = document.getElementById('cart-summary');
+          const cartFab = document.getElementById('cart-fab');
+          // Deteksi apakah cart summary/fab sedang tampil
+          const isCartVisible = (cartSummary && cartSummary.style.display !== 'none') ||
+                                (cartFab && cartFab.style.display !== 'none');
+          if (isCartVisible) {
+              // Padding bawah sesuai tinggi card keranjang
+              if (window.innerWidth <= 768) {
+                  card.style.marginBottom = '160px';
+              } else {
+                  card.style.marginBottom = '120px';
+              }
+          } else {
+              card.style.marginBottom = '';
+          }
+      }
+
+      window.addEventListener('resize', updateMenuCategoriesPadding);
+      setInterval(updateMenuCategoriesPadding, 400);
+      document.addEventListener('DOMContentLoaded', updateMenuCategoriesPadding);
+</script>
 </body>
 </html>

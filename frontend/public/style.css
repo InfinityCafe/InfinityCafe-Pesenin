@@ -1022,7 +1022,7 @@ body.tab-audit-history .add-item-btn {
 }
 
 .summary-details {
-    display: flex;
+    display: grid;
     flex-wrap: wrap;
     gap: 0.5rem;
     margin-bottom: 0.7rem;
@@ -1684,7 +1684,7 @@ body.tab-audit-history .add-item-btn {
         }
         
         .action-btn {
-            padding: 6px 10px;
+            padding: 10px 10px !important;
             font-size: 12px;
         }
         
@@ -4502,7 +4502,7 @@ body.qr-page #name-input-section {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   gap: 1.5rem;
-  margin-bottom: 2rem;
+  /* margin-bottom: 2rem; */
 }
 
 .menu-category-card {
@@ -4626,6 +4626,7 @@ body.qr-page .cart-total {
   font-weight: 700;
   color: #207156;
   font-size: 1.1rem;
+  margin: auto;
 }
 
 /* Modal Styles for QR */
@@ -4913,6 +4914,7 @@ body.qr-page .remove-btn {
   padding: 0.25rem;
   border-radius: 4px;
   transition: background-color 0.2s ease;
+  margin: auto;
 }
 
 body.qr-page .remove-btn:hover {
@@ -4970,8 +4972,6 @@ body.qr-page .empty-cart i, body.qr-page .no-results i {
 body.qr-page .room-info {
   color: white;
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.1);
-  padding: 0.5rem 1rem;
   border-radius: 8px;
 }
 
