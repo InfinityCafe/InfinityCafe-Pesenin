@@ -63,7 +63,7 @@ app.add_middleware(
 
 mcp = FastApiMCP(app,name="Server MCP Infinity",
         description="Server MCP Infinity Descr",
-        include_operations=["add order","list order","cancel order","order status"]
+        include_operations=["add order","list order","cancel order","cancel kitchen order","order status","list rooms"]
         )
 mcp.mount(mount_path="/mcp",transport="sse")
 jakarta_tz = pytz_timezone('Asia/Jakarta')
@@ -80,6 +80,13 @@ class OrderOutbox(Base):
     retry_count = Column(Integer, default=0)
     max_retries = Column(Integer, default=3)
     error_message = Column(Text, nullable=True)
+
+class Room(Base):
+    __tablename__ = "rooms"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
 
 class Order(Base):
     __tablename__ = "orders"
@@ -139,6 +146,15 @@ class CancelOrderRequest(BaseModel):
 class StatusUpdateRequest(BaseModel):
     status: str
 
+class RoomSchema(BaseModel):
+    id: int
+    name: str
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 def get_db():
     db = SessionLocal()
     try:
@@ -195,6 +211,26 @@ def validate_order_items(order_items: List[OrderItemSchema]) -> Optional[str]:
 
     if invalid_items:
         return f"Menu berikut tidak ditemukan atau tidak tersedia: {', '.join(invalid_items)}"
+    
+    return None
+
+def validate_room_name(room_name: str, db: Session) -> Optional[str]:
+    """Memvalidasi nama ruangan berdasarkan data di database."""
+    room = db.query(Room).filter(
+        Room.name == room_name,
+        Room.is_active == True
+    ).first()
+    
+    if not room:
+        # Ambil daftar ruangan yang tersedia untuk ditampilkan ke user
+        available_rooms = db.query(Room).filter(Room.is_active == True).all()
+        room_names = [room.name for room in available_rooms]
+        
+        if room_names:
+            room_list = "\n".join([f"{i+1}. {name}" for i, name in enumerate(room_names)])
+            return f"Nama ruangan '{room_name}' tidak valid. Ruangan yang tersedia:\n\n{room_list}\n\nSilakan pilih salah satu ruangan yang tersedia."
+        else:
+            return "Tidak ada ruangan yang tersedia saat ini."
     
     return None
     
@@ -284,6 +320,11 @@ def get_outbox_status(db: Session = Depends(get_db)):
 @app.post("/create_order", summary="Buat pesanan baru", tags=["Order"], operation_id="add order")
 def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     """Membuat pesanan baru dan mengirimkannya ke kitchen_service."""
+
+    # Validasi nama ruangan
+    room_validation_error = validate_room_name(req.room_name, db)
+    if room_validation_error:
+        return JSONResponse(status_code=200, content={"status": "error", "message": room_validation_error, "data": None})
 
     validation_error = validate_order_items(req.orders)
     if validation_error:
@@ -577,6 +618,11 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
 def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     """Membuat pesanan custom baru dengan validasi menu tetapi flavor bebas."""
 
+    # Validasi nama ruangan
+    room_validation_error = validate_room_name(req.room_name, db)
+    if room_validation_error:
+        return JSONResponse(status_code=200, content={"status": "error", "message": room_validation_error, "data": None})
+
     validation_error = validate_order_items(req.orders)
     if validation_error:
         return JSONResponse(status_code=200, content={"status": "error", "message": validation_error, "data": None})
@@ -864,6 +910,102 @@ def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
         "data": cancelled_order_details
     })
 
+@app.post("/cancel_kitchen", summary="Batalkan pesanan dari kitchen (tanpa batasan status)", tags=["Kitchen"], operation_id="cancel kitchen order")
+def cancel_order_kitchen(req: CancelOrderRequest, db: Session = Depends(get_db)):
+    """Membatalkan pesanan dari kitchen tanpa batasan status."""
+    
+    order = db.query(Order).filter(Order.order_id == req.order_id).first()
+    if not order:
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Pesanan dengan ID: {req.order_id} tidak ditemukan.", 
+            "data": None
+        })
+    
+    if order.status == "cancelled":
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Pesanan dengan ID: {req.order_id} sudah dibatalkan sebelumnya.", 
+            "data": None
+        })
+    
+    if order.status == "done":
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Pesanan dengan ID: {req.order_id} sudah selesai dan tidak dapat dibatalkan.", 
+            "data": None
+        })
+
+    previous_status = order.status
+    
+    order_items = db.query(OrderItem).filter(OrderItem.order_id == req.order_id).all()
+    
+    menu_names = [item.menu_name for item in order_items]
+    if len(menu_names) == 1:
+        menu_list = menu_names[0]
+    elif len(menu_names) == 2:
+        menu_list = " dan ".join(menu_names)
+    else:
+        menu_list = ", ".join(menu_names[:-1]) + f", dan {menu_names[-1]}"
+    
+    order.status = "cancelled"
+    order.cancel_reason = f"[KITCHEN CANCEL] {req.reason}"
+    
+    cancel_payload = { 
+        "order_id": req.order_id, 
+        "reason": req.reason, 
+        "previous_status": previous_status,
+        "cancelled_by": "kitchen",
+        "cancelled_at": datetime.now(jakarta_tz).isoformat() 
+    }
+    create_outbox_event(db, req.order_id, "order_cancelled", cancel_payload)
+    db.commit()
+    
+    try:
+        rollback_response = requests.post(f"{INVENTORY_SERVICE_URL}/stock/rollback/{req.order_id}")
+        if rollback_response.status_code == 200:
+            rollback_data = rollback_response.json()
+            logging.info(f"✅ Kitchen cancel - Inventory rollback berhasil untuk order {req.order_id}: {rollback_data}")
+        else:
+            logging.warning(f"⚠️ Kitchen cancel - Inventory rollback gagal untuk order {req.order_id}: {rollback_response.text}")
+    except Exception as e:
+        logging.error(f"❌ Kitchen cancel - Error saat rollback inventory untuk order {req.order_id}: {e}")
+    
+    try:
+        process_outbox_events(db)
+    except Exception as e:
+        logging.warning(f"⚠️ Kitchen cancel - Gagal memproses cancel outbox event: {e}")
+    
+    cancelled_order_details = {
+        "order_id": order.order_id,
+        "queue_number": order.queue_number,
+        "customer_name": order.customer_name,
+        "room_name": order.room_name,
+        "status": "cancelled",
+        "previous_status": previous_status,
+        "cancel_reason": req.reason,
+        "cancelled_by": "kitchen",
+        "created_at": order.created_at.isoformat(),
+        "cancelled_at": datetime.now(jakarta_tz).isoformat(),
+        "is_custom": order.is_custom,
+        "orders": [
+            {
+                "menu_name": item.menu_name,
+                "quantity": item.quantity,
+                "preference": item.preference if item.preference else "",
+                "notes": item.notes
+            } for item in order_items
+        ]
+    }
+    
+    logging.info(f"🍳 Kitchen membatalkan pesanan {req.order_id} (status sebelumnya: {previous_status}) - Reason: {req.reason}")
+    
+    return JSONResponse(status_code=200, content={
+        "status": "success", 
+        "message": f"Pesanan dengan menu {menu_list} telah berhasil dibatalkan oleh kitchen (status sebelumnya: {previous_status}).", 
+        "data": cancelled_order_details
+    })
+
 @app.post("/internal/update_status/{order_id}", tags=["Internal"])
 def update_order_status_from_kitchen(order_id: str, req: StatusUpdateRequest, db: Session = Depends(get_db)):
     """Endpoint internal untuk menerima update status dari kitchen_service."""
@@ -1029,6 +1171,80 @@ def get_today_orders(db: Session = Depends(get_db)):
 def health_check():
     """Cek status hidup service."""
     return {"status": "ok", "service": "order_service"}
+
+@app.get("/rooms", summary="Daftar ruangan", tags=["Room"], operation_id="list rooms")
+def get_rooms(db: Session = Depends(get_db)):
+    """Mengambil daftar semua ruangan yang tersedia."""
+    rooms = db.query(Room).filter(Room.is_active == True).order_by(Room.name).all()
+    return {
+        "status": "success",
+        "message": "Daftar ruangan berhasil diambil.",
+        "data": {
+            "rooms": [{"id": room.id, "name": room.name} for room in rooms],
+            "total": len(rooms)
+        }
+    }
+
+@app.post("/rooms", summary="Tambah ruangan baru", tags=["Room"])
+def add_room(room_name: str, db: Session = Depends(get_db)):
+    """Menambahkan ruangan baru."""
+    # Cek apakah ruangan sudah ada
+    existing_room = db.query(Room).filter(Room.name == room_name).first()
+    if existing_room:
+        if existing_room.is_active:
+            return JSONResponse(status_code=200, content={
+                "status": "error", 
+                "message": f"Ruangan '{room_name}' sudah ada.", 
+                "data": None
+            })
+        else:
+            # Aktifkan kembali ruangan yang sudah ada tapi nonaktif
+            existing_room.is_active = True
+            db.commit()
+            return JSONResponse(status_code=200, content={
+                "status": "success", 
+                "message": f"Ruangan '{room_name}' berhasil diaktifkan kembali.", 
+                "data": {"id": existing_room.id, "name": existing_room.name}
+            })
+    
+    # Tambah ruangan baru
+    new_room = Room(name=room_name)
+    db.add(new_room)
+    db.commit()
+    db.refresh(new_room)
+    
+    return JSONResponse(status_code=200, content={
+        "status": "success", 
+        "message": f"Ruangan '{room_name}' berhasil ditambahkan.", 
+        "data": {"id": new_room.id, "name": new_room.name}
+    })
+
+@app.delete("/rooms/{room_id}", summary="Nonaktifkan ruangan", tags=["Room"])
+def deactivate_room(room_id: int, db: Session = Depends(get_db)):
+    """Menonaktifkan ruangan (tidak menghapus dari database)."""
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": "Ruangan tidak ditemukan.", 
+            "data": None
+        })
+    
+    if not room.is_active:
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Ruangan '{room.name}' sudah nonaktif.", 
+            "data": None
+        })
+    
+    room.is_active = False
+    db.commit()
+    
+    return JSONResponse(status_code=200, content={
+        "status": "success", 
+        "message": f"Ruangan '{room.name}' berhasil dinonaktifkan.", 
+        "data": {"id": room.id, "name": room.name}
+    })
 
 hostname = socket.gethostname()
 local_ip = socket.gethostbyname(hostname)
