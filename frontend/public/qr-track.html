@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self' http://localhost:*;">
+    <title>Infinity Cafe - Track Order</title>
+    <link rel="stylesheet" href="css/track-order.css">
+    <link rel="stylesheet" href="css/checkout.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="icon" type="image/png" href="img/logo-GIK.png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="qr-page" style="background: linear-gradient(135deg, #F5EFE6 0%, #F8F9FA 100%) !important; color: #312929 !important;">
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-overlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <p>Memuat status pesanan...</p>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main id="main-content" class="main-container" style="display: none;">
+        <!-- Page Header -->
+        <section class="page-header">
+            <div class="header-icon">
+                <i class="fas fa-receipt"></i>
+            </div>
+            <h1>Hi, <span id="customer-display">-</span>!</h1>
+            <p>Pesanan Anda sedang kami proses. Lihat progresnya di bawah ini.</p>
+        </section>
+
+        <!-- Order Tracking Card -->
+        <div class="card">
+            <!-- Restaurant Info -->
+            <div class="card-header">
+                <div class="cafe-info">
+                    <h2>☕ Infinity Cafe</h2>
+                    <p>Detail Order</p>
+                </div>
+            </div>
+
+            <div class="card-body">
+
+                <!-- Order Info -->
+                <div class="info-box">
+                    <h3>Informasi Pesanan</h3>
+                    <div class="info-details">
+                        <div class="info-row">
+                            <span>Nomor Antrian</span>
+                            <strong id="order-number">-</strong>
+                        </div>
+                        <div class="info-row">
+                            <span>Nama Pelanggan</span>
+                            <strong id="customer-name">-</strong>
+                        </div>
+                        <div class="info-row">
+                            <span>Ruangan</span>
+                            <strong id="table-number" class="table-badge">-</strong>
+                        </div>
+                        <div class="info-row">
+                            <span>Waktu Pesan</span>
+                            <strong id="order-timestamp">-</strong>
+                        </div>
+                        <div class="info-row">
+                            <span>Estimasi Selesai</span>
+                            <strong id="estimated-time">-</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Order Status Tracker -->
+                <div class="status-tracker-container">
+                    <h3>Status Pesanan</h3>
+                    <div class="status-tracker">
+                        <div class="status-step" data-status="receive">
+                            <div class="status-icon"></div>
+                            <div class="status-label">Diterima</div>
+                        </div>
+                        <div class="status-line"></div>
+                        <div class="status-step" data-status="making">
+                            <div class="status-icon"></div>
+                            <div class="status-label">Dibuat</div>
+                        </div>
+                        <div class="status-line"></div>
+                        <div class="status-step" data-status="deliver">
+                            <div class="status-icon"></div>
+                            <div class="status-label">Diantar</div>
+                        </div>
+                        <div class="status-line"></div>
+                        <div class="status-step" data-status="done">
+                            <div class="status-icon"></div>
+                            <div class="status-label">Selesai</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Order Items -->
+                <div class="items-container">
+                    <h3>Item Pesanan</h3>
+                    <div id="order-items-container">
+                        <!-- Items will be injected here -->
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons no-print">
+                    <button id="cancel-order-btn" class="action-btn-red" style="display:none;">
+                        <i class="fas fa-times"></i>
+                        Batalkan Pesanan
+                    </button>
+                    <button id="order-new-btn" class="action-btn-green" style="display:none;">
+                        <i class="fas fa-shopping-cart"></i>
+                        Pesan Lagi
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Order Complete Modal -->
+    <div id="complete-modal" class="modal hidden">
+        <div class="modal-content success-modal">
+            <div class="success-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="success-title">Pesanan Selesai!</div>
+            <div class="success-message">Pesanan Anda sudah siap diambil. Terima kasih telah memesan di Infinity Cafe!</div>
+            <div class="order-details">
+                <div class="info-row">
+                    <span>Nomor Antrian:</span>
+                    <span id="complete-queue">-</span>
+                </div>
+                <div class="info-row">
+                    <span>Ruangan:</span>
+                    <span id="complete-room">-</span>
+                </div>
+            </div>
+            <button onclick="orderNew()" class="action-btn action-btn-green">
+                <i class="fas fa-shopping-cart"></i>
+                Pesan Lagi
+            </button>
+        </div>
+    </div>
+
+    <!-- Order Cancelled Modal -->
+    <div id="cancel-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="success-icon">
+                <i class="fas fa-times-circle"></i>
+            </div>
+            <div class="success-title">Pesanan Dibatalkan</div>
+            <div class="success-message">Pesanan Anda telah dibatalkan. Silakan mulai pesanan baru jika diperlukan.</div>
+            <button onclick="orderNew()" class="action-btn action-btn-orange">
+                <i class="fas fa-shopping-cart"></i>
+                Mulai Pesanan Baru
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ===============================
+        // PREVENT BACK NAVIGATION
+        // ===============================
+        
+        // Prevent back button functionality
+        function preventBackNavigation() {
+            // Push current state to history to prevent going back
+            window.history.pushState(null, null, window.location.href);
+            
+            // Listen for popstate event (back button)
+            window.addEventListener('popstate', function(e) {
+                e.preventDefault();
+                // Push state again to stay on current page
+                window.history.pushState(null, null, window.location.href);
+                
+                // Show a message to user
+                showMessage('Anda tidak dapat kembali ke halaman sebelumnya. Silakan tunggu hingga pesanan selesai.', 'warning');
+            });
+        }
+
+        // Show message function
+        function showMessage(message, type = 'info') {
+            // Create message element if not exists
+            let messageEl = document.getElementById('message-notification');
+            if (!messageEl) {
+                messageEl = document.createElement('div');
+                messageEl.id = 'message-notification';
+                messageEl.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    padding: 12px 24px;
+                    border-radius: 8px;
+                    color: white;
+                    font-weight: 600;
+                    z-index: 10000;
+                    max-width: 90%;
+                    text-align: center;
+                    opacity: 0;
+                    transition: opacity 0.3s ease;
+                `;
+                document.body.appendChild(messageEl);
+            }
+
+            // Set colors based on type
+            const colors = {
+                info: '#207156',
+                warning: '#e09b20', 
+                error: '#dc3545',
+                success: '#28a745'
+            };
+
+            messageEl.style.backgroundColor = colors[type] || colors.info;
+            messageEl.textContent = message;
+            messageEl.style.opacity = '1';
+
+            // Hide after 4 seconds
+            setTimeout(() => {
+                messageEl.style.opacity = '0';
+            }, 4000);
+        }
+
+        // ===============================
+        // SESSION PERSISTENCE
+        // ===============================
+        
+        function saveOrderSession(orderData) {
+            localStorage.setItem('qr_order_session', JSON.stringify({
+                ...orderData,
+                timestamp: Date.now(),
+                isActive: true
+            }));
+        }
+
+        function getOrderSession() {
+            try {
+                const session = localStorage.getItem('qr_order_session');
+                return session ? JSON.parse(session) : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function clearOrderSession() {
+            localStorage.removeItem('qr_order_session');
+        }
+
+        function checkSessionValidity() {
+            const session = getOrderSession();
+            // Allow URL param (orderId OR queue_number) to act as a temporary valid session during first load
+            const urlParams = new URLSearchParams(window.location.search);
+            const hasUrlOrder = urlParams.has('orderId') || urlParams.has('order_id') || urlParams.has('queue_number') || urlParams.has('queue');
+
+            // If no active session and no URL hints, we won't immediately redirect; we let the page show an info and allow user to order new
+            if ((!session || !session.isActive) && !hasUrlOrder) {
+                showMessage('Belum ada pesanan aktif. Silakan buat pesanan baru.', 'info');
+                const orderNewBtn = document.getElementById('order-new-btn');
+                if (orderNewBtn) orderNewBtn.style.display = 'inline-flex';
+                return false;
+            }
+            
+            // Check if session is too old (24 hours)
+            const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+            if (session && Date.now() - session.timestamp > maxAge) {
+                clearOrderSession();
+                showMessage('Sesi pesanan sudah kedaluwarsa. Silakan pesan lagi.', 'warning');
+                const orderNewBtn = document.getElementById('order-new-btn');
+                if (orderNewBtn) orderNewBtn.style.display = 'inline-flex';
+                return false;
+            }
+            
+            return true;
+        }
+
+        // ===============================
+        // ORDER TRACKING FUNCTIONALITY
+        // ===============================
+        
+    let orderData = null;
+    let statusCheckInterval = null;
+    let currentOrderId = null;
+    let currentQueueNumber = null;
+
+        // Get order data from URL parameters or session
+        function initializeOrder() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const orderIdFromUrl = urlParams.get('orderId') || urlParams.get('order_id');
+            const queueNumberFromUrl = urlParams.get('queue_number') || urlParams.get('queue');
+            const customerName = urlParams.get('customer') || urlParams.get('customerName');
+            const roomNumber = urlParams.get('room') || urlParams.get('roomNumber');
+
+            // First: try durable local session (authoritative)
+            const session = getOrderSession();
+            if (session && (session.orderId || session.queueNumber)) {
+                currentOrderId = session.orderId || null;
+                currentQueueNumber = session.queueNumber || null;
+                orderData = session;
+            } else if (orderIdFromUrl || queueNumberFromUrl) {
+                // Fallback: initialize from URL (first-time direct visit)
+                currentOrderId = orderIdFromUrl || null;
+                currentQueueNumber = queueNumberFromUrl || null;
+                orderData = {
+                    orderId: orderIdFromUrl || null,
+                    queueNumber: queueNumberFromUrl || null,
+                    customerName: customerName || 'Guest',
+                    roomNumber: roomNumber || '-',
+                    status: 'receive',
+                    items: []
+                };
+                saveOrderSession(orderData);
+            } else {
+                // No order data, show new order button without redirect
+                showMessage('Tidak ada data pesanan aktif. Silakan mulai pesanan baru.', 'info');
+                const orderNewBtn = document.getElementById('order-new-btn');
+                if (orderNewBtn) orderNewBtn.style.display = 'inline-flex';
+                return false;
+            }
+
+            // Strip URL params so user cannot tamper
+            try {
+                const cleanUrl = window.location.pathname;
+                window.history.replaceState({}, '', cleanUrl);
+            } catch {}
+
+            return true;
+        }
+
+        // Format date and time
+        function formatDateTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleString('id-ID', {
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                hour: '2-digit', 
+                minute: '2-digit'
+            });
+        }
+
+        // Update status tracker UI
+    function updateStatusTracker(currentStatus) {
+            const statuses = ["receive", "making", "deliver", "done"];
+            const currentStatusIndex = statuses.indexOf(currentStatus.toLowerCase());
+            const steps = document.querySelectorAll('.status-step');
+            const lines = document.querySelectorAll('.status-line');
+
+            steps.forEach((step, index) => {
+                step.classList.remove('completed', 'active');
+                if (index < currentStatusIndex) {
+                    step.classList.add('completed');
+                } else if (index === currentStatusIndex) {
+                    step.classList.add('active');
+                }
+            });
+
+            lines.forEach((line, index) => {
+                line.classList.remove('completed');
+                if (index < currentStatusIndex) {
+                    line.classList.add('completed');
+                }
+            });
+
+            // Update action buttons based on status
+            updateActionButtons(currentStatus);
+        }
+
+        // Update action buttons visibility based on status
+        function updateActionButtons(status) {
+            const cancelBtn = document.getElementById('cancel-order-btn');
+            const orderNewBtn = document.getElementById('order-new-btn');
+            
+            const st = String(status || '').toLowerCase();
+            if (st === 'done') {
+                cancelBtn.style.display = 'none';
+                orderNewBtn.style.display = 'inline-flex';
+                
+                // Update session to mark as completed
+                const session = getOrderSession();
+                if (session) {
+                    session.isActive = false;
+                    session.isCompleted = true;
+                    saveOrderSession(session);
+                }
+                
+                // Show completion message
+                setTimeout(() => {
+                    showCompleteModal();
+                }, 1000);
+            } else if (st === 'cancelled' || st === 'cancel') {
+                cancelBtn.style.display = 'none';
+                orderNewBtn.style.display = 'inline-flex';
+                
+                // Clear session for cancelled orders
+                clearOrderSession();
+                
+                setTimeout(() => {
+                    showCancelModal();
+                }, 1000);
+            } else {
+                // Only allow cancel while in 'receive' status
+                cancelBtn.style.display = (st === 'receive') ? 'inline-flex' : 'none';
+                orderNewBtn.style.display = 'none';
+            }
+        }
+
+        // Fetch order status from server
+        async function fetchOrderStatus() {
+            // Don't require orderId; queue number is sufficient for tracking
+
+            try {
+                // Use queue number route exclusively to match gateway/backend
+                const sessionQueue = (orderData && orderData.queueNumber) || currentQueueNumber || null;
+                if (!sessionQueue) {
+                    // No queue number yet; keep rendering current data
+                    renderOrderData();
+                    return;
+                }
+                const response = await fetch(`/order/status/${encodeURIComponent(sessionQueue)}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Normalize backend response: accept {success, data} or direct object
+                const serverOrderData = (data && (data.data || data)) || {};
+                if (serverOrderData && (serverOrderData.order_id || serverOrderData.queue_number)) {
+                    // Validate binding by queue number primarily
+                    const returnedQueue = serverOrderData.queue_number != null ? String(serverOrderData.queue_number) : null;
+                    const expectedQueue = sessionQueue != null ? String(sessionQueue) : null;
+                    if (returnedQueue && expectedQueue && returnedQueue !== expectedQueue) {
+                        // Ignore updates that don't match this session's queue number
+                        renderOrderData();
+                        return;
+                    }
+                    
+                    // Update order data
+                    orderData = {
+                        ...orderData,
+                        orderId: serverOrderData.order_id || currentOrderId,
+                        customerName: serverOrderData.customer_name || orderData.customerName,
+                        roomNumber: serverOrderData.room_name || serverOrderData.room_number || orderData.roomNumber,
+                        status: serverOrderData.status || 'receive',
+                        items: serverOrderData.items || [],
+                        orderTime: serverOrderData.created_at || serverOrderData.order_time || new Date().toISOString(),
+                        estimatedTime: serverOrderData.estimated_time || null,
+                        queueNumber: serverOrderData.queue_number || currentQueueNumber || orderData.queueNumber || null
+                    };
+                    // Keep the globals in sync
+                    currentOrderId = orderData.orderId;
+                    currentQueueNumber = orderData.queueNumber || currentQueueNumber;
+                    
+                    // Update session
+                    saveOrderSession(orderData);
+                    
+                    // Update UI
+                    renderOrderData();
+                    updateStatusTracker(orderData.status);
+                    
+                } else {
+                    // Continue with existing data silently when server responds with unexpected format
+                    renderOrderData();
+                }
+                
+            } catch (error) {
+                console.error('Error fetching order status:', error);
+                // Continue with existing data
+                renderOrderData();
+            }
+        }
+
+        // Render order data to UI
+        function renderOrderData() {
+            if (!orderData) return;
+
+            // Update basic info
+            document.getElementById('customer-display').textContent = orderData.customerName || 'Guest';
+            document.getElementById('order-number').textContent = orderData.queueNumber || orderData.orderId || '-';
+            document.getElementById('customer-name').textContent = orderData.customerName || 'Guest';
+            document.getElementById('table-number').textContent = orderData.roomNumber || '-';
+            document.getElementById('order-timestamp').textContent = 
+                orderData.orderTime ? formatDateTime(orderData.orderTime) : formatDateTime(new Date());
+            document.getElementById('estimated-time').textContent = computeEstimatedTimeText(orderData) || 'Sedang diproses';
+
+            // Render order items
+            const itemsContainer = document.getElementById('order-items-container');
+            itemsContainer.innerHTML = '';
+            
+            if (orderData.items && orderData.items.length > 0) {
+                orderData.items.forEach(item => {
+                    const itemElement = document.createElement('div');
+                    itemElement.className = 'order-item';
+                    itemElement.innerHTML = `
+                        <div class="item-details">
+                            <p class="item-name">${item.menu_name || item.name || 'Item'}</p>
+                            <p class="item-quantity">Qty: ${item.quantity || item.qty || 1}</p>
+                            ${item.preference ? `<p class="item-flavor">Rasa: ${item.preference}</p>` : ''}
+                        </div>
+                        ${item.notes ? `<div class="item-notes"><strong>Catatan:</strong> ${item.notes}</div>` : ''}
+                    `;
+                    itemsContainer.appendChild(itemElement);
+                });
+            } else {
+                itemsContainer.innerHTML = '<p class="no-items">Memuat item pesanan...</p>';
+            }
+        }
+
+        // Compute estimated time text using status and item count when backend doesn't provide
+        function computeEstimatedTimeText(data) {
+            if (data.estimatedTime && typeof data.estimatedTime === 'string') return data.estimatedTime;
+            const basePerItem = 4; // minutes per item
+            const count = (data.items && data.items.length) ? data.items.reduce((a,b)=> a + (b.quantity || b.qty || 1), 0) : 1;
+            const statusBuffer = {
+                'receive': 0,
+                'making': 2,
+                'deliver': 5,
+                'done': 0
+            };
+            const minutes = (basePerItem * count) + (statusBuffer[(data.status || 'receive')] || 0);
+            const created = new Date(data.orderTime || new Date());
+            const eta = new Date(created.getTime() + minutes * 60000);
+            return formatDateTime(eta);
+        }
+
+        // Show completion modal
+        function showCompleteModal() {
+            const modal = document.getElementById('complete-modal');
+            if (modal) {
+                document.getElementById('complete-queue').textContent = orderData.queueNumber || orderData.orderId || '-';
+                document.getElementById('complete-room').textContent = orderData.roomNumber || '-';
+                modal.classList.remove('hidden');
+            }
+        }
+
+        // Show cancel modal
+        function showCancelModal() {
+            const modal = document.getElementById('cancel-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
+            }
+        }
+
+        // Cancel order function
+        async function cancelOrder() {
+            // Guard: only allow when status is 'receive'
+            const currentStatus = (orderData && orderData.status) ? String(orderData.status).toLowerCase() : '';
+            if (currentStatus !== 'receive') {
+                showMessage('Pesanan hanya bisa dibatalkan saat status Diterima.', 'warning');
+                return;
+            }
+
+            const isConfirmed = confirm("Apakah Anda yakin ingin membatalkan pesanan ini?");
+            if (!isConfirmed) return;
+
+            try {
+                const response = await fetch('/cancel_order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        order_id: currentOrderId,
+                        reason: 'Cancelled by customer'
+                    })
+                });
+
+                if (response.ok) {
+                    showMessage('Pesanan berhasil dibatalkan', 'success');
+                    
+                    // Update status
+                    if (orderData) {
+                        orderData.status = 'cancelled';
+                        saveOrderSession(orderData);
+                    }
+                    
+                    updateActionButtons('cancelled');
+                    updateStatusTracker('cancelled');
+                } else {
+                    throw new Error('Failed to cancel order');
+                }
+            } catch (error) {
+                console.error('Error cancelling order:', error);
+                showMessage('Gagal membatalkan pesanan. Silakan coba lagi.', 'error');
+            }
+        }
+
+        // Order new function
+        function orderNew() {
+            clearOrderSession();
+            const roomParam = (orderData && orderData.roomNumber) ? `?room=${encodeURIComponent(orderData.roomNumber)}` : '';
+            window.location.href = `/qr-menu${roomParam}`;
+        }
+
+        // Initialize everything when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize order data FIRST so URL params can create a session
+            // This prevents premature redirect to menu when coming from checkout
+            if (!initializeOrder()) {
+                return;
+            }
+
+            // Now check session validity (should be valid after initializeOrder)
+            if (!checkSessionValidity()) {
+                return;
+            }
+            
+            // Prevent back navigation
+            preventBackNavigation();
+            
+            // Show content immediately (no long loading delay)
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+            
+            // Initial render and fetch
+            renderOrderData();
+            updateStatusTracker(orderData.status || 'receive');
+            fetchOrderStatus();
+            statusCheckInterval = setInterval(fetchOrderStatus, 5000);
+            
+            // Add event listeners
+            const cancelBtn = document.getElementById('cancel-order-btn');
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', cancelOrder);
+            }
+            
+            const orderNewBtn = document.getElementById('order-new-btn');
+            if (orderNewBtn) {
+                orderNewBtn.addEventListener('click', orderNew);
+            }
+            
+            // Handle page visibility change (when user switches tabs)
+            document.addEventListener('visibilitychange', function() {
+                if (!document.hidden && statusCheckInterval) {
+                    // Page became visible, check status immediately
+                    fetchOrderStatus();
+                }
+            });
+            
+            // Clean up interval on page unload
+            window.addEventListener('beforeunload', function() {
+                if (statusCheckInterval) {
+                    clearInterval(statusCheckInterval);
+                }
+            });
+        });
+
+        // Handle page refresh - redirect to track page with session data
+        window.addEventListener('beforeunload', function() {
+            const session = getOrderSession();
+            if (session && session.isActive && !session.isCompleted) {
+                // Ensure user stays on track page on refresh
+                setTimeout(() => {
+                    if (window.location.pathname !== '/qr-track') {
+                        window.location.href = '/qr-track';
+                    }
+                }, 100);
+            }
+        });
+    </script>
+</body>
+</html>

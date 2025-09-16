@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self' http://localhost:*;">
+    <title>Infinity Cafe - Keranjang</title>
+    <link rel="stylesheet" href="css/checkout.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="icon" type="image/png" href="img/logo-GIK.png">
+    <link rel="stylesheet" href="style.css">
+    
+</head>
+<body class="qr-page" style="background: linear-gradient(135deg, #F5EFE6 0%, #F8F9FA 100%) !important; color: #312929 !important;">
+    <div class="gradient-bg">
+        <!-- Header -->
+        <header class="qr-header">
+            <div class="container-responsive">
+                <div class="cart-header-content">
+                    <div class="header-left">
+                        <button onclick="goBackToMenu()" class="back-btn-modern">
+                            <i class="fas fa-arrow-left"></i>
+                            <!-- <span>Kembali</span> -->
+                        </button>
+                        <div class="header-info">
+                            <!-- <div class="checkout-icon">
+                                <i class="fas fa-shopping-cart"></i>
+                            </div> -->
+                            <div class="header-text">
+                                <h1 class="page-title">Checkout</h1>
+                                <p class="page-subtitle">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <span id="room-display">-</span>
+                                </p>
+                            </div>
+                        </div>
+                        <div class="customer-badge">
+                            <i class="fas fa-user"></i>
+                            <span>Hi, <span id="customer-display">-</span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="container-responsive py-4">
+            <div class="spacing-responsive">
+                <!-- Cart Items Card -->
+                <div class="cart-items-card">
+                    <div class="cart-card-header">
+                        <div class="cart-header-info">
+                            <div class="cart-icon">
+                                <i class="fa-solid fa-cart-shopping"></i>
+                            </div>
+                            <div class="cart-title-section">
+                                <h3 class="cart-title">Keranjang Pesanan</h3>
+                                <p class="cart-description">Review pesanan Anda sebelum checkout</p>
+                            </div>
+                        </div>
+                        <div class="item-counter">
+                            <span class="item-count" id="item-count">0 item</span>
+                        </div>
+                    </div>
+                    <div class="cart-items-container">
+                        <div id="cart-items" class="cart-items-modern"></div>
+                    </div>
+                </div>
+
+                <!-- Order Summary Card -->
+                <div class="order-summary-card">
+                    <div class="summary-header">
+                        <div class="summary-icon">
+                            <i class="fas fa-receipt"></i>
+                        </div>
+                        <div class="summary-title-section">
+                            <h3 class="summary-title">Ringkasan Pesanan</h3>
+                            <p class="summary-subtitle" id="greeting-date">Konfirmasi pesanan Anda</p>
+                        </div>
+                    </div>
+                    <div class="summary-details">
+                        <div class="summary-row">
+                            <span class="summary-label">Total Item:</span>
+                            <span class="summary-value" id="total-items">0</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label">Estimasi Waktu:</span>
+                            <span class="summary-value" id="estimated-time">0 menit</span>
+                        </div>
+                        <div class="summary-divider"></div>
+                        <div class="summary-row total-row">
+                            <span class="summary-label-total">Total Harga:</span>
+                            <span class="summary-value-total" id="total-price">Rp 0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Checkout Button -->
+                <button class="checkout-btn-modern" id="confirm-btn" onclick="confirmOrder()" disabled>
+                    <div class="checkout-btn-content">
+                        <!-- <span class="checkout-icon">🚀</span> -->
+                        <span class="checkout-text">Konfirmasi Pesanan</span>
+                        <i class="fas fa-arrow-right checkout-arrow"></i>
+                    </div>
+                    <div class="checkout-btn-bg"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Modal -->
+    <div id="loading-modal" class="modal hidden">
+        <div class="modal-content loading-modal">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Memproses pesanan...</div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="success-modal" class="modal hidden">
+        <div class="modal-content success-modal">
+            <div class="success-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="success-title">Pesanan Berhasil!</div>
+            <div class="success-message" id="success-message">Pesanan Anda sedang diproses</div>
+            <div class="order-details" id="order-details"></div>
+            <button onclick="goToTracking()" class="btn-primary">
+                Lihat Status Pesanan
+            </button>
+        </div>
+    </div>
+
+    <script src="qr-cart.js"></script>
+</body>
+</html>

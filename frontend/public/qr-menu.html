@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self' http://localhost:*;">
+    <title>Infinity Cafe - Menu QR</title>
+    <link rel="stylesheet" href="css/checkout.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="icon" type="image/png" href="img/logo-GIK.png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="qr-page" style="background: linear-gradient(135deg, #F5EFE6 0%, #F8F9FA 100%) !important; color: #312929 !important;">
+    <div class="gradient-bg">
+        <!-- Header -->
+        <header class="qr-header">
+            <div class="container-responsive">
+                <div class="qr-header-content">
+                    <div class="qr-brand">
+                        <!-- <div class="brand-icon">☕</div> -->
+                        <div class="brand-text">
+                            <h1 class="brand-title">Infinity Cafe</h1>
+                            <p class="brand-subtitle">QR Ordering System</p>
+                        </div>
+                    </div>
+                    <div class="room-info">
+                        <div class="room-badge">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <span id="room-display">Ruangan: -</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="container-responsive py-4">
+            <div class="spacing-responsive">
+                <div class="card" id="card-container">
+                    <div class="card-body">
+            <!-- Name Input Section (shown initially) -->
+            <div id="name-input-section" class="name-input-section">
+                <div class="welcome-section">
+                    <div class="welcome-icon">
+                        <i class="fas fa-coffee"></i>
+                    </div>
+                    <div class="welcome-content">
+                        <h2 class="welcome-title">Selamat Datang di Infinity Cafe!</h2>
+                        <p class="welcome-subtitle" id="greeting-date">Silakan masukkan nama Anda untuk memulai pemesanan</p>
+                    </div>
+                </div>
+                
+                <div class="customer-input-card">
+                    <div class="card-header-info">
+                        <div class="info-icon">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="info-content">
+                            <h3 class="info-title">Informasi Pelanggan</h3>
+                            <p class="info-desc">Kami akan menggunakan nama ini untuk pesanan Anda</p>
+                        </div>
+                    </div>
+                    <div class="form-group-modern">
+                        <label for="customer-name" class="form-label-modern">Nama Lengkap</label>
+                        <div class="input-wrapper">
+                            <i class="fas fa-user input-icon"></i>
+                            <input type="text" id="customer-name" class="form-input-modern" placeholder="Masukkan nama lengkap Anda" maxlength="50">
+                        </div>
+                    </div>
+                    <button onclick="startOrdering()" class="btn-start-modern" id="start-btn" disabled>
+                        <!-- <span class="btn-icon">🚀</span> -->
+                        <span class="btn-text">Mulai Pemesanan</span>
+                        <!-- <span class="btn-arrow">→</span> -->
+                        <i class="fas fa-arrow-right btn-arrow"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Menu Section (hidden initially) -->
+            <div id="menu-section" class="menu-section" style="display: none;">
+                <div class="menu-greeting">
+                    <div class="customer-avatar">
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                    <div class="customer-info">
+                        <h2 class="customer-name">Hi, <span id="customer-display">-</span>!</h2>
+                        <p class="menu-subtitle" id="menu-greeting-date">Silakan pilih menu yang Anda inginkan</p>
+                    </div>
+                </div>
+
+                <!-- Search and Category Tabs -->
+                <div class="menu-controls">
+                    <div class="search-section-modern">
+                        <div class="search-input-wrapper">
+                            <i class="fas fa-search search-icon-modern"></i>
+                            <input type="text" id="menu-search" placeholder="Cari menu favorit Anda..." class="search-input-modern">
+                        </div>
+                    </div>
+                    <div class="category-section">
+                        <div id="category-tabs" class="category-tabs-modern"></div>
+                    </div>
+                </div>
+
+                <!-- Menu Categories -->
+                <div id="menu-categories" class="menu-categories">
+                    <!-- Categories will be loaded dynamically -->
+                </div>
+
+                <!-- Cart Summary (floating) -->
+                <div id="cart-summary" class="cart-summary-modern" style="display: none;">
+                    <div class="cart-summary-content">
+                        <div class="cart-info">
+                            <div class="cart-icon-wrapper">
+                                <i class="fas fa-shopping-bag"></i>
+                                <span class="cart-badge" id="cart-count">0</span>
+                            </div>
+                            <div class="cart-details">
+                                <div class="cart-items-text">
+                                    <span id="cart-count-text">0</span> item dipilih
+                                </div>
+                                <div class="cart-total-text">
+                                    Total: <span class="cart-price" id="cart-total">Rp 0</span>
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="goToCart()" class="cart-checkout-btn">
+                            <span>Lihat Keranjang</span>
+                            <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Floating Cart FAB (mobile) -->
+                <!-- <button id="cart-fab" class="cart-fab-modern" onclick="goToCart()" style="display: none;">
+                    <div class="fab-content">
+                        <i class="fas fa-shopping-bag"></i>
+                        <span id="cart-fab-count" class="fab-badge">0</span>
+                    </div>
+                </button> -->
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Menu Item Modal -->
+    <div id="menu-modal" class="modal hidden">
+        <div class="modal-content">
+            <button onclick="closeMenuModal()" class="modal-close">×</button>
+            <div class="modal-title" id="modal-menu-name">Menu Name</div>
+            <div class="modal-body">
+                <div class="menu-details">
+                    <div class="menu-price" id="modal-menu-price">Rp 0</div>
+                    <div class="menu-description" id="modal-menu-description">Description</div>
+                </div>
+                
+                <!-- Flavor Selection (if applicable) -->
+                <div id="flavor-section" class="flavor-section" style="display: none;">
+                    <label class="form-label">Pilih Rasa:</label>
+                    <div id="flavor-options" class="flavor-options">
+                        <!-- Flavor options will be loaded dynamically -->
+                    </div>
+                </div>
+
+                <!-- Quantity and Notes -->
+                <div class="quantity-section">
+                    <label class="form-label">Jumlah:</label>
+                    <div class="quantity-controls">
+                        <button onclick="decreaseQuantity()" class="quantity-btn">-</button>
+                        <input type="number" id="item-quantity" class="quantity-input" value="1" min="1">
+                        <button onclick="increaseQuantity()" class="quantity-btn">+</button>
+                    </div>
+                </div>
+
+                <div class="notes-section">
+                    <label class="form-label">Catatan Khusus:</label>
+                    <textarea id="item-notes" class="form-textarea" placeholder="Contoh: Kurang manis, extra ice, dll." maxlength="100"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="addToCart()" class="action-btn action-btn-green">
+                    <i class="fas fa-plus"></i>
+                    Tambah ke Keranjang
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="qr-menu.js"></script>
+    <script>
+      function updateMenuCategoriesPadding() {
+          const card = document.getElementById('card-container');
+          const cartSummary = document.getElementById('cart-summary');
+          const cartFab = document.getElementById('cart-fab');
+          // Deteksi apakah cart summary/fab sedang tampil
+          const isCartVisible = (cartSummary && cartSummary.style.display !== 'none') ||
+                                (cartFab && cartFab.style.display !== 'none');
+          if (isCartVisible) {
+              // Padding bawah sesuai tinggi card keranjang
+              if (window.innerWidth <= 768) {
+                  card.style.marginBottom = '160px';
+              } else {
+                  card.style.marginBottom = '120px';
+              }
+          } else {
+              card.style.marginBottom = '';
+          }
+      }
+
+      window.addEventListener('resize', updateMenuCategoriesPadding);
+      setInterval(updateMenuCategoriesPadding, 400);
+      document.addEventListener('DOMContentLoaded', updateMenuCategoriesPadding);
+</script>
+</body>
+</html>

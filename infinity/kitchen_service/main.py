@@ -168,14 +168,15 @@ async def set_kitchen_status(
 @app.post("/receive_order", summary="Terima pesanan", tags=["Kitchen"], operation_id="receive order")
 async def receive_order(order: KitchenOrderRequest, db: Session = Depends(get_db)):
     status = get_kitchen_status(db)
-    if not status.is_open:  
-        raise HTTPException(status_code=400, detail="Kitchen is currently OFF")
-        
+    if not status.is_open:
+        # Jika status dapur OFF, tolak pesanan baru
+        raise HTTPException(status_code=400, detail="Kitchen is currently OFF. Tidak bisa menerima pesanan baru.")
+
     # Cek apakah order sudah ada
     existing_order = db.query(KitchenOrder).filter(KitchenOrder.order_id == order.order_id).first()
     if existing_order:
         raise HTTPException(status_code=400, detail="Order already exists")
-        
+
     # Format detail dengan lebih baik
     detail_str = "\n".join([
         f"{item.quantity}x {item.menu_name}" +
