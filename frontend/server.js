@@ -54,6 +54,45 @@ app.post("/create_order", async (req, res) => {
   }
 });
 
+// QR Order status endpoint
+app.get("/order/status/:queueNumber", async (req, res) => {
+  try {
+    const { queueNumber } = req.params;
+    const resp = await fetch(`http://order_service:8002/order/status/${queueNumber}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" }
+    });
+    const data = await resp.json();
+    res.json(data);
+  } catch (error) {
+    console.error("Failed to get order status ", error);
+    res.status(500).json({ error: "Failed to get order status" });
+  }
+});
+
+// Order status by order_id (safer binding)
+app.get("/order/status/by-id/:orderId", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const encodedOrderId = encodeURIComponent(orderId);
+    const resp = await fetch(`http://order_service:8002/order_status/${encodedOrderId}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" }
+    });
+    const text = await resp.text();
+    // Try parse JSON; if fail, passthrough text
+    try {
+      const data = JSON.parse(text);
+      res.status(resp.status).json(data);
+    } catch {
+      res.status(resp.status).send(text);
+    }
+  } catch (error) {
+    console.error("Failed to get order status by id ", error);
+    res.status(500).json({ error: "Failed to get order status by id" });
+  }
+});
+
 app.post("/custom_order", async (req, res) => {
   try {
     const body = req.body;
@@ -80,9 +119,30 @@ app.post("/custom_order", async (req, res) => {
 app.post("/cancel_order", async (req, res) => {
   try {
     const body = req.body;
+    const { order_id = "" } = body || {};
 
-    // Panggil service untuk cancel order
-    const resp = await fetch("http://order_service:8002/cancel_order", {
+    // Cek status pesanan terlebih dahulu: hanya boleh 'receive'
+    try {
+      const encodedOrderId = encodeURIComponent(String(order_id || ""));
+      const statusResp = await fetch(`http://order_service:8002/order_status/${encodedOrderId}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" }
+      });
+      const statusJson = await statusResp.json().catch(() => ({}));
+      const currentStatus = (statusJson && (statusJson.data?.status || statusJson.status)) || "";
+      if (String(currentStatus).toLowerCase() !== "receive") {
+        return res.status(400).json({
+          status: "failed",
+          message: "Pesanan hanya bisa dibatalkan saat status 'receive'"
+        });
+      }
+    } catch (checkErr) {
+      console.error("Failed to verify order status before cancel ", checkErr);
+      return res.status(500).json({ error: "Gagal memverifikasi status pesanan sebelum batal" });
+    }
+
+    // Panggil service untuk cancel order (allowed)
+    const resp = await fetch("http://order_service:8002/cancel_kitchen", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
@@ -1119,6 +1179,43 @@ app.get("/menu-suggestion", requireAuth, (req, res) => {
 
 app.get("/login", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "login.html"));
+});
+
+// QR Ordering routes (no auth required)
+app.get("/qr-menu", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "qr-menu.html"));
+});
+
+app.get("/qr-cart", (req, res) => {
+  setQrCspHeaders(res);
+  res.sendFile(path.join(__dirname, "public", "qr-cart.html"));
+});
+
+// Apply relaxed CSP for QR routes to allow required connections/assets
+function setQrCspHeaders(res) {
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
+      "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
+      "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com",
+      "img-src 'self' data:",
+      "connect-src 'self' http://localhost:*"
+    ].join('; ')
+  );
+}
+
+// Optional alias (not used by QR flow)
+app.get("/checkout", (req, res) => {
+  setQrCspHeaders(res);
+  res.sendFile(path.join(__dirname, "public", "checkout.html"));
+});
+
+app.get("/qr-track", (req, res) => {
+  setQrCspHeaders(res);
+  res.sendFile(path.join(__dirname, "public", "qr-track.html"));
 });
 
 // ========== STATIC FILES (MUST COME LAST) ==========
