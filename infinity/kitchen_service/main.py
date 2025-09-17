@@ -212,7 +212,7 @@ async def update_status(order_id: str, status: str, reason: str = "", db: Sessio
     order = db.query(KitchenOrder).filter(KitchenOrder.order_id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    
+
     # Validasi status dan reason
     if status in ["cancelled", "habis"] and not reason:
         raise HTTPException(status_code=400, detail="Alasan wajib untuk status cancel, atau habis")
@@ -247,10 +247,10 @@ async def update_status(order_id: str, status: str, reason: str = "", db: Sessio
         logging.info(f"✅ Berhasil mengirim update status '{status}' untuk order {order_id} ke order_service.")
     except Exception as e:
         logging.error(f"❌ Gagal mengirim update status ke order_service untuk order {order_id}: {e}")
-        
+
     # Broadcast ke semua client
     await broadcast_orders(db)
-    
+
     return {
         "message": f"Order {order_id} updated to status '{status}'",
         "order_id": order_id,
