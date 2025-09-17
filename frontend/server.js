@@ -121,7 +121,7 @@ app.post("/cancel_order", async (req, res) => {
     const body = req.body;
     const { order_id = "" } = body || {};
 
-    // Cek status pesanan terlebih dahulu: hanya boleh 'receive'
+    // Cek status pesanan terlebih dahulu: hanya boleh dibatalkan saat status 'receive' atau 'making'
     try {
       const encodedOrderId = encodeURIComponent(String(order_id || ""));
       const statusResp = await fetch(`http://order_service:8002/order_status/${encodedOrderId}`, {
@@ -130,10 +130,13 @@ app.post("/cancel_order", async (req, res) => {
       });
       const statusJson = await statusResp.json().catch(() => ({}));
       const currentStatus = (statusJson && (statusJson.data?.status || statusJson.status)) || "";
-      if (String(currentStatus).toLowerCase() !== "receive") {
+      const normalizedStatus = String(currentStatus).toLowerCase();
+      const cancellableStatuses = ["receive", "making"]; // diperbolehkan batal
+      if (!cancellableStatuses.includes(normalizedStatus)) {
         return res.status(400).json({
           status: "failed",
-          message: "Pesanan hanya bisa dibatalkan saat status 'receive'"
+          current_status: currentStatus,
+          message: "Pesanan hanya bisa dibatalkan saat status 'receive' atau 'making'"
         });
       }
     } catch (checkErr) {
