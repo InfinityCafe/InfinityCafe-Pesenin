@@ -172,12 +172,20 @@ async function cancelOrder(orderId, reason) {
       },
       body: JSON.stringify({
         order_id: orderId,
-        reason: reason
+        cancel_reason: reason || 'Dibatalkan',
+        reason: reason || 'Dibatalkan'
       })
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      let errMsg = `HTTP error! status: ${response.status}`;
+      try {
+        const errBody = await response.json();
+        if (errBody?.message || errBody?.error) {
+          errMsg = errBody.message || errBody.error;
+        }
+      } catch {}
+      throw new Error(errMsg);
     }
     
     const result = await response.json();
@@ -185,7 +193,7 @@ async function cancelOrder(orderId, reason) {
     if (result.status === 'success') {
       document.getElementById("sound-status-update").play().catch(() => {});
       fetchOrders();
-      logHistory(orderId, 'cancelled', reason);
+      logHistory(orderId, 'cancelled', reason || 'Dibatalkan');
       showSuccessModal('Pesanan berhasil dibatalkan');
     } else {
       showErrorModal(result.message || 'Gagal membatalkan pesanan');
