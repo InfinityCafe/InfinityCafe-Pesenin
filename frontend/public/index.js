@@ -554,23 +554,28 @@ async function setKitchenStatus(isOpen) {
 function updateKitchenStatusUI(isOpen) {
   const toggle = document.getElementById('kitchen-toggle');
   const offBanner = document.getElementById('kitchen-off-banner');
-  
   // Update toggle state
   toggle.checked = isOpen;
-  
   // Show/hide banner
   if (!isOpen) {
     offBanner.classList.remove('hidden');
-    // Disable all action buttons when kitchen is closed
+    // Hanya disable tombol tambah pesanan baru
+    const addOrderBtn = document.querySelector('.add-order-btn');
+    if (addOrderBtn) addOrderBtn.disabled = true;
+    // Pastikan tombol update status pesanan tetap aktif
     document.querySelectorAll('.action-btn').forEach(btn => {
-      btn.disabled = true;
+      if (!btn.classList.contains('add-order-btn')) {
+        btn.disabled = false;
+      }
     });
   } else {
     offBanner.classList.add('hidden');
-    // Enable all action buttons when kitchen is open
+    // Enable semua tombol
     document.querySelectorAll('.action-btn').forEach(btn => {
       btn.disabled = false;
     });
+    const addOrderBtn = document.querySelector('.add-order-btn');
+    if (addOrderBtn) addOrderBtn.disabled = false;
   }
 }
 
