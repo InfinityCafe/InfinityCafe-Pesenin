@@ -139,6 +139,12 @@ app.post("/cancel_order", async (req, res) => {
           message: "Pesanan hanya bisa dibatalkan saat status 'receive' atau 'making'"
         });
       }
+      // if (String(currentStatus).toLowerCase() !== "receive") {
+      //   return res.status(400).json({
+      //     status: "failed",
+      //     message: "Pesanan hanya bisa dibatalkan saat status 'receive'"
+      //   });
+      // }
     } catch (checkErr) {
       console.error("Failed to verify order status before cancel ", checkErr);
       return res.status(500).json({ error: "Gagal memverifikasi status pesanan sebelum batal" });
