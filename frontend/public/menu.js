@@ -1515,14 +1515,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
     setupSearch();
-    
-    // Handle hash navigation from menu suggestion
-    const hash = window.location.hash.replace('#', '');
-    if (hash === 'menu' || hash === 'flavors') {
-        switchTab(hash);
-        // Remove hash from URL after switching tab
-        window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
-    }
+    setupNavigation();
 });
 
 // Navigation function for menu suggestion

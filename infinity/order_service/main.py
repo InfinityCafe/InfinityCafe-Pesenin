@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from sqlalchemy import Boolean,create_engine, Column, String, Integer, ForeignKey, Text, DateTime, func, Index, and_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
@@ -43,12 +43,23 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     
     full_message = f"Data tidak valid pada field '{field_location}': {error_message}"
 
+    # Convert errors to string format to avoid JSON serialization issues
+    error_details = []
+    for error in exc.errors():
+        error_dict = {
+            "type": error.get("type", ""),
+            "loc": [str(loc) for loc in error.get("loc", [])],
+            "msg": str(error.get("msg", "")),
+            "input": str(error.get("input", ""))[:200]  # Limit input length
+        }
+        error_details.append(error_dict)
+
     return JSONResponse(
         status_code=200,
         content={
             "status": "error",
             "message": full_message,
-            "data": {"details": exc.errors()}
+            "data": {"details": error_details}
         },
     )
 
@@ -63,7 +74,7 @@ app.add_middleware(
 
 mcp = FastApiMCP(app,name="Server MCP Infinity",
         description="Server MCP Infinity Descr",
-        include_operations=["add order","list order","cancel order","order status"]
+        include_operations=["add order","list order","cancel order","cancel kitchen order","cancel order item","order status","list rooms"]
         )
 mcp.mount(mount_path="/mcp",transport="sse")
 jakarta_tz = pytz_timezone('Asia/Jakarta')
@@ -80,6 +91,13 @@ class OrderOutbox(Base):
     retry_count = Column(Integer, default=0)
     max_retries = Column(Integer, default=3)
     error_message = Column(Text, nullable=True)
+
+class Room(Base):
+    __tablename__ = "rooms"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
 
 class Order(Base):
     __tablename__ = "orders"
@@ -111,6 +129,9 @@ class OrderItem(Base):
     quantity = Column(Integer)
     preference = Column(Text)
     notes = Column(Text, nullable=True)
+    status = Column(String, default="active")  # active, cancelled
+    cancelled_reason = Column(Text, nullable=True)
+    cancelled_at = Column(DateTime(timezone=True), nullable=True)
     order = relationship("Order", back_populates="items")
 
 Base.metadata.create_all(bind=engine)
@@ -118,7 +139,7 @@ Base.metadata.create_all(bind=engine)
 class OrderItemSchema(BaseModel):
     menu_name: str = Field(..., min_length=1, description="Nama menu tidak boleh kosong.")
     quantity: int = Field(..., gt=0, description="Jumlah pesanan harus lebih dari 0.")
-    telegram_id : str = Field(..., min_length=1, description="ID Telegram tidak boleh kosong.")
+    telegram_id: Optional[str] = Field(default="WEB_USER", description="ID Telegram (opsional, default: WEB_USER)")
     preference: Optional[str] = ""
     notes: Optional[str] = None
 
@@ -129,15 +150,44 @@ class CreateOrderRequest(BaseModel):
     customer_name: str = Field(..., min_length=1, description="Nama pelanggan tidak boleh kosong.")
     room_name: str = Field(..., min_length=1, description="Nama ruangan tidak boleh kosong.")
     orders: List[OrderItemSchema] = Field(..., min_length=1, description="Daftar pesanan tidak boleh kosong.")
-
     order_id: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 class CancelOrderRequest(BaseModel):
     order_id: str
     reason: str
 
+class CancelOrderItemRequest(BaseModel):
+    order_id: str
+    item_id: Optional[int] = None
+    menu_name: Optional[str] = None
+    reason: str
+    
+    @validator('reason')
+    def validate_identification(cls, v, values):
+        # Validasi dilakukan pada field terakhir untuk memastikan semua field sudah di-parse
+        item_id = values.get('item_id')
+        menu_name = values.get('menu_name')
+        
+        if not item_id and not menu_name:
+            raise ValueError("Either item_id or menu_name must be provided")
+        if item_id and menu_name:
+            raise ValueError("Provide either item_id or menu_name, not both")
+        return v
+
 class StatusUpdateRequest(BaseModel):
     status: str
+
+class RoomSchema(BaseModel):
+    id: int
+    name: str
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 def get_db():
     db = SessionLocal()
@@ -197,6 +247,149 @@ def validate_order_items(order_items: List[OrderItemSchema]) -> Optional[str]:
         return f"Menu berikut tidak ditemukan atau tidak tersedia: {', '.join(invalid_items)}"
     
     return None
+
+def validate_room_name(room_name: str, db: Session) -> Optional[str]:
+    """Memvalidasi nama ruangan berdasarkan data di database."""
+    room = db.query(Room).filter(
+        Room.name == room_name,
+        Room.is_active == True
+    ).first()
+    
+    if not room:
+        # Ambil daftar ruangan yang tersedia untuk ditampilkan ke user
+        available_rooms = db.query(Room).filter(Room.is_active == True).all()
+        room_names = [room.name for room in available_rooms]
+        
+        if room_names:
+            room_list = "\n".join([f"{i+1}. {name}" for i, name in enumerate(room_names)])
+            return f"Nama ruangan '{room_name}' tidak valid. Ruangan yang tersedia:\n\n{room_list}\n\nSilakan pilih salah satu ruangan yang tersedia."
+        else:
+            return "Tidak ada ruangan yang tersedia saat ini."
+    
+    return None
+
+def cancel_order_item_by_stock(order_id: str, menu_name: str, reason: str, db: Session) -> dict:
+    """
+    Membatalkan item order tertentu karena stok habis.
+    Returns: {'cancelled_items': [...], 'remaining_items': [...], 'order_status': 'active/cancelled'}
+    """
+    # Ambil order
+    order = db.query(Order).filter(Order.order_id == order_id).first()
+    if not order:
+        return {"error": f"Order {order_id} tidak ditemukan"}
+    
+    # Ambil item yang akan dibatalkan
+    items_to_cancel = db.query(OrderItem).filter(
+        OrderItem.order_id == order_id,
+        OrderItem.menu_name == menu_name,
+        OrderItem.status == "active"
+    ).all()
+    
+    if not items_to_cancel:
+        return {"error": f"Menu '{menu_name}' tidak ditemukan atau sudah dibatalkan dalam order {order_id}"}
+    
+    cancelled_items = []
+    for item in items_to_cancel:
+        item.status = "cancelled"
+        item.cancelled_reason = reason
+        item.cancelled_at = datetime.now(jakarta_tz)
+        cancelled_items.append({
+            "item_id": item.id,
+            "menu_name": item.menu_name,
+            "quantity": item.quantity,
+            "preference": item.preference,
+            "reason": reason
+        })
+    
+    # Cek apakah masih ada item aktif
+    remaining_items = db.query(OrderItem).filter(
+        OrderItem.order_id == order_id,
+        OrderItem.status == "active"
+    ).all()
+    
+    # Update status order jika semua item dibatalkan
+    if not remaining_items:
+        order.status = "cancelled"
+        order.cancel_reason = "Semua item dibatalkan karena stok habis"
+        order_status = "cancelled"
+    else:
+        order_status = "partial_cancelled"
+    
+    # Buat outbox event untuk partial cancellation
+    cancel_payload = {
+        "order_id": order_id,
+        "type": "partial_cancel",
+        "cancelled_items": cancelled_items,
+        "remaining_items": [
+            {
+                "item_id": item.id,
+                "menu_name": item.menu_name,
+                "quantity": item.quantity,
+                "preference": item.preference
+            } for item in remaining_items
+        ],
+        "reason": reason,
+        "cancelled_at": datetime.now(jakarta_tz).isoformat(),
+        "order_status": order_status
+    }
+    
+    create_outbox_event(db, order_id, "item_cancelled", cancel_payload)
+    db.commit()
+    
+    return {
+        "cancelled_items": cancelled_items,
+        "remaining_items": [
+            {
+                "item_id": item.id,
+                "menu_name": item.menu_name,
+                "quantity": item.quantity,
+                "preference": item.preference
+            } for item in remaining_items
+        ],
+        "order_status": order_status
+    }
+
+def check_stock_per_item(order_items: List[OrderItemSchema], order_id: str) -> tuple[bool, list, list]:
+    """
+    Cek stok per item dan pisahkan yang bisa dipenuhi vs yang tidak.
+    Returns: (can_fulfill_all, available_items, unavailable_items)
+    """
+    available_items = []
+    unavailable_items = []
+    
+    for item in order_items:
+        try:
+            # Cek stok per item individual
+            inventory_payload = {
+                "order_id": f"{order_id}_check_{item.menu_name}",
+                "items": [{"menu_name": item.menu_name, "quantity": item.quantity, "preference": item.preference}]
+            }
+            
+            stock_resp = requests.post(
+                f"{INVENTORY_SERVICE_URL}/stock/check_availability",
+                json=inventory_payload,
+                timeout=7
+            )
+            stock_data = stock_resp.json()
+            
+            if stock_data.get("can_fulfill", False):
+                available_items.append(item)
+            else:
+                unavailable_items.append({
+                    "item": item,
+                    "shortages": stock_data.get("shortages", []),
+                    "reason": f"Stok tidak mencukupi untuk {item.menu_name}"
+                })
+        except Exception as e:
+            logging.error(f"Error checking stock for {item.menu_name}: {e}")
+            unavailable_items.append({
+                "item": item,
+                "shortages": [],
+                "reason": f"Error saat cek stok: {e}"
+            })
+    
+    can_fulfill_all = len(unavailable_items) == 0
+    return can_fulfill_all, available_items, unavailable_items
     
 def create_outbox_event(db: Session, order_id: str, event_type: str, payload: dict):
     outbox_event = OrderOutbox(
@@ -284,6 +477,11 @@ def get_outbox_status(db: Session = Depends(get_db)):
 @app.post("/create_order", summary="Buat pesanan baru", tags=["Order"], operation_id="add order")
 def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     """Membuat pesanan baru dan mengirimkannya ke kitchen_service."""
+
+    # Validasi nama ruangan
+    room_validation_error = validate_room_name(req.room_name, db)
+    if room_validation_error:
+        return JSONResponse(status_code=200, content={"status": "error", "message": room_validation_error, "data": None})
 
     validation_error = validate_order_items(req.orders)
     if validation_error:
@@ -467,41 +665,45 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         return JSONResponse(status_code=200, content={"status": "error", "message": f"Pesanan dengan ID {order_id} sudah dalam proses.", "data": None})
     
     try:
-        inventory_payload = {
-            "order_id": temp_order_id,
-            "items": [
-                {"menu_name": item.menu_name, "quantity": item.quantity, "preference": item.preference}
-                for item in req.orders
-            ]
-        }
-        print(f"🔍 DEBUG ORDER SERVICE: Checking stock availability: {inventory_payload}")
+        # Cek stok per item untuk partial cancellation
+        can_fulfill_all, available_items, unavailable_items = check_stock_per_item(req.orders, temp_order_id)
         
-        stock_resp = requests.post(
-            f"{INVENTORY_SERVICE_URL}/stock/check_availability",
-            json=inventory_payload,
-            timeout=7
-        )
-        stock_data = stock_resp.json()
-        if not stock_data.get("can_fulfill", False):
-            msg = "Stok belum mencukupi. Stok berikut habis:"
-            shortages = stock_data.get("shortages") or []
-            if shortages:
-                shortage_list = []
-                for i, s in enumerate(shortages[:10], 1): 
-                    ingredient_name = s.get('ingredient_name', f"ID {s.get('ingredient_id')}")
-                    shortage_list.append(f"{i}. {ingredient_name}")
-                msg += "\n" + "\n".join(shortage_list)
-            partial = stock_data.get("partial_suggestions")
-            if partial:
-                sug_parts = [f"{p['menu_name']} bisa {p['can_make']}/{p['requested']}" for p in partial]
-                msg += "\n\nSaran partial: " + ", ".join(sug_parts)
+        if not available_items:
+            # Jika tidak ada item yang bisa dipenuhi sama sekali
+            shortage_msgs = []
+            for i, unavail_item in enumerate(unavailable_items[:5], 1):
+                item = unavail_item["item"]
+                reason = unavail_item["reason"]
+                shortage_msgs.append(f"{i}. {item.menu_name} x{item.quantity} - {reason}")
+            
+            msg = "Semua menu yang dipesan tidak tersedia:\n" + "\n".join(shortage_msgs)
             return JSONResponse(status_code=200, content={
                 "status": "error",
                 "message": msg,
-                "data": stock_data
+                "data": {"available_items": [], "unavailable_items": unavailable_items}
             })
+        
+        # Jika ada item yang tidak tersedia, buat partial order
+        if unavailable_items:
+            unavailable_names = [unavail_item["item"].menu_name for unavail_item in unavailable_items]
+            shortage_msgs = []
+            for i, unavail_item in enumerate(unavailable_items, 1):
+                item = unavail_item["item"]
+                reason = unavail_item["reason"]
+                shortage_msgs.append(f"{i}. {item.menu_name} x{item.quantity} - {reason}")
+            
+            logging.info(f"⚠️ Partial order untuk {temp_order_id}: {len(available_items)} tersedia, {len(unavailable_items)} tidak tersedia")
+            
+            # Lanjutkan dengan item yang tersedia saja
+            order_items_to_create = available_items
+            partial_warning = f"\n\n⚠️ PERHATIAN: Menu berikut tidak tersedia dan akan otomatis dibatalkan:\n" + "\n".join(shortage_msgs)
+        else:
+            # Semua item tersedia
+            order_items_to_create = req.orders
+            partial_warning = ""
+            
     except Exception as e:
-        logging.error(f"Gagal cek stok batch: {e}")
+        logging.error(f"Gagal cek stok per item: {e}")
         return JSONResponse(status_code=200, content={
             "status": "error",
             "message": "Tidak dapat memvalidasi stok saat ini.",
@@ -518,10 +720,37 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
             is_custom=False
         )
         db.add(new_order)
+        
+        # Tambahkan semua items (termasuk yang akan dibatalkan)
         for item in req.orders:
             db.add(OrderItem(order_id=order_id, **item.model_dump()))
         
-        outbox_payload = { "order_id": order_id, "queue_number": new_queue_number, "orders": [item.model_dump() for item in req.orders], "customer_name": req.customer_name, "room_name": req.room_name }
+        # Jika ada partial cancellation, batalkan item yang tidak tersedia
+        if unavailable_items:
+            for unavail_item in unavailable_items:
+                item = unavail_item["item"]
+                reason = unavail_item["reason"]
+                
+                # Update status item yang tidak tersedia menjadi cancelled
+                db_item = db.query(OrderItem).filter(
+                    OrderItem.order_id == order_id,
+                    OrderItem.menu_name == item.menu_name
+                ).first()
+                
+                if db_item:
+                    db_item.status = "cancelled"
+                    db_item.cancelled_reason = reason
+                    db_item.cancelled_at = datetime.now(jakarta_tz)
+        
+        outbox_payload = { 
+            "order_id": order_id, 
+            "queue_number": new_queue_number, 
+            "orders": [item.model_dump() for item in order_items_to_create], 
+            "customer_name": req.customer_name, 
+            "room_name": req.room_name,
+            "is_partial": len(unavailable_items) > 0,
+            "cancelled_items": [unavail_item["item"].model_dump() for unavail_item in unavailable_items] if unavailable_items else []
+        }
         create_outbox_event(db, order_id, "order_created", outbox_payload)
         db.commit()
     except Exception as e:
@@ -536,9 +765,17 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
 
     try:
         print(f"🔥 ORDER SERVICE: Mengkonsumsi stok untuk order {order_id}")
+        # Hanya konsumsi stok untuk item yang tersedia
+        consume_payload = {
+            "order_id": order_id,
+            "items": [
+                {"menu_name": item.menu_name, "quantity": item.quantity, "preference": item.preference}
+                for item in order_items_to_create
+            ]
+        }
         consume_resp = requests.post(
             f"{INVENTORY_SERVICE_URL}/stock/consume",
-            json=inventory_payload,
+            json=consume_payload,
             timeout=7
         )
         consume_data = consume_resp.json()
@@ -549,6 +786,20 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     except Exception as e:
         logging.error(f"❌ Error saat konsumsi stok untuk order {order_id}: {e}")
 
+    # Buat response message
+    if unavailable_items:
+        available_menu_names = [item.menu_name for item in order_items_to_create]
+        unavailable_menu_names = [unavail_item["item"].menu_name for unavail_item in unavailable_items]
+        
+        if available_menu_names:
+            available_str = ", ".join(available_menu_names)
+            unavailable_str = ", ".join(unavailable_menu_names)
+            success_message = f"Pesanan berhasil dibuat dengan nomor antrian {new_queue_number}.\n\n✅ Menu tersedia: {available_str}\n❌ Menu dibatalkan: {unavailable_str}{partial_warning}"
+        else:
+            success_message = f"Pesanan dibatalkan karena semua menu tidak tersedia.{partial_warning}"
+    else:
+        success_message = f"Pesanan berhasil dibuat dengan nomor antrian {new_queue_number}. Semua menu tersedia dan sedang diproses."
+
     order_details = {
         "queue_number": new_queue_number,
         "customer_name": req.customer_name,
@@ -556,26 +807,45 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         "status": "receive",
         "created_at": new_order.created_at.isoformat(),
         "is_custom": False,
+        "is_partial": len(unavailable_items) > 0,
         "total_items": len(req.orders),
+        "available_items": len(order_items_to_create),
+        "cancelled_items": len(unavailable_items),
         "orders": [
             {
                 "menu_name": item.menu_name,
                 "quantity": item.quantity,
                 "preference": item.preference if item.preference else "",
-                "notes": item.notes
-            } for item in req.orders
-        ]
+                "notes": item.notes,
+                "status": "active"
+            } for item in order_items_to_create
+        ],
+        "cancelled_orders": [
+            {
+                "menu_name": unavail_item["item"].menu_name,
+                "quantity": unavail_item["item"].quantity,
+                "preference": unavail_item["item"].preference if unavail_item["item"].preference else "",
+                "notes": unavail_item["item"].notes,
+                "status": "cancelled",
+                "cancel_reason": unavail_item["reason"]
+            } for unavail_item in unavailable_items
+        ] if unavailable_items else []
     }
 
     return JSONResponse(status_code=200, content={
         "status": "success",
-        "message": f"Pesanan kamu telah berhasil diproses dengan no antrian : {new_queue_number} mohon ditunggu ya !",
+        "message": success_message,
         "data": order_details
     })
 
 @app.post("/custom_order", summary="Buat pesanan custom (tanpa validasi menu)", tags=["Order"], operation_id="add custom order")
 def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     """Membuat pesanan custom baru dengan validasi menu tetapi flavor bebas."""
+
+    # Validasi nama ruangan
+    room_validation_error = validate_room_name(req.room_name, db)
+    if room_validation_error:
+        return JSONResponse(status_code=200, content={"status": "error", "message": room_validation_error, "data": None})
 
     validation_error = validate_order_items(req.orders)
     if validation_error:
@@ -692,38 +962,47 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     if db.query(Order).filter(Order.order_id == order_id).first():
         return JSONResponse(status_code=200, content={"status": "error", "message": f"Pesanan dengan ID {order_id} sudah dalam proses.", "data": None})
     
+    
     try:
-        inventory_payload = {
-            "order_id": temp_order_id,
-            "items": [
-                {"menu_name": item.menu_name, "quantity": item.quantity, "preference": item.preference}
-                for item in req.orders
-            ]
-        }
-        print(f"🔍 DEBUG ORDER SERVICE: Checking stock availability: {inventory_payload}")
+        # Cek stok per item untuk partial cancellation (sama seperti create_order)
+        can_fulfill_all, available_items, unavailable_items = check_stock_per_item(req.orders, temp_order_id)
         
-        stock_resp = requests.post(
-            f"{INVENTORY_SERVICE_URL}/stock/check_availability",
-            json=inventory_payload,
-            timeout=7
-        )
-        stock_data = stock_resp.json()
-        if not stock_data.get("can_fulfill", False):
-            msg = "Stok belum mencukupi. Stok berikut habis:"
-            shortages = stock_data.get("shortages") or []
-            if shortages:
-                shortage_list = []
-                for i, s in enumerate(shortages[:10], 1):
-                    ingredient_name = s.get('ingredient_name', f"ID {s.get('ingredient_id')}")
-                    shortage_list.append(f"{i}. {ingredient_name}")
-                msg += "\n" + "\n".join(shortage_list)
+        if not available_items:
+            # Jika tidak ada item yang bisa dipenuhi sama sekali
+            shortage_msgs = []
+            for i, unavail_item in enumerate(unavailable_items[:5], 1):
+                item = unavail_item["item"]
+                reason = unavail_item["reason"]
+                shortage_msgs.append(f"{i}. {item.menu_name} x{item.quantity} - {reason}")
+            
+            msg = "Semua menu custom yang dipesan tidak tersedia:\n" + "\n".join(shortage_msgs)
             return JSONResponse(status_code=200, content={
                 "status": "error",
                 "message": msg,
-                "data": stock_data
+                "data": {"available_items": [], "unavailable_items": unavailable_items}
             })
+        
+        # Jika ada item yang tidak tersedia, buat partial order
+        if unavailable_items:
+            unavailable_names = [unavail_item["item"].menu_name for unavail_item in unavailable_items]
+            shortage_msgs = []
+            for i, unavail_item in enumerate(unavailable_items, 1):
+                item = unavail_item["item"]
+                reason = unavail_item["reason"]
+                shortage_msgs.append(f"{i}. {item.menu_name} x{item.quantity} - {reason}")
+            
+            logging.info(f"⚠️ Partial custom order untuk {temp_order_id}: {len(available_items)} tersedia, {len(unavailable_items)} tidak tersedia")
+            
+            # Lanjutkan dengan item yang tersedia saja
+            order_items_to_create = available_items
+            partial_warning = f"\n\n⚠️ PERHATIAN: Menu custom berikut tidak tersedia dan akan otomatis dibatalkan:\n" + "\n".join(shortage_msgs)
+        else:
+            # Semua item tersedia
+            order_items_to_create = req.orders
+            partial_warning = ""
+            
     except Exception as e:
-        logging.error(f"Gagal cek stok batch (custom): {e}")
+        logging.error(f"Gagal cek stok per item (custom): {e}")
         return JSONResponse(status_code=200, content={
             "status": "error",
             "message": "Tidak dapat memvalidasi stok saat ini.",
@@ -740,15 +1019,43 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
             is_custom=True
         )
         db.add(new_order)
+        
+        # Tambahkan semua items (termasuk yang akan dibatalkan)
         for item in req.orders:
             db.add(OrderItem(order_id=order_id, **item.model_dump()))
         
-        outbox_payload = { "order_id": order_id, "queue_number": new_queue_number, "orders": [item.model_dump() for item in req.orders], "customer_name": req.customer_name, "room_name": req.room_name }
+        # Jika ada partial cancellation, batalkan item yang tidak tersedia
+        if unavailable_items:
+            for unavail_item in unavailable_items:
+                item = unavail_item["item"]
+                reason = unavail_item["reason"]
+                
+                # Update status item yang tidak tersedia menjadi cancelled
+                db_item = db.query(OrderItem).filter(
+                    OrderItem.order_id == order_id,
+                    OrderItem.menu_name == item.menu_name
+                ).first()
+                
+                if db_item:
+                    db_item.status = "cancelled"
+                    db_item.cancelled_reason = reason
+                    db_item.cancelled_at = datetime.now(jakarta_tz)
+        
+        outbox_payload = { 
+            "order_id": order_id, 
+            "queue_number": new_queue_number, 
+            "orders": [item.model_dump() for item in order_items_to_create], 
+            "customer_name": req.customer_name, 
+            "room_name": req.room_name,
+            "is_custom": True,
+            "is_partial": len(unavailable_items) > 0,
+            "cancelled_items": [unavail_item["item"].model_dump() for unavail_item in unavailable_items] if unavailable_items else []
+        }
         create_outbox_event(db, order_id, "order_created", outbox_payload)
         db.commit()
     except Exception as e:
         db.rollback()
-        logging.error(f"Database error saat create order: {e}")
+        logging.error(f"Database error saat create custom order: {e}")
         return JSONResponse(status_code=200, content={"status": "error", "message": f"Terjadi kesalahan pada database: {e}", "data": None})
 
     try:
@@ -758,9 +1065,17 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
 
     try:
         print(f"🔥 ORDER SERVICE: Mengkonsumsi stok untuk custom order {order_id}")
+        # Hanya konsumsi stok untuk item yang tersedia
+        consume_payload = {
+            "order_id": order_id,
+            "items": [
+                {"menu_name": item.menu_name, "quantity": item.quantity, "preference": item.preference}
+                for item in order_items_to_create
+            ]
+        }
         consume_resp = requests.post(
             f"{INVENTORY_SERVICE_URL}/stock/consume",
-            json=inventory_payload,
+            json=consume_payload,
             timeout=7
         )
         consume_data = consume_resp.json()
@@ -771,6 +1086,20 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     except Exception as e:
         logging.error(f"❌ Error saat konsumsi stok untuk custom order {order_id}: {e}")
 
+    # Buat response message untuk custom order
+    if unavailable_items:
+        available_menu_names = [item.menu_name for item in order_items_to_create]
+        unavailable_menu_names = [unavail_item["item"].menu_name for unavail_item in unavailable_items]
+        
+        if available_menu_names:
+            available_str = ", ".join(available_menu_names)
+            unavailable_str = ", ".join(unavailable_menu_names)
+            success_message = f"Pesanan custom berhasil dibuat dengan nomor antrian {new_queue_number}.\n\n✅ Menu tersedia: {available_str}\n❌ Menu dibatalkan: {unavailable_str}{partial_warning}"
+        else:
+            success_message = f"Pesanan custom dibatalkan karena semua menu tidak tersedia.{partial_warning}"
+    else:
+        success_message = f"Pesanan custom berhasil dibuat dengan nomor antrian {new_queue_number}. Semua menu tersedia dan sedang diproses."
+
     order_details = {
         "queue_number": new_queue_number,
         "customer_name": req.customer_name,
@@ -778,20 +1107,34 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         "status": "receive",
         "created_at": new_order.created_at.isoformat(),
         "is_custom": True,
-
+        "is_partial": len(unavailable_items) > 0,
+        "total_items": len(req.orders),
+        "available_items": len(order_items_to_create),
+        "cancelled_items": len(unavailable_items),
         "orders": [
             {
                 "menu_name": item.menu_name,
                 "quantity": item.quantity,
                 "preference": item.preference if item.preference else "",
-                "notes": item.notes
-            } for item in req.orders
-        ]
+                "notes": item.notes,
+                "status": "active"
+            } for item in order_items_to_create
+        ],
+        "cancelled_orders": [
+            {
+                "menu_name": unavail_item["item"].menu_name,
+                "quantity": unavail_item["item"].quantity,
+                "preference": unavail_item["item"].preference if unavail_item["item"].preference else "",
+                "notes": unavail_item["item"].notes,
+                "status": "cancelled",
+                "cancel_reason": unavail_item["reason"]
+            } for unavail_item in unavailable_items
+        ] if unavailable_items else []
     }
 
     return JSONResponse(status_code=200, content={
         "status": "success",
-        "message": f"Pesanan custom kamu telah berhasil diproses dengan no antrian : {new_queue_number}, mohon ditunggu ya !",
+        "message": success_message,
         "data": order_details
     })
 
@@ -862,6 +1205,324 @@ def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
         "status": "success", 
         "message": f"Pesanan dengan menu {menu_list} telah berhasil dibatalkan.", 
         "data": cancelled_order_details
+    })
+
+@app.post("/cancel_kitchen", summary="Batalkan pesanan dari kitchen (tanpa batasan status)", tags=["Kitchen"], operation_id="cancel kitchen order")
+def cancel_order_kitchen(req: CancelOrderRequest, db: Session = Depends(get_db)):
+    """Membatalkan pesanan dari kitchen tanpa batasan status."""
+    
+    order = db.query(Order).filter(Order.order_id == req.order_id).first()
+    if not order:
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Pesanan dengan ID: {req.order_id} tidak ditemukan.", 
+            "data": None
+        })
+    
+    if order.status == "cancelled":
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Pesanan dengan ID: {req.order_id} sudah dibatalkan sebelumnya.", 
+            "data": None
+        })
+    
+    if order.status == "done":
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Pesanan dengan ID: {req.order_id} sudah selesai dan tidak dapat dibatalkan.", 
+            "data": None
+        })
+
+    previous_status = order.status
+    
+    order_items = db.query(OrderItem).filter(OrderItem.order_id == req.order_id).all()
+    
+    menu_names = [item.menu_name for item in order_items]
+    if len(menu_names) == 1:
+        menu_list = menu_names[0]
+    elif len(menu_names) == 2:
+        menu_list = " dan ".join(menu_names)
+    else:
+        menu_list = ", ".join(menu_names[:-1]) + f", dan {menu_names[-1]}"
+    
+    order.status = "cancelled"
+    order.cancel_reason = f"[KITCHEN CANCEL] {req.reason}"
+    
+    cancel_payload = { 
+        "order_id": req.order_id, 
+        "reason": req.reason, 
+        "previous_status": previous_status,
+        "cancelled_by": "kitchen",
+        "cancelled_at": datetime.now(jakarta_tz).isoformat() 
+    }
+    create_outbox_event(db, req.order_id, "order_cancelled", cancel_payload)
+    db.commit()
+    
+    try:
+        rollback_response = requests.post(f"{INVENTORY_SERVICE_URL}/stock/rollback/{req.order_id}")
+        if rollback_response.status_code == 200:
+            rollback_data = rollback_response.json()
+            logging.info(f"✅ Kitchen cancel - Inventory rollback berhasil untuk order {req.order_id}: {rollback_data}")
+        else:
+            logging.warning(f"⚠️ Kitchen cancel - Inventory rollback gagal untuk order {req.order_id}: {rollback_response.text}")
+    except Exception as e:
+        logging.error(f"❌ Kitchen cancel - Error saat rollback inventory untuk order {req.order_id}: {e}")
+    
+    try:
+        process_outbox_events(db)
+    except Exception as e:
+        logging.warning(f"⚠️ Kitchen cancel - Gagal memproses cancel outbox event: {e}")
+    
+    cancelled_order_details = {
+        "order_id": order.order_id,
+        "queue_number": order.queue_number,
+        "customer_name": order.customer_name,
+        "room_name": order.room_name,
+        "status": "cancelled",
+        "previous_status": previous_status,
+        "cancel_reason": req.reason,
+        "cancelled_by": "kitchen",
+        "created_at": order.created_at.isoformat(),
+        "cancelled_at": datetime.now(jakarta_tz).isoformat(),
+        "is_custom": order.is_custom,
+        "orders": [
+            {
+                "menu_name": item.menu_name,
+                "quantity": item.quantity,
+                "preference": item.preference if item.preference else "",
+                "notes": item.notes
+            } for item in order_items
+        ]
+    }
+    
+    logging.info(f"🍳 Kitchen membatalkan pesanan {req.order_id} (status sebelumnya: {previous_status}) - Reason: {req.reason}")
+    
+    return JSONResponse(status_code=200, content={
+        "status": "success", 
+        "message": f"Pesanan dengan menu {menu_list} telah berhasil dibatalkan oleh kitchen (status sebelumnya: {previous_status}).", 
+        "data": cancelled_order_details
+    })
+
+@app.post("/cancel_order_item", summary="Batalkan item tertentu dalam pesanan", tags=["Order"], operation_id="cancel order item")
+async def cancel_order_item_endpoint(request: Request, db: Session = Depends(get_db)):
+    """Membatalkan item tertentu dalam pesanan, bukan seluruh pesanan."""
+    
+    # Parse request body manually to handle potential JSON parsing issues
+    try:
+        body = await request.body()
+        if isinstance(body, bytes):
+            body_str = body.decode('utf-8')
+        else:
+            body_str = str(body)
+        
+        import json
+        request_data = json.loads(body_str)
+        
+        # Manual validation
+        if not request_data.get('order_id'):
+            return JSONResponse(status_code=200, content={
+                "status": "error", 
+                "message": "order_id is required", 
+                "data": None
+            })
+        
+        if not request_data.get('reason'):
+            return JSONResponse(status_code=200, content={
+                "status": "error", 
+                "message": "reason is required", 
+                "data": None
+            })
+        
+        item_id = request_data.get('item_id')
+        menu_name = request_data.get('menu_name')
+        
+        if not item_id and not menu_name:
+            return JSONResponse(status_code=200, content={
+                "status": "error", 
+                "message": "Either item_id or menu_name must be provided", 
+                "data": None
+            })
+        
+        if item_id and menu_name:
+            return JSONResponse(status_code=200, content={
+                "status": "error", 
+                "message": "Provide either item_id or menu_name, not both", 
+                "data": None
+            })
+        
+        # Create request object manually
+        req = type('obj', (object,), {
+            'order_id': request_data['order_id'],
+            'item_id': item_id,
+            'menu_name': menu_name,
+            'reason': request_data['reason']
+        })()
+        
+    except json.JSONDecodeError as e:
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Invalid JSON format: {str(e)}", 
+            "data": None
+        })
+    except Exception as e:
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Error parsing request: {str(e)}", 
+            "data": None
+        })
+    
+    # Cek apakah order exists
+    order = db.query(Order).filter(Order.order_id == req.order_id).first()
+    if not order:
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Pesanan dengan ID: {req.order_id} tidak ditemukan.", 
+            "data": None
+        })
+    
+    # Cek apakah order sudah selesai atau dibatalkan
+    if order.status in ["done", "cancelled"]:
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Pesanan dengan ID: {req.order_id} sudah {order.status} dan tidak dapat diubah.", 
+            "data": None
+        })
+    
+    # Cek apakah item exists dan masih aktif
+    if req.item_id:
+        # Pencarian berdasarkan item_id
+        order_item = db.query(OrderItem).filter(
+            OrderItem.id == req.item_id,
+            OrderItem.order_id == req.order_id,
+            OrderItem.status == "active"
+        ).first()
+        item_identifier = f"ID: {req.item_id}"
+    else:
+        # Pencarian berdasarkan menu_name
+        order_item = db.query(OrderItem).filter(
+            OrderItem.menu_name == req.menu_name,
+            OrderItem.order_id == req.order_id,
+            OrderItem.status == "active"
+        ).first()
+        item_identifier = f"menu: {req.menu_name}"
+    
+    if not order_item:
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Item dengan {item_identifier} tidak ditemukan atau sudah dibatalkan.", 
+            "data": None
+        })
+    
+    # Cancel the specific item
+    order_item.status = "cancelled"
+    order_item.cancelled_reason = req.reason
+    order_item.cancelled_at = datetime.now(jakarta_tz)
+    
+    # Rollback inventory untuk item yang dibatalkan
+    try:
+        rollback_payload = {
+            "order_id": req.order_id,
+            "items": [
+                {
+                    "menu_name": order_item.menu_name,
+                    "quantity": order_item.quantity,
+                    "preference": order_item.preference
+                }
+            ]
+        }
+        rollback_response = requests.post(
+            f"{INVENTORY_SERVICE_URL}/stock/rollback_partial",
+            json=rollback_payload
+        )
+        if rollback_response.status_code == 200:
+            rollback_data = rollback_response.json()
+            logging.info(f"✅ Inventory rollback berhasil untuk item {req.item_id}: {rollback_data}")
+        else:
+            logging.warning(f"⚠️ Inventory rollback gagal untuk item {req.item_id}: {rollback_response.text}")
+    except Exception as e:
+        logging.error(f"❌ Error saat rollback inventory untuk item {req.item_id}: {e}")
+    
+    # Cek apakah masih ada item aktif (exclude item yang baru dibatalkan)
+    remaining_items = db.query(OrderItem).filter(
+        OrderItem.order_id == req.order_id,
+        OrderItem.status == "active",
+        OrderItem.id != order_item.id  # Exclude item yang baru dibatalkan
+    ).all()
+    
+    # Update status order jika semua item dibatalkan
+    if not remaining_items:
+        order.status = "cancelled"
+        order.cancel_reason = "Semua item telah dibatalkan"
+    
+    # Buat outbox event untuk item cancellation
+    cancel_payload = {
+        "order_id": req.order_id,
+        "type": "item_cancelled",
+        "cancelled_item": {
+            "item_id": order_item.id,
+            "menu_name": order_item.menu_name,
+            "quantity": order_item.quantity,
+            "preference": order_item.preference,
+            "reason": req.reason
+        },
+        "remaining_items": [
+            {
+                "item_id": item.id,
+                "menu_name": item.menu_name,
+                "quantity": item.quantity,
+                "preference": item.preference
+            } for item in remaining_items
+        ],
+        "cancelled_at": datetime.now(jakarta_tz).isoformat(),
+        "order_status": order.status
+    }
+    
+    create_outbox_event(db, req.order_id, "order_item_cancelled", cancel_payload)
+    db.commit()
+    
+    try:
+        process_outbox_events(db)
+    except Exception as e:
+        logging.warning(f"⚠️ Gagal memproses cancel item outbox event: {e}")
+    
+    # Response data
+    result_data = {
+        "order_id": order.order_id,
+        "queue_number": order.queue_number,
+        "customer_name": order.customer_name,
+        "room_name": order.room_name,
+        "order_status": order.status,
+        "cancelled_item": {
+            "item_id": order_item.id,
+            "menu_name": order_item.menu_name,
+            "quantity": order_item.quantity,
+            "preference": order_item.preference if order_item.preference else "",
+            "cancel_reason": req.reason,
+            "cancelled_at": order_item.cancelled_at.isoformat()
+        },
+        "remaining_items": [
+            {
+                "item_id": item.id,
+                "menu_name": item.menu_name,
+                "quantity": item.quantity,
+                "preference": item.preference if item.preference else "",
+                "notes": item.notes
+            } for item in remaining_items
+        ],
+        "total_remaining": len(remaining_items)
+    }
+    
+    if remaining_items:
+        message = f"Item '{order_item.menu_name}' berhasil dibatalkan. Masih ada {len(remaining_items)} item tersisa dalam pesanan."
+    else:
+        message = f"Item '{order_item.menu_name}' berhasil dibatalkan. Seluruh pesanan telah dibatalkan karena tidak ada item yang tersisa."
+    
+    logging.info(f"🚫 Item {order_item.menu_name} dibatalkan dari order {req.order_id} - Reason: {req.reason}")
+    
+    return JSONResponse(status_code=200, content={
+        "status": "success", 
+        "message": message,
+        "data": result_data
     })
 
 @app.post("/internal/update_status/{order_id}", tags=["Internal"])
@@ -1025,10 +1686,145 @@ def get_today_orders(db: Session = Depends(get_db)):
         "total_orders": len(today_orders)
     }
 
+@app.get("/order/status/{queue_number}", summary="Get order status by queue number", tags=["Order"])
+def get_order_status(queue_number: int, db: Session = Depends(get_db)):
+    """Mengambil status pesanan berdasarkan nomor antrian untuk HARI INI (Asia/Jakarta)."""
+    # Batasi pencarian ke hari ini sesuai logika dashboard (queue reset per hari)
+    today_jakarta = datetime.now(jakarta_tz).date()
+    start_of_day = datetime.combine(today_jakarta, datetime.min.time()).replace(tzinfo=jakarta_tz)
+    end_of_day = datetime.combine(today_jakarta, datetime.max.time()).replace(tzinfo=jakarta_tz)
+
+    order = db.query(Order).filter(
+        and_(
+            Order.queue_number == queue_number,
+            Order.created_at >= start_of_day,
+            Order.created_at <= end_of_day
+        )
+    ).first()
+
+    if not order:
+        raise HTTPException(status_code=404, detail=f"Pesanan dengan nomor antrian {queue_number} tidak ditemukan untuk hari ini")
+
+    # Get order items
+    order_items = db.query(OrderItem).filter(OrderItem.order_id == order.order_id).all()
+
+    # Pisahkan item aktif dan yang dibatalkan
+    active_items = []
+    cancelled_items = []
+    
+    for item in order_items:
+        item_data = {
+            "item_id": item.id,
+            "menu_name": item.menu_name,
+            "quantity": item.quantity,
+            "preference": item.preference,
+            "notes": item.notes,
+            "status": getattr(item, 'status', 'active')
+        }
+        
+        if getattr(item, 'status', 'active') == 'cancelled':
+            item_data["cancelled_reason"] = getattr(item, 'cancelled_reason', None)
+            item_data["cancelled_at"] = getattr(item, 'cancelled_at', None)
+            if item_data["cancelled_at"]:
+                item_data["cancelled_at"] = item_data["cancelled_at"].isoformat()
+            cancelled_items.append(item_data)
+        else:
+            active_items.append(item_data)
+
+    return {
+        "order_id": order.order_id,
+        "queue_number": order.queue_number,
+        "customer_name": order.customer_name,
+        "room_name": order.room_name,
+        "status": order.status,
+        "created_at": order.created_at.isoformat(),
+        "cancel_reason": order.cancel_reason,
+        "is_custom": order.is_custom,
+        "total_items": len(order_items),
+        "active_items": len(active_items),
+        "cancelled_items": len(cancelled_items),
+        "items": active_items,
+        "cancelled_orders": cancelled_items
+    }
+
 @app.get("/health", summary="Health check", tags=["Utility"])
 def health_check():
     """Cek status hidup service."""
     return {"status": "ok", "service": "order_service"}
+
+@app.get("/rooms", summary="Daftar ruangan", tags=["Room"], operation_id="list rooms")
+def get_rooms(db: Session = Depends(get_db)):
+    """Mengambil daftar semua ruangan yang tersedia."""
+    rooms = db.query(Room).filter(Room.is_active == True).order_by(Room.name).all()
+    return {
+        "status": "success",
+        "message": "Daftar ruangan berhasil diambil.",
+        "data": {
+            "rooms": [{"id": room.id, "name": room.name} for room in rooms],
+            "total": len(rooms)
+        }
+    }
+
+@app.post("/rooms", summary="Tambah ruangan baru", tags=["Room"])
+def add_room(room_name: str, db: Session = Depends(get_db)):
+    """Menambahkan ruangan baru."""
+    # Cek apakah ruangan sudah ada
+    existing_room = db.query(Room).filter(Room.name == room_name).first()
+    if existing_room:
+        if existing_room.is_active:
+            return JSONResponse(status_code=200, content={
+                "status": "error", 
+                "message": f"Ruangan '{room_name}' sudah ada.", 
+                "data": None
+            })
+        else:
+            # Aktifkan kembali ruangan yang sudah ada tapi nonaktif
+            existing_room.is_active = True
+            db.commit()
+            return JSONResponse(status_code=200, content={
+                "status": "success", 
+                "message": f"Ruangan '{room_name}' berhasil diaktifkan kembali.", 
+                "data": {"id": existing_room.id, "name": existing_room.name}
+            })
+    
+    # Tambah ruangan baru
+    new_room = Room(name=room_name)
+    db.add(new_room)
+    db.commit()
+    db.refresh(new_room)
+    
+    return JSONResponse(status_code=200, content={
+        "status": "success", 
+        "message": f"Ruangan '{room_name}' berhasil ditambahkan.", 
+        "data": {"id": new_room.id, "name": new_room.name}
+    })
+
+@app.delete("/rooms/{room_id}", summary="Nonaktifkan ruangan", tags=["Room"])
+def deactivate_room(room_id: int, db: Session = Depends(get_db)):
+    """Menonaktifkan ruangan (tidak menghapus dari database)."""
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": "Ruangan tidak ditemukan.", 
+            "data": None
+        })
+    
+    if not room.is_active:
+        return JSONResponse(status_code=200, content={
+            "status": "error", 
+            "message": f"Ruangan '{room.name}' sudah nonaktif.", 
+            "data": None
+        })
+    
+    room.is_active = False
+    db.commit()
+    
+    return JSONResponse(status_code=200, content={
+        "status": "success", 
+        "message": f"Ruangan '{room.name}' berhasil dinonaktifkan.", 
+        "data": {"id": room.id, "name": room.name}
+    })
 
 hostname = socket.gethostname()
 local_ip = socket.gethostbyname(hostname)

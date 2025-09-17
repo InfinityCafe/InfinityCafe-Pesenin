@@ -168,14 +168,15 @@ async def set_kitchen_status(
 @app.post("/receive_order", summary="Terima pesanan", tags=["Kitchen"], operation_id="receive order")
 async def receive_order(order: KitchenOrderRequest, db: Session = Depends(get_db)):
     status = get_kitchen_status(db)
-    if not status.is_open:  
-        raise HTTPException(status_code=400, detail="Kitchen is currently OFF")
-        
+    if not status.is_open:
+        # Jika status dapur OFF, tolak pesanan baru
+        raise HTTPException(status_code=400, detail="Kitchen is currently OFF. Tidak bisa menerima pesanan baru.")
+
     # Cek apakah order sudah ada
     existing_order = db.query(KitchenOrder).filter(KitchenOrder.order_id == order.order_id).first()
     if existing_order:
         raise HTTPException(status_code=400, detail="Order already exists")
-        
+
     # Format detail dengan lebih baik
     detail_str = "\n".join([
         f"{item.quantity}x {item.menu_name}" +
@@ -211,7 +212,7 @@ async def update_status(order_id: str, status: str, reason: str = "", db: Sessio
     order = db.query(KitchenOrder).filter(KitchenOrder.order_id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    
+
     # Validasi status dan reason
     if status in ["cancelled", "habis"] and not reason:
         raise HTTPException(status_code=400, detail="Alasan wajib untuk status cancel, atau habis")
@@ -246,10 +247,10 @@ async def update_status(order_id: str, status: str, reason: str = "", db: Sessio
         logging.info(f"✅ Berhasil mengirim update status '{status}' untuk order {order_id} ke order_service.")
     except Exception as e:
         logging.error(f"❌ Gagal mengirim update status ke order_service untuk order {order_id}: {e}")
-        
+
     # Broadcast ke semua client
     await broadcast_orders(db)
-    
+
     return {
         "message": f"Order {order_id} updated to status '{status}'",
         "order_id": order_id,
