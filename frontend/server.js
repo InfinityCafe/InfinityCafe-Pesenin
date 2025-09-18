@@ -317,8 +317,11 @@ app.get("/get_cancelled_items", async (req, res) => {
                     if (byIdResp.ok) {
                       const byIdJson = await byIdResp.json().catch(() => ({}));
                       const byIdData = (byIdJson && byIdJson.data) || byIdJson;
+                      // Prefer cancelled_orders if available; fallback to orders (active list)
+                      const cancelledList = Array.isArray(byIdData?.cancelled_orders) ? byIdData.cancelled_orders : [];
                       const ordersList = Array.isArray(byIdData?.orders) ? byIdData.orders : [];
-                      if (ordersList.length > 0) sourceItems = ordersList;
+                      const preferList = cancelledList.length > 0 ? cancelledList : ordersList;
+                      if (preferList.length > 0) sourceItems = preferList;
                     }
                   } catch (e) {
                     console.error("Fallback order_status by id failed: ", e);
@@ -339,14 +342,13 @@ app.get("/get_cancelled_items", async (req, res) => {
                   timeCancelled = new Date(Math.max(...times)).toISOString();
                 }
               }
-              if (!timeCancelled) timeCancelled = new Date().toISOString();
 
               cancelledItemsData.push({
                 order_id: orderData.order_id,
                 queue_number: orderData.queue_number || order.queue_number,
                 customer_name: orderData.customer_name,
                 room_name: orderData.room_name,
-                time_cancelled: timeCancelled,
+                time_cancelled: timeCancelled || null,
                 cancelled_items: cancelledItems
               });
             }

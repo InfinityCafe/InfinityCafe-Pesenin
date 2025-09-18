@@ -90,7 +90,7 @@ async function fetchCancelledItems() {
               queue_number: queueNumber,
               customer_name: order.customer_name,
               room_name: order.room_name,
-              time_cancelled: order.time_cancelled || new Date().toISOString(),
+              time_cancelled: order.time_cancelled || null,
               cancelled_items: order.cancelled_items
             };
           }
@@ -540,7 +540,9 @@ function createCancelledItemCard(cancelledOrder) {
   // Tambahkan click handler untuk modal detail
   card.onclick = () => openCancelledOrderDetailModal(cancelledOrder);
 
-  const time = new Date(cancelledOrder.time_cancelled).toLocaleString("id-ID");
+  const time = cancelledOrder.time_cancelled 
+    ? new Date(cancelledOrder.time_cancelled).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" }) 
+    : "-";
   const totalCancelledItems = cancelledOrder.cancelled_items.length;
   
   // Ambil queue number dari mapping global atau gunakan fallback
@@ -563,7 +565,7 @@ function createCancelledItemCard(cancelledOrder) {
 
   // Status badge untuk cancelled
   const statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-ban"></i> CANCELLED</span>';
-  const actionButton = `<button class="action-btn action-btn-red-disabled">CANCELLED (${totalCancelledItems} items)</button>`;
+  const actionButton = `<button class="action-btn action-btn-red-disabled">CANCELLED</button>`;
 
   card.innerHTML = `
     <div class="order-header">
@@ -600,7 +602,9 @@ function openCancelledOrderDetailModal(cancelledOrder) {
     window._orderIdToQueue[cancelledOrder.order_id] : 
     cancelledOrder.queue_number || cancelledOrder.order_id;
   
-  const time = new Date(cancelledOrder.time_cancelled).toLocaleString("id-ID");
+  const time = cancelledOrder.time_cancelled 
+    ? new Date(cancelledOrder.time_cancelled).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" }) 
+    : "-";
   
   box.innerHTML = `
     <h3>📦 Detail Pesanan</h3>
