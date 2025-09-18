@@ -517,9 +517,31 @@ async def sync_order_items(order_id: str, db: Session = Depends(get_db)):
     # Sync status and cancel reason
     new_status = (od.get("status") or order.status) or "receive"
     order.status = new_status
+    # Build a concise per-item cancelled reasons summary when partial cancellations exist
+    reason_summary = None
+    try:
+        if cancelled:
+            parts = []
+            for ci in cancelled:
+                name = (ci.get("menu_name") or ci.get("name") or ci.get("menu") or "Item").strip()
+                pref = (ci.get("preference") or "").strip()
+                r = (ci.get("cancel_reason") or ci.get("cancelled_reason") or ci.get("reason") or "Dibatalkan").strip()
+                label = f"{name}"
+                if pref:
+                    label += f" ({pref})"
+                parts.append(f"{label}: {r}")
+            if parts:
+                reason_summary = "; ".join(parts)
+    except Exception:
+        reason_summary = None
+
     if new_status in ["cancelled", "habis"]:
-        # Prefer reason from order_service, else keep existing
-        order.cancel_reason = od.get("cancel_reason") or order.cancel_reason or "Dibatalkan"
+        # Prefer order-level reason from order_service; if missing, fall back to per-item summary
+        order.cancel_reason = (od.get("cancel_reason") or reason_summary or order.cancel_reason or "Dibatalkan")
+    else:
+        # For partial cancels on active orders, store summary so kitchen UI can show notes
+        if reason_summary:
+            order.cancel_reason = reason_summary
 
     db.commit()
 

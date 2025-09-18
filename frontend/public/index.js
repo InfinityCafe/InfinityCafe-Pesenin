@@ -615,7 +615,10 @@ function openCancelledOrderDetailModal(cancelledOrder) {
     
     <h4 style="color: #dc3545; margin-top: 20px;">📝 Alasan Pembatalan:</h4>
     <div style="background: #fee2e2; padding: 10px; border-radius: 5px; border-left: 4px solid #dc3545;">
-      ${cancelledOrder.cancelled_items.map(item => `• ${item.menu_name}: ${item.cancel_reason || item.reason || 'Tidak ada alasan'}`).join('<br>')}
+      ${cancelledOrder.cancelled_items.map(item => {
+        const r = item.cancel_reason || item.cancelled_reason || item.reason || 'Tidak ada alasan';
+        return `• ${item.menu_name}: ${r}`;
+      }).join('<br>')}
     </div>
   `;
   

@@ -289,23 +289,42 @@ app.get("/get_cancelled_items", async (req, res) => {
             const shouldInclude = hasCancelledArray || ["cancelled", "habis"].includes(status);
 
             if (shouldInclude) {
+              // Helper to normalize item fields
+              const normItem = (ci) => ({
+                item_id: ci.item_id || ci.id,
+                menu_name: ci.menu_name || ci.name || ci.menu,
+                quantity: ci.quantity || 1,
+                preference: ci.preference || "",
+                notes: ci.notes || "",
+                status: "cancelled",
+                cancel_reason: ci.cancel_reason || ci.cancelled_reason || ci.reason || (orderData.cancel_reason || "Dibatalkan"),
+                cancelled_at: ci.cancelled_at || ci.time_cancelled || ci.time_cancel || null
+              });
+
               // Build cancelled items list
               let cancelledItems = [];
               if (hasCancelledArray) {
-                cancelledItems = orderData.cancelled_orders;
+                cancelledItems = orderData.cancelled_orders.map(normItem);
               } else {
-                // For fully-cancelled order without per-item info, derive from active items
-                const items = Array.isArray(orderData.items) ? orderData.items : [];
-                cancelledItems = items.map(it => ({
-                  item_id: it.item_id,
-                  menu_name: it.menu_name,
-                  quantity: it.quantity,
-                  preference: it.preference,
-                  notes: it.notes,
-                  status: "cancelled",
-                  cancel_reason: orderData.cancel_reason || "Dibatalkan",
-                  cancelled_at: new Date().toISOString()
-                }));
+                // For fully-cancelled order without per-item info, try richer by-id endpoint
+                let sourceItems = Array.isArray(orderData.items) ? orderData.items : [];
+                if ((!sourceItems || sourceItems.length === 0) && orderData.order_id) {
+                  try {
+                    const byIdResp = await fetch(`http://order_service:8002/order_status/${encodeURIComponent(String(orderData.order_id))}`, {
+                      method: "GET",
+                      headers: { "Content-Type": "application/json" }
+                    });
+                    if (byIdResp.ok) {
+                      const byIdJson = await byIdResp.json().catch(() => ({}));
+                      const byIdData = (byIdJson && byIdJson.data) || byIdJson;
+                      const ordersList = Array.isArray(byIdData?.orders) ? byIdData.orders : [];
+                      if (ordersList.length > 0) sourceItems = ordersList;
+                    }
+                  } catch (e) {
+                    console.error("Fallback order_status by id failed: ", e);
+                  }
+                }
+                cancelledItems = (sourceItems || []).map(it => normItem(it));
               }
 
               // Derive a reasonable time_cancelled

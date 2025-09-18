@@ -1246,7 +1246,8 @@ def cancel_order_kitchen(req: CancelOrderRequest, db: Session = Depends(get_db))
         menu_list = ", ".join(menu_names[:-1]) + f", dan {menu_names[-1]}"
     
     order.status = "cancelled"
-    order.cancel_reason = f"[KITCHEN CANCEL] {req.reason}"
+    # Store clean reason without artificial prefix
+    order.cancel_reason = req.reason
     
     cancel_payload = { 
         "order_id": req.order_id, 
