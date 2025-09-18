@@ -922,24 +922,24 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
                     available_flavors = available_flavors_data.get("flavors", [])
                     logging.info(f"🔍 DEBUG CUSTOM: Got {len(available_flavors)} available flavors from inventory")
                     
-                    if item.preference not in available_flavors:
-                        logging.info(f"❌ DEBUG CUSTOM: Flavor '{item.preference}' tidak ada dalam database untuk menu '{item.menu_name}'")
-                        return JSONResponse(
-                            status_code=200,
-                            content={
-                                "status": "error",
-                                "message": f"Flavor '{item.preference}' tidak tersedia dalam database. Silakan pilih flavor yang tersedia.",
-                                "data": {
-                                    "available_flavors": available_flavors[:10], 
-                                    "total_flavors": len(available_flavors),
-                                    "invalid_flavor": item.preference,
-                                    "menu_item": item.menu_name,
-                                    "note": "Untuk custom order, Anda tetap harus memilih flavor yang ada dalam database."
-                                }
-                            }
-                        )
-                    else:
-                        logging.info(f"✅ DEBUG CUSTOM: Custom order dengan menu '{item.menu_name}' dan flavor valid '{item.preference}'")
+                    # if item.preference not in available_flavors:
+                    #     logging.info(f"❌ DEBUG CUSTOM: Flavor '{item.preference}' tidak ada dalam database untuk menu '{item.menu_name}'")
+                    #     return JSONResponse(
+                    #         status_code=200,
+                    #         content={
+                    #             "status": "error",
+                    #             "message": f"Flavor '{item.preference}' tidak tersedia dalam database. Silakan pilih flavor yang tersedia.",
+                    #             "data": {
+                    #                 "available_flavors": available_flavors[:10], 
+                    #                 "total_flavors": len(available_flavors),
+                    #                 "invalid_flavor": item.preference,
+                    #                 "menu_item": item.menu_name,
+                    #                 "note": "Untuk custom order, Anda tetap harus memilih flavor yang ada dalam database."
+                    #             }
+                    #         }
+                    #     )
+                    # else:
+                    #     logging.info(f"✅ DEBUG CUSTOM: Custom order dengan menu '{item.menu_name}' dan flavor valid '{item.preference}'")
                 else:
                     logging.warning(f"⚠️ DEBUG CUSTOM: Gagal mengecek flavor dari inventory service, status: {flavor_response.status_code}")
                     return JSONResponse(status_code=200, content={"status": "error", "message": "Tidak dapat memvalidasi flavor saat ini.", "data": None})
