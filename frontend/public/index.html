@@ -143,60 +143,35 @@
 
   <!-- Item Detail Modal -->
   <div id="item-detail-modal" class="modal hidden">
-    <div class="modal-content item-detail-modal">
+    <div class="modal-content delete-confirm-modal">
       <button onclick="closeItemDetailModal()" class="modal-close">&times;</button>
-      <h3 class="modal-title">
-        <i class="fa-solid fa-coffee"></i>
-        Item Detail
-      </h3>
-      
+      <div class="modal-header">
+        <i class="fas fa-exclamation-triangle warning-icon"></i>
+        <h3 class="modal-title">Konfirmasi Pembatalan Per Item</h3>
+      </div>
+      <div class="modal-body">
+        <p class="delete-warning">You won’t be able to revert this action!</p>
+      </div>
       <div class="item-detail-header">
         <div class="item-detail-info">
-          <h3 id="item-detail-name">Item Name</h3>
-          <div class="item-meta">
-            <span id="item-detail-quantity">Quantity: 1x</span>
-            <span id="item-detail-preference" class="item-preference"></span>
+          <div class="item-detail-row">
+            <h3 id="item-detail-name" class="item-detail-name">Item Name</h3>
+            <span id="item-detail-preference" class="item-detail-preference item-preference"></span>
+            <span id="item-detail-quantity" class="item-detail-quantity">Quantity: 1x</span>
           </div>
           <div id="item-detail-notes" class="item-notes-detail hidden"></div>
         </div>
       </div>
-
-      <div class="modal-text">
-        <p><strong>Order ID:</strong> <span id="item-detail-order-id"></span></p>
-        <p><strong>Item:</strong> <span id="item-detail-display-name"></span></p>
-        <p><strong>Status:</strong> Dapat dibatalkan hanya jika pesanan masih dalam status <strong>RECEIVE</strong> atau <strong>MAKING</strong></p>
-      </div>
-
-      <div style="margin: 1rem 0;">
-        <label><strong>Alasan pembatalan:</strong></label>
-        <div class="cancel-reason-options" style="margin-top: 0.5rem;">
-          <label class="radio-option">
-            <input type="radio" name="cancel-reason" value="habis" checked>
-            <span>Stok Habis</span>
-          </label>
-          <label class="radio-option">
-            <input type="radio" name="cancel-reason" value="permintaan_pelanggan">
-            <span>Permintaan Pelanggan</span>
-          </label>
-          <label class="radio-option">
-            <input type="radio" name="cancel-reason" value="kesalahan_pemesanan">
-            <span>Kesalahan Pemesanan</span>
-          </label>
-          <label class="radio-option">
-            <input type="radio" name="cancel-reason" value="lainnya">
-            <span>Alasan Lain</span>
-          </label>
-        </div>
-        <div id="custom-reason-container" class="hidden" style="margin-top: 0.5rem;">
-          <input type="text" id="custom-cancel-reason" class="cancel-reason-input" placeholder="Masukkan alasan pembatalan..." />
+      <div class="modal-body" style="margin: 1rem 0; text-align:center;">
+        <p class="modal-text">Pilih alasan pembatalan atau kehabisan bahan.</p>
+        <div id="custom-reason-container-item" class="hidden" style="margin-top: 1rem;">
+          <input type="text" id="custom-cancel-reason-item" class="cancel-reason-input" placeholder="Masukkan alasan pembatalan..." style="width:80%;padding:8px;" />
         </div>
       </div>
-
-      <div class="modal-actions">
-        <button onclick="closeItemDetailModal()" class="modal-btn modal-btn-cancel">Batal</button>
-        <button onclick="confirmCancelItem()" class="modal-btn-cancel-item">
-          <i class="fa-solid fa-trash"></i> Cancel Item
-        </button>
+      <div class="modal-actions" style="display:flex;justify-content:center;gap:1rem;">
+        <button id="btn-alasan-lain-item" onclick="showCustomReasonInputItem()" class="modal-btn modal-btn-cancel">Alasan Lain</button>
+        <button onclick="confirmCancelItem('habis')" class="modal-btn modal-btn-habis" id="btn-habis-item">Habis</button>
+        <button id="btn-confirm-alasan-lain-item" onclick="confirmCancelItem('lainnya')" class="modal-btn modal-btn-habis hidden">OK</button>
       </div>
     </div>
   </div>
@@ -262,10 +237,14 @@
       </div>
       <div class="modal-body">
           <p class="modal-text">Pilih alasan pembatalan atau kehabisan bahan.</p>
+          <div id="custom-reason-container-cancel" class="hidden" style="margin-top:1rem;text-align:center;">
+            <input type="text" id="custom-cancel-reason-cancel" class="cancel-reason-input" placeholder="Masukkan alasan pembatalan..." style="width:80%;padding:8px;" />
+          </div>
       </div>
       <div class="modal-actions">
-        <button onclick="confirmCancel('cancel')" class="modal-btn modal-btn-cancel">Alasan Lain</button>
-        <button onclick="confirmCancel('habis')" class="modal-btn modal-btn-habis">Habis</button>
+        <button onclick="showCustomReasonInputCancel()" id="btn-alasan-lain-cancel" class="modal-btn modal-btn-cancel">Alasan Lain</button>
+        <button onclick="confirmCancel('habis')" class="modal-btn modal-btn-habis" id="btn-habis-cancel">Habis</button>
+        <button onclick="confirmCancel('lainnya')" id="btn-confirm-alasan-lain-cancel" class="modal-btn modal-btn-habis hidden">OK</button>
       </div>
     </div>
   </div>

@@ -1284,22 +1284,21 @@ body.tab-audit-history .add-item-btn {
 
     .modal-btn-cancel,
     .view-modal.modal-btn-cancel {
-        background: none;
         border: none;
-        font-size: 16px;
-        color: #B3261E;
+        color: white;
+        background: linear-gradient(to right, rgb(213, 127, 14), rgb(255, 199, 99));
         cursor: pointer;
-        padding: 0.75rem 1.5rem;
-        border-radius: 0.5rem;
         font-weight: 600;
         transition: all 0.2s ease;
     }
 
     .modal-btn-cancel:hover,
     .view-modal .modal-btn-cancel:hover {
-        background-color: rgba(179, 38, 30, 0.1);
-        color: #B3261E;
+        transition: opacity 0.3s ease;
+        background: rgb(213, 127, 14);
+        color: white;
         transform: scale(1.02);
+        box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
     }
 
     .modal-btn-cancel-item {
@@ -1391,20 +1390,34 @@ body.tab-audit-history .add-item-btn {
 
     .item-detail-header {
         display: flex;
-        justify-content: space-between;
+        justify-content: center;
         align-items: flex-start;
         margin-bottom: 1rem;
         padding: 1rem;
         background: #F9FAFB;
         border-radius: 8px;
-        border-left: 4px solid #F59E0B;
+        /* border-left: 4px solid #F59E0B; */
     }
 
     .item-detail-info h3 {
-        margin: 0 0 0.25rem 0;
         color: #312929;
-        font-size: 1.25rem;
+        font-size: 1rem;
         font-weight: 600;
+    }
+
+    .item-detail-row {
+        display: flex;
+        align-items: center;
+        gap: 1.2rem;
+    }
+
+    .item-detail-quantity {
+        font-size: 1rem;
+        color: #555;
+    }
+    .item-detail-preference {
+        font-size: 1rem;
+        color: #888;
     }
 
     .item-detail-info .item-meta {
@@ -1421,12 +1434,13 @@ body.tab-audit-history .add-item-btn {
     }
 
     .item-detail-info .item-notes-detail {
-        margin-top: 0.5rem;
+        margin-top: 0.3rem;
         padding: 0.5rem;
         background: #FEF3C7;
-        border-radius: 4px;
+        border-radius: 8px;
         font-size: 0.875rem;
         color: #92400E;
+        border-left: 4px solid #F59E0B;
     }
 
     .cancel-reason-input {
@@ -1541,7 +1555,7 @@ body.tab-audit-history .add-item-btn {
     .delete-confirm-modal .delete-warning {
         color: #EF4444 !important;
         font-weight: 600;
-        font-size: 0.875rem;
+        font-size: 0.875rem !important;
     }
 
     .delete-confirm-modal .modal-actions {

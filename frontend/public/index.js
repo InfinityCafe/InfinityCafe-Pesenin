@@ -236,7 +236,7 @@ function openItemDetailModalByKey(orderId, itemIndex, itemId, dataKey) {
   if (!itemData) {
     console.error('Item data not found for key:', dataKey);
     console.error('Available keys:', window.itemDataStore ? Object.keys(window.itemDataStore) : 'No itemDataStore');
-    alert('Error: Data item tidak ditemukan. Silakan refresh halaman dan coba lagi.');
+    showErrorModal('Data item tidak ditemukan. Silakan refresh halaman dan coba lagi.');
     return;
   }
   
@@ -245,6 +245,19 @@ function openItemDetailModalByKey(orderId, itemIndex, itemId, dataKey) {
 }
 
 function openItemDetailModal(orderId, itemIndex, itemId, itemData) {
+  // Reset custom reason input UI and show both buttons
+  const customReasonContainer = document.getElementById('custom-reason-container-item');
+  const customReasonInput = document.getElementById('custom-cancel-reason-item');
+  const btnAlasanLain = document.getElementById('btn-alasan-lain-item');
+  const btnConfirmAlasanLain = document.getElementById('btn-confirm-alasan-lain-item');
+  const btnHabis = document.querySelector('#btn-habis-item, .modal-btn-habis');
+  if (customReasonContainer && customReasonInput && btnAlasanLain && btnConfirmAlasanLain) {
+    customReasonContainer.classList.add('hidden');
+    customReasonInput.value = '';
+    btnAlasanLain.classList.remove('hidden');
+    btnConfirmAlasanLain.classList.add('hidden');
+    if (btnHabis) btnHabis.classList.remove('hidden');
+  }
   console.log('Debug - openItemDetailModal called');
   console.log('orderId:', orderId, 'itemIndex:', itemIndex, 'itemId:', itemId);
   console.log('itemData:', itemData);
@@ -258,9 +271,15 @@ function openItemDetailModal(orderId, itemIndex, itemId, itemData) {
 
   // Populate modal with item data
   document.getElementById('item-detail-name').textContent = itemData.menu_name;
-  document.getElementById('item-detail-quantity').textContent = `Quantity: ${itemData.quantity}`;
-  document.getElementById('item-detail-order-id').textContent = orderId;
-  document.getElementById('item-detail-display-name').textContent = `${itemData.menu_name}${itemData.preference ? ' (' + itemData.preference + ')' : ''} - ${itemData.quantity}`;
+  document.getElementById('item-detail-quantity').textContent = `Qty: ${itemData.quantity}`;
+  const prefEl = document.getElementById('item-detail-preference');
+  if (itemData.preference) {
+    prefEl.textContent = `(${itemData.preference})`;
+    prefEl.classList.remove('hidden');
+  } else {
+    prefEl.textContent = '';
+    prefEl.classList.add('hidden');
+  }
 
   // Persist context on modal dataset for robust retrieval later
   const modalEl = document.getElementById('item-detail-modal');
@@ -270,7 +289,6 @@ function openItemDetailModal(orderId, itemIndex, itemId, itemData) {
   modalEl.dataset.itemIndex = String(itemIndex);
   modalEl.dataset.preference = itemData.preference || '';
   modalEl.dataset.notes = itemData.notes || '';
-  
   // Store additional order context for cancelled items
   const orderCard = document.querySelector(`[data-order-id="${orderId}"]`);
   if (orderCard) {
@@ -279,42 +297,14 @@ function openItemDetailModal(orderId, itemIndex, itemId, itemData) {
     modalEl.dataset.customerName = customerName;
     modalEl.dataset.roomName = roomName;
   }
-
-  const preferenceElement = document.getElementById('item-detail-preference');
-  if (itemData.preference) {
-    preferenceElement.textContent = `Variant: ${itemData.preference}`;
-    preferenceElement.classList.remove('hidden');
-  } else {
-    preferenceElement.classList.add('hidden');
-  }
-
   const notesElement = document.getElementById('item-detail-notes');
   if (itemData.notes) {
     notesElement.innerHTML = `<strong>Notes:</strong> ${itemData.notes}`;
     notesElement.classList.remove('hidden');
   } else {
     notesElement.classList.add('hidden');
+    notesElement.innerHTML = '';
   }
-
-  // Clear previous reason and reset radio buttons
-  const reasonRadios = document.querySelectorAll('input[name="cancel-reason"]');
-  reasonRadios[0].checked = true; // Default to "habis"
-  document.getElementById('custom-cancel-reason').value = '';
-  document.getElementById('custom-reason-container').classList.add('hidden');
-  
-  // Add event listeners for radio buttons
-  reasonRadios.forEach(radio => {
-    radio.addEventListener('change', function() {
-      const customContainer = document.getElementById('custom-reason-container');
-      if (this.value === 'lainnya') {
-        customContainer.classList.remove('hidden');
-        document.getElementById('custom-cancel-reason').focus();
-      } else {
-        customContainer.classList.add('hidden');
-      }
-    });
-  });
-  
   // Show modal
   document.getElementById('item-detail-modal').classList.remove('hidden');
 }
@@ -328,53 +318,58 @@ function closeItemDetailModal() {
   document.getElementById('item-detail-modal').classList.add('hidden');
 }
 
-async function confirmCancelItem() {
+async function confirmCancelItem(type) {
+  // type: 'lainnya' | 'habis'
   console.log('Debug - confirmCancelItem called');
   console.log('selectedOrderForItem:', selectedOrderForItem);
   console.log('selectedItem:', selectedItem);
-  
+
   // Prefer dataset values from the modal for robustness
   const modalEl = document.getElementById('item-detail-modal');
-  let orderId = (modalEl?.dataset?.orderId) || selectedOrderForItem || document.getElementById('item-detail-order-id')?.textContent || '';
+  let orderId = (modalEl?.dataset?.orderId) || selectedOrderForItem || '';
   let itemId = modalEl?.dataset?.itemId || '';
   let menuName = (modalEl?.dataset?.menuName) || (selectedItem && selectedItem.menu_name) || document.getElementById('item-detail-name')?.textContent || '';
 
   console.log('Resolved values -> orderId:', orderId, 'itemId:', itemId, 'menuName:', menuName);
 
   if (!orderId || (!itemId && !menuName)) {
-    console.error('Missing data - orderId:', orderId, 'itemId:', itemId, 'menuName:', menuName);
-    alert('Error: Item data tidak valid. Silakan tutup modal dan coba lagi.');
+    showErrorModal('Data item tidak valid.');
     return;
   }
 
-  // Get selected reason
-  const selectedReason = document.querySelector('input[name="cancel-reason"]:checked')?.value;
   let reason = '';
-  
-  if (selectedReason === 'lainnya') {
-    reason = document.getElementById('custom-cancel-reason').value.trim();
+  if (type === 'lainnya') {
+    // Ambil alasan dari input
+    const input = document.getElementById('custom-cancel-reason-item');
+    reason = input ? input.value.trim() : '';
     if (!reason) {
-      alert('Mohon masukkan alasan pembatalan');
-      document.getElementById('custom-cancel-reason').focus();
+      showErrorModal('Mohon masukkan alasan pembatalan.');
+      if (input) input.focus();
       return;
     }
+  } else if (type === 'habis') {
+    reason = 'Stok Habis';
   } else {
-    const reasonMap = {
-      'habis': 'Stok Habis',
-      'permintaan_pelanggan': 'Permintaan Pelanggan',
-      'kesalahan_pemesanan': 'Kesalahan Pemesanan'
-    };
-    reason = reasonMap[selectedReason] || selectedReason;
+    reason = '';
   }
-  
+
   if (!reason) {
-    alert('Mohon pilih alasan pembatalan');
+    showErrorModal('Pilih alasan pembatalan.');
     return;
+  }
+  // Reset custom reason input UI
+  const customReasonContainer = document.getElementById('custom-reason-container-item');
+  const customReasonInput = document.getElementById('custom-cancel-reason-item');
+  const btnAlasanLain = document.getElementById('btn-alasan-lain-item');
+  const btnConfirmAlasanLain = document.getElementById('btn-confirm-alasan-lain-item');
+  if (customReasonContainer && customReasonInput && btnAlasanLain && btnConfirmAlasanLain) {
+    customReasonContainer.classList.add('hidden');
+    customReasonInput.value = '';
+    btnAlasanLain.classList.remove('hidden');
+    btnConfirmAlasanLain.classList.add('hidden');
   }
 
   try {
-    console.log('Sending cancel request for:', itemId ? `item_id=${itemId}` : `menu_name=${menuName}`);
-
     // Build payload preferring item_id when available
     const payload = itemId ? { order_id: orderId, item_id: itemId, reason } : { order_id: orderId, menu_name: menuName, reason };
 
@@ -414,8 +409,10 @@ async function confirmCancelItem() {
       console.log('Adding cancelled item to store:', { orderId, itemData, reason });
       addCancelledItem(orderId, itemData, reason);
       
-      // Show success message
-      alert(`✅ ${result.message}`);
+      // Close modal before showing success modal to avoid flicker
+      closeItemDetailModal();
+      // Show success modal
+      showSuccessModal(result.message || 'Item berhasil dibatalkan.');
       
       // Play notification sound
       try {
@@ -423,9 +420,6 @@ async function confirmCancelItem() {
       } catch (e) {
         console.log('Sound notification failed:', e);
       }
-      
-      // Close modal
-      closeItemDetailModal();
       
       // Refresh orders to show updated data
       fetchOrders();
@@ -438,27 +432,92 @@ async function confirmCancelItem() {
       logHistory(orderId, 'item_cancelled', `Item ${loggedName}: ${reason}`);
       
     } else {
-      alert(`❌ Error: ${result.message}`);
+      showErrorModal(result.message || 'Gagal membatalkan item.');
     }
   } catch (error) {
     console.error('Error canceling item:', error);
-    alert(`❌ Gagal membatalkan item: ${error.message}`);
+    showErrorModal(`Gagal membatalkan item: ${error.message}`);
   }
 }
 
 async function confirmCancel(type) {
-  let reason;
+  if (type === 'cancel') {
+    showCustomReasonInputCancel();
+    return;
+  }
+  let reason = '';
   if (type === 'habis') {
     reason = 'Habis';
-  } else if (type === 'cancel') {
-    reason = prompt("Masukkan alasan pembatalan:", "Tidak jadi");
-    if (!reason) return closeModal('confirm-modal');
+    closeModal('confirm-modal');
+    const finalStatus = selectedOrderStatus || 'cancelled';
+    await cancelOrder(selectedOrderId, reason, finalStatus);
+    return;
+  } else if (type === 'lainnya') {
+    const input = document.getElementById('custom-cancel-reason-cancel');
+    reason = input ? input.value.trim() : '';
+    if (!reason) {
+      showErrorModal('Mohon masukkan alasan pembatalan.');
+      if (input) input.focus();
+      return;
+    }
+    closeModal('confirm-modal');
+    const finalStatus = selectedOrderStatus || 'cancelled';
+    await cancelOrder(selectedOrderId, reason, finalStatus);
+    return;
+  } else {
+    // Default: do nothing
+    return;
   }
+}
 
-  // Gunakan status yang benar (cancelled untuk cancel order)
-  const finalStatus = selectedOrderStatus || 'cancelled';
-  await cancelOrder(selectedOrderId, reason, finalStatus);
-  closeModal('confirm-modal');
+function openConfirmModal(orderId, status) {
+  selectedOrderId = orderId;
+  selectedOrderStatus = status || 'cancelled';
+  // Reset confirm modal state (input hidden, buttons reset)
+  const customReasonContainer = document.getElementById('custom-reason-container-cancel');
+  const customReasonInput = document.getElementById('custom-cancel-reason-cancel');
+  const btnAlasanLain = document.getElementById('btn-alasan-lain-cancel');
+  const btnConfirmAlasanLain = document.getElementById('btn-confirm-alasan-lain-cancel');
+  const btnHabis = document.getElementById('btn-habis-cancel');
+  if (customReasonContainer && customReasonInput && btnAlasanLain && btnConfirmAlasanLain && btnHabis) {
+    customReasonContainer.classList.add('hidden');
+    customReasonInput.value = '';
+    btnAlasanLain.disabled = false;
+    btnAlasanLain.classList.remove('disabled');
+    btnAlasanLain.classList.remove('hidden');
+    btnConfirmAlasanLain.classList.add('hidden');
+    btnHabis.classList.remove('hidden');
+  }
+  document.getElementById('confirm-modal').classList.remove('hidden');
+}
+window.openConfirmModal = openConfirmModal;
+// Show custom reason input for order cancel modal
+function showCustomReasonInputCancel() {
+  const customReasonContainer = document.getElementById('custom-reason-container-cancel');
+  const customReasonInput = document.getElementById('custom-cancel-reason-cancel');
+  const btnAlasanLain = document.getElementById('btn-alasan-lain-cancel');
+  const btnConfirmAlasanLain = document.getElementById('btn-confirm-alasan-lain-cancel');
+  const btnHabis = document.getElementById('btn-habis-cancel');
+  if (customReasonContainer && customReasonInput && btnAlasanLain && btnConfirmAlasanLain && btnHabis) {
+    customReasonContainer.classList.remove('hidden');
+    customReasonInput.value = '';
+    customReasonInput.focus();
+    btnAlasanLain.classList.add('hidden'); // hide 'Alasan Lain' button
+    btnConfirmAlasanLain.classList.remove('hidden'); // show OK button
+    btnHabis.classList.add('hidden');
+  }
+}
+window.showCustomReasonInputItem = showCustomReasonInputItem;
+// Show custom reason input for item cancel modal
+function showCustomReasonInputItem() {
+  document.getElementById('custom-reason-container-item').classList.remove('hidden');
+  document.getElementById('btn-alasan-lain-item').classList.add('hidden');
+  document.getElementById('btn-confirm-alasan-lain-item').classList.remove('hidden');
+  var btnHabis = document.querySelector('#btn-habis-item, .modal-btn-habis');
+  if (btnHabis) btnHabis.classList.add('hidden');
+  setTimeout(() => {
+    document.getElementById('custom-cancel-reason-item').focus();
+  }, 100);
 }
 
 // New function to cancel order using proper endpoint

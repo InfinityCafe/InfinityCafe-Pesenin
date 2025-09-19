@@ -472,9 +472,22 @@ function showDeleteConfirmModal(message, onConfirm) {
 }
 
 function openConfirmModal(orderId, status) {
-  selectedOrderId = orderId;
-  selectedOrderStatus = status || 'cancelled';
-  document.getElementById("confirm-modal").classList.remove("hidden");
+    selectedOrderId = orderId;
+    selectedOrderStatus = status || 'cancelled';
+    // Reset confirm modal state
+    const customReasonContainer = document.getElementById('custom-reason-container-cancel');
+    const customReasonInput = document.getElementById('custom-cancel-reason-cancel');
+    const btnAlasanLain = document.getElementById('btn-alasan-lain-cancel');
+    const btnConfirmAlasanLain = document.getElementById('btn-confirm-alasan-lain-cancel');
+    const btnHabis = document.getElementById('btn-habis-cancel');
+    if (customReasonContainer && customReasonInput && btnAlasanLain && btnConfirmAlasanLain && btnHabis) {
+        customReasonContainer.classList.add('hidden');
+        customReasonInput.value = '';
+        btnAlasanLain.classList.remove('hidden');
+        btnConfirmAlasanLain.classList.add('hidden');
+        btnHabis.classList.remove('hidden');
+    }
+    document.getElementById("confirm-modal").classList.remove("hidden");
 }
 
 function showErrorModal(message) {
