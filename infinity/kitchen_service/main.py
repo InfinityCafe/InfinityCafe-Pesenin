@@ -25,6 +25,7 @@ import re
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL_KITCHEN")
+ORDER_SERVICE_URL = os.getenv("ORDER_SERVICE_URL", "http://order_service:8002")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -212,7 +213,7 @@ async def update_status(order_id: str, status: str, reason: str = "", db: Sessio
     order = db.query(KitchenOrder).filter(KitchenOrder.order_id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    
+
     # Validasi status dan reason
     if status in ["cancelled", "habis"] and not reason:
         raise HTTPException(status_code=400, detail="Alasan wajib untuk status cancel, atau habis")
@@ -247,10 +248,10 @@ async def update_status(order_id: str, status: str, reason: str = "", db: Sessio
         logging.info(f"✅ Berhasil mengirim update status '{status}' untuk order {order_id} ke order_service.")
     except Exception as e:
         logging.error(f"❌ Gagal mengirim update status ke order_service untuk order {order_id}: {e}")
-        
+
     # Broadcast ke semua client
     await broadcast_orders(db)
-    
+
     return {
         "message": f"Order {order_id} updated to status '{status}'",
         "order_id": order_id,
@@ -372,63 +373,78 @@ def get_kitchen_orders(db: Session = Depends(get_db)):
         print(f"Processing order {o.order_id}")
         print(f"orders_json: {getattr(o, 'orders_json', None)}")
         
-        # Ambil items dari orders_json jika ada, fallback ke parse_items jika tidak
+        # Ambil items yang masih aktif dari order_service untuk data terbaru
         items = []
-        if getattr(o, 'orders_json', None):
-            try:
-                items = json.loads(o.orders_json)
-                print(f"Successfully parsed orders_json: {items}")
-            except Exception as e:
-                print(f"Error parsing orders_json: {e}")
-                items = []
-        if not items:
-            print(f"No items from orders_json, parsing detail: {o.detail}")
-            def parse_items(detail_str):
-                items = []
-                for item in (detail_str or '').split('\n'):
-                    item = item.strip()
-                    if not item:
-                        continue
-                    main, *notesPart = item.split(' - Notes:')
-                    notes = notesPart[0].strip() if notesPart else ''
-                    name = main
-                    variant = ''
-                    qty = 1  # Default quantity
-                    
-                    # Pattern 1: "2x Menu Name (variant)"
-                    variantMatch = re.match(r'^(\d+)x ([^(]+) \(([^)]+)\)$', main)
-                    if variantMatch:
-                        qty = int(variantMatch.group(1))
-                        name = variantMatch.group(2).strip()
-                        variant = variantMatch.group(3).strip()
-                    else:
-                        # Pattern 2: "2x Menu Name" (no variant)
-                        noVarMatch = re.match(r'^(\d+)x ([^(]+)$', main)
-                        if noVarMatch:
-                            qty = int(noVarMatch.group(1))
-                            name = noVarMatch.group(2).strip()
+        try:
+            # Fetch active items from order service
+            import requests
+            order_response = requests.get(f"http://order_service:8002/order/status/{o.queue_number}", timeout=5)
+            if order_response.status_code == 200:
+                order_data = order_response.json()
+                # Hanya ambil active items, exclude cancelled
+                items = order_data.get('items', [])  # 'items' contains only active items
+                print(f"Successfully fetched active items from order service: {items}")
+            else:
+                print(f"Failed to fetch order data from order service: {order_response.status_code}")
+                raise Exception("Order service unavailable")
+        except Exception as e:
+            print(f"Error fetching from order service, using fallback: {e}")
+            # Fallback ke data lokal jika order service tidak tersedia
+            if getattr(o, 'orders_json', None):
+                try:
+                    items = json.loads(o.orders_json)
+                    print(f"Successfully parsed orders_json: {items}")
+                except Exception as e:
+                    print(f"Error parsing orders_json: {e}")
+                    items = []
+            if not items:
+                print(f"No items from orders_json, parsing detail: {o.detail}")
+                def parse_items(detail_str):
+                    items = []
+                    for item in (detail_str or '').split('\n'):
+                        item = item.strip()
+                        if not item:
+                            continue
+                        main, *notesPart = item.split(' - Notes:')
+                        notes = notesPart[0].strip() if notesPart else ''
+                        name = main
+                        variant = ''
+                        qty = 1  # Default quantity
+                        
+                        # Pattern 1: "2x Menu Name (variant)"
+                        variantMatch = re.match(r'^(\d+)x ([^(]+) \(([^)]+)\)$', main)
+                        if variantMatch:
+                            qty = int(variantMatch.group(1))
+                            name = variantMatch.group(2).strip()
+                            variant = variantMatch.group(3).strip()
                         else:
-                            # Pattern 3: "Menu Name (variant)" (no quantity, default to 1)
-                            simpleVariantMatch = re.match(r'^([^(]+) \(([^)]+)\)$', main)
-                            if simpleVariantMatch:
-                                name = simpleVariantMatch.group(1).strip()
-                                variant = simpleVariantMatch.group(2).strip()
+                            # Pattern 2: "2x Menu Name" (no variant)
+                            noVarMatch = re.match(r'^(\d+)x ([^(]+)$', main)
+                            if noVarMatch:
+                                qty = int(noVarMatch.group(1))
+                                name = noVarMatch.group(2).strip()
                             else:
-                                # Pattern 4: Just "Menu Name" (no quantity, no variant)
-                                name = main.strip()
-                    
-                    # Clean up empty variant
-                    if variant == '':
-                        variant = None
-                    
-                    items.append({
-                        'menu_name': name,
-                        'quantity': qty,
-                        'preference': variant,
-                        'notes': notes
-                    })
-                return items
-            items = parse_items(o.detail)
+                                # Pattern 3: "Menu Name (variant)" (no quantity, default to 1)
+                                simpleVariantMatch = re.match(r'^([^(]+) \(([^)]+)\)$', main)
+                                if simpleVariantMatch:
+                                    name = simpleVariantMatch.group(1).strip()
+                                    variant = simpleVariantMatch.group(2).strip()
+                                else:
+                                    # Pattern 4: Just "Menu Name" (no quantity, no variant)
+                                    name = main.strip()
+                        
+                        # Clean up empty variant
+                        if variant == '':
+                            variant = None
+                        
+                        items.append({
+                            'menu_name': name,
+                            'quantity': qty,
+                            'preference': variant,
+                            'notes': notes
+                        })
+                    return items
+                items = parse_items(o.detail)
         
         print(f"Final items for order {o.order_id}: {items}")
         
@@ -449,6 +465,99 @@ def get_kitchen_orders(db: Session = Depends(get_db)):
     
     print(f"Final result: {result}")
     return result
+
+# --- Sync endpoint: reconcile kitchen_orders with order_service ---
+@app.post("/kitchen/sync_order_items/{order_id}", summary="Sync kitchen order with order_service", tags=["Kitchen"])
+async def sync_order_items(order_id: str, db: Session = Depends(get_db)):
+    """Fetch current items and status from order_service by queue_number and update kitchen_orders.
+    This keeps kitchen detail/items/status aligned after item or full cancellations.
+    """
+    order = db.query(KitchenOrder).filter(KitchenOrder.order_id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found in kitchen")
+
+    # If queue_number known, prefer that to query order_service; otherwise try by order_id
+    od = None
+    try:
+        if order.queue_number is not None:
+            resp = requests.get(f"{ORDER_SERVICE_URL}/order/status/{order.queue_number}", timeout=5)
+            if resp.status_code == 200:
+                od = resp.json()
+        if od is None:
+            # Fallback to by-id status endpoint
+            resp2 = requests.get(f"{ORDER_SERVICE_URL}/order_status/{order_id}", timeout=5)
+            if resp2.status_code == 200:
+                js = resp2.json()
+                od = js.get("data") if isinstance(js, dict) else js
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to contact order_service: {e}")
+
+    if not od:
+        raise HTTPException(status_code=404, detail="Order not found in order_service")
+
+    # Compute active items (exclude cancelled) from order_service payload
+    items = od.get("items") or []
+    cancelled = od.get("cancelled_orders") or []
+
+    # Update detail string and orders_json to reflect current active items
+    import json as _json
+    detail_str = "\n".join([
+        f"{it.get('quantity', 1)}x {it.get('menu_name','')}" +
+        (f" ({it.get('preference')})" if it.get('preference') else "") +
+        (f" - Notes: {it.get('notes')}" if it.get('notes') else "")
+        for it in items
+    ])
+
+    order.detail = detail_str
+    try:
+        order.orders_json = _json.dumps(items)
+    except Exception:
+        order.orders_json = None
+
+    # Sync status and cancel reason
+    new_status = (od.get("status") or order.status) or "receive"
+    order.status = new_status
+    # Build a concise per-item cancelled reasons summary when partial cancellations exist
+    reason_summary = None
+    try:
+        if cancelled:
+            parts = []
+            for ci in cancelled:
+                name = (ci.get("menu_name") or ci.get("name") or ci.get("menu") or "Item").strip()
+                pref = (ci.get("preference") or "").strip()
+                r = (ci.get("cancel_reason") or ci.get("cancelled_reason") or ci.get("reason") or "Dibatalkan").strip()
+                label = f"{name}"
+                if pref:
+                    label += f" ({pref})"
+                parts.append(f"{label}: {r}")
+            if parts:
+                reason_summary = "; ".join(parts)
+    except Exception:
+        reason_summary = None
+
+    if new_status in ["cancelled", "habis"]:
+        # Prefer order-level reason from order_service; if missing, fall back to per-item summary
+        order.cancel_reason = (od.get("cancel_reason") or reason_summary or order.cancel_reason or "Dibatalkan")
+    else:
+        # For partial cancels on active orders, store summary so kitchen UI can show notes
+        if reason_summary:
+            order.cancel_reason = reason_summary
+
+    db.commit()
+
+    # Broadcast updated orders to clients
+    await broadcast_orders(db)
+
+    return {
+        "status": "success",
+        "message": "Kitchen order synced with order_service",
+        "data": {
+            "order_id": order_id,
+            "status": order.status,
+            "active_items": len(items),
+            "cancelled_items": len(cancelled)
+        }
+    }
 
 # @app.get("/kitchen/orders", summary="Lihat semua pesanan", tags=["Kitchen"], operation_id="kitchen order list")
 # def get_kitchen_orders(db: Session = Depends(get_db)):
