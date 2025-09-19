@@ -1495,17 +1495,12 @@ body.tab-audit-history .add-item-btn {
         align-items: center;
         gap: 0.5rem;
         padding: 0.5rem;
-        border: 2px solid #E5E7EB;
         border-radius: 6px;
         cursor: pointer;
         transition: all 0.2s ease;
-        background: #FAFAFA;
     }
 
-    .radio-option:hover {
-        border-color: #F59E0B;
-        background: #FFFBEB;
-    }
+    
 
     .radio-option input[type="radio"] {
         margin: 0;
