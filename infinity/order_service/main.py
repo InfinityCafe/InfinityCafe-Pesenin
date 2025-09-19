@@ -922,24 +922,24 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
                     available_flavors = available_flavors_data.get("flavors", [])
                     logging.info(f"🔍 DEBUG CUSTOM: Got {len(available_flavors)} available flavors from inventory")
                     
-                    if item.preference not in available_flavors:
-                        logging.info(f"❌ DEBUG CUSTOM: Flavor '{item.preference}' tidak ada dalam database untuk menu '{item.menu_name}'")
-                        return JSONResponse(
-                            status_code=200,
-                            content={
-                                "status": "error",
-                                "message": f"Flavor '{item.preference}' tidak tersedia dalam database. Silakan pilih flavor yang tersedia.",
-                                "data": {
-                                    "available_flavors": available_flavors[:10], 
-                                    "total_flavors": len(available_flavors),
-                                    "invalid_flavor": item.preference,
-                                    "menu_item": item.menu_name,
-                                    "note": "Untuk custom order, Anda tetap harus memilih flavor yang ada dalam database."
-                                }
-                            }
-                        )
-                    else:
-                        logging.info(f"✅ DEBUG CUSTOM: Custom order dengan menu '{item.menu_name}' dan flavor valid '{item.preference}'")
+                    # if item.preference not in available_flavors:
+                    #     logging.info(f"❌ DEBUG CUSTOM: Flavor '{item.preference}' tidak ada dalam database untuk menu '{item.menu_name}'")
+                    #     return JSONResponse(
+                    #         status_code=200,
+                    #         content={
+                    #             "status": "error",
+                    #             "message": f"Flavor '{item.preference}' tidak tersedia dalam database. Silakan pilih flavor yang tersedia.",
+                    #             "data": {
+                    #                 "available_flavors": available_flavors[:10], 
+                    #                 "total_flavors": len(available_flavors),
+                    #                 "invalid_flavor": item.preference,
+                    #                 "menu_item": item.menu_name,
+                    #                 "note": "Untuk custom order, Anda tetap harus memilih flavor yang ada dalam database."
+                    #             }
+                    #         }
+                    #     )
+                    # else:
+                    #     logging.info(f"✅ DEBUG CUSTOM: Custom order dengan menu '{item.menu_name}' dan flavor valid '{item.preference}'")
                 else:
                     logging.warning(f"⚠️ DEBUG CUSTOM: Gagal mengecek flavor dari inventory service, status: {flavor_response.status_code}")
                     return JSONResponse(status_code=200, content={"status": "error", "message": "Tidak dapat memvalidasi flavor saat ini.", "data": None})
@@ -1161,6 +1161,13 @@ def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
     
     order.status = "cancelled"
     order.cancel_reason = req.reason
+    # Also mark all remaining active items as cancelled
+    now_ts = datetime.now(jakarta_tz)
+    for it in order_items:
+        if getattr(it, 'status', 'active') != 'cancelled':
+            it.status = 'cancelled'
+            it.cancelled_reason = req.reason
+            it.cancelled_at = now_ts
     
     cancel_payload = { "order_id": req.order_id, "reason": req.reason, "cancelled_at": datetime.now(jakarta_tz).isoformat() }
     create_outbox_event(db, req.order_id, "order_cancelled", cancel_payload)
@@ -1180,6 +1187,12 @@ def cancel_order(req: CancelOrderRequest, db: Session = Depends(get_db)):
         process_outbox_events(db)
     except Exception as e:
         logging.warning(f"⚠️ Gagal memproses cancel outbox event: {e}")
+
+    # Best-effort sync to kitchen to reflect item-level cancellations
+    try:
+        requests.post(f"http://kitchen_service:8003/kitchen/sync_order_items/{req.order_id}", timeout=3)
+    except Exception as e:
+        logging.warning(f"⚠️ Gagal memanggil kitchen sync setelah cancel order {req.order_id}: {e}")
     
     cancelled_order_details = {
         "order_id": order.order_id,
@@ -1246,7 +1259,15 @@ def cancel_order_kitchen(req: CancelOrderRequest, db: Session = Depends(get_db))
         menu_list = ", ".join(menu_names[:-1]) + f", dan {menu_names[-1]}"
     
     order.status = "cancelled"
-    order.cancel_reason = f"[KITCHEN CANCEL] {req.reason}"
+    # Store clean reason without artificial prefix
+    order.cancel_reason = req.reason
+    # Also mark all remaining active items as cancelled
+    now_ts = datetime.now(jakarta_tz)
+    for it in order_items:
+        if getattr(it, 'status', 'active') != 'cancelled':
+            it.status = 'cancelled'
+            it.cancelled_reason = req.reason
+            it.cancelled_at = now_ts
     
     cancel_payload = { 
         "order_id": req.order_id, 
@@ -1272,6 +1293,12 @@ def cancel_order_kitchen(req: CancelOrderRequest, db: Session = Depends(get_db))
         process_outbox_events(db)
     except Exception as e:
         logging.warning(f"⚠️ Kitchen cancel - Gagal memproses cancel outbox event: {e}")
+
+    # Best-effort sync to kitchen to reflect item-level cancellations
+    try:
+        requests.post(f"http://kitchen_service:8003/kitchen/sync_order_items/{req.order_id}", timeout=3)
+    except Exception as e:
+        logging.warning(f"⚠️ Kitchen cancel - Gagal memanggil kitchen sync setelah cancel order {req.order_id}: {e}")
     
     cancelled_order_details = {
         "order_id": order.order_id,
@@ -1546,7 +1573,47 @@ def get_order_status(order_id: str, db: Session = Depends(get_db)):
         return JSONResponse(status_code=200, content={"status": "error", "message": "Order not found", "data": None})
     
     order_items = db.query(OrderItem).filter(OrderItem.order_id == order_id).all()
-    
+
+    # Separate active vs cancelled items and collect cancel timestamps
+    active_items_list = []
+    cancelled_items_list = []
+    cancel_times = []
+    for item in order_items:
+        base = {
+            "item_id": item.id,
+            "menu_name": item.menu_name,
+            "quantity": item.quantity,
+            "preference": item.preference if item.preference else "",
+            "notes": item.notes,
+            "status": getattr(item, 'status', 'active')
+        }
+        if getattr(item, 'status', 'active') == 'cancelled':
+            base["cancelled_reason"] = getattr(item, 'cancelled_reason', None)
+            ca = getattr(item, 'cancelled_at', None)
+            if ca:
+                base["cancelled_at"] = ca.isoformat()
+                cancel_times.append(ca)
+            cancelled_items_list.append(base)
+        else:
+            active_items_list.append(base)
+
+    # Derive time_cancelled for order if applicable
+    time_cancelled_val = None
+    if (order.status or "").lower() in ["cancelled", "habis"]:
+        if cancel_times:
+            time_cancelled_val = max(cancel_times).isoformat()
+        else:
+            # Fallback to outbox event timestamp
+            try:
+                evt = db.query(OrderOutbox).filter(
+                    OrderOutbox.order_id == order_id,
+                    OrderOutbox.event_type == "order_cancelled"
+                ).order_by(OrderOutbox.created_at.desc()).first()
+                if evt and evt.created_at:
+                    time_cancelled_val = evt.created_at.isoformat()
+            except Exception:
+                time_cancelled_val = None
+
     order_status_details = {
         "order_id": order.order_id,
         "queue_number": order.queue_number,
@@ -1556,14 +1623,10 @@ def get_order_status(order_id: str, db: Session = Depends(get_db)):
         "created_at": order.created_at.isoformat(),
         "cancel_reason": order.cancel_reason,
         "is_custom": order.is_custom,
-        "orders": [
-            {
-                "menu_name": item.menu_name,
-                "quantity": item.quantity,
-                "preference": item.preference if item.preference else "",
-                "notes": item.notes
-            } for item in order_items
-        ]
+        # items = active only for UI; also provide cancelled_orders and time_cancelled
+        "orders": active_items_list,
+        "cancelled_orders": cancelled_items_list,
+        "time_cancelled": time_cancelled_val
     }
     
     return JSONResponse(status_code=200, content={
@@ -1708,10 +1771,10 @@ def get_order_status(queue_number: int, db: Session = Depends(get_db)):
     # Get order items
     order_items = db.query(OrderItem).filter(OrderItem.order_id == order.order_id).all()
 
-    # Pisahkan item aktif dan yang dibatalkan
+    # Pisahkan item aktif dan yang dibatalkan serta kumpulkan waktu batal
     active_items = []
     cancelled_items = []
-    
+    cancel_times = []
     for item in order_items:
         item_data = {
             "item_id": item.id,
@@ -1721,15 +1784,31 @@ def get_order_status(queue_number: int, db: Session = Depends(get_db)):
             "notes": item.notes,
             "status": getattr(item, 'status', 'active')
         }
-        
         if getattr(item, 'status', 'active') == 'cancelled':
             item_data["cancelled_reason"] = getattr(item, 'cancelled_reason', None)
-            item_data["cancelled_at"] = getattr(item, 'cancelled_at', None)
-            if item_data["cancelled_at"]:
-                item_data["cancelled_at"] = item_data["cancelled_at"].isoformat()
+            ca = getattr(item, 'cancelled_at', None)
+            if ca:
+                item_data["cancelled_at"] = ca.isoformat()
+                cancel_times.append(ca)
             cancelled_items.append(item_data)
         else:
             active_items.append(item_data)
+
+    # Derive time_cancelled for the order
+    time_cancelled_val = None
+    if (order.status or "").lower() in ["cancelled", "habis"]:
+        if cancel_times:
+            time_cancelled_val = max(cancel_times).isoformat()
+        else:
+            try:
+                evt = db.query(OrderOutbox).filter(
+                    OrderOutbox.order_id == order.order_id,
+                    OrderOutbox.event_type == "order_cancelled"
+                ).order_by(OrderOutbox.created_at.desc()).first()
+                if evt and evt.created_at:
+                    time_cancelled_val = evt.created_at.isoformat()
+            except Exception:
+                time_cancelled_val = None
 
     return {
         "order_id": order.order_id,
@@ -1744,7 +1823,8 @@ def get_order_status(queue_number: int, db: Session = Depends(get_db)):
         "active_items": len(active_items),
         "cancelled_items": len(cancelled_items),
         "items": active_items,
-        "cancelled_orders": cancelled_items
+        "cancelled_orders": cancelled_items,
+        "time_cancelled": time_cancelled_val
     }
 
 @app.get("/health", summary="Health check", tags=["Utility"])

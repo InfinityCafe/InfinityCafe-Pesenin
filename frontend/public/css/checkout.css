@@ -3065,6 +3065,7 @@ body.qr-page .gradient-bg {
     body.qr-page .card,
     body.qr-page .customer-input-card,
     body.qr-page .cart-items-card,
+    body.qr-page .item-flavor,
     body.qr-page .order-summary-card,
     body.qr-page .status-card-modern,
     body.qr-page .order-details-card,
@@ -3215,7 +3216,7 @@ body.qr-page .gradient-bg {
 
 .info-row span:last-child {
     color: #312929;
-    color: white;
+    /* color: white; */
     font-weight: 600;
     font-size: 0.9rem;
 }

@@ -37,10 +37,77 @@ function formatStatusDisplay(status) {
 }
 
 // Global variables
-let selectedOrderId = null;
 let selectedOrder = null;
 let selectedStatus = null;
 let currentTab = 'active';
+
+// Store for cancelled items grouped by order_id
+let cancelledItemsStore = {};
+let _isLoadingCancelled = false;
+
+// Helper function to check if an item has been cancelled (robust matching)
+function isItemCancelled(orderId, menuName, preference, itemId) {
+  const norm = (s) => (s ?? '').toString().trim().toLowerCase();
+  if (!cancelledItemsStore[orderId]) return false;
+  const targetName = norm(menuName);
+  const targetPref = norm(preference);
+  const targetId = (itemId ?? '').toString();
+  return cancelledItemsStore[orderId].cancelled_items.some(item => {
+    const name = norm(item.menu_name || item.name || item.menu);
+    const pref = norm(item.preference || item.variant || '');
+    const cid = (item.item_id || item.id || '').toString();
+    const nameMatch = name === targetName;
+    const prefMatch = (!targetPref && !pref) || (pref === targetPref);
+    const idMatch = targetId && cid && targetId === cid;
+    // Prefer id match when present, else fallback to name+pref
+    return (idMatch) || (nameMatch && prefMatch);
+  });
+}
+
+// Fetch cancelled items from database on page load
+async function fetchCancelledItems() {
+  try {
+    _isLoadingCancelled = true;
+    const response = await fetch('/get_cancelled_items', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.status === 'success' && data.data) {
+        // Reconstruct cancelledItemsStore from database data
+        cancelledItemsStore = {};
+        data.data.forEach(order => {
+          if (order.cancelled_items && order.cancelled_items.length > 0) {
+            // Prefer queue_number from backend to avoid client-side flicker
+            const queueNumber = order.queue_number || (window._orderIdToQueue && window._orderIdToQueue[order.order_id]) || order.order_id;
+              
+            cancelledItemsStore[order.order_id] = {
+              order_id: order.order_id,
+              queue_number: queueNumber,
+              customer_name: order.customer_name,
+              room_name: order.room_name,
+              time_cancelled: order.time_cancelled || null,
+              cancelled_items: order.cancelled_items
+            };
+          }
+        });
+        console.log('✅ Loaded cancelled items from database:', cancelledItemsStore);
+        renderCancelledItems();
+        // Re-render orders so active columns exclude cancelled items just loaded
+        try { fetchOrders(); } catch (e) { console.warn('fetchOrders after cancelled-items load failed:', e); }
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching cancelled items:', error);
+  }
+  finally {
+    _isLoadingCancelled = false;
+  }
+}
 
 // Kitchen toggle functionality
 function initializeKitchenToggle() {
@@ -57,30 +124,35 @@ function initializeKitchenToggle() {
 
 // Tab switching functionality
 function switchTab(tab) {
+  console.log('switchTab called with:', tab);
   currentTab = tab;
   const activeBtn = document.getElementById('tab-active');
   const doneBtn = document.getElementById('tab-done');
   const orderColumns = document.querySelector('.order-columns');
   const doneOrders = document.getElementById('done-orders');
   const sidebar = document.getElementById('sidebar');
+  
+  console.log('Elements found:', { activeBtn, doneBtn, orderColumns, doneOrders, sidebar });
+  
   document.body.classList.remove('tab-active', 'tab-done');
   document.body.classList.add(tab === 'active' ? 'tab-active' : 'tab-done');
   
   if (tab === 'active') {
-    activeBtn.classList.add('tab-active');
-    doneBtn.classList.remove('tab-active');
-    orderColumns.classList.remove('hidden');
-    doneOrders.classList.add('hidden');
+    if (activeBtn) activeBtn.classList.add('tab-active');
+    if (doneBtn) doneBtn.classList.remove('tab-active');
+    if (orderColumns) orderColumns.classList.remove('hidden');
+    if (doneOrders) doneOrders.classList.add('hidden');
     if (sidebar) sidebar.classList.remove('hidden');
   } else {
-    activeBtn.classList.remove('tab-active');
-    doneBtn.classList.add('tab-active');
-    orderColumns.classList.add('hidden');
-    doneOrders.classList.remove('hidden');
+    if (activeBtn) activeBtn.classList.remove('tab-active');
+    if (doneBtn) doneBtn.classList.add('tab-active');
+    if (orderColumns) orderColumns.classList.add('hidden');
+    if (doneOrders) doneOrders.classList.remove('hidden');
     if (sidebar) sidebar.classList.add('hidden');
   }
   
-  fetchOrders();
+  // Debounce a little to allow any preceding cancelled-items updates to settle
+  setTimeout(() => fetchOrders(), 50);
 }
 
 // Highlight order card in active tab when order id in summary is clicked
@@ -149,21 +221,307 @@ function closeDetailModal() {
   document.getElementById("detail-modal").classList.add("hidden");
 }
 
-async function confirmCancel(type) {
-  let reason;
-  if (type === 'habis') {
-    reason = 'Habis';
-  } else if (type === 'cancel') {
-    reason = prompt("Masukkan alasan pembatalan:", "Tidak jadi");
-    if (!reason) return closeModal('confirm-modal');
+// Item Detail Modal Functions
+let selectedItem = null;
+let selectedOrderForItem = null;
+let selectedItemId = null;
+let selectedItemIndex = null;
+
+function openItemDetailModalByKey(orderId, itemIndex, itemId, dataKey) {
+  console.log('Debug - openItemDetailModalByKey called');
+  console.log('dataKey:', dataKey);
+  console.log('itemDataStore:', window.itemDataStore);
+  
+  const itemData = window.itemDataStore && window.itemDataStore[dataKey];
+  if (!itemData) {
+    console.error('Item data not found for key:', dataKey);
+    console.error('Available keys:', window.itemDataStore ? Object.keys(window.itemDataStore) : 'No itemDataStore');
+    showErrorModal('Data item tidak ditemukan. Silakan refresh halaman dan coba lagi.');
+    return;
+  }
+  
+  console.log('Found itemData:', itemData);
+  openItemDetailModal(orderId, itemIndex, itemId, itemData);
+}
+
+function openItemDetailModal(orderId, itemIndex, itemId, itemData) {
+  // Reset custom reason input UI and show both buttons
+  const customReasonContainer = document.getElementById('custom-reason-container-item');
+  const customReasonInput = document.getElementById('custom-cancel-reason-item');
+  const btnAlasanLain = document.getElementById('btn-alasan-lain-item');
+  const btnConfirmAlasanLain = document.getElementById('btn-confirm-alasan-lain-item');
+  const btnHabis = document.querySelector('#btn-habis-item, .modal-btn-habis');
+  if (customReasonContainer && customReasonInput && btnAlasanLain && btnConfirmAlasanLain) {
+    customReasonContainer.classList.add('hidden');
+    customReasonInput.value = '';
+    btnAlasanLain.classList.remove('hidden');
+    btnConfirmAlasanLain.classList.add('hidden');
+    if (btnHabis) btnHabis.classList.remove('hidden');
+  }
+  console.log('Debug - openItemDetailModal called');
+  console.log('orderId:', orderId, 'itemIndex:', itemIndex, 'itemId:', itemId);
+  console.log('itemData:', itemData);
+  
+  selectedOrderForItem = orderId;
+  selectedItemIndex = itemIndex;
+  selectedItemId = itemId;
+  selectedItem = itemData;
+
+  console.log('After setting - selectedItem:', selectedItem);
+
+  // Populate modal with item data
+  document.getElementById('item-detail-name').textContent = itemData.menu_name;
+  document.getElementById('item-detail-quantity').textContent = `Qty: ${itemData.quantity}`;
+  const prefEl = document.getElementById('item-detail-preference');
+  if (itemData.preference) {
+    prefEl.textContent = `(${itemData.preference})`;
+    prefEl.classList.remove('hidden');
+  } else {
+    prefEl.textContent = '';
+    prefEl.classList.add('hidden');
   }
 
-  await cancelOrder(selectedOrderId, reason);
-  closeModal('confirm-modal');
+  // Persist context on modal dataset for robust retrieval later
+  const modalEl = document.getElementById('item-detail-modal');
+  modalEl.dataset.orderId = orderId || '';
+  modalEl.dataset.menuName = itemData.menu_name || '';
+  modalEl.dataset.itemId = (itemData.id != null ? String(itemData.id) : '');
+  modalEl.dataset.itemIndex = String(itemIndex);
+  modalEl.dataset.preference = itemData.preference || '';
+  modalEl.dataset.notes = itemData.notes || '';
+  // Store additional order context for cancelled items
+  const orderCard = document.querySelector(`[data-order-id="${orderId}"]`);
+  if (orderCard) {
+    const customerName = orderCard.querySelector('.customer-name')?.textContent || 'John Doe';
+    const roomName = orderCard.querySelector('.location-text')?.textContent || 'Regular';
+    modalEl.dataset.customerName = customerName;
+    modalEl.dataset.roomName = roomName;
+  }
+  const notesElement = document.getElementById('item-detail-notes');
+  if (itemData.notes) {
+    notesElement.innerHTML = `<strong>Notes:</strong> ${itemData.notes}`;
+    notesElement.classList.remove('hidden');
+  } else {
+    notesElement.classList.add('hidden');
+    notesElement.innerHTML = '';
+  }
+  // Show modal
+  document.getElementById('item-detail-modal').classList.remove('hidden');
+}
+
+function closeItemDetailModal() {
+  selectedItem = null;
+  selectedOrderForItem = null;
+  selectedItemId = null;
+  selectedItemIndex = null;
+  // Keep dataset for robustness until modal is actually hidden
+  document.getElementById('item-detail-modal').classList.add('hidden');
+}
+
+async function confirmCancelItem(type) {
+  // type: 'lainnya' | 'habis'
+  console.log('Debug - confirmCancelItem called');
+  console.log('selectedOrderForItem:', selectedOrderForItem);
+  console.log('selectedItem:', selectedItem);
+
+  // Prefer dataset values from the modal for robustness
+  const modalEl = document.getElementById('item-detail-modal');
+  let orderId = (modalEl?.dataset?.orderId) || selectedOrderForItem || '';
+  let itemId = modalEl?.dataset?.itemId || '';
+  let menuName = (modalEl?.dataset?.menuName) || (selectedItem && selectedItem.menu_name) || document.getElementById('item-detail-name')?.textContent || '';
+
+  console.log('Resolved values -> orderId:', orderId, 'itemId:', itemId, 'menuName:', menuName);
+
+  if (!orderId || (!itemId && !menuName)) {
+    showErrorModal('Data item tidak valid.');
+    return;
+  }
+
+  let reason = '';
+  if (type === 'lainnya') {
+    // Ambil alasan dari input
+    const input = document.getElementById('custom-cancel-reason-item');
+    reason = input ? input.value.trim() : '';
+    if (!reason) {
+      showErrorModal('Mohon masukkan alasan pembatalan.');
+      if (input) input.focus();
+      return;
+    }
+  } else if (type === 'habis') {
+    reason = 'Stok Habis';
+  } else {
+    reason = '';
+  }
+
+  if (!reason) {
+    showErrorModal('Pilih alasan pembatalan.');
+    return;
+  }
+  // Reset custom reason input UI
+  const customReasonContainer = document.getElementById('custom-reason-container-item');
+  const customReasonInput = document.getElementById('custom-cancel-reason-item');
+  const btnAlasanLain = document.getElementById('btn-alasan-lain-item');
+  const btnConfirmAlasanLain = document.getElementById('btn-confirm-alasan-lain-item');
+  if (customReasonContainer && customReasonInput && btnAlasanLain && btnConfirmAlasanLain) {
+    customReasonContainer.classList.add('hidden');
+    customReasonInput.value = '';
+    btnAlasanLain.classList.remove('hidden');
+    btnConfirmAlasanLain.classList.add('hidden');
+  }
+
+  try {
+    // Build payload preferring item_id when available
+    const payload = itemId ? { order_id: orderId, item_id: itemId, reason } : { order_id: orderId, menu_name: menuName, reason };
+
+    const response = await fetch('/cancel_order_item', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      let errMsg = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData?.message) errMsg = errorData.message;
+      } catch {}
+      throw new Error(errMsg);
+    }
+    
+    const result = await response.json();
+    
+    if (result.status === 'success') {
+      console.log('✅ Item cancelled successfully:', result);
+      
+      // Add cancelled item to store
+      const itemData = {
+        menu_name: menuName,
+        quantity: document.getElementById('item-detail-quantity').textContent.replace('Quantity: ', ''),
+        preference: modalEl?.dataset?.preference || '',
+        notes: modalEl?.dataset?.notes || '',
+        customer_name: modalEl?.dataset?.customerName || result?.data?.customer_name || 'John Doe',
+        room_name: modalEl?.dataset?.roomName || result?.data?.room_name || 'Regular'
+      };
+      
+      console.log('Adding cancelled item to store:', { orderId, itemData, reason });
+      addCancelledItem(orderId, itemData, reason);
+      
+      // Close modal before showing success modal to avoid flicker
+      closeItemDetailModal();
+      // Show success modal
+      showSuccessModal(result.message || 'Item berhasil dibatalkan.');
+      
+      // Play notification sound
+      try {
+        document.getElementById("sound-status-update").play();
+      } catch (e) {
+        console.log('Sound notification failed:', e);
+      }
+      
+      // Refresh orders to show updated data
+      fetchOrders();
+      
+      // Refresh cancelled items from database and render
+      await fetchCancelledItems();
+      
+      // Log the cancellation
+      const loggedName = payload.menu_name || (result?.data?.cancelled_item?.menu_name) || menuName;
+      logHistory(orderId, 'item_cancelled', `Item ${loggedName}: ${reason}`);
+      
+    } else {
+      showErrorModal(result.message || 'Gagal membatalkan item.');
+    }
+  } catch (error) {
+    console.error('Error canceling item:', error);
+    showErrorModal(`Gagal membatalkan item: ${error.message}`);
+  }
+}
+
+async function confirmCancel(type) {
+  if (type === 'cancel') {
+    showCustomReasonInputCancel();
+    return;
+  }
+  let reason = '';
+  if (type === 'habis') {
+    reason = 'Habis';
+    closeModal('confirm-modal');
+    const finalStatus = selectedOrderStatus || 'cancelled';
+    await cancelOrder(selectedOrderId, reason, finalStatus);
+    return;
+  } else if (type === 'lainnya') {
+    const input = document.getElementById('custom-cancel-reason-cancel');
+    reason = input ? input.value.trim() : '';
+    if (!reason) {
+      showErrorModal('Mohon masukkan alasan pembatalan.');
+      if (input) input.focus();
+      return;
+    }
+    closeModal('confirm-modal');
+    const finalStatus = selectedOrderStatus || 'cancelled';
+    await cancelOrder(selectedOrderId, reason, finalStatus);
+    return;
+  } else {
+    // Default: do nothing
+    return;
+  }
+}
+
+function openConfirmModal(orderId, status) {
+  selectedOrderId = orderId;
+  selectedOrderStatus = status || 'cancelled';
+  // Reset confirm modal state (input hidden, buttons reset)
+  const customReasonContainer = document.getElementById('custom-reason-container-cancel');
+  const customReasonInput = document.getElementById('custom-cancel-reason-cancel');
+  const btnAlasanLain = document.getElementById('btn-alasan-lain-cancel');
+  const btnConfirmAlasanLain = document.getElementById('btn-confirm-alasan-lain-cancel');
+  const btnHabis = document.getElementById('btn-habis-cancel');
+  if (customReasonContainer && customReasonInput && btnAlasanLain && btnConfirmAlasanLain && btnHabis) {
+    customReasonContainer.classList.add('hidden');
+    customReasonInput.value = '';
+    btnAlasanLain.disabled = false;
+    btnAlasanLain.classList.remove('disabled');
+    btnAlasanLain.classList.remove('hidden');
+    btnConfirmAlasanLain.classList.add('hidden');
+    btnHabis.classList.remove('hidden');
+  }
+  document.getElementById('confirm-modal').classList.remove('hidden');
+}
+window.openConfirmModal = openConfirmModal;
+// Show custom reason input for order cancel modal
+function showCustomReasonInputCancel() {
+  const customReasonContainer = document.getElementById('custom-reason-container-cancel');
+  const customReasonInput = document.getElementById('custom-cancel-reason-cancel');
+  const btnAlasanLain = document.getElementById('btn-alasan-lain-cancel');
+  const btnConfirmAlasanLain = document.getElementById('btn-confirm-alasan-lain-cancel');
+  const btnHabis = document.getElementById('btn-habis-cancel');
+  if (customReasonContainer && customReasonInput && btnAlasanLain && btnConfirmAlasanLain && btnHabis) {
+    customReasonContainer.classList.remove('hidden');
+    customReasonInput.value = '';
+    customReasonInput.focus();
+    btnAlasanLain.classList.add('hidden'); // hide 'Alasan Lain' button
+    btnConfirmAlasanLain.classList.remove('hidden'); // show OK button
+    btnHabis.classList.add('hidden');
+  }
+}
+window.showCustomReasonInputItem = showCustomReasonInputItem;
+// Show custom reason input for item cancel modal
+function showCustomReasonInputItem() {
+  document.getElementById('custom-reason-container-item').classList.remove('hidden');
+  document.getElementById('btn-alasan-lain-item').classList.add('hidden');
+  document.getElementById('btn-confirm-alasan-lain-item').classList.remove('hidden');
+  var btnHabis = document.querySelector('#btn-habis-item, .modal-btn-habis');
+  if (btnHabis) btnHabis.classList.add('hidden');
+  setTimeout(() => {
+    document.getElementById('custom-cancel-reason-item').focus();
+  }, 100);
 }
 
 // New function to cancel order using proper endpoint
-async function cancelOrder(orderId, reason) {
+async function cancelOrder(orderId, reason, status = 'cancelled') {
   try {
     const response = await fetch('/cancel_order', {
       method: 'POST',
@@ -172,12 +530,21 @@ async function cancelOrder(orderId, reason) {
       },
       body: JSON.stringify({
         order_id: orderId,
-        reason: reason
+        cancel_reason: reason || 'Dibatalkan',
+        reason: reason || 'Dibatalkan',
+        status: status
       })
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      let errMsg = `HTTP error! status: ${response.status}`;
+      try {
+        const errBody = await response.json();
+        if (errBody?.message || errBody?.error) {
+          errMsg = errBody.message || errBody.error;
+        }
+      } catch {}
+      throw new Error(errMsg);
     }
     
     const result = await response.json();
@@ -185,14 +552,155 @@ async function cancelOrder(orderId, reason) {
     if (result.status === 'success') {
       document.getElementById("sound-status-update").play().catch(() => {});
       fetchOrders();
-      logHistory(orderId, 'cancelled', reason);
-      showSuccessModal('Pesanan berhasil dibatalkan');
+    logHistory(orderId, 'cancelled', reason || 'Dibatalkan');
+    try { await fetchCancelledItems(); } catch (e) { console.warn('fetchCancelledItems after cancelOrder failed:', e); }
+    showSuccessModal('Pesanan berhasil dibatalkan');
     } else {
       showErrorModal(result.message || 'Gagal membatalkan pesanan');
     }
   } catch (err) {
     showErrorModal("Gagal membatalkan pesanan: " + err.message);
   }
+}
+
+// Cancelled Items Functions
+function addCancelledItem(orderId, itemData, reason) {
+  if (!cancelledItemsStore[orderId]) {
+    // Get queue number from global mapping
+    const queueNumber = (window._orderIdToQueue && window._orderIdToQueue[orderId]) ? window._orderIdToQueue[orderId] : orderId;
+    
+    cancelledItemsStore[orderId] = {
+      order_id: orderId,
+      queue_number: queueNumber,
+      customer_name: itemData.customer_name || 'John Doe',
+      room_name: itemData.room_name || 'Regular',
+      // Temporary; will be replaced by server-provided value on next fetchCancelledItems
+      time_cancelled: new Date().toISOString(),
+      cancelled_items: []
+    };
+  }
+  
+  cancelledItemsStore[orderId].cancelled_items.push({
+    menu_name: itemData.menu_name,
+    quantity: itemData.quantity,
+    preference: itemData.preference,
+    notes: itemData.notes,
+    cancel_reason: reason,
+    cancelled_at: new Date().toISOString(),
+    item_id: itemData.id || undefined
+  });
+}
+
+function createCancelledItemCard(cancelledOrder) {
+  const card = document.createElement("div");
+  card.className = "order-card"; // Menggunakan class yang sama dengan order card
+  card.setAttribute('data-order-id', cancelledOrder.order_id);
+  
+  // Tambahkan click handler untuk modal detail
+  card.onclick = () => openCancelledOrderDetailModal(cancelledOrder);
+
+  const time = cancelledOrder.time_cancelled 
+    ? new Date(cancelledOrder.time_cancelled).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" }) 
+    : "-";
+  const totalCancelledItems = cancelledOrder.cancelled_items.length;
+  
+  // Ambil queue number dari mapping global atau gunakan fallback
+  const queueNumber = (window._orderIdToQueue && window._orderIdToQueue[cancelledOrder.order_id]) ? 
+    window._orderIdToQueue[cancelledOrder.order_id] : 
+    cancelledOrder.queue_number || cancelledOrder.order_id;
+
+  const itemsHtml = cancelledOrder.cancelled_items.map(item => {
+    return `
+      <div class="order-item order-item-readonly order-item-cancelled">
+        <div class="item-content">
+          <div class="item-main">
+            <span class="item-name item-name-cancelled">${item.menu_name}${item.preference ? ' <span class="item-variant">(' + item.preference + ')</span>' : ''}</span>
+            <span class="item-quantity">${item.quantity}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Status badge untuk cancelled
+  const statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCELLED</span>';
+  const actionButton = `<button class="action-btn action-btn-red-disabled">CANCELLED</button>`;
+
+  card.innerHTML = `
+    <div class="order-header">
+      <span class="order-number">${queueNumber ? `#${queueNumber}` : ''}</span>
+      <span class="customer-name">${cancelledOrder.customer_name}</span>
+    </div>
+    <div class="order-contents">
+        <div class="order-location">
+            <span class="location-icon"><i class="fa-solid fa-location-dot"></i></span>
+            <span class="location-text">${cancelledOrder.room_name}</span>
+            ${statusBadge}
+        </div>
+        <div class="order-timestamp">${time}</div>
+        <div class="order-items">${itemsHtml}</div>
+        <div class="order-footer">
+            <span class="details-button">DETAILS <i class="fa-solid fa-chevron-right"></i></span>
+        </div>
+    ${actionButton}
+    </div>
+  `;
+
+  return card;
+}
+
+function openCancelledOrderDetailModal(cancelledOrder) {
+  const box = document.getElementById("detail-content");
+  
+  // Buat detail string dari cancelled items
+  const detailItems = cancelledOrder.cancelled_items.map(item => {
+    return `${item.menu_name}${item.preference ? ' (' + item.preference + ')' : ''} - ${item.quantity}x${item.notes ? `\nNotes: ${item.notes}` : ''}`;
+  }).join('\n');
+  
+  const queueNumber = (window._orderIdToQueue && window._orderIdToQueue[cancelledOrder.order_id]) ? 
+    window._orderIdToQueue[cancelledOrder.order_id] : 
+    cancelledOrder.queue_number || cancelledOrder.order_id;
+  
+  const time = cancelledOrder.time_cancelled 
+    ? new Date(cancelledOrder.time_cancelled).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" }) 
+    : "-";
+  
+  box.innerHTML = `
+    <h3>📦 Detail Pesanan</h3>
+    <p><strong>Order ID:</strong> ${cancelledOrder.order_id}</p>
+    <p><strong>Nomor Antrian:</strong> #${queueNumber}</p>
+    <p><strong>Nama:</strong> ${cancelledOrder.customer_name}</p>
+    <p><strong>Ruangan:</strong> ${cancelledOrder.room_name}</p>
+    <p><strong>Status:</strong> <span style="color: #dc3545; font-weight: bold;">CANCELLED</span></p>
+    <p><strong>Waktu Pembatalan:</strong> ${time}</p>
+    <p><strong>Detail Item yang Dibatalkan:</strong></p>
+    <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0; white-space: pre-line;">${detailItems}</div>
+    
+    <h4 style="color: #dc3545; margin-top: 20px;">📝 Alasan Pembatalan:</h4>
+    <div style="background: #fee2e2; padding: 10px; border-radius: 5px; border-left: 4px solid #dc3545;">
+      ${cancelledOrder.cancelled_items.map(item => {
+        const r = item.cancel_reason || item.cancelled_reason || item.reason || 'Tidak ada alasan';
+        return `• ${item.menu_name}: ${r}`;
+      }).join('<br>')}
+    </div>
+  `;
+  
+  document.getElementById("detail-modal").classList.remove("hidden");
+}
+
+function renderCancelledItems() {
+  const cancelOrderColumn = document.getElementById("cancel-order-column");
+  if (!cancelOrderColumn) return;
+
+  // Clear existing cancelled cards
+  cancelOrderColumn.innerHTML = '';
+
+  // Create cards for each cancelled order
+  const entries = Object.values(cancelledItemsStore || {});
+  entries.forEach(cancelledOrder => {
+    const card = createCancelledItemCard(cancelledOrder);
+    cancelOrderColumn.appendChild(card);
+  });
 }
 
 // API functions
@@ -219,7 +727,7 @@ function createOrderCard(order) {
   card.onclick = () => openDetailModal(order);
 
   // Ambil nomor antrian dari mapping global
-  const queueNumber = (window._orderIdToQueue && window._orderIdToQueue[order.order_id]) ? window._orderIdToQueue[order.order_id] : (order.queue_number || order.order_id);
+  const queueNumber = order.queue_number || (window._orderIdToQueue && window._orderIdToQueue[order.order_id]) || order.order_id;
 
   const time = new Date(order.time_receive).toLocaleString("id-ID");
   const timeDone = order.time_done ? new Date(order.time_done).toLocaleString("id-ID") : null;
@@ -246,19 +754,51 @@ function createOrderCard(order) {
         }
         return { menu_name: name, quantity: qty, preference: variant, notes: notesPart ? notesPart.trim() : '' };
       });
-  const itemsHtml = items.map(item => {
+
+  // Filter out cancelled items for active orders
+  const activeItems = items.filter(it => !isItemCancelled(order.order_id, it.menu_name, it.preference, it.id));
+  
+  // If no active items, don't show the card in active columns
+  if (activeItems.length === 0 && ['receive', 'making', 'deliver'].includes(order.status)) {
+    // All items are cancelled, skip rendering in Active columns
+    return null;
+  }
+
+  const itemsHtml = activeItems.map((item, index) => {
+    // Create unique item identifier
+    const itemIdentifier = item.id || `${order.order_id}_${index}_${item.menu_name}`;
+    
+    // Store item data in a global object to avoid JSON parsing issues
+    if (!window.itemDataStore) window.itemDataStore = {};
+    const dataKey = `${order.order_id}_${index}`;
+    window.itemDataStore[dataKey] = item;
+    
+    // For done/cancelled orders, don't add interactive elements
+    const isInteractive = ["receive", "making"].includes(order.status);
+    const itemClass = isInteractive ? "order-item" : "order-item order-item-readonly";
+    const onclickHandler = isInteractive ? `onclick="event.stopPropagation(); openItemDetailModalByKey('${order.order_id}', ${index}, '${itemIdentifier}', '${dataKey}')"` : '';
+    
     return `
-      <div class="order-item">
-        <div class="item-content">
-          <div class="item-main">
-            <span class="item-name">${item.menu_name}${item.preference ? ' <span class="item-variant">(' + item.preference + ')</span>' : ''}</span>
-            <span class="item-quantity">${item.quantity}</span>
-          </div>
-          ${item.notes ? `<div class="item-notes"><span class="notes-label">Notes:</span> ${item.notes}</div>` : ''}
+      <div class="${itemClass}" data-item-index="${index}" data-item-id="${itemIdentifier}" ${onclickHandler}>
+        <div class="item-content-wrapper">
+          <div class="item-content">
+            <div class="item-main">
+              <span class="item-name">${item.menu_name}${item.preference ? ' <span class="item-variant">(' + item.preference + ')</span>' : ''}</span>
+              <span class="item-quantity">${item.quantity}</span>
+            </div>
+            ${item.notes ? `<div class="item-notes"><span class="notes-label">Notes:</span> ${item.notes}</div>` : ''}
         </div>
+      </div> 
+      ${isInteractive ? `
+      <div class="item-actions">
+        <button class="item-action-btn" onclick="event.stopPropagation(); openItemDetailModalByKey('${order.order_id}', ${index}, '${itemIdentifier}', '${dataKey}')" title="Cancel Item">
+          <i class="fa-solid fa-times"></i>
+        </button>
       </div>
-    `;
-  }).join('');
+      ` : ''}
+    </div>
+  `;
+}).join('');
 
   // Status badge
   let statusBadge = '';
@@ -295,7 +835,7 @@ function createOrderCard(order) {
     <div class="order-header">
       <span class="order-number">${queueNumber ? `#${queueNumber}` : ''}</span>
       <span class="customer-name">${order.customer_name ?? 'John Doe'}</span>
-      ${["receive", "making"].includes(order.status) ? `<button class="order-close" onclick="event.stopPropagation(); openConfirmModal('${order.order_id}', 'cancelled')">&times;</button>` : ""}
+  ${["receive", "making"].includes(order.status) ? `<button class="order-close" onclick=\"event.stopPropagation(); openConfirmModal('${order.order_id}', 'cancelled')\">&times;</button>` : ""}
     </div>
     <div class="order-contents">
         <div class="order-location">
@@ -337,6 +877,10 @@ function renderOrders(orders) {
   
   validOrders.forEach(order => {
     const orderCard = createOrderCard(order);
+    if (!orderCard) {
+      // Skip orders that have no active items to display
+      return;
+    }
     
     // Place order in appropriate column based on status
     if (order.status === 'receive') {
@@ -352,13 +896,19 @@ function renderOrders(orders) {
     }
   });
   
+  // Render cancelled items in the cancel column
+  renderCancelledItems();
+  
   // Update sidebar summary with fresh data
   updateSummary(validOrders);
 }
 
+// Cache to stabilize queue mapping during a render cycle
+let _queueMapVersion = 0;
 function updateSummary(orders) {
+  const version = ++_queueMapVersion;
   // Reset global mapping to prevent stale data
-  window._orderIdToQueue = {};
+  const newMap = {};
   
   // Ambil tanggal hari ini (YYYY-MM-DD)
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -374,7 +924,9 @@ function updateSummary(orders) {
   // Map order_id ke nomor antrian hari ini
   const orderIdToQueue = {};
   sortedOrders.forEach((order, idx) => {
-    orderIdToQueue[order.order_id] = idx + 1;
+    // Prefer backend-provided queue_number to avoid flicker; fallback to sequential index only if missing
+    const qn = (order.queue_number != null && order.queue_number !== undefined) ? order.queue_number : (idx + 1);
+    orderIdToQueue[order.order_id] = qn;
   });
 
   const activeOrders = orders.filter(order => ['receive', 'making', 'deliver'].includes(order.status));
@@ -412,7 +964,10 @@ function updateSummary(orders) {
       });
     }
     
-    items.forEach(item => {
+    // Exclude already-cancelled items from summary
+    const activeItemsForSummary = items.filter(it => !isItemCancelled(order.order_id, it.menu_name, it.preference));
+
+    activeItemsForSummary.forEach(item => {
       const name = item.menu_name;
       const variant = item.preference;
       const notes = item.notes;
@@ -449,6 +1004,11 @@ function updateSummary(orders) {
   sidebarContent.innerHTML = '';
   if (existingTitle) {
     sidebarContent.appendChild(existingTitle);
+  }
+
+  // Commit the queue map atomically to avoid flicker
+  if (version === _queueMapVersion) {
+    window._orderIdToQueue = orderIdToQueue;
   }
 
   // Urutkan menu berdasarkan nomor antrian terkecil
@@ -504,6 +1064,11 @@ function updateSummary(orders) {
 function fetchOrders() {
   // Show loading state
   document.getElementById('offline-banner').classList.add('hidden');
+  if (_isLoadingCancelled) {
+    // Avoid flicker: delay until cancelled-items loading completes
+    setTimeout(fetchOrders, 80);
+    return;
+  }
   
       fetch("/kitchen/orders")
     .then(res => {
@@ -513,7 +1078,7 @@ function fetchOrders() {
       return res.json();
     })
     .then(data => {
-      renderOrders(data);
+  renderOrders(data);
     })
     .catch(() => {
       document.getElementById("offline-banner").classList.remove("hidden");
@@ -1509,17 +2074,56 @@ function updateGreetingDate() {
 }
 
 // Initialize all functionality when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+  console.log('DOM loaded, initializing...');
   initializeKitchenToggle(); // This now calls fetchKitchenStatus internally
   initializeSearch();
-  switchTab('active');
-  initializeEventSource();
-  fetchAllFlavors();
-  fetchMenuOptions();
+  initializeTabs(); // Initialize tab functionality
   displayUserInfo(); // Menampilkan info user dari token JWT
   updateGreetingDate(); // Memperbarui tanggal greeting
-//   setupNavigation();
+
+  // Load cancelled items first to avoid flicker of cancelled entries in Active on initial render
+  try {
+    await fetchCancelledItems();
+  } catch (e) {
+    console.warn('Initial fetchCancelledItems failed:', e);
+  }
+
+  // Now render Active tab (this triggers fetchOrders inside switchTab)
+  switchTab('active');
+
+  // Start event stream after initial state is consistent
+  initializeEventSource();
+
+  // Other non-blocking initializations
+  fetchAllFlavors();
+  fetchMenuOptions();
+  // setupNavigation();
 });
+
+// Initialize tab functionality
+function initializeTabs() {
+  const activeBtn = document.getElementById('tab-active');
+  const doneBtn = document.getElementById('tab-done');
+  
+  console.log('Initializing tabs:', { activeBtn, doneBtn });
+  
+  if (activeBtn) {
+    activeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      console.log('Active tab clicked');
+      switchTab('active');
+    });
+  }
+  
+  if (doneBtn) {
+    doneBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      console.log('Done tab clicked');
+      switchTab('done');
+    });
+  }
+}
 
 // Global functions for event handlers
 window.switchTab = switchTab;
@@ -1528,7 +2132,14 @@ window.openConfirmModal = openConfirmModal;
 window.confirmCancel = confirmCancel;
 window.openDetailModal = openDetailModal;
 window.closeDetailModal = closeDetailModal;
+window.openCancelledOrderDetailModal = openCancelledOrderDetailModal;
+window.openItemDetailModal = openItemDetailModal;
+window.closeItemDetailModal = closeItemDetailModal;
+window.confirmCancelItem = confirmCancelItem;
+window.openItemDetailModalByKey = openItemDetailModalByKey;
 window.syncUpdate = syncUpdate;
+window.showSuccessModal = showSuccessModal;
+window.showErrorModal = showErrorModal;
 window.openAddOrderModal = openAddOrderModal;
 window.closeAddOrderModal = closeAddOrderModal;
 window.showSuccessModal = showSuccessModal;

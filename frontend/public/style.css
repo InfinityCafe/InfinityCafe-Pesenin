@@ -21,6 +21,15 @@ body {
     scrollbar-width: thin;
     scrollbar-color: #DCD0A8 #F5EFE6;
 }
+/* ===== Ingredient Analysis Date Input Error State ===== */
+.input-error {
+    border: 2px solid #dc2626 !important;
+    background: #fef2f2 !important;
+    transition: border-color .2s ease, background .2s ease;
+}
+.input-error:focus {
+    outline: 2px solid #b91c1c;
+}
 
 *::-webkit-scrollbar {
     width: 8px;
@@ -548,14 +557,41 @@ body.tab-audit-history .add-item-btn {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    padding: 0.5rem 0;
+    padding: 0.75rem;
+    margin: 0;
     font-size: 18px;
     color: #312929;
-    border-bottom: 1px solid #F3F4F6;
+    border: none;
+    border-bottom: 1px solid #E5E7EB;
+    border-radius: 10px;
+    background-color: #FAFAFA;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.order-item:hover {
+    border-bottom-color: #F59E0B;
+    background-color: #FFFBEB;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+    transform: translateY(-2px);
+}
+
+.order-item:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(245, 158, 11, 0.15);
 }
 
 .order-item:last-child {
-    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.item-content-wrapper {
+    display: flex;
+    width: 100%;
+    transition: transform 0.3s ease;
 }
 
 .item-content {
@@ -563,6 +599,7 @@ body.tab-audit-history .add-item-btn {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    min-width: 0;
 }
 
 .item-main {
@@ -599,6 +636,106 @@ body.tab-audit-history .add-item-btn {
 .notes-label {
     font-weight: 600;
     margin-right: 0.25rem;
+}
+
+/* Individual Item Action Styles */
+.item-actions {
+    position: absolute;
+    top: 50%;
+    right: -80px;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 8px;
+    /* background: rgba(255, 255, 255, 0.95); */
+    padding: 8px 12px;
+    border-radius: 8px;
+    /* box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); */
+    transition: opacity 0.3s ease;
+    z-index: 10;
+    backdrop-filter: blur(4px);
+}
+
+.order-item:hover .item-content-wrapper {
+    transform: translateX(-60px);
+}
+
+.order-item:hover .item-actions {
+    right: 12px;
+    opacity: 1;
+}
+
+.item-action-btn {
+    background: rgba(252, 214, 214, 0.9);
+    border: 2px solid transparent;
+    font-size: 16px;
+    color: #B3261E;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(4px);
+}
+
+.item-action-btn:hover {
+    background-color: #ff9e9ee6;
+    transform: scale(1.1);
+}
+
+.item-clickable-indicator {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    color: #9CA3AF;
+    font-size: 10px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.order-item:hover .item-clickable-indicator {
+    opacity: 0.6;
+}
+
+/* Cancelled Items Styles */
+/* Order item readonly styling for done/cancelled orders */
+.order-item-readonly {
+    pointer-events: none;
+    cursor: default !important;
+    background-color: #FAFAFA !important;
+}
+
+.order-item-readonly:hover {
+    border-bottom-color: #E5E7EB !important;
+    background-color: #FAFAFA !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.order-item-readonly:active {
+    transform: none !important;
+}
+
+/* Cancelled items styling - no hover effects, strikethrough, matches order-contents background */
+.order-item-cancelled {
+    background-color: transparent !important;
+    pointer-events: none;
+    cursor: default;
+}
+
+.order-item-cancelled:hover {
+    background-color: transparent !important;
+    transform: none !important;
+    box-shadow: none !important;
+    border-bottom-color: #E5E7EB !important;
+}
+
+.item-name-cancelled {
+    text-decoration: line-through;
+    color: #6c757d;
 }
 
 .order-item:last-child {
@@ -1147,17 +1284,63 @@ body.tab-audit-history .add-item-btn {
 
     .modal-btn-cancel,
     .view-modal.modal-btn-cancel {
-        background: linear-gradient(to right, #D57F0E, #FFC763);
+        border: none;
         color: white;
+        background: linear-gradient(to right, rgb(213, 127, 14), rgb(255, 199, 99));
+        cursor: pointer;
+        font-weight: 600;
         transition: all 0.2s ease;
     }
 
     .modal-btn-cancel:hover,
     .view-modal .modal-btn-cancel:hover {
         transition: opacity 0.3s ease;
-        background: #D57F0E;
+        background: rgb(213, 127, 14);
+        color: white;
         transform: scale(1.02);
         box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
+    }
+
+    .modal-btn-cancel-item {
+        background: #DC2626;
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .modal-btn-cancel-item:hover {
+        background: #B91C1C;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+    }
+
+    .modal-cancel-close-btn {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background: none;
+        border: none;
+        font-size: 40px;
+        color: #B3261E;
+        cursor: pointer;
+        padding: 0.25rem;
+        border-radius: 50%;
+        width: 2rem;
+        height: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        z-index: 10;
+    }
+
+    .modal-cancel-close-btn:hover {
+        background-color: rgba(179, 38, 30, 0.1);
+        transform: scale(1.1);
     }
 
     .modal-btn-habis,
@@ -1193,6 +1376,148 @@ body.tab-audit-history .add-item-btn {
         text-align: center;
     }
 
+    /* Item Detail Modal */
+    .item-detail-modal {
+        max-width: 500px;
+    }
+
+    .item-detail-modal .modal-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #312929;
+    }
+
+    .item-detail-header {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        background: #F9FAFB;
+        border-radius: 8px;
+        /* border-left: 4px solid #F59E0B; */
+    }
+
+    .item-detail-info h3 {
+        color: #312929;
+        font-size: 1rem;
+        font-weight: 600;
+    }
+
+    .item-detail-row {
+        display: flex;
+        align-items: center;
+        gap: 1.2rem;
+    }
+
+    .item-detail-quantity {
+        font-size: 1rem;
+        color: #555;
+    }
+    .item-detail-preference {
+        font-size: 1rem;
+        color: #888;
+    }
+
+    .item-detail-info .item-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        font-size: 0.875rem;
+        color: #6B7280;
+    }
+
+    .item-detail-info .item-preference {
+        color: #F59E0B;
+        font-weight: 500;
+    }
+
+    .item-detail-info .item-notes-detail {
+        margin-top: 0.3rem;
+        padding: 0.5rem;
+        background: #FEF3C7;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        color: #92400E;
+        border-left: 4px solid #F59E0B;
+    }
+
+    .cancel-reason-input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 2px solid #E5E7EB;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        margin-top: 0.5rem;
+        transition: border-color 0.2s ease;
+    }
+
+    .cancel-reason-input:focus {
+        outline: none;
+        border-color: #F59E0B;
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+    }
+
+    .modal-cancel-close-btn {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background: none;
+        border: none;
+        font-size: 40px;
+        color: #B3261E;
+        cursor: pointer;
+        padding: 0.25rem;
+        border-radius: 50%;
+        width: 2rem;
+        height: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        z-index: 10;
+    }
+
+    .modal-cancel-close-btn:hover {
+        background-color: rgba(179, 38, 30, 0.1);
+        transform: scale(1.1);
+    }
+
+    .cancel-reason-options {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .radio-option {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    
+
+    .radio-option input[type="radio"] {
+        margin: 0;
+        width: 16px;
+        height: 16px;
+        accent-color: #F59E0B;
+    }
+
+    .radio-option input[type="radio"]:checked + span {
+        color: #312929;
+        font-weight: 600;
+    }
+
+    .radio-option input[type="radio"]:checked {
+        transform: scale(1.1);
+    }
+
     .delete-confirm-modal .modal-header {
         display: flex;
         flex-direction: column;
@@ -1225,7 +1550,7 @@ body.tab-audit-history .add-item-btn {
     .delete-confirm-modal .delete-warning {
         color: #EF4444 !important;
         font-weight: 600;
-        font-size: 0.875rem;
+        font-size: 0.875rem !important;
     }
 
     .delete-confirm-modal .modal-actions {
@@ -6208,7 +6533,7 @@ body.qr-page .queue-number {
 /* Menggunakan class yang sudah ada dan menambahkan style khusus untuk kitchen report */
 
 /* Kitchen Report specific styles */
-[data-page="report"].status-item {
+body[data-page="report"].status-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -6259,13 +6584,13 @@ body.qr-page .queue-number {
     color: #503A3A;
 }
 
-[data-page="report"].status-label {
+body[data-page="report"].status-label {
     font-weight: 600;
     color: #412E27;
     font-size: 0.875rem;
 }
 
-[data-page="report"].status-count {
+body[data-page="report"].status-count {
     background-color: #8D7272;
     color: white;
     padding: 0.25rem 0.75rem;
@@ -6366,7 +6691,7 @@ body.qr-page .queue-number {
     border: 1px solid #E9ECEF;
 }
 
-[data-page="report"].filter-container {
+body[data-page="report"].filter-container {
     display: flex;
     align-items: center;
     gap: 1rem;
@@ -6374,30 +6699,39 @@ body.qr-page .queue-number {
     flex-wrap: wrap;
 }
 
-[data-page="report"].filter-group {
+body[data-page="report"].filter-group {
     display: flex;
     align-items: center;
     gap: 0.5rem;
 }
 
 /* Kitchen Report Summary Details */
-[data-page="report"].summary-details {
+body[data-page="report"] .summary-details {
     display: flex;
-    gap: 2rem;
+    /* align-items: center; */
+    gap: 0.5rem;
     flex-wrap: wrap;
-    background-color: white;
-    padding: 1rem 1.5rem;
+    padding: 5px 16px;
+    /* background-color: white; */
+    /* padding: 1rem 1.5rem;
     border-radius: 0.75rem;
     box-shadow: 0 2px 8px 0 rgba(0,0,0,0.04);
-    border: 1px solid #E9ECEF;
+    border: 1px solid #E9ECEF; */
 }
 
-[data-page="report"].summary-detail--order {
-    display: flex;
+body[data-page="report"] .summary-detail--order {
+    display: inline-block;
     align-items: center;
     gap: 0.5rem;
-    color: #6C757D;
-    font-size: 0.875rem;
+    color: #8B5A3C;
+    font-size: 1rem;
+}
+
+body[data-page="report"] .summary-detail--order:hover {
+  color: #fff;
+  background: #8B5A3C;
+  box-shadow: 0 2px 8px 0 rgba(139,90,60,0.10);
+  border: 1px solid #8B5A3C;
 }
 
 [data-page="report"].summary-detail--order strong {
@@ -6406,7 +6740,7 @@ body.qr-page .queue-number {
 }
 
 /* Kitchen Report Dashboard Layout */
-[data-page="report"].dashboard-layout {
+body[data-page="report"].dashboard-layout {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1.5rem;
@@ -6414,18 +6748,18 @@ body.qr-page .queue-number {
 }
 
 /* Kitchen Report Table Container */
-[data-page="report"].table-container {
+body[data-page="report"].table-container {
     margin-bottom: 1.5rem;
 }
 
-[data-page="report"].table-header {
+body[data-page="report"].table-header {
     background-color: #F8F9FA;
     padding: 1rem 1.5rem;
     border-bottom: 1px solid #E9ECEF;
     border-radius: 0.75rem 0.75rem 0 0;
 }
 
-[data-page="report"].table-controls {
+body[data-page="report"].table-controls {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -6433,7 +6767,7 @@ body.qr-page .queue-number {
     flex-wrap: wrap;
 }
 
-[data-page="report"].table-actions {
+body[data-page="report"].table-actions {
     display: flex;
     gap: 0.5rem;
 }
