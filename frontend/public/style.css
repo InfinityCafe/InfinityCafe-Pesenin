@@ -6718,6 +6718,13 @@ body[data-page="report"] .summary-detail--order {
     font-size: 1rem;
 }
 
+body[data-page="report"] .summary-detail--order:hover {
+  color: #fff;
+  background: #8B5A3C;
+  box-shadow: 0 2px 8px 0 rgba(139,90,60,0.10);
+  border: 1px solid #8B5A3C;
+}
+
 [data-page="report"].summary-detail--order strong {
     color: #412E27;
     font-weight: 700;
