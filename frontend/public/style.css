@@ -563,16 +563,18 @@ body.tab-audit-history .add-item-btn {
     color: #312929;
     border: none;
     border-bottom: 1px solid #E5E7EB;
-    border-radius: 0;
+    border-radius: 10px;
     background-color: #FAFAFA;
     transition: all 0.2s ease;
     cursor: pointer;
     position: relative;
+    overflow: hidden;
 }
 
 .order-item:hover {
     border-bottom-color: #F59E0B;
     background-color: #FFFBEB;
+    border-radius: 10px;
     box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
     transform: translateY(-2px);
 }
@@ -586,11 +588,18 @@ body.tab-audit-history .add-item-btn {
     margin-bottom: 0;
 }
 
+.item-content-wrapper {
+    display: flex;
+    width: 100%;
+    transition: transform 0.3s ease;
+}
+
 .item-content {
     flex: 1;
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    min-width: 0;
 }
 
 .item-main {
@@ -632,34 +641,48 @@ body.tab-audit-history .add-item-btn {
 /* Individual Item Action Styles */
 .item-actions {
     position: absolute;
-    top: 8px;
-    right: 8px;
-    opacity: 0;
-    transition: opacity 0.2s ease;
+    top: 50%;
+    right: -80px;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 8px;
+    /* background: rgba(255, 255, 255, 0.95); */
+    padding: 8px 12px;
+    border-radius: 8px;
+    /* box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); */
+    transition: opacity 0.3s ease;
+    z-index: 10;
+    backdrop-filter: blur(4px);
+}
+
+.order-item:hover .item-content-wrapper {
+    transform: translateX(-60px);
 }
 
 .order-item:hover .item-actions {
+    right: 12px;
     opacity: 1;
 }
 
 .item-action-btn {
-    background: none;
-    border: none;
+    background: rgba(252, 214, 214, 0.9);
+    border: 2px solid transparent;
     font-size: 16px;
     color: #B3261E;
     cursor: pointer;
-    padding: 0.125rem;
+    padding: 6px;
     border-radius: 50%;
-    width: 1.25rem;
-    height: 1.25rem;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s ease;
+    backdrop-filter: blur(4px);
 }
 
 .item-action-btn:hover {
-    background-color: rgba(179, 38, 30, 0.1);
+    background-color: #ff9e9ee6;
     transform: scale(1.1);
 }
 
@@ -680,6 +703,7 @@ body.tab-audit-history .add-item-btn {
 /* Cancelled Items Styles */
 /* Order item readonly styling for done/cancelled orders */
 .order-item-readonly {
+    pointer-events: none;
     cursor: default !important;
     background-color: #FAFAFA !important;
 }
@@ -6500,7 +6524,7 @@ body.qr-page .queue-number {
 /* Menggunakan class yang sudah ada dan menambahkan style khusus untuk kitchen report */
 
 /* Kitchen Report specific styles */
-[data-page="report"].status-item {
+body[data-page="report"].status-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -6551,13 +6575,13 @@ body.qr-page .queue-number {
     color: #503A3A;
 }
 
-[data-page="report"].status-label {
+body[data-page="report"].status-label {
     font-weight: 600;
     color: #412E27;
     font-size: 0.875rem;
 }
 
-[data-page="report"].status-count {
+body[data-page="report"].status-count {
     background-color: #8D7272;
     color: white;
     padding: 0.25rem 0.75rem;
@@ -6658,7 +6682,7 @@ body.qr-page .queue-number {
     border: 1px solid #E9ECEF;
 }
 
-[data-page="report"].filter-container {
+body[data-page="report"].filter-container {
     display: flex;
     align-items: center;
     gap: 1rem;
@@ -6666,30 +6690,32 @@ body.qr-page .queue-number {
     flex-wrap: wrap;
 }
 
-[data-page="report"].filter-group {
+body[data-page="report"].filter-group {
     display: flex;
     align-items: center;
     gap: 0.5rem;
 }
 
 /* Kitchen Report Summary Details */
-[data-page="report"].summary-details {
+body[data-page="report"] .summary-details {
     display: flex;
-    gap: 2rem;
+    /* align-items: center; */
+    gap: 0.5rem;
     flex-wrap: wrap;
-    background-color: white;
-    padding: 1rem 1.5rem;
+    padding: 5px 16px;
+    /* background-color: white; */
+    /* padding: 1rem 1.5rem;
     border-radius: 0.75rem;
     box-shadow: 0 2px 8px 0 rgba(0,0,0,0.04);
-    border: 1px solid #E9ECEF;
+    border: 1px solid #E9ECEF; */
 }
 
-[data-page="report"].summary-detail--order {
-    display: flex;
+body[data-page="report"] .summary-detail--order {
+    display: inline-block;
     align-items: center;
     gap: 0.5rem;
-    color: #6C757D;
-    font-size: 0.875rem;
+    color: #8B5A3C;
+    font-size: 1rem;
 }
 
 [data-page="report"].summary-detail--order strong {
@@ -6698,7 +6724,7 @@ body.qr-page .queue-number {
 }
 
 /* Kitchen Report Dashboard Layout */
-[data-page="report"].dashboard-layout {
+body[data-page="report"].dashboard-layout {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1.5rem;
@@ -6706,18 +6732,18 @@ body.qr-page .queue-number {
 }
 
 /* Kitchen Report Table Container */
-[data-page="report"].table-container {
+body[data-page="report"].table-container {
     margin-bottom: 1.5rem;
 }
 
-[data-page="report"].table-header {
+body[data-page="report"].table-header {
     background-color: #F8F9FA;
     padding: 1rem 1.5rem;
     border-bottom: 1px solid #E9ECEF;
     border-radius: 0.75rem 0.75rem 0 0;
 }
 
-[data-page="report"].table-controls {
+body[data-page="report"].table-controls {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -6725,7 +6751,7 @@ body.qr-page .queue-number {
     flex-wrap: wrap;
 }
 
-[data-page="report"].table-actions {
+body[data-page="report"].table-actions {
     display: flex;
     gap: 0.5rem;
 }

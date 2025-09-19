@@ -564,7 +564,7 @@ function createCancelledItemCard(cancelledOrder) {
   }).join('');
 
   // Status badge untuk cancelled
-  const statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-ban"></i> CANCELLED</span>';
+  const statusBadge = '<span class="status-badge status-cancel"><i class="fa-solid fa-xmark"></i> CANCELLED</span>';
   const actionButton = `<button class="action-btn action-btn-red-disabled">CANCELLED</button>`;
 
   card.innerHTML = `
@@ -721,28 +721,25 @@ function createOrderCard(order) {
     
     return `
       <div class="${itemClass}" data-item-index="${index}" data-item-id="${itemIdentifier}" ${onclickHandler}>
-        <div class="item-content">
-          <div class="item-main">
-            <span class="item-name">${item.menu_name}${item.preference ? ' <span class="item-variant">(' + item.preference + ')</span>' : ''}</span>
-            <span class="item-quantity">${item.quantity}</span>
-          </div>
-          ${item.notes ? `<div class="item-notes"><span class="notes-label">Notes:</span> ${item.notes}</div>` : ''}
+        <div class="item-content-wrapper">
+          <div class="item-content">
+            <div class="item-main">
+              <span class="item-name">${item.menu_name}${item.preference ? ' <span class="item-variant">(' + item.preference + ')</span>' : ''}</span>
+              <span class="item-quantity">${item.quantity}</span>
+            </div>
+            ${item.notes ? `<div class="item-notes"><span class="notes-label">Notes:</span> ${item.notes}</div>` : ''}
         </div>
-        ${isInteractive ? `
-        <div class="item-clickable-indicator">
-          <i class="fa-solid fa-mouse-pointer"></i>
-        </div>
-        ` : ''}
-        ${isInteractive ? `
-        <div class="item-actions">
-          <button class="item-action-btn" onclick="event.stopPropagation(); openItemDetailModalByKey('${order.order_id}', ${index}, '${itemIdentifier}', '${dataKey}')" title="Cancel Item">
-            <i class="fa-solid fa-times"></i>
-          </button>
-        </div>
-        ` : ''}
+      </div> 
+      ${isInteractive ? `
+      <div class="item-actions">
+        <button class="item-action-btn" onclick="event.stopPropagation(); openItemDetailModalByKey('${order.order_id}', ${index}, '${itemIdentifier}', '${dataKey}')" title="Cancel Item">
+          <i class="fa-solid fa-times"></i>
+        </button>
       </div>
-    `;
-  }).join('');
+      ` : ''}
+    </div>
+  `;
+}).join('');
 
   // Status badge
   let statusBadge = '';
