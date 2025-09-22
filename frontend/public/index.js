@@ -1,3 +1,11 @@
+// Remove highlight from order cards when clicking outside summary/order
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.summary-detail--order') && !e.target.closest('.order-card')) {
+    document.querySelectorAll('.order-card--highlight').forEach(card => {
+      card.classList.remove('order-card--highlight');
+    });
+  }
+});
 // Login guard
 if (!localStorage.getItem('access_token')) {
   window.location.href = '/login';
@@ -164,6 +172,8 @@ function highlightOrderCard(orderId) {
   // Find and highlight the card with matching order id
   const card = document.querySelector(`.order-card[data-order-id="${orderId}"]`);
   if (card) {
+    card.classList.remove('order-card--highlight');
+    void card.offsetWidth;
     card.classList.add('order-card--highlight');
     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
@@ -1816,15 +1826,6 @@ if (addOrderBtn) addOrderBtn.onclick = openAddOrderModal;
 
 // Handle submit
 const addOrderForm = document.getElementById('add-order-form');
-// function showSuccessModal(message) {
-//   // Hide error modal if visible to avoid overlap
-//   const err = document.getElementById('error-modal');
-//   if (err) err.classList.add('hidden');
-//   const modal = document.getElementById('success-modal');
-//   const msgBox = document.getElementById('success-message');
-//   if (msgBox) msgBox.textContent = message;
-//   if (modal) modal.classList.remove('hidden');
-// }
 
 addOrderForm.onsubmit = async function(e) {
   e.preventDefault();
@@ -1992,48 +1993,6 @@ addOrderForm.onsubmit = async function(e) {
   submitBtn.textContent = 'Save Order';
 };
 
-// function setupNavigation() {
-//     const currentPage = document.body.dataset.page;
-
-//     // Highlight tombol nav sesuai halaman
-//     document.querySelectorAll('.nav-btn').forEach(btn => {
-//         const btnPage = btn.id.replace('nav-', '');
-//         if (btnPage === currentPage) {
-//             btn.classList.add('active');
-//         }
-//     });
-
-//     // Add click event listeners for navigation
-//     document.querySelectorAll('.nav-btn').forEach(btn => {
-//         btn.addEventListener('click', function() {
-//             const targetUrl = this.getAttribute('data-url');
-//             if (targetUrl) {
-//                 // Determine the correct route based on the button
-//                 let route = '/dashboard';
-//                 if (this.id === 'nav-menu') {
-//                     route = '/management-menu';
-//                 } else if (this.id === 'nav-dashboard') {
-//                     route = '/dashboard';
-//                 }
-//                 window.location.href = route;
-//             }
-//         });
-//     });
-
-//     // Judul dinamis berdasarkan halaman
-//     const pageTitles = {
-//         dashboard: "Infinity Cafe",
-//         menu: "Management Menu",
-//         pesanan: "Daftar Pesanan",
-//         // tambahkan judul page lain disini
-//     };
-
-//     const navbarTitle = document.getElementById('navbar-title');
-//     if (navbarTitle && pageTitles[currentPage]) {
-//         navbarTitle.textContent = pageTitles[currentPage];
-//     }
-// }
-
 // Fungsi untuk menampilkan data user dari token JWT
 function displayUserInfo() {
   try {
@@ -2128,7 +2087,6 @@ function initializeTabs() {
 // Global functions for event handlers
 window.switchTab = switchTab;
 window.openConfirmModal = openConfirmModal;
-// window.closeConfirmModal = closeConfirmModal;
 window.confirmCancel = confirmCancel;
 window.openDetailModal = openDetailModal;
 window.closeDetailModal = closeDetailModal;
@@ -2143,18 +2101,4 @@ window.showErrorModal = showErrorModal;
 window.openAddOrderModal = openAddOrderModal;
 window.closeAddOrderModal = closeAddOrderModal;
 window.showSuccessModal = showSuccessModal;
-// window.closeSuccessModal = closeSuccessModal;
 window.switchOrderTab = switchOrderTab; // Expose tab switching function for modal
-
-// // fungsi untuk menampilkan tanggal
-// function updateGreetingDate() {
-//     const dateElement = document.getElementById('greeting-date');
-//     const today = new Date();
-//     const day = today.getDate();
-//     const weekday = today.toLocaleDateString('en-US', { weekday: 'long' });
-//     const month = today.toLocaleDateString('en-US', { month: 'long' });
-//     const year = today.getFullYear();
-//     const ordinalSuffix = day > 3 && day < 21 ? 'th' : ['th', 'st', 'nd', 'rd', 'th'][day % 10] || 'th';
-//     const formattedDate = `${weekday}, ${day}${ordinalSuffix} ${month} ${year}`;
-//     dateElement.textContent = formattedDate;
-// }
