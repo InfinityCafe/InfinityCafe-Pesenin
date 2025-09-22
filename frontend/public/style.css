@@ -152,6 +152,7 @@ body {
 }
 
 .nav-btn {
+    font-family: 'Inter', sans-serif !important;
     background: none;
     border: none;
     color: white;
@@ -284,6 +285,7 @@ input:checked + .slider:before {
 }
 
 .tab-btn {
+    font-family: 'Inter', sans-serif;
     padding: 0.75rem 1.5rem;
     border: none;
     width: 142px;
@@ -320,6 +322,7 @@ input:checked + .slider:before {
 }
 
 .add-order-btn {
+    font-family: 'Inter', sans-serif;
     position: relative;
     overflow: hidden;
     margin-left: auto;
@@ -485,7 +488,7 @@ body.tab-audit-history .add-item-btn {
 
 .order-card:hover {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    transform: scale(1.01);
+    /* transform: scale(1.01); */
     transition: all;
 }
 
@@ -892,6 +895,7 @@ body.tab-audit-history .add-item-btn {
 } */
 
 .action-btn {
+    font-family: 'Inter', sans-serif;
     padding: 0.75rem 1rem;
     border: none;
     border-radius: 0.5rem;
@@ -1284,6 +1288,7 @@ body.tab-audit-history .add-item-btn {
 
     .modal-btn-cancel,
     .view-modal.modal-btn-cancel {
+        font-family: 'Inter', sans-serif;
         border: none;
         color: white;
         background: linear-gradient(to right, rgb(213, 127, 14), rgb(255, 199, 99));
@@ -1345,6 +1350,7 @@ body.tab-audit-history .add-item-btn {
 
     .modal-btn-habis,
     .delete-confirm-modal .modal-btn-danger {
+        font-family: 'Inter', sans-serif;
         background: linear-gradient(90deg, #b3261e 0%, #f26060 100%);
         color: white;
     }
@@ -1490,34 +1496,6 @@ body.tab-audit-history .add-item-btn {
         gap: 0.5rem;
     }
 
-    .radio-option {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.5rem;
-        border-radius: 6px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-
-    
-
-    .radio-option input[type="radio"] {
-        margin: 0;
-        width: 16px;
-        height: 16px;
-        accent-color: #F59E0B;
-    }
-
-    .radio-option input[type="radio"]:checked + span {
-        color: #312929;
-        font-weight: 600;
-    }
-
-    .radio-option input[type="radio"]:checked {
-        transform: scale(1.1);
-    }
-
     .delete-confirm-modal .modal-header {
         display: flex;
         flex-direction: column;
@@ -1655,6 +1633,7 @@ body.tab-audit-history .add-item-btn {
     }
 
     .error-modal .modal-btn {
+        font-family: 'Inter', sans-serif;
         background: linear-gradient(90deg, #b3261e 0%, #f26060 100%);
         color: white;
         border: none;
@@ -1844,6 +1823,8 @@ body.tab-audit-history .add-item-btn {
             gap: 0.5rem;
         }
 
+        .tab-menu-suggestion.tab-btn,
+        .tab-audit-history.tab-btn,
         .tab-btn {
             width: 100%;
             min-width: 0;
@@ -1954,6 +1935,8 @@ body.tab-audit-history .add-item-btn {
             gap: 0.25rem;
         }
         
+        .tab-menu-suggestion.tab-btn,
+        .tab-audit-history.tab-btn,
         .tab-btn {
             width: 100%;
             min-width: 0;
@@ -1961,6 +1944,7 @@ body.tab-audit-history .add-item-btn {
             font-size: 12px;
             padding: 0.4rem 0.8rem;
         }
+        
         
         .add-order-btn {
             max-width: 100%;
@@ -2136,7 +2120,7 @@ body.tab-audit-history .add-item-btn {
         }
 
         .column.sidebar {
-            width: auto;
+            /* width: auto; */
             min-height: 70vh;
             max-height: 70vh;
         }
@@ -2434,6 +2418,7 @@ body.tab-audit-history .add-item-btn {
 }
 
 .modal-tab-btn {
+  font-family: 'Inter', sans-serif;
   flex: 1;
   background: none;
   border: none;
@@ -3310,6 +3295,7 @@ body.tab-audit-history .add-item-btn {
 }
 
 /* Flavour status radio group - align with menu modal styling, responsive-safe */
+.radio-group,
 .add-flavour-modal .radio-group {
     display: flex;
     justify-content: space-between;
@@ -3318,18 +3304,21 @@ body.tab-audit-history .add-item-btn {
     flex-wrap: wrap;
 }
 
+.radio-option,
 .add-flavour-modal .radio-option {
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
+.radio-option input[type="radio"],
 .add-flavour-modal .radio-option input[type="radio"] {
     width: 20px;
     height: 20px;
     accent-color: #312929;
 }
 
+.radio-option label,
 .add-flavour-modal .radio-option label {
     font-family: 'Inter', sans-serif;
     font-weight: 700;
@@ -3429,6 +3418,7 @@ body.tab-audit-history .add-item-btn {
     color: #9A9A9A;
     text-align: left;
 }
+
 
 .add-menu-modal .radio-group,
 .edit-menu-modal .radio-group {
@@ -5683,6 +5673,7 @@ body.qr-page .queue-number {
 }
 
 .add-stock-btn, .bulk-stock-btn, .consumption-log-btn {
+  font-family: 'Inter', sans-serif;
   background: linear-gradient(to right, #503A3A, #8D7272);
   color: #FFFFFF;
   border: none;
@@ -5758,6 +5749,7 @@ body.qr-page .queue-number {
 }
 
 .btn-secondary {
+  font-family: 'Inter', sans-serif;
   padding: 0.75rem 1.5rem;
   border: none;
   border-radius: 5px;

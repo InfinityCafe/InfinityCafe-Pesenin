@@ -473,7 +473,7 @@ app.get("/menu", async (req, res) => {
 // Admin passthrough for all menus (same as list, explicit path)
 app.get("/menu/all", async (req, res) => {
   try {
-    const resp = await fetch("http://menu_service:8001/menu");
+    const resp = await fetch("http://menu_service:8001/menu/all");
     const data = await resp.json();
     res.set('Cache-Control', 'no-store');
     res.json(data);
