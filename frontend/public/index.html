@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="css/navbar.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="icon" type="image/png" href="img/logo-GIK.png">
 
 </head>
 <body data-page="dashboard">
@@ -14,7 +15,7 @@
   <nav class="header">
     <div class="header-brand">
       <h1 class="header-title" id="navbar-title">Dashboard Kitchen</h1>
-      <p class="header-subtitle">Stephany | Barista</p>
+      <p class="header-subtitle">Stephany</p>
     </div>
     <div class="header-menu">
       <button class="nav-btn active" id="nav-dashboard">Dashboard</button>
@@ -24,10 +25,10 @@
       <button class="nav-btn" id="nav-report">Reports</button>
     </div>
     <div class="header-right">
-      <div class="search-container">
+      <!-- <div class="search-container">
         <i class="fa-solid fa-magnifying-glass search-icon"></i>
         <input type="text" placeholder="Search" class="search-input">
-      </div>
+      </div> -->
       <div class="kitchen-status-container">
         <label class="switch">
           <input type="checkbox" id="kitchen-toggle" checked>
@@ -61,6 +62,10 @@
       <div class="tab-navigation">
         <button id="tab-active" class="tab-btn tab-active" onclick="switchTab('active')">ACTIVE</button>
         <button id="tab-done" class="tab-btn" onclick="switchTab('done')">DONE</button>
+        <div class="search-container">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" placeholder="Search" class="search-input">
+        </div>
         <button class="add-order-btn">ADD NEW ORDER</button>
       </div>
 
@@ -136,6 +141,41 @@
     </div>
   </div>
 
+  <!-- Item Detail Modal -->
+  <div id="item-detail-modal" class="modal hidden">
+    <div class="modal-content delete-confirm-modal">
+      <button onclick="closeItemDetailModal()" class="modal-close">&times;</button>
+      <div class="modal-header">
+        <i class="fas fa-exclamation-triangle warning-icon"></i>
+        <h3 class="modal-title">Konfirmasi Pembatalan Per Item</h3>
+      </div>
+      <div class="modal-body">
+        <p class="delete-warning">You won’t be able to revert this action!</p>
+      </div>
+      <div class="item-detail-header">
+        <div class="item-detail-info">
+          <div class="item-detail-row">
+            <h3 id="item-detail-name" class="item-detail-name">Item Name</h3>
+            <span id="item-detail-preference" class="item-detail-preference item-preference"></span>
+            <span id="item-detail-quantity" class="item-detail-quantity">Quantity: 1x</span>
+          </div>
+          <div id="item-detail-notes" class="item-notes-detail hidden"></div>
+        </div>
+      </div>
+      <div class="modal-body" style="margin: 1rem 0; text-align:center;">
+        <p class="modal-text">Pilih alasan pembatalan atau kehabisan bahan.</p>
+        <div id="custom-reason-container-item" class="hidden" style="margin-top: 1rem;">
+          <input type="text" id="custom-cancel-reason-item" class="cancel-reason-input" placeholder="Masukkan alasan pembatalan..." style="width:80%;padding:8px;" />
+        </div>
+      </div>
+      <div class="modal-actions" style="display:flex;justify-content:center;gap:1rem;">
+        <button id="btn-alasan-lain-item" onclick="showCustomReasonInputItem()" class="modal-btn modal-btn-cancel">Alasan Lain</button>
+        <button onclick="confirmCancelItem('habis')" class="modal-btn modal-btn-habis" id="btn-habis-item">Habis</button>
+        <button id="btn-confirm-alasan-lain-item" onclick="confirmCancelItem('lainnya')" class="modal-btn modal-btn-habis hidden">OK</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal Tambah Pesanan Baru -->
   <div id="add-order-modal" class="modal hidden">
     <div class="modal-content">
@@ -187,6 +227,66 @@
 
 
   <!-- Audio -->
+  <!-- Confirm Modal -->
+  <div id="confirm-modal" class="modal hidden">
+    <div class="modal-content delete-confirm-modal">
+      <button onclick="closeModal('confirm-modal')" class="modal-close">&times;</button>
+      <div class="modal-header">
+          <i class="fas fa-exclamation-triangle warning-icon"></i>
+          <h3 class="modal-title">Konfirmasi Pembatalan</h3>
+      </div>
+      <div class="modal-body">
+          <p class="modal-text">Pilih alasan pembatalan atau kehabisan bahan.</p>
+          <div id="custom-reason-container-cancel" class="hidden" style="margin-top:1rem;text-align:center;">
+            <input type="text" id="custom-cancel-reason-cancel" class="cancel-reason-input" placeholder="Masukkan alasan pembatalan..." style="width:80%;padding:8px;" />
+          </div>
+      </div>
+      <div class="modal-actions">
+        <button onclick="showCustomReasonInputCancel()" id="btn-alasan-lain-cancel" class="modal-btn modal-btn-cancel">Alasan Lain</button>
+        <button onclick="confirmCancel('habis')" class="modal-btn modal-btn-habis" id="btn-habis-cancel">Habis</button>
+        <button onclick="confirmCancel('lainnya')" id="btn-confirm-alasan-lain-cancel" class="modal-btn modal-btn-habis hidden">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Success Modal -->
+  <div id="success-modal" class="modal hidden">
+    <div class="modal-content success-modal">
+      <button class="modal-close" onclick="closeModal('success-modal')">
+        &times;
+      </button>
+      <div class="modal-header">
+        <i class="fas fa-check-circle success-icon"></i>
+        <h3 class="modal-title">Success!</h3>
+      </div>
+      <div class="modal-body">
+        <p id="success-message" class="modal-text">Operation Completed Successfully</p>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn" onclick="closeModal('success-modal')">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Modal -->
+  <div id="error-modal" class="modal hidden">
+    <div class="modal-content error-modal">
+      <button class="modal-close" onclick="closeModal('error-modal')">
+        &times;
+      </button>
+      <div class="modal-header">
+        <i class="fas fa-exclamation-circle error-icon"></i>
+        <h3 class="modal-title">Error</h3>
+      </div>
+      <div class="modal-body">
+        <p id="error-message">Failed to complete the operation.</p>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn" onclick="closeModal('error-modal')">OK</button>
+      </div>
+    </div>
+  </div>
+
   <audio id="sound-new-order" src="https://www.myinstants.com/media/sounds/mario-coin.mp3" preload="auto"></audio>
   <audio id="sound-status-update" src="https://www.myinstants.com/media/sounds/smw_1-up.mp3" preload="auto"></audio>
 

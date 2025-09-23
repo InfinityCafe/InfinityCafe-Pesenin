@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout Page</title>
+    <link rel="stylesheet" href="css/checkout.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+</head>
+
+<body>
+    <div class="gradient-bg">
+        <header class="header">
+            <div class="header-content-wrapper container-responsive">
+                <button onclick="window.location.href='/menu'" class="header-back-btn hover-scale">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+                <div class="header-title-container">
+                    <h1 class="header-title">Checkout</h1>
+                    <p class="header-subtitle">
+                        🍽️ Meja 5
+                    </p>
+                </div>
+            </div>
+        </header>
+        
+        <main class="container-responsive py-6">
+            <div class="space-y-4">
+                <div class="card hover-lift">
+                    <div class="card-body space-y-4">
+                        <div class="card-header-style">
+                            <h3 class="card-title card-title-style">Espresso</h3>
+                            <button class="card-remove-btn hover-scale">
+                                ❌ Hapus
+                            </button>
+                        </div>
+
+                        <div class="variation-section">
+                            <h4 class="variation-title">Pilihan:</h4>
+                            <p class="variation-text">
+                                <span class="variation-text-bold">Size:</span> Large
+                            </p>
+                        </div>
+
+                        <!-- <div class="notes-section"> -->
+                            <div class="notes-content">
+                                <h4 class="notes-title">Notes:</h4>
+                                <div class="item-notes">
+                                    <p class="notes-text">
+                                        Less sugar please
+                                    </p>
+                                </div>
+                            </div>
+                            <button class="notes-edit-btn hover-scale">
+                                ✏️ Edit
+                            </button>
+                        <!-- </div> -->
+
+                        <div class="quantity-price-section">
+                            <div class="flex items-center gap-4">
+                                <span class="quantity-label">Jumlah:</span>
+                                <div class="quantity-controls">
+                                    <button class="quantity-btn decrease hover-scale">-</button>
+                                    <span class="quantity-number">2</span>
+                                    <button class="quantity-btn increase hover-scale">+</button>
+                                </div>
+                            </div>
+                            <div class="price-container">
+                                <p class="price-label">Subtotal:</p>
+                                <p class="price-value">
+                                    Rp 50.000
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="total-card my-6">
+                <div>
+                    <h3 class="total-title">Total Pembayaran</h3>
+                    <p class="total-subtitle">Semua item sudah termasuk</p>
+                </div>
+                <div>
+                    <p class="total-price">
+                        Rp 50.000
+                    </p>
+                </div>
+            </div>
+
+            <button class="checkout-btn hover-scale">
+                <span>🚀</span>
+                Konfirmasi Pembayaran
+                <span>→</span>
+            </button>
+        </main>
+    </div>
+</body>
+</html>

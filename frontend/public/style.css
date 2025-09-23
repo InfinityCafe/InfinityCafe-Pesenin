@@ -21,6 +21,15 @@ body {
     scrollbar-width: thin;
     scrollbar-color: #DCD0A8 #F5EFE6;
 }
+/* ===== Ingredient Analysis Date Input Error State ===== */
+.input-error {
+    border: 2px solid #dc2626 !important;
+    background: #fef2f2 !important;
+    transition: border-color .2s ease, background .2s ease;
+}
+.input-error:focus {
+    outline: 2px solid #b91c1c;
+}
 
 *::-webkit-scrollbar {
     width: 8px;
@@ -83,13 +92,13 @@ body {
     gap: 1.5rem;
 }
 
-.search-container {
+.tab-navigation .search-container {
     width: 100%;
-    max-width: 300px;
+    max-width: 200px;
     position: relative;
 }
 
-.search-input {
+/* .search-input {
     width: 100%;
     padding: 9px 14px 9px 40px;
     border: none;
@@ -98,13 +107,13 @@ body {
     font-size: 0.875rem;
     outline: none;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
+} */
 
-.search-input::placeholder {
+/* .search-input::placeholder {
     color: white;
-}
+} */
 
-.search-icon {
+/* .search-icon {
     position: absolute;
     left: 15px;
     top: 50%;
@@ -112,7 +121,7 @@ body {
     color: white;
     font-size: 0.9rem;
     pointer-events: none;
-}
+} */
 
 .header-right {
     display: flex;
@@ -143,6 +152,7 @@ body {
 }
 
 .nav-btn {
+    font-family: 'Inter', sans-serif !important;
     background: none;
     border: none;
     color: white;
@@ -271,9 +281,11 @@ input:checked + .slider:before {
     display: flex;
     gap: 1rem;
     margin-bottom: 1.5rem;
+    align-items: center;
 }
 
 .tab-btn {
+    font-family: 'Inter', sans-serif;
     padding: 0.75rem 1.5rem;
     border: none;
     width: 142px;
@@ -310,6 +322,7 @@ input:checked + .slider:before {
 }
 
 .add-order-btn {
+    font-family: 'Inter', sans-serif;
     position: relative;
     overflow: hidden;
     margin-left: auto;
@@ -475,7 +488,7 @@ body.tab-audit-history .add-item-btn {
 
 .order-card:hover {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    transform: scale(1.01);
+    /* transform: scale(1.01); */
     transition: all;
 }
 
@@ -547,14 +560,41 @@ body.tab-audit-history .add-item-btn {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    padding: 0.5rem 0;
+    padding: 0.75rem;
+    margin: 0;
     font-size: 18px;
     color: #312929;
-    border-bottom: 1px solid #F3F4F6;
+    border: none;
+    border-bottom: 1px solid #E5E7EB;
+    border-radius: 10px;
+    background-color: #FAFAFA;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.order-item:hover {
+    border-bottom-color: #F59E0B;
+    background-color: #FFFBEB;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+    transform: translateY(-2px);
+}
+
+.order-item:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(245, 158, 11, 0.15);
 }
 
 .order-item:last-child {
-    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.item-content-wrapper {
+    display: flex;
+    width: 100%;
+    transition: transform 0.3s ease;
 }
 
 .item-content {
@@ -562,6 +602,7 @@ body.tab-audit-history .add-item-btn {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    min-width: 0;
 }
 
 .item-main {
@@ -598,6 +639,106 @@ body.tab-audit-history .add-item-btn {
 .notes-label {
     font-weight: 600;
     margin-right: 0.25rem;
+}
+
+/* Individual Item Action Styles */
+.item-actions {
+    position: absolute;
+    top: 50%;
+    right: -80px;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 8px;
+    /* background: rgba(255, 255, 255, 0.95); */
+    padding: 8px 12px;
+    border-radius: 8px;
+    /* box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); */
+    transition: opacity 0.3s ease;
+    z-index: 10;
+    backdrop-filter: blur(4px);
+}
+
+.order-item:hover .item-content-wrapper {
+    transform: translateX(-60px);
+}
+
+.order-item:hover .item-actions {
+    right: 12px;
+    opacity: 1;
+}
+
+.item-action-btn {
+    background: rgba(252, 214, 214, 0.9);
+    border: 2px solid transparent;
+    font-size: 16px;
+    color: #B3261E;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(4px);
+}
+
+.item-action-btn:hover {
+    background-color: #ff9e9ee6;
+    transform: scale(1.1);
+}
+
+.item-clickable-indicator {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    color: #9CA3AF;
+    font-size: 10px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.order-item:hover .item-clickable-indicator {
+    opacity: 0.6;
+}
+
+/* Cancelled Items Styles */
+/* Order item readonly styling for done/cancelled orders */
+.order-item-readonly {
+    pointer-events: none;
+    cursor: default !important;
+    background-color: #FAFAFA !important;
+}
+
+.order-item-readonly:hover {
+    border-bottom-color: #E5E7EB !important;
+    background-color: #FAFAFA !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.order-item-readonly:active {
+    transform: none !important;
+}
+
+/* Cancelled items styling - no hover effects, strikethrough, matches order-contents background */
+.order-item-cancelled {
+    background-color: transparent !important;
+    pointer-events: none;
+    cursor: default;
+}
+
+.order-item-cancelled:hover {
+    background-color: transparent !important;
+    transform: none !important;
+    box-shadow: none !important;
+    border-bottom-color: #E5E7EB !important;
+}
+
+.item-name-cancelled {
+    text-decoration: line-through;
+    color: #6c757d;
 }
 
 .order-item:last-child {
@@ -754,6 +895,7 @@ body.tab-audit-history .add-item-btn {
 } */
 
 .action-btn {
+    font-family: 'Inter', sans-serif;
     padding: 0.75rem 1rem;
     border: none;
     border-radius: 0.5rem;
@@ -1021,7 +1163,7 @@ body.tab-audit-history .add-item-btn {
 }
 
 .summary-details {
-    display: flex;
+    display: grid;
     flex-wrap: wrap;
     gap: 0.5rem;
     margin-bottom: 0.7rem;
@@ -1146,21 +1288,69 @@ body.tab-audit-history .add-item-btn {
 
     .modal-btn-cancel,
     .view-modal.modal-btn-cancel {
-        background: linear-gradient(to right, #D57F0E, #FFC763);
+        font-family: 'Inter', sans-serif;
+        border: none;
         color: white;
+        background: linear-gradient(to right, rgb(213, 127, 14), rgb(255, 199, 99));
+        cursor: pointer;
+        font-weight: 600;
         transition: all 0.2s ease;
     }
 
     .modal-btn-cancel:hover,
     .view-modal .modal-btn-cancel:hover {
         transition: opacity 0.3s ease;
-        background: #D57F0E;
+        background: rgb(213, 127, 14);
+        color: white;
         transform: scale(1.02);
         box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
     }
 
+    .modal-btn-cancel-item {
+        background: #DC2626;
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .modal-btn-cancel-item:hover {
+        background: #B91C1C;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+    }
+
+    .modal-cancel-close-btn {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background: none;
+        border: none;
+        font-size: 40px;
+        color: #B3261E;
+        cursor: pointer;
+        padding: 0.25rem;
+        border-radius: 50%;
+        width: 2rem;
+        height: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        z-index: 10;
+    }
+
+    .modal-cancel-close-btn:hover {
+        background-color: rgba(179, 38, 30, 0.1);
+        transform: scale(1.1);
+    }
+
     .modal-btn-habis,
     .delete-confirm-modal .modal-btn-danger {
+        font-family: 'Inter', sans-serif;
         background: linear-gradient(90deg, #b3261e 0%, #f26060 100%);
         color: white;
     }
@@ -1190,6 +1380,120 @@ body.tab-audit-history .add-item-btn {
     .delete-confirm-modal {
         max-width: 450px;
         text-align: center;
+    }
+
+    /* Item Detail Modal */
+    .item-detail-modal {
+        max-width: 500px;
+    }
+
+    .item-detail-modal .modal-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #312929;
+    }
+
+    .item-detail-header {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        background: #F9FAFB;
+        border-radius: 8px;
+        /* border-left: 4px solid #F59E0B; */
+    }
+
+    .item-detail-info h3 {
+        color: #312929;
+        font-size: 1rem;
+        font-weight: 600;
+    }
+
+    .item-detail-row {
+        display: flex;
+        align-items: center;
+        gap: 1.2rem;
+    }
+
+    .item-detail-quantity {
+        font-size: 1rem;
+        color: #555;
+    }
+    .item-detail-preference {
+        font-size: 1rem;
+        color: #888;
+    }
+
+    .item-detail-info .item-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        font-size: 0.875rem;
+        color: #6B7280;
+    }
+
+    .item-detail-info .item-preference {
+        color: #F59E0B;
+        font-weight: 500;
+    }
+
+    .item-detail-info .item-notes-detail {
+        margin-top: 0.3rem;
+        padding: 0.5rem;
+        background: #FEF3C7;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        color: #92400E;
+        border-left: 4px solid #F59E0B;
+    }
+
+    .cancel-reason-input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 2px solid #E5E7EB;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        margin-top: 0.5rem;
+        transition: border-color 0.2s ease;
+    }
+
+    .cancel-reason-input:focus {
+        outline: none;
+        border-color: #F59E0B;
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+    }
+
+    .modal-cancel-close-btn {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background: none;
+        border: none;
+        font-size: 40px;
+        color: #B3261E;
+        cursor: pointer;
+        padding: 0.25rem;
+        border-radius: 50%;
+        width: 2rem;
+        height: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        z-index: 10;
+    }
+
+    .modal-cancel-close-btn:hover {
+        background-color: rgba(179, 38, 30, 0.1);
+        transform: scale(1.1);
+    }
+
+    .cancel-reason-options {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
     }
 
     .delete-confirm-modal .modal-header {
@@ -1224,7 +1528,7 @@ body.tab-audit-history .add-item-btn {
     .delete-confirm-modal .delete-warning {
         color: #EF4444 !important;
         font-weight: 600;
-        font-size: 0.875rem;
+        font-size: 0.875rem !important;
     }
 
     .delete-confirm-modal .modal-actions {
@@ -1329,6 +1633,7 @@ body.tab-audit-history .add-item-btn {
     }
 
     .error-modal .modal-btn {
+        font-family: 'Inter', sans-serif;
         background: linear-gradient(90deg, #b3261e 0%, #f26060 100%);
         color: white;
         border: none;
@@ -1518,6 +1823,8 @@ body.tab-audit-history .add-item-btn {
             gap: 0.5rem;
         }
 
+        .tab-menu-suggestion.tab-btn,
+        .tab-audit-history.tab-btn,
         .tab-btn {
             width: 100%;
             min-width: 0;
@@ -1628,6 +1935,8 @@ body.tab-audit-history .add-item-btn {
             gap: 0.25rem;
         }
         
+        .tab-menu-suggestion.tab-btn,
+        .tab-audit-history.tab-btn,
         .tab-btn {
             width: 100%;
             min-width: 0;
@@ -1635,6 +1944,7 @@ body.tab-audit-history .add-item-btn {
             font-size: 12px;
             padding: 0.4rem 0.8rem;
         }
+        
         
         .add-order-btn {
             max-width: 100%;
@@ -1683,7 +1993,7 @@ body.tab-audit-history .add-item-btn {
         }
         
         .action-btn {
-            padding: 6px 10px;
+            padding: 10px 10px !important;
             font-size: 12px;
         }
         
@@ -1810,7 +2120,7 @@ body.tab-audit-history .add-item-btn {
         }
 
         .column.sidebar {
-            width: auto;
+            /* width: auto; */
             min-height: 70vh;
             max-height: 70vh;
         }
@@ -2108,6 +2418,7 @@ body.tab-audit-history .add-item-btn {
 }
 
 .modal-tab-btn {
+  font-family: 'Inter', sans-serif;
   flex: 1;
   background: none;
   border: none;
@@ -2538,11 +2849,15 @@ body.tab-audit-history .add-item-btn {
     overflow: hidden;
 }
 
-#menu-table, #flavors-table, #inventory-table, #suggestions-table, #report-table, #audit-history-table, #ingredient-details-table, #ingredient-analysis-table {
+#menu-table, #flavors-table, #inventory-table, #suggestions-table, #report-table, #sales-table, #bestseller-table, #ingredient-table, #ingredient-logs-table, #audit-history-table, #ingredient-details-table, #ingredient-analysis-table, #ingredient-detail-log { 
     width: 100%;
     border-collapse: separate;
     border-spacing: 0.75rem;
     text-align: center;
+}
+#ingredient-detail-log {
+  min-width: 600px;
+  border-spacing: 0.5rem;
 }
 
 #menu-table th, #menu-table td,
@@ -2550,9 +2865,14 @@ body.tab-audit-history .add-item-btn {
 #inventory-table th, #inventory-table td,
 #suggestions-table th, #suggestions-table td,
 #report-table th, #report-table td,
+#sales-table th, #sales-table td,
+#bestseller-table th, #bestseller-table td,
+#ingredient-table th, #ingredient-table td,
+#ingredient-logs-table th, #ingredient-logs-table td,
 #audit-history-table th, #audit-history-table td,
 #ingredient-details-table th, #ingredient-details-table td,
-#ingredient-analysis-table th, #ingredient-analysis-table td {
+#ingredient-analysis-table th, #ingredient-analysis-table td,
+#ingredient-detail-log th, #ingredient-detail-log td {
     position: relative;
 }
 
@@ -2561,13 +2881,29 @@ body.tab-audit-history .add-item-btn {
 #inventory-table thead tr,
 #suggestions-table thead tr,
 #report-table thead tr,
+#sales-table thead tr,
+#bestseller-table thead tr,
+#ingredient-table thead tr,
+#ingredient-logs-table thead tr,
 #audit-history-table thead tr,
 #ingredient-details-table thead tr,
-#ingredient-analysis-table thead tr {
+#ingredient-analysis-table thead tr,
+#ingredient-detail-log thead tr {
     background-color: #CAB99D;
 }
 
-#menu-table th, #flavors-table th, #inventory-table th, #suggestions-table th, #report-table th, #audit-history-table th, #ingredient-details-table th, #ingredient-analysis-table th {
+#menu-table th,
+#flavors-table th,
+#inventory-table th,
+#suggestions-table th,
+#report-table th, #sales-table th,
+#bestseller-table th,
+#ingredient-table th,
+#ingredient-logs-table th,
+#audit-history-table th,
+#ingredient-details-table th,
+#ingredient-analysis-table th,
+#ingredient-detail-log th {
     padding: 0.75rem 1rem;
     text-align: center;
     font-weight: bold;
@@ -2583,9 +2919,14 @@ body.tab-audit-history .add-item-btn {
 #inventory-table th:first-child,
 #suggestions-table th:first-child,
 #report-table th:first-child,
+#sales-table th:first-child,
+#bestseller-table th:first-child,
+#ingredient-table th:first-child,
+#ingredient-logs-table th:first-child,
 #audit-history-table th:first-child,
 #ingredient-details-table th:first-child,
-#ingredient-analysis-table th:first-child {
+#ingredient-analysis-table th:first-child,
+#ingredient-detail-log th:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
 }
@@ -2600,47 +2941,27 @@ body.tab-audit-history .add-item-btn {
     width: 200px;
 }
 
-#flavors-table th:nth-child(4) {
+#flavors-table th:nth-child(4),
+#inventory-table th:nth-child(7),
+#suggestions-table th:nth-child(4),
+#sales-table th:nth-child(6),
+#bestseller-table th:nth-child(5),
+#ingredient-table th:nth-child(5),
+#ingredient-logs-table th:nth-child(7),
+#report-table th:nth-child(6),
+#report-table th:last-child,
+#audit-history-table th:nth-child(7),
+#ingredient-details-table th:nth-child(6),
+#ingredient-analysis-table th:nth-child(6),
+#ingredient-logs-table td:nth-child(6),
+#ingredient-logs-table th:nth-child(6),
+#ingredient-detail-log th:nth-child(4) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
 
-#inventory-table th:nth-child(7) {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-}
-
-#suggestions-table th:nth-child(4) {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-}
-
-#report-table th:nth-child(5) {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-}
-
-#report-table th:last-child {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-}
-
-#audit-history-table th:nth-child(7) {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-}
-
-#ingredient-details-table th:nth-child(6) {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-}
-
+#ingredient-detail-log th:last-child,
 #ingredient-details-table th:last-child {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-}
-
-#ingredient-analysis-table th:nth-child(6) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
@@ -2650,9 +2971,14 @@ body.tab-audit-history .add-item-btn {
 #inventory-table th:not(:first-child):not(.action-header)::before,
 #suggestions-table th:not(:first-child):not(.action-header)::before,
 #report-table th:not(:first-child):not(.action-header)::before,
+#sales-table th:not(:first-child):not(.action-header)::before,
+#bestseller-table th:not(:first-child):not(.action-header)::before,
+#ingredient-table th:not(:first-child):not(.action-header)::before,
+#ingredient-logs-table th:not(:first-child):not(.action-header)::before,
 #audit-history-table th:not(:first-child):not(.action-header)::before,
 #ingredient-details-table th:not(:first-child):not(.action-header)::before,
-#ingredient-analysis-table th:not(:first-child):not(.action-header)::before {
+#ingredient-analysis-table th:not(:first-child):not(.action-header)::before,
+#ingredient-detail-log th:not(:first-child):not(.action-header)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2666,19 +2992,39 @@ body.tab-audit-history .add-item-btn {
 #flavors-table th.action-header,
 #inventory-table th.action-header,
 #suggestions-table th.action-header,
+#ingredient-table th.action-header,
+#ingredient-logs-table th.action-header,
 #audit-history-table th.action-header,
-#ingredient-details-table th.action-header {
+#ingredient-details-table th.action-header,
+#ingredient-detail-log th.action-header {
     background-color: #CAB99D;
     border-radius: 0.5rem;
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
 
-#menu-table tbody tr, #flavors-table tbody tr, #inventory-table, #suggestions-table tbody tr, #report-table tbody tr, #audit-history-table tbody tr, #ingredient-details-table tbody tr, #ingredient-analysis-table tbody tr {
+#menu-table tbody tr,
+#flavors-table tbody tr,
+#inventory-table,
+#suggestions-table tbody tr,
+#report-table tbody tr,
+#sales-table tbody tr,
+#bestseller-table tbody tr,
+#ingredient-table tbody tr,
+#ingredient-logs-table tbody tr,
+#audit-history-table tbody tr,
+#ingredient-details-table tbody tr,
+#ingredient-analysis-table tbody tr,
+#ingredient-detail-log tbody tr {
     background-color: transparent;
 }
 
-#menu-table td, #flavors-table td, #inventory-table td, #suggestions-table td, #report-table td, #audit-history-table td, #ingredient-details-table td, #ingredient-analysis-table td {
+#menu-table td, #flavors-table td,
+#inventory-table td, #suggestions-table td,
+#report-table td, #sales-table td,
+#bestseller-table td, #ingredient-table td,
+#ingredient-logs-table td, #audit-history-table td,
+#ingredient-details-table td, #ingredient-analysis-table td, #ingredient-detail-log td {
     padding: 1rem;
     vertical-align: middle;
     background-color: #F4F1E8;
@@ -2691,9 +3037,14 @@ body.tab-audit-history .add-item-btn {
 #inventory-table td:first-child,
 #suggestions-table td:first-child,
 #report-table td:first-child,
+#sales-table td:first-child,
+#bestseller-table td:first-child,
+#ingredient-table td:first-child,
+#ingredient-logs-table td:first-child,
 #audit-history-table td:first-child,
 #ingredient-details-table td:first-child,
-#ingredient-analysis-table td:first-child {
+#ingredient-analysis-table td:first-child,
+#ingredient-detail-log td:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
 }
@@ -2708,42 +3059,19 @@ body.tab-audit-history .add-item-btn {
     width: 200px;
 }
 
-#flavors-table td:nth-child(4) {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-}
-
-#inventory-table td:nth-child(7) {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-}
-
-#suggestions-table td:nth-child(4) {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-}
-
-#report-table td:nth-child(5) {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-}
-
-#audit-history-table td:nth-child(7) {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-}
-
-#ingredient-details-table td:nth-child(6) {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-}
-
-#ingredient-details-table td:last-child {
-    border-top-right-radius: 0.5rem;
-    border-bottom-right-radius: 0.5rem;
-}
-
-#ingredient-analysis-table td:nth-child(6) {
+#flavors-table td:nth-child(4),
+#inventory-table td:nth-child(7),
+#suggestions-table td:nth-child(4),
+#sales-table td:nth-child(6),
+#bestseller-table td:nth-child(5),
+#ingredient-table td:nth-child(5),
+#ingredient-logs-table td:nth-child(7),
+#report-table td:nth-child(5),
+#audit-history-table td:nth-child(7),
+#ingredient-details-table td:nth-child(6),
+#ingredient-analysis-table td:nth-child(6),
+#ingredient-details-table td:last-child,
+#ingredient-detail-log td:nth-child(4) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
@@ -2753,29 +3081,18 @@ body.tab-audit-history .add-item-btn {
 #inventory-table td:not(:first-child):not(:last-child)::before,
 #suggestions-table td:not(:first-child):not(:last-child)::before,
 #report-table td:not(:first-child):not(:last-child)::before,
+#sales-table td:not(:first-child):not(:last-child)::before,
+#bestseller-table td:not(:first-child):not(:last-child)::before,
+#ingredient-table td:not(:first-child):not(:last-child)::before,
+#ingredient-logs-table td:not(:first-child):not(:last-child)::before,
 #audit-history-table td:not(:first-child):not(:last-child)::before,
 #ingredient-details-table td:not(:first-child):not(:last-child)::before,
-#ingredient-analysis-table td:not(:first-child):not(:last-child)::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -0.75rem;
-    width: 0.75rem;
-    height: 100%;
-    background-color: #F4F1E8;
-}
-
-#report-table td:last-child:not(:first-child)::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -0.75rem;
-    width: 0.75rem;
-    height: 100%;
-    background-color: #F4F1E8;
-}
-
-#ingredient-details-table td:last-child:not(:first-child)::before {
+#ingredient-analysis-table td:not(:first-child):not(:last-child)::before,
+#report-table td:last-child:not(:first-child)::before,
+#ingredient-details-table td:last-child:not(:first-child)::before,
+#sales-table td:last-child:not(:first-child)::before,
+#bestseller-table td:last-child:not(:first-child)::before,
+#ingredient-detail-log td:not(:first-child):not(:last-child)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2789,14 +3106,25 @@ body.tab-audit-history .add-item-btn {
 #flavors-table td:last-child,
 #inventory-table td:last-child,
 #suggestions-table td:last-child,
+#ingredient-table td:last-child,
+#ingredient-logs-table td:last-child,
 #audit-history-table td:last-child,
-#ingredient-details-table td:last-child,{
+#sales-table td:last-child,
+#bestseller-table td:last-child,
+#ingredient-detail-log td:last-child {
     background-color: #F4F1E8;
     padding: 0;
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
+}
+
+#sales-table td:last-child,
+#bestseller-table td:last-child {
+    padding: 1rem;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
 }
 
 .table-action-btn {
@@ -2967,6 +3295,7 @@ body.tab-audit-history .add-item-btn {
 }
 
 /* Flavour status radio group - align with menu modal styling, responsive-safe */
+.radio-group,
 .add-flavour-modal .radio-group {
     display: flex;
     justify-content: space-between;
@@ -2975,18 +3304,21 @@ body.tab-audit-history .add-item-btn {
     flex-wrap: wrap;
 }
 
+.radio-option,
 .add-flavour-modal .radio-option {
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
+.radio-option input[type="radio"],
 .add-flavour-modal .radio-option input[type="radio"] {
     width: 20px;
     height: 20px;
     accent-color: #312929;
 }
 
+.radio-option label,
 .add-flavour-modal .radio-option label {
     font-family: 'Inter', sans-serif;
     font-weight: 700;
@@ -3086,6 +3418,7 @@ body.tab-audit-history .add-item-btn {
     color: #9A9A9A;
     text-align: left;
 }
+
 
 .add-menu-modal .radio-group,
 .edit-menu-modal .radio-group {
@@ -3527,6 +3860,7 @@ body.tab-audit-history .add-item-btn {
     min-width: 250px;
 }
 
+.search-input,
 .search-filter-section .search-input {
     width: 100%;
     padding: 12px 16px 12px 45px;
@@ -3541,17 +3875,20 @@ body.tab-audit-history .add-item-btn {
     transition: border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
 }
 
+.search-input:focus,
 .search-filter-section .search-input:focus {
     border-color: #8D7272;
     background-color: #FFFFFF;
-    box-shadow: 0 4px 8px rgba(141, 114, 114, 0.2);
+    color: #312929;
 }
 
+.search-input::placeholder,
 .search-filter-section .search-input::placeholder {
     color: #8D7272;
     font-weight: 400;
 }
 
+.search-icon,
 .search-filter-section .search-icon {
     position: absolute;
     left: 16px;
@@ -4404,6 +4741,798 @@ body[data-page="login"] {
   background: #FFE8C0;
 }
 
+/* QR Ordering System Styles */
+
+/* Responsive container and spacing to avoid tight edges on QR pages */
+body.qr-page .container-responsive {
+  max-width: 960px;
+  margin: 0 auto;
+  padding-left: 16px;
+  padding-right: 16px;
+  box-sizing: border-box;
+}
+
+body.qr-page .spacing-responsive {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+/* Vertically center the name input section on QR Menu */
+body.qr-page #name-input-section {
+  min-height: calc(100vh - 220px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Name Input Section */
+.name-input-section {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 600;
+  color: #312929;
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.form-input {
+  width: 100%;
+  height: 44px;
+  background-color: #FFFFFF;
+  border: 2px solid #DCD0A8;
+  border-radius: 10px;
+  padding: 0 22px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  color: #312929;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #685454;
+}
+
+.form-input:disabled {
+  background-color: #F5F5F5;
+  color: #999;
+  cursor: not-allowed;
+}
+
+/* Menu Categories */
+.menu-categories {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+  /* margin-bottom: 2rem; */
+}
+
+.menu-category-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.menu-category-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(139, 90, 60, 0.12);
+}
+
+/* Reuse tab navigation style */
+#category-tabs .tab-btn {
+  font-family: 'Inter', sans-serif;
+  padding: 8px 14px;
+  border: 1.2px solid #DCD0A8;
+  border-radius: 10px;
+  background: #FFFFFF;
+  color: #312929;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+#category-tabs .tab-btn.active {
+  background: #F5EFE6;
+  border-color: #685454;
+}
+
+.menu-info {
+  margin: 1rem 0;
+}
+
+.menu-name-id {
+  color: #6B7280;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.menu-flavors {
+  color: #685454;
+  font-size: 0.85rem;
+  font-style: italic;
+  margin-bottom: 0.5rem;
+}
+
+.menu-time {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #6B7280;
+  font-size: 0.85rem;
+}
+
+.menu-time i {
+  color: #D57F0E;
+}
+
+/* Cart Summary (Floating) */
+body.qr-page .cart-summary {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  background: #FFFFFF;
+  border: 2px solid #DCD0A8;
+  border-radius: 15px;
+  padding: 1.5rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 250px;
+}
+
+/* Floating small cart button for mobile */
+body.qr-page .cart-fab {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  z-index: 1100;
+  overflow: visible;
+}
+/* Hide FAB by default (desktop) */
+body.qr-page #cart-fab { display: none; }
+body.qr-page .cart-fab i { color: #fff; }
+body.qr-page .cart-fab.action-btn-orange { background-color: #E11D48; border-color: #E11D48; }
+body.qr-page .cart-fab.action-btn-orange:hover { background-color: #be123c; border-color: #be123c; }
+
+body.qr-page .cart-fab .badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #E11D48;
+  color: #FFF;
+  border-radius: 999px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  z-index: 2;
+  line-height: 1;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+body.qr-page .cart-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+body.qr-page .cart-items {
+  font-weight: 600;
+  color: #312929;
+}
+
+body.qr-page .cart-total {
+  font-weight: 700;
+  color: #207156;
+  font-size: 1.1rem;
+  margin: auto;
+}
+
+/* Modal Styles for QR */
+body.qr-page .modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+body.qr-page .modal.hidden {
+  display: none;
+}
+
+body.qr-page .modal-content {
+  background: #FFFFFF;
+  border-radius: 15px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+body.qr-page .modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #6B7280;
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s ease;
+}
+
+body.qr-page .modal-close:hover {
+  background-color: #F3F4F6;
+}
+
+body.qr-page .modal-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #312929;
+  margin-bottom: 1.5rem;
+  /* padding-right: 2rem; */
+}
+
+body.qr-page .modal-body {
+  margin-bottom: 2rem;
+}
+
+body.qr-page .menu-details {
+  margin-bottom: 1.5rem;
+}
+
+body.qr-page .menu-price {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #207156;
+  margin-bottom: 0.5rem;
+  text-wrap: nowrap;
+}
+
+body.qr-page .menu-description {
+  color: #6B7280;
+  font-size: 0.95rem;
+}
+
+/* Flavor Options */
+body.qr-page .flavor-section {
+  margin-bottom: 1.5rem;
+}
+
+body.qr-page .form-label {
+  display: block;
+  font-weight: 600;
+  color: #312929;
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+}
+
+body.qr-page .flavor-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+body.qr-page .flavor-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+body.qr-page .flavor-option input[type="radio"] {
+  margin: 0;
+}
+
+body.qr-page .flavor-option label {
+  font-size: 0.9rem;
+  color: #312929;
+  cursor: pointer;
+  margin: 0;
+}
+
+/* Quantity Controls */
+body.qr-page .quantity-section {
+  margin-bottom: 1.5rem;
+}
+
+body.qr-page .quantity-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: center;
+}
+
+body.qr-page .quantity-btn {
+  width: 30px;
+  height: 30px;
+  border: 2px solid #DCD0A8;
+  background: #FFFFFF;
+  border-radius: 30px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #312929;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+body.qr-page .quantity-btn:hover {
+  background: #F5EFE6;
+  border-color: #685454;
+}
+
+body.qr-page .quantity-input {
+  width: 80px;
+  height: 40px;
+  border: 2px solid #DCD0A8;
+  background: #FFFFFF;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #312929;
+}
+
+body.qr-page .quantity-input:focus {
+  outline: none;
+  border-color: #685454;
+}
+
+/* Notes Section */
+body.qr-page .notes-section {
+  margin-bottom: 1.5rem;
+  background: white;
+}
+
+body.qr-page .form-textarea {
+  width: 100%;
+  min-height: 80px;
+  background-color: #FFFFFF;
+  border: 2px solid #DCD0A8;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: #312929;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+body.qr-page .form-textarea:focus {
+  outline: none;
+  border-color: #685454;
+}
+
+body.qr-page .form-textarea::placeholder {
+  color: #9CA3AF;
+}
+
+/* Modal Footer */
+body.qr-page .modal-footer {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+/* Cart Items */
+body.qr-page .cart-items {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+body.qr-page .cart-item {
+  /* display: flex; */
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: rem;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  background: #FAFAFA;
+}
+
+body.qr-page .item-info {
+  flex: 1;
+}
+
+body.qr-page .item-name {
+  font-weight: 600;
+  color: #312929;
+  margin-bottom: 0.25rem;
+}
+
+body.qr-page .item-flavor {
+  color: #685454;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+body.qr-page .item-notes {
+  color: #6B7280;
+  font-size: 0.85rem;
+  font-style: italic;
+  margin-bottom: 0.25rem;
+}
+
+body.qr-page .item-time {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #6B7280;
+  font-size: 0.8rem;
+}
+
+body.qr-page .item-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+body.qr-page .quantity-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+body.qr-page .quantity-display {
+  min-width: 30px;
+  text-align: center;
+  font-weight: 600;
+  color: #312929;
+}
+
+body.qr-page .item-price {
+  font-weight: 700;
+  color: #207156;
+  font-size: 1rem;
+  /* margin: auto; */
+}
+
+/* body.qr-page .remove-btn {
+  background: none;
+  border: none;
+  color: #B3261E;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+  margin: auto;
+  font-size: 1rem;
+}
+
+body.qr-page .remove-btn:hover {
+  background-color: #FEE2E2;
+} */
+
+/* Order Summary */
+body.qr-page .order-summary {
+  padding: 1rem 0;
+}
+
+body.qr-page .summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+body.qr-page .summary-row:last-child {
+  border-bottom: none;
+}
+
+body.qr-page .total-row {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #312929;
+  border-top: 2px solid #DCD0A8;
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+}
+
+/* Action Buttons */
+body.qr-page .action-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+/* Empty States */
+body.qr-page .empty-cart, body.qr-page .no-results {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6B7280;
+}
+
+body.qr-page .empty-cart i, body.qr-page .no-results i {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  color: #D1D5DB;
+}
+
+/* Room Info */
+body.qr-page .room-info {
+  color: white;
+  font-weight: 600;
+  border-radius: 8px;
+}
+
+/* Order Status Styles */
+body.qr-page .order-status {
+  padding: 1.5rem 0;
+}
+
+body.qr-page .status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+body.qr-page .status-icon {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: #F5EFE6;
+  /* border: 3px solid #DCD0A8; */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: #685454;
+}
+
+body.qr-page .status-text {
+  flex: 1;
+}
+
+body.qr-page .status-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #312929;
+  margin-bottom: 0.25rem;
+}
+
+body.qr-page .status-description {
+  color: #6B7280;
+  font-size: 0.95rem;
+}
+
+/* Progress Bar */
+body.qr-page .progress-container {
+  margin-top: 1.5rem;
+}
+
+body.qr-page .progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #E5E7EB;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+body.qr-page .progress-fill {
+  height: 100%;
+  background: linear-gradient(to right, #207156, #60B7A6);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+  width: 0%;
+}
+
+body.qr-page .progress-labels {
+  display: flex;
+  justify-content: space-between;
+  position: relative;
+}
+
+body.qr-page .progress-label {
+  font-size: 0.8rem;
+  color: #6B7280;
+  text-align: center;
+  flex: 1;
+  position: relative;
+}
+
+body.qr-page .progress-label.active {
+  color: #207156;
+  font-weight: 600;
+}
+
+body.qr-page .progress-label.completed {
+  color: #207156;
+  font-weight: 600;
+}
+
+/* Order Items in Track */
+body.qr-page .order-items {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+body.qr-page .order-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  background: #FAFAFA;
+}
+
+body.qr-page .item-quantity {
+  background: #207156;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* Order Info */
+body.qr-page .order-info {
+  padding: 1rem 0;
+}
+
+body.qr-page .info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+body.qr-page .info-row:last-child {
+  border-bottom: none;
+}
+body.qr-page .status-receive {
+  /* background: #E8F5E8; */
+  color: white !important;
+}
+
+body.qr-page .status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* Loading Modal */
+body.qr-page .loading-modal {
+  text-align: center;
+  padding: 3rem 2rem;
+}
+
+body.qr-page .loading-spinner {
+  font-size: 3rem;
+  color: #207156;
+  margin-bottom: 1rem;
+}
+
+body.qr-page .loading-text {
+  font-size: 1.1rem;
+  color: #312929;
+  font-weight: 600;
+}
+
+/* Success Modal */
+body.qr-page .success-modal {
+  text-align: center;
+  padding: 2rem;
+}
+
+body.qr-page .success-icon {
+  font-size: 4rem;
+  color: #207156;
+  margin-bottom: 1rem;
+}
+
+body.qr-page .success-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #312929;
+  margin-bottom: 0.5rem;
+}
+
+body.qr-page .success-message {
+  color: #6B7280;
+  margin-bottom: 1.5rem;
+  font-size: 1rem;
+}
+
+body.qr-page .order-details {
+  background: white;
+  border-radius: 10px;
+  /* padding: 1.5rem; */
+  /* margin-bottom: 2rem; */
+  text-align: left;
+}
+
+body.qr-page .order-info {
+  padding: 1rem;
+}
+
+/* Queue Number */
+body.qr-page .queue-number {
+  background: #207156;
+  color: white !important;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  /* Always hide large cart summary on mobile; use FAB instead */
+  body.qr-page .cart-summary { display: none !important; }
+  body.qr-page #cart-fab { display: inline-flex !important; }
+  
+  .menu-categories {
+    grid-template-columns: 1fr;
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+  }
+  
+  body.qr-page .modal-content {
+    width: 95%;
+    padding: 1.5rem;
+  }
+  
+  .flavor-options {
+    grid-template-columns: 1fr;
+  }
+  
+  body.qr-page .cart-item {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  body.qr-page .item-controls {
+    align-items: stretch;
+    flex-direction: row;
+    justify-content: space-between;
+    margin: auto;
+  }
+}
+
 /* .overview-card.warning {
   border: 1px solid #BB5903;
 }
@@ -4544,6 +5673,7 @@ body[data-page="login"] {
 }
 
 .add-stock-btn, .bulk-stock-btn, .consumption-log-btn {
+  font-family: 'Inter', sans-serif;
   background: linear-gradient(to right, #503A3A, #8D7272);
   color: #FFFFFF;
   border: none;
@@ -4619,6 +5749,7 @@ body[data-page="login"] {
 }
 
 .btn-secondary {
+  font-family: 'Inter', sans-serif;
   padding: 0.75rem 1.5rem;
   border: none;
   border-radius: 5px;
@@ -5394,7 +6525,7 @@ body[data-page="login"] {
 /* Menggunakan class yang sudah ada dan menambahkan style khusus untuk kitchen report */
 
 /* Kitchen Report specific styles */
-[data-page="report"].status-item {
+body[data-page="report"].status-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -5445,13 +6576,13 @@ body[data-page="login"] {
     color: #503A3A;
 }
 
-[data-page="report"].status-label {
+body[data-page="report"].status-label {
     font-weight: 600;
     color: #412E27;
     font-size: 0.875rem;
 }
 
-[data-page="report"].status-count {
+body[data-page="report"].status-count {
     background-color: #8D7272;
     color: white;
     padding: 0.25rem 0.75rem;
@@ -5552,7 +6683,7 @@ body[data-page="login"] {
     border: 1px solid #E9ECEF;
 }
 
-[data-page="report"].filter-container {
+body[data-page="report"].filter-container {
     display: flex;
     align-items: center;
     gap: 1rem;
@@ -5560,30 +6691,39 @@ body[data-page="login"] {
     flex-wrap: wrap;
 }
 
-[data-page="report"].filter-group {
+body[data-page="report"].filter-group {
     display: flex;
     align-items: center;
     gap: 0.5rem;
 }
 
 /* Kitchen Report Summary Details */
-[data-page="report"].summary-details {
+body[data-page="report"] .summary-details {
     display: flex;
-    gap: 2rem;
+    /* align-items: center; */
+    gap: 0.5rem;
     flex-wrap: wrap;
-    background-color: white;
-    padding: 1rem 1.5rem;
+    padding: 5px 16px;
+    /* background-color: white; */
+    /* padding: 1rem 1.5rem;
     border-radius: 0.75rem;
     box-shadow: 0 2px 8px 0 rgba(0,0,0,0.04);
-    border: 1px solid #E9ECEF;
+    border: 1px solid #E9ECEF; */
 }
 
-[data-page="report"].summary-detail--order {
-    display: flex;
+body[data-page="report"] .summary-detail--order {
+    display: inline-block;
     align-items: center;
     gap: 0.5rem;
-    color: #6C757D;
-    font-size: 0.875rem;
+    color: #8B5A3C;
+    font-size: 1rem;
+}
+
+body[data-page="report"] .summary-detail--order:hover {
+  color: #fff;
+  background: #8B5A3C;
+  box-shadow: 0 2px 8px 0 rgba(139,90,60,0.10);
+  border: 1px solid #8B5A3C;
 }
 
 [data-page="report"].summary-detail--order strong {
@@ -5592,7 +6732,7 @@ body[data-page="login"] {
 }
 
 /* Kitchen Report Dashboard Layout */
-[data-page="report"].dashboard-layout {
+body[data-page="report"].dashboard-layout {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1.5rem;
@@ -5600,18 +6740,18 @@ body[data-page="login"] {
 }
 
 /* Kitchen Report Table Container */
-[data-page="report"].table-container {
+body[data-page="report"].table-container {
     margin-bottom: 1.5rem;
 }
 
-[data-page="report"].table-header {
+body[data-page="report"].table-header {
     background-color: #F8F9FA;
     padding: 1rem 1.5rem;
     border-bottom: 1px solid #E9ECEF;
     border-radius: 0.75rem 0.75rem 0 0;
 }
 
-[data-page="report"].table-controls {
+body[data-page="report"].table-controls {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -5619,7 +6759,7 @@ body[data-page="login"] {
     flex-wrap: wrap;
 }
 
-[data-page="report"].table-actions {
+body[data-page="report"].table-actions {
     display: flex;
     gap: 0.5rem;
 }
