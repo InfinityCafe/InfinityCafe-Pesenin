@@ -30,6 +30,13 @@ body {
 .input-error:focus {
     outline: 2px solid #b91c1c;
 }
+.input-error-message {
+    margin-top: 8px;
+    color: #dc2626;
+    font-size: 13px;
+    font-weight: 600;
+    display: none;
+}
 
 *::-webkit-scrollbar {
     width: 8px;
@@ -3856,18 +3863,63 @@ body.tab-audit-history .add-item-btn {
     padding: 0 1rem;
     border-bottom: 2px solid #DCD0A8;
     padding-bottom: 1rem;
+}
+
+/* Table Controls Row - Main Layout */
+.table-controls-row {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 1.5rem;
+    min-height: 48px;
+}
+
+.table-controls-row .search-container {
+    flex: 0 1 280px;
+    min-width: 200px;
+}
+
+.table-controls-row .center-controls {
+    display: flex;
+    align-items: center;
     gap: 1rem;
+    flex: 0 0 auto;
+}
+
+.table-controls-row .export-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 0 0 auto;
+}
+
+.table-controls-row .control-label {
+    color: #312929;
+    font-weight: 600;
+    font-size: 14px;
+    white-space: nowrap;
+    margin-right: 0.5rem;
+}
+
+.search-filter-section .filter-row {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    justify-content: space-between;
 }
 
 .search-filter-section .search-container {
-    max-width: 400px;
     position: relative;
-    flex: 1;
+    flex: 0 1 300px;
     min-width: 250px;
+}
+
+.search-filter-section .filter-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
 }
 
 .search-input,
@@ -3914,12 +3966,232 @@ body.tab-audit-history .add-item-btn {
     position: relative;
 }
 
+/* Filter Group and Form Elements */
+.search-filter-section .filter-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+
+.search-filter-section .filter-label {
+    color: #312929;
+    font-weight: 600;
+    font-size: 14px;
+    min-width: fit-content;
+}
+
+.search-filter-section .form-select {
+    min-width: 160px;
+    padding: 8px 12px;
+    border: 2px solid #DCD0A8;
+    border-radius: 8px;
+    background-color: #F4F1E8;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: #312929;
+    outline: none;
+    transition: all 0.3s ease;
+}
+
+.search-filter-section .form-input {
+    padding: 8px 12px;
+    border: 2px solid #DCD0A8;
+    border-radius: 8px;
+    background-color: #F4F1E8;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: #312929;
+    outline: none;
+    transition: all 0.3s ease;
+}
+
+.search-filter-section .date-input {
+    width: 140px;
+}
+
+.search-filter-section .form-select:focus,
+.search-filter-section .form-input:focus {
+    border-color: #8D7272;
+    background-color: #FFFFFF;
+    box-shadow: 0 0 0 3px rgba(141, 114, 114, 0.1);
+}
+
+.search-filter-section .export-buttons {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.search-filter-section .btn-export {
+    padding: 8px 16px;
+    border: 2px solid #8D7272;
+    border-radius: 8px;
+    background-color: #F4F1E8;
+    color: #8D7272;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+
+.search-filter-section .btn-export:hover {
+    background-color: #8D7272;
+    color: #FFFFFF;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(141, 114, 114, 0.2);
+}
+
+.search-filter-section .btn-export i {
+    font-size: 12px;
+}
+
+/* Export Actions Styling */
+.export-actions .btn-export {
+    padding: 10px 16px;
+    border: 2px solid #8D7272;
+    border-radius: 8px;
+    background-color: #F4F1E8;
+    color: #8D7272;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+
+.export-actions .btn-export:hover,
+.filter-btn:hover {
+    background-color: #8D7272;
+    color: #FFFFFF;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(141, 114, 114, 0.2);
+}
+
+.export-actions .btn-export i,
+.filter-btn i {
+    font-size: 12px;
+}
+
+/* Responsive adjustments for table controls */
+@media (max-width: 1200px) {
+    .table-controls-row {
+        gap: 1rem;
+    }
+    
+    .table-controls-row .search-container {
+        flex: 0 1 240px;
+        min-width: 180px;
+    }
+    
+    .export-actions .btn-export .btn-text,
+    .filter-btn .btn-text {
+        display: none;
+    }
+    
+    .export-actions .btn-export,
+    .filter-btn {
+        padding: 10px 12px;
+    }
+}
+
+@media (max-width: 992px) {
+    .table-controls-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+        min-height: auto;
+    }
+    
+    .table-controls-row .search-container {
+        flex: 1;
+        max-width: 100%;
+        min-width: auto;
+    }
+    
+    .table-controls-row .center-controls {
+        justify-content: center;
+        flex-wrap: wrap;
+        order: 2;
+    }
+    
+    .table-controls-row .export-actions {
+        justify-content: center;
+        order: 3;
+    }
+}
+
+@media (max-width: 768px) {
+    .table-controls-row {
+        gap: 1.5rem;
+    }
+    
+    .table-controls-row .center-controls {
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+    }
+    
+    .table-controls-row .center-controls .filter-container {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+    }
+    
+    .table-controls-row .export-actions {
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+    
+    .export-actions .btn-export .btn-text,
+    .filter-btn .btn-text {
+        display: inline;
+    }
+    
+    .export-actions .btn-export,
+    .filter-btn {
+        flex: 1;
+        min-width: 90px;
+        justify-content: center;
+        padding: 12px 16px;
+    }
+    
+    #ingredient-view-container {
+        justify-content: center;
+    }
+    
+    #ingredient-view-container .control-label {
+        margin-right: 0.75rem;
+    }
+}
+
 .filter-btn {
     background-color: #F4F1E8;
     border: 2px solid #DCD0A8;
     color: #8D7272;
-    border-radius: 10px;
-    padding: 12px 20px;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
     font-family: 'Inter', sans-serif;
     font-weight: 600;
     font-size: 14px;
@@ -6750,6 +7022,58 @@ body[data-page="report"].dashboard-layout {
 /* Kitchen Report Table Container */
 body[data-page="report"].table-container {
     margin-bottom: 1.5rem;
+}
+
+/* Additional styling for form elements in table controls */
+.table-controls-row .filter-container .form-select {
+    min-width: 140px;
+    padding: 8px 12px;
+    border: 2px solid #DCD0A8;
+    border-radius: 8px;
+    background-color: #F4F1E8;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: #312929;
+    outline: none;
+    transition: all 0.3s ease;
+}
+
+.table-controls-row .filter-container .form-select:focus {
+    border-color: #8D7272;
+    background-color: #FFFFFF;
+    box-shadow: 0 0 0 3px rgba(141, 114, 114, 0.1);
+}
+
+/* Filter dropdown positioning for table controls */
+.table-controls-row .filter-container {
+    position: relative;
+}
+
+.table-controls-row .filter-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: 1000;
+    background-color: #FFFFFF;
+    border: 2px solid #DCD0A8;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 1rem;
+    min-width: 280px;
+    display: none;
+}
+
+.table-controls-row .filter-dropdown.show {
+    display: block;
+}
+
+/* Ensure consistent spacing in export actions */
+@media (min-width: 993px) {
+    .table-controls-row .export-actions {
+        min-width: 200px;
+        justify-content: flex-end;
+    }
 }
 
 body[data-page="report"].table-header {
