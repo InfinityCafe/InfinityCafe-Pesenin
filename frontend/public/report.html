@@ -74,15 +74,14 @@
 
             <!-- Enhanced Filter Section -->
             <div class="search-filter-section" id="search-filter-section-report">
-                <div class="filter-row">
-                    <div class="search-container">
+                    <!-- <div class="search-container">
                         <i class="fa-solid fa-magnifying-glass search-icon"></i>
                         <input type="text" id="menu-filter" placeholder="Filter by menu name.." class="search-input">
-                    </div>
-                    <div class="filter-controls">
+                    </div> -->
+                    <div class="filter-container" style="justify-content: center; margin: auto;">
                         <label class="filter-group">
-                            <span class="filter-label">Period:</span>
-                            <select id="period-select" class="form-select">
+                            <span style="color: #312929; font-weight: 600; margin-right: 8px;">Period:</span>
+                            <select id="period-select" class="form-select" style="max-width: fit-content;">
                                 <option value="today" selected>Today</option>
                                 <option value="yesterday">Yesterday</option>
                                 <option value="last7">Last 7 Days</option>
@@ -92,29 +91,25 @@
                                 <option value="custom">Custom Range</option>
                             </select>
                         </label>
-                        <label class="filter-group">
-                            <span class="filter-label">From:</span>
-                            <input type="date" id="start_date" class="form-input date-input">
+                        <span style="color: #312929; font-weight: 600; margin-right: 8px;">From:</span>
+                        <input type="date" id="start_date" class="price-input" style="width: 200px;">
                         </label>
                         <label class="filter-group">
-                            <span class="filter-label">To:</span>
-                            <input type="date" id="end_date" class="form-input date-input">
+                            <span style="color: #312929; font-weight: 600; margin-right: 8px;">To:</span>
+                            <input type="date" id="end_date" class="price-input" style="width: 200px;">
                         </label>
-                        <div class="export-buttons">
-                            <button onclick="exportExcel()" class="btn-export" title="Export to Excel">
+                            <button onclick="exportExcel()" class="btn-export btn-excel">
                                 <i class="fas fa-file-excel"></i>
                                 <span>Excel</span>
                             </button>
-                            <button onclick="exportCSV()" class="btn-export" title="Export to CSV">
+                            <button onclick="exportCSV()" class="btn-export btn-csv">
                                 <i class="fas fa-file-csv"></i>
                                 <span>CSV</span>
                             </button>
-                            <button onclick="exportPDF()" class="btn-export" title="Export to PDF">
+                            <button onclick="exportPDF()" class="btn-export btn-pdf">
                                 <i class="fas fa-file-pdf"></i>
                                 <span>PDF</span>
                             </button>
-                        </div>
-                    </div>
                 </div>
                 <div id="global-date-error" class="input-error-message" role="alert"></div>
             </div>
@@ -144,15 +139,14 @@
                     </div>
                     <div class="table-header">
                         <div class="search-filter-section">
-                            <div class="table-controls-row">
                                 <div class="search-container">
                                     <i class="fa-solid fa-magnifying-glass search-icon"></i>
                                     <input type="text" id="table-search-input" class="search-input" placeholder="Search Report...">
                                 </div>
-                                <div class="center-controls">
+                                <div class="right-controls" style="display: flex; align-items: center; gap: 12px; margin-left: auto;">
                                     <!-- Ingredient view mode (visible when Analisis Bahan active) -->
-                                    <div class="filter-container" id="ingredient-view-container" style="display:none;">
-                                        <label for="ingredient-view-select" class="control-label">View:</label>
+                                    <div class="filter-container" id="ingredient-view-container" style="display:none; gap: 8px; align-items: center;">
+                                        <label for="ingredient-view-select" style="color:#312929; font-weight:600;">View:</label>
                                         <select id="ingredient-view-select" class="form-select" onchange="onIngredientViewChange()">
                                             <option value="daily" selected>Daily</option>
                                             <option value="logs">Per Order (Logs)</option>
@@ -161,7 +155,7 @@
                                     <div class="filter-container">
                                         <button class="filter-btn" type="button" onclick="toggleReportFilter()">
                                             <i class="fas fa-filter"></i>
-                                            <span class="btn-text">Filter</span>
+                                            Filter
                                         </button>
                                         <div class="filter-dropdown" id="report-filter-dropdown">
                                             <div class="filter-group">
@@ -186,22 +180,6 @@
                                                 <button class="apply-filter-btn" type="button" onclick="applyReportFilter()">Apply</button>
                                                 <button class="clear-filter-btn" type="button" onclick="clearReportFilter()">Clear</button>
                                             </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="export-actions">
-                                    <button onclick="exportExcel()" class="btn-export" title="Export to Excel">
-                                        <i class="fas fa-file-excel"></i>
-                                        <span class="btn-text">Excel</span>
-                                    </button>
-                                    <button onclick="exportCSV()" class="btn-export" title="Export to CSV">
-                                        <i class="fas fa-file-csv"></i>
-                                        <span class="btn-text">CSV</span>
-                                    </button>
-                                    <button onclick="exportPDF()" class="btn-export" title="Export to PDF">
-                                        <i class="fas fa-file-pdf"></i>
-                                        <span class="btn-text">PDF</span>
-                                    </button>
                                 </div>
                             </div>
                         </div>
