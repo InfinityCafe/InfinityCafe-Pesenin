@@ -1206,14 +1206,24 @@ class InventoryManager {
 
           const hasChanged = JSON.stringify(newAuditHistory) !== JSON.stringify(this.auditHistory);
 
+          const prevPage = this.currentAuditPage;
           this.auditHistory = newAuditHistory;
           this.filteredAuditHistory = [...this.auditHistory];
 
           if (hasChanged || forceReload) {
             this.populateAuditFilters();
-            this.applyAuditFiltersAndSearch(true);
+          }
+          if (this.totalAuditPages === 0) {
+            this.currentAuditPage = 1;
+          } else if (prevPage > this.totalAuditPages) {
+            this.currentAuditPage = this.totalAuditPages;
+          } else if (prevPage < 1) {
+            this.currentAuditPage = 1;
+          } else {
+            this.currentAuditPage = prevPage;
           }
         
+          this.applyAuditFiltersAndSearch(false);
           this.auditLoaded = true;
         } else {
           showErrorModal(data.message || 'Failed to load audit history');
@@ -1316,6 +1326,8 @@ class InventoryManager {
       this.currentAuditPage = 1;
     } else if (this.currentAuditPage > this.totalAuditPages) {
       this.currentAuditPage = this.totalAuditPages;
+    } else if (this.currentAuditPage < 1) {
+      this.currentAuditPage = 1;
     }
 
     this.renderAuditHistoryTable();
