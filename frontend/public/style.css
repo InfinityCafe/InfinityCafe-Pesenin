@@ -6675,13 +6675,13 @@ body[data-page="report"].status-item {
     color: #503A3A;
 }
 
-body[data-page="report"] .status-label {
+body[data-page="report"].status-label {
     font-weight: 600;
     color: #412E27;
     font-size: 0.875rem;
 }
 
-body[data-page="report"] .status-count {
+body[data-page="report"].status-count {
     background-color: #8D7272;
     color: white;
     padding: 0.25rem 0.75rem;
@@ -6782,7 +6782,7 @@ body[data-page="report"] .status-count {
     border: 1px solid #E9ECEF;
 }
 
-body[data-page="report"] .filter-container {
+body[data-page="report"].filter-container {
     display: flex;
     align-items: center;
     gap: 1rem;
@@ -6790,7 +6790,7 @@ body[data-page="report"] .filter-container {
     flex-wrap: wrap;
 }
 
-body[data-page="report"] .filter-group {
+body[data-page="report"].filter-group {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -6825,13 +6825,13 @@ body[data-page="report"] .summary-detail--order:hover {
   border: 1px solid #8B5A3C;
 }
 
-[data-page="report"] .summary-detail--order strong {
+[data-page="report"].summary-detail--order strong {
     color: #412E27;
     font-weight: 700;
 }
 
 /* Kitchen Report Dashboard Layout */
-body[data-page="report"] .dashboard-layout {
+body[data-page="report"].dashboard-layout {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1.5rem;
@@ -6839,20 +6839,18 @@ body[data-page="report"] .dashboard-layout {
 }
 
 /* Kitchen Report Table Container */
-body[data-page="report"] .table-container {
+body[data-page="report"].table-container {
     margin-bottom: 1.5rem;
 }
 
 
 
 body[data-page="report"] .table-header {
-    background-color: #F8F9FA;
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid #E9ECEF;
-    border-radius: 0.75rem 0.75rem 0 0;
+  padding-top: 0.5rem;
+
 }
 
-body[data-page="report"] .table-controls {
+body[data-page="report"].table-controls {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -6860,7 +6858,7 @@ body[data-page="report"] .table-controls {
     flex-wrap: wrap;
 }
 
-body[data-page="report"] .table-actions {
+body[data-page="report"].table-actions {
     display: flex;
     gap: 0.5rem;
 }
