@@ -390,12 +390,15 @@ class InventoryManager {
 
   updateOverviewCards(data = {}) {
     console.log('Updating overview cards with inventory:', this.inventory);
-    
-    const totalItems = data.total_items || this.inventory.length;
-    const outOfStockCount = data.critical_count || this.inventory.filter(item => item.current_quantity <= 0).length;
-    const lowStockCount = data.low_stock_count || this.inventory.filter(
-      item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity
-    ).length;
+
+    const totalItems = typeof data.total_items === 'number' ? data.total_items : this.inventory.length;
+
+    const outOfStockCount = typeof data.critical_count === 'number'
+      ? data.critical_count
+      : this.inventory.filter(item => item.is_available && item.current_quantity <= 0).length;
+    const lowStockCount = typeof data.low_stock_count === 'number'
+      ? data.low_stock_count
+      : this.inventory.filter(item => item.is_available && item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length;
 
     const totalItemsElement = document.getElementById('total-items');
     const lowStockElement = document.getElementById('low-stock-items');
