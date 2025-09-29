@@ -693,37 +693,24 @@ def suggest_menu(item: SuggestionItem, db: Session = Depends(get_db)):
                 "message": "Nama menu usulan tidak boleh kosong",
                 "data": None
             }
-        
         if not item.customer_name or item.customer_name.strip() == "":
             return {
                 "status": "error",
                 "message": "Nama customer tidak boleh kosong", 
                 "data": None
             }
-        
-        exist_main = db.query(MenuItem).filter(
-            (MenuItem.base_name_en == item.menu_name.strip()) | (MenuItem.base_name_id == item.menu_name.strip())
-        ).first()
-        exist_suggested = db.query(MenuSuggestion).filter(MenuSuggestion.menu_name == item.menu_name.strip()).first()
-        if exist_main or exist_suggested:
-            return {
-                "status": "duplicate",
-                "message": "Pantun: Ke pasar beli ketela, menu ini sudah ada ternyata 😅",
-                "data": None
-            }
-        
+        # Tidak ada pengecekan duplikat menu
         suggestion = MenuSuggestion(
-            usulan_id=generate_id("USL", 12), 
+            usulan_id=generate_id("USL", 12),
             menu_name=item.menu_name.strip(),
             customer_name=item.customer_name.strip(),
             description=(item.description.strip() if isinstance(item.description, str) and item.description.strip() != "" else None)
         )
         db.add(suggestion)
         db.commit()
-        
         return {
             "status": "success",
-            "message": "Langit cerah, hati lega — usulan kamu bisa jadi tren menu selanjutnya 🌟",
+            "message": "Usulan kamu berhasil disimpan 🌟",
             "data": {
                 "usulan_id": suggestion.usulan_id,
                 "menu_name": suggestion.menu_name,
