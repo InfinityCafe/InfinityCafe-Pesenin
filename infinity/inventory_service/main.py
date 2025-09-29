@@ -2788,10 +2788,6 @@ def start_outbox_worker():
             time.sleep(5)
     threading.Thread(target=worker, daemon=True).start()
 
-# ==========================
-# Consumption log utilities
-# ==========================
-
 def _format_consumption_log_entry(db: Session, log: ConsumptionLog):
     """Internal helper to format a consumption log entry for UI/compat."""
     try:
@@ -2799,10 +2795,8 @@ def _format_consumption_log_entry(db: Session, log: ConsumptionLog):
     except (json.JSONDecodeError, TypeError):
         menu_names = []
 
-    # Build a compact payload similar to older frontend expectations
     per_menu_payload = []
     if menu_names:
-        # Best effort: count occurrences if duplicates exist
         from collections import Counter
         counts = Counter(menu_names)
         for name, qty in counts.items():
@@ -2824,7 +2818,6 @@ def _format_consumption_log_entry(db: Session, log: ConsumptionLog):
         "rolled_back_at": log.rolled_back_at.isoformat() if log.rolled_back_at else None,
         "menu_summary": log.menu_summary,
     }
-
 
 @app.get("/consumption_log", summary="Daftar consumption log (kompatibel frontend)", tags=["Stock Management"])
 def list_consumption_logs(limit: int = Query(50, ge=1, le=500), db: Session = Depends(get_db)):
