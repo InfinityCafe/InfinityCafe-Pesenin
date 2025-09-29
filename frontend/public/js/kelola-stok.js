@@ -390,12 +390,15 @@ class InventoryManager {
 
   updateOverviewCards(data = {}) {
     console.log('Updating overview cards with inventory:', this.inventory);
-    
-    const totalItems = data.total_items || this.inventory.length;
-    const outOfStockCount = data.critical_count || this.inventory.filter(item => item.current_quantity <= 0).length;
-    const lowStockCount = data.low_stock_count || this.inventory.filter(
-      item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity
-    ).length;
+
+    const totalItems = typeof data.total_items === 'number' ? data.total_items : this.inventory.length;
+
+    const outOfStockCount = typeof data.critical_count === 'number'
+      ? data.critical_count
+      : this.inventory.filter(item => item.is_available && item.current_quantity <= 0).length;
+    const lowStockCount = typeof data.low_stock_count === 'number'
+      ? data.low_stock_count
+      : this.inventory.filter(item => item.is_available && item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length;
 
     const totalItemsElement = document.getElementById('total-items');
     const lowStockElement = document.getElementById('low-stock-items');
@@ -1206,14 +1209,24 @@ class InventoryManager {
 
           const hasChanged = JSON.stringify(newAuditHistory) !== JSON.stringify(this.auditHistory);
 
+          const prevPage = this.currentAuditPage;
           this.auditHistory = newAuditHistory;
           this.filteredAuditHistory = [...this.auditHistory];
 
           if (hasChanged || forceReload) {
             this.populateAuditFilters();
-            this.applyAuditFiltersAndSearch(true);
+          }
+          if (this.totalAuditPages === 0) {
+            this.currentAuditPage = 1;
+          } else if (prevPage > this.totalAuditPages) {
+            this.currentAuditPage = this.totalAuditPages;
+          } else if (prevPage < 1) {
+            this.currentAuditPage = 1;
+          } else {
+            this.currentAuditPage = prevPage;
           }
         
+          this.applyAuditFiltersAndSearch(false);
           this.auditLoaded = true;
         } else {
           showErrorModal(data.message || 'Failed to load audit history');
@@ -1316,6 +1329,8 @@ class InventoryManager {
       this.currentAuditPage = 1;
     } else if (this.currentAuditPage > this.totalAuditPages) {
       this.currentAuditPage = this.totalAuditPages;
+    } else if (this.currentAuditPage < 1) {
+      this.currentAuditPage = 1;
     }
 
     this.renderAuditHistoryTable();

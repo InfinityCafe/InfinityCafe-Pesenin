@@ -74,23 +74,44 @@
 
             <!-- Enhanced Filter Section -->
             <div class="search-filter-section" id="search-filter-section-report">
-                <div class="search-container">
-                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                    <input type="text" id="menu-filter" placeholder="Filter by menu name.." class="search-input">
-                </div>
-                <div class="filter-container" style="justify-content: center; margin: auto;">
-                    <label class="filter-group">
+                    <!-- <div class="search-container">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                        <input type="text" id="menu-filter" placeholder="Filter by menu name.." class="search-input">
+                    </div> -->
+                    <div class="filter-container" style="justify-content: center; margin: auto;">
+                        <label class="filter-group">
+                            <span style="color: #312929; font-weight: 600; margin-right: 8px;">Period:</span>
+                            <select id="period-select" class="form-select" style="max-width: fit-content;">
+                                <option value="today" selected>Today</option>
+                                <option value="yesterday">Yesterday</option>
+                                <option value="last7">Last 7 Days</option>
+                                <option value="last30">Last 30 Days</option>
+                                <option value="thisMonth">This Month</option>
+                                <option value="lastMonth">Last Month</option>
+                                <option value="custom">Custom Range</option>
+                            </select>
+                        </label>
                         <span style="color: #312929; font-weight: 600; margin-right: 8px;">From:</span>
                         <input type="date" id="start_date" class="price-input" style="width: 200px;">
-                    </label>
-                    <label class="filter-group">
-                        <span style="color: #312929; font-weight: 600; margin-right: 8px;">To:</span>
-                        <input type="date" id="end_date" class="price-input" style="width: 200px;">
-                    </label>
-                    <button onclick="exportExcel()" class="btn-secondary">📊 Excel</button>
-                    <button onclick="exportCSV()" class="btn-secondary">⬇️ CSV</button>
-                    <button onclick="exportPDF()" class="btn-secondary">📄 PDF</button>
+                        </label>
+                        <label class="filter-group">
+                            <span style="color: #312929; font-weight: 600; margin-right: 8px;">To:</span>
+                            <input type="date" id="end_date" class="price-input" style="width: 200px;">
+                        </label>
+                            <button onclick="exportExcel()" class="btn-export btn-excel">
+                                <i class="fas fa-file-excel"></i>
+                                <span>Excel</span>
+                            </button>
+                            <!-- <button onclick="exportCSV()" class="btn-export btn-csv">
+                                <i class="fas fa-file-csv"></i>
+                                <span>CSV</span>
+                            </button> -->
+                            <button onclick="exportPDF()" class="btn-export btn-pdf">
+                                <i class="fas fa-file-pdf"></i>
+                                <span>PDF</span>
+                            </button>
                 </div>
+                <div id="global-date-error" class="input-error-message" role="alert"></div>
             </div>
 
             <!-- Summary Section -->
@@ -117,48 +138,48 @@
                         <span class="summary-name">📊 Report Data</span>
                     </div>
                     <div class="table-header">
-                        <div class="search-filter-section"> 
-                            <div class="search-container">
-                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                                <input type="text" id="table-search-input" class="search-input" placeholder="Search Report...">
-                            </div>
-                            <div class="right-controls" style="display: flex; align-items: center; gap: 12px; margin-left: auto;">
-                                <!-- Ingredient view mode (visible when Analisis Bahan active) -->
-                                <div class="filter-container" id="ingredient-view-container" style="display:none; gap: 8px; align-items: center;">
-                                    <label for="ingredient-view-select" style="color:#312929; font-weight:600;">Tampilan:</label>
-                                    <select id="ingredient-view-select" class="form-select" onchange="onIngredientViewChange()">
-                                        <option value="daily" selected>Daily</option>
-                                        <option value="logs">Per Order (Logs)</option>
-                                    </select>
+                        <div class="search-filter-section">
+                                <div class="search-container">
+                                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                    <input type="text" id="table-search-input" class="search-input" placeholder="Search Report...">
                                 </div>
-                                <div class="filter-container">
-                                    <button class="filter-btn" type="button" onclick="toggleReportFilter()">
-                                        <i class="fas fa-filter"></i>
-                                        Filter
-                                    </button>
-                                <div class="filter-dropdown" id="report-filter-dropdown">
-                                    <div class="filter-group">
-                                        <label>Report Type:</label>
-                                        <select id="data-type-select" class="form-select">
-                                            <option value="sales" selected>Sales Data</option>
-                                            <option value="best">Best Seller</option>
-                                            <option value="ingredient">Ingredients Analysis</option>
+                                <div class="right-controls" style="display: flex; align-items: center; gap: 12px; margin-left: auto;">
+                                    <!-- Ingredient view mode (visible when Analisis Bahan active) -->
+                                    <div class="filter-container" id="ingredient-view-container" style="display:none; gap: 8px; align-items: center;">
+                                        <label for="ingredient-view-select" style="color:#312929; font-weight:600;">View:</label>
+                                        <select id="ingredient-view-select" class="form-select" onchange="onIngredientViewChange()">
+                                            <option value="daily" selected>Daily</option>
+                                            <option value="logs">Per Order (Logs)</option>
                                         </select>
                                     </div>
-                                    <div class="filter-group">
-                                        <label>Sort by:</label>
-                                        <select id="sort-select" class="form-select">
-                                            <option value="name" selected>Menu Name</option>
-                                            <option value="qty">Quantity</option>
-                                            <option value="total">Total</option>
-                                            <option value="ingredients">Total Ingredient</option>
-                                            <option value="quantity">Total Quantity</option>
-                                        </select>
-                                    </div>
-                                    <div class="filter-actions">
-                                        <button class="apply-filter-btn" type="button" onclick="applyReportFilter()">Apply</button>
-                                        <button class="clear-filter-btn" type="button" onclick="clearReportFilter()">Clear</button>
-                                    </div>
+                                    <div class="filter-container">
+                                        <button class="filter-btn" type="button" onclick="toggleReportFilter()">
+                                            <i class="fas fa-filter"></i>
+                                            Filter
+                                        </button>
+                                        <div class="filter-dropdown" id="report-filter-dropdown">
+                                            <div class="filter-group">
+                                                <label>Report Type:</label>
+                                                <select id="data-type-select" class="form-select">
+                                                    <option value="sales" selected>Sales Data</option>
+                                                    <option value="best">Best Seller</option>
+                                                    <option value="ingredient">Ingredients Analysis</option>
+                                                </select>
+                                            </div>
+                                            <div class="filter-group">
+                                                <label>Sort by:</label>
+                                                <select id="sort-select" class="form-select">
+                                                    <option value="name" selected>Menu Name</option>
+                                                    <option value="qty">Quantity</option>
+                                                    <option value="total">Total</option>
+                                                    <option value="ingredients">Total Ingredient</option>
+                                                    <option value="quantity">Total Quantity</option>
+                                                </select>
+                                            </div>
+                                            <div class="filter-actions">
+                                                <button class="apply-filter-btn" type="button" onclick="applyReportFilter()">Apply</button>
+                                                <button class="clear-filter-btn" type="button" onclick="clearReportFilter()">Clear</button>
+                                            </div>
                                 </div>
                             </div>
                         </div>
@@ -329,7 +350,7 @@
                             <button onclick="refreshKitchenData()" class="btn-secondary">🔄 Refresh</button>
                             <div class="export-buttons">
                                 <button onclick="exportKitchenExcel()" class="btn-export btn-excel">📊 Excel</button>
-                                <button onclick="exportKitchenCSV()" class="btn-export btn-csv">📄 CSV</button>
+                                <!-- <button onclick="exportKitchenCSV()" class="btn-export btn-csv">📄 CSV</button> -->
                                 <button onclick="exportKitchenPDF()" class="btn-export btn-pdf">📋 PDF</button>
                             </div>
                         </div>
@@ -390,7 +411,7 @@
                     <button onclick="refreshIngredientAnalysis()" class="btn-secondary">🔄 Refresh</button>
                     <div class="export-buttons">
                         <button onclick="exportIngredientExcel()" class="btn-export btn-excel">📊 Excel</button>
-                        <button onclick="exportIngredientCSV()" class="btn-export btn-csv">📄 CSV</button>
+                        <!-- <button onclick="exportIngredientCSV()" class="btn-export btn-csv">📄 CSV</button> -->
                         <button onclick="exportIngredientPDF()" class="btn-export btn-pdf">📋 PDF</button>
                     </div>
                 </div>
