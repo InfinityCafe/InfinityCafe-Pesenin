@@ -43,6 +43,8 @@ let menuValidFlavors = {}; // { menuName: Set(lowercase flavor names) }
 let kitchenOrdersCache = [];
 let globalFlavorMap = {};
 let ingredientMenuFlavorGroups = {}; // global store for menu+flavor groups per date
+let ingredientDataCache = null; // persist last successful ingredient dataset
+let suppressPeriodSync = false; // prevent preset select from flipping to custom during programmatic updates
 
 //Pagination Variables
 let reportCurrentPage = 1;
@@ -116,6 +118,199 @@ function validateIngredientDateRange(startVal, endVal) {
         return res;
     }
     return res;
+}
+
+// ================== GLOBAL DATE RANGE HELPERS ==================
+function getGlobalDateElements() {
+    const startEl = document.getElementById('start_date');
+    const endEl = document.getElementById('end_date');
+    return {
+        startEl,
+        endEl,
+        startVal: startEl ? startEl.value.trim() : '',
+        endVal: endEl ? endEl.value.trim() : ''
+    };
+}
+
+function clearGlobalDateError() {
+    const { startEl, endEl } = getGlobalDateElements();
+    if (startEl) startEl.classList.remove('input-error');
+    if (endEl) endEl.classList.remove('input-error');
+    const errorEl = document.getElementById('global-date-error');
+    if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.style.display = 'none';
+    }
+}
+
+function showGlobalDateError(message, fields = {}) {
+    const { startEl, endEl } = getGlobalDateElements();
+    if (startEl) {
+        if (fields.start) startEl.classList.add('input-error');
+        else startEl.classList.remove('input-error');
+    }
+    if (endEl) {
+        if (fields.end) endEl.classList.add('input-error');
+        else endEl.classList.remove('input-error');
+    }
+    const errorEl = document.getElementById('global-date-error');
+    if (errorEl) {
+        errorEl.textContent = message || '';
+        errorEl.style.display = message ? 'block' : 'none';
+    }
+}
+
+function validateGlobalDateRange(options = {}) {
+    const { requireBoth = true, showMessage = true } = options;
+    const { startEl, endEl, startVal, endVal } = getGlobalDateElements();
+    const invalidFields = { start: false, end: false };
+    let message = '';
+    let valid = true;
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+    if (requireBoth && (!startVal || !endVal)) {
+        valid = false;
+        message = 'Tanggal awal dan akhir wajib diisi.';
+        invalidFields.start = !startVal;
+        invalidFields.end = !endVal;
+    }
+
+    if (valid && startVal && !dateRegex.test(startVal)) {
+        valid = false;
+        message = 'Format tanggal awal tidak valid (YYYY-MM-DD).';
+        invalidFields.start = true;
+    }
+    if (valid && endVal && !dateRegex.test(endVal)) {
+        valid = false;
+        message = 'Format tanggal akhir tidak valid (YYYY-MM-DD).';
+        invalidFields.end = true;
+    }
+    if (valid && startVal && endVal && startVal > endVal) {
+        valid = false;
+        message = 'Tanggal awal tidak boleh melebihi tanggal akhir.';
+        invalidFields.start = true;
+        invalidFields.end = true;
+    }
+
+    if (!valid) {
+        if (showMessage) {
+            showGlobalDateError(message, invalidFields);
+        } else {
+            if (startEl && invalidFields.start) startEl.classList.add('input-error');
+            if (endEl && invalidFields.end) endEl.classList.add('input-error');
+        }
+        return { valid: false, start: startVal, end: endVal };
+    }
+
+    clearGlobalDateError();
+    return { valid: true, start: startVal, end: endVal };
+}
+
+function getValidatedGlobalRange(requireBoth = true, showMessage = true) {
+    const validation = validateGlobalDateRange({ requireBoth, showMessage });
+    if (!validation.valid || !validation.start || !validation.end) return null;
+    return { start: validation.start, end: validation.end };
+}
+
+function computePresetRange(preset) {
+    const today = new Date();
+    const tzOffset = today.getTimezoneOffset();
+    const normalize = (date) => {
+        const local = new Date(date.getTime() - (tzOffset * 60000));
+        return local.toISOString().split('T')[0];
+    };
+
+    const start = new Date(today);
+    const end = new Date(today);
+
+    switch (preset) {
+        case 'today':
+            return { start: normalize(start), end: normalize(end) };
+        case 'yesterday':
+            start.setDate(start.getDate() - 1);
+            end.setDate(end.getDate() - 1);
+            return { start: normalize(start), end: normalize(end) };
+        case 'last7':
+            start.setDate(start.getDate() - 6);
+            return { start: normalize(start), end: normalize(end) };
+        case 'last30':
+            start.setDate(start.getDate() - 29);
+            return { start: normalize(start), end: normalize(end) };
+        case 'thisMonth': {
+            const first = new Date(today.getFullYear(), today.getMonth(), 1);
+            return { start: normalize(first), end: normalize(end) };
+        }
+        case 'lastMonth': {
+            const firstPrev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            const lastPrev = new Date(today.getFullYear(), today.getMonth(), 0);
+            return { start: normalize(firstPrev), end: normalize(lastPrev) };
+        }
+        default:
+            return null;
+    }
+}
+
+function applyPeriodPreset(preset, options = {}) {
+    const { triggerReload = true, updateSelect = true } = options;
+    const range = computePresetRange(preset);
+    if (!range) return;
+
+    const { startEl, endEl } = getGlobalDateElements();
+    if (!startEl || !endEl) return;
+
+    suppressPeriodSync = true;
+    startEl.value = range.start;
+    endEl.value = range.end;
+    validateGlobalDateRange({ requireBoth: true, showMessage: false });
+
+    const periodSelect = document.getElementById('period-select');
+    if (periodSelect && updateSelect !== false) {
+        periodSelect.value = preset;
+    }
+
+    if (triggerReload) {
+        reloadCurrentMode();
+    }
+
+    setTimeout(() => {
+        suppressPeriodSync = false;
+    }, 0);
+}
+
+function initializeDefaultDateRange(forceReload = true) {
+    const { startVal, endVal } = getGlobalDateElements();
+    if (startVal && endVal) {
+        validateGlobalDateRange({ requireBoth: true, showMessage: false });
+        if (forceReload) reloadCurrentMode();
+        return;
+    }
+    const periodSelect = document.getElementById('period-select');
+    if (periodSelect) periodSelect.value = 'today';
+    // Set inputs explicitly to today before applying preset to avoid any race
+    const { startEl, endEl } = getGlobalDateElements();
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    const todayIso = `${y}-${m}-${d}`;
+    if (startEl) startEl.value = todayIso;
+    if (endEl) endEl.value = todayIso;
+    applyPeriodPreset('today', { triggerReload: forceReload, updateSelect: true });
+}
+
+function reloadCurrentMode() {
+    const dataType = document.getElementById('data-type-select')?.value || 'sales';
+    if (dataType === 'best') {
+        const range = getValidatedGlobalRange(true, true);
+        if (!range) return;
+        loadBestSellerData(range);
+    } else if (dataType === 'ingredient') {
+        loadIngredientAnalysisData();
+    } else {
+        const range = getValidatedGlobalRange(true, true);
+        if (!range) return;
+        loadReport(range);
+    }
 }
 
 // ========== MODAL FUNCTIONS ==========
@@ -235,19 +430,34 @@ function hideIngredientAnalysis() {
 
 async function loadIngredientAnalysisData() {
     // Helper lokal untuk empty/error agar bisa dipakai di try & catch
-    const handleEmptyOrError = (message) => {
-        menuRecipes = {};
-        menuConsumption = {};
-        ingredientMenuFlavorGroups = {};
+    const handleEmptyOrError = (message, options = {}) => {
+        const { preserveCache = false } = options;
+        if (!preserveCache) {
+            ingredientDataCache = { daily: [], logs: [] };
+            ingredientMenuFlavorGroups = {};
+            menuRecipes = {};
+            menuConsumption = {};
+        }
+        const dataset = ingredientDataCache || { daily: [], logs: [] };
         const details = document.getElementById('ingredient-details');
         if (details) details.innerHTML = `<div class="ingredient-menu-item">${message}</div>`;
-        baseData = { daily: [], logs: [] };
+        baseData = dataset;
         const currentViewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
-        filteredData = baseData[currentViewMode] || [];
+        const tableSearch = document.getElementById('table-search-input');
+        const term = tableSearch ? tableSearch.value.toLowerCase() : '';
+        const source = dataset[currentViewMode] || [];
+        filteredData = term ? source.filter(i => 
+            (i.menu_name || '').toLowerCase().includes(term) ||
+            (i.flavor || '').toLowerCase().includes(term) ||
+            (i.order_id || '').toLowerCase().includes(term) ||
+            (i.date || '').toLowerCase().includes(term) ||
+            (i.status_text || '').toLowerCase().includes(term)
+        ) : [...source];
         reportCurrentPage = 1;
         renderReportTable();
         updateReportPagination();
-        updateIngredientSummary();
+        renderIngredientAnalysis(dataset);
+        updateIngredientSummary(dataset);
     };
 
     try {
@@ -261,15 +471,32 @@ async function loadIngredientAnalysisData() {
         const endEl = document.getElementById('ingredient-end-date');
         const globalStartEl = document.getElementById('start_date');
         const globalEndEl = document.getElementById('end_date');
-        const startVal = (startEl && startEl.value) ? startEl.value : (globalStartEl && globalStartEl.value ? globalStartEl.value : '');
-        const endVal = (endEl && endEl.value) ? endEl.value : (globalEndEl && globalEndEl.value ? globalEndEl.value : '');
+        let startVal = (startEl && startEl.value) ? startEl.value : (globalStartEl && globalStartEl.value ? globalStartEl.value : '');
+        let endVal = (endEl && endEl.value) ? endEl.value : (globalEndEl && globalEndEl.value ? globalEndEl.value : '');
+
+        // If both dates are empty, default to today and reflect it in the inputs
+        if (!startVal && !endVal) {
+            const today = new Date();
+            const y = today.getFullYear();
+            const m = String(today.getMonth() + 1).padStart(2, '0');
+            const d = String(today.getDate()).padStart(2, '0');
+            const todayIso = `${y}-${m}-${d}`;
+            startVal = todayIso;
+            endVal = todayIso;
+            if (globalStartEl && !globalStartEl.value) globalStartEl.value = todayIso;
+            if (globalEndEl && !globalEndEl.value) globalEndEl.value = todayIso;
+            if (startEl && !startEl.value) startEl.value = todayIso;
+            if (endEl && !endEl.value) endEl.value = todayIso;
+            const periodSelect = document.getElementById('period-select');
+            if (periodSelect && periodSelect.value !== 'today') periodSelect.value = 'today';
+        }
 
         const validation = validateIngredientDateRange(startVal, endVal);
         [startEl, endEl].forEach(el => { if (el) el.classList.remove('input-error'); });
         if (!validation.valid) {
             if (validation.fields.start && startEl) startEl.classList.add('input-error');
             if (validation.fields.end && endEl) endEl.classList.add('input-error');
-            handleEmptyOrError(validation.message || 'Rentang tanggal tidak valid');
+            handleEmptyOrError(validation.message || 'Rentang tanggal tidak valid', { preserveCache: true });
             hideLoading();
             return;
         }
@@ -424,10 +651,6 @@ async function loadIngredientAnalysisData() {
                         }
                     }
                 }
-                
-                                renderIngredientAnalysis();
-                updateIngredientSummary();
-
                 // Integrate into main report table and pagination/search
                 
                 // Determine ingredient view mode: daily vs logs
@@ -444,6 +667,9 @@ async function loadIngredientAnalysisData() {
                 let ingredientRows = [];
                 let menuFlavorGroups = {}; // Initialize menuFlavorGroups for both view modes
                 
+                let logsRowsFinal = [];
+                let dailyRowsFinal = [];
+
                 if (viewMode === 'daily') {
                     // Build from logs: group by date with better daily aggregation
                     // Sertakan start_date & end_date jika tersedia (backend boleh abaikan jika tidak didukung)
@@ -542,14 +768,24 @@ async function loadIngredientAnalysisData() {
                             // Fallback removed to keep table clean
                         }
                     }
+                    // After building daily ingredientRows and menuFlavorGroups, also build logsRows from menuFlavorGroups
+                    logsRowsFinal = Object.values(menuFlavorGroups).map(group => ({
+                        menu_name: group.menu_name,
+                        flavor: group.flavor,
+                        date: group.date,
+                        status_text: `${group.total_orders} order`,
+                        order_count: group.total_orders,
+                        ingredients_affected: group.total_ingredients,
+                        total_qty: group.total_ingredients,
+                        order_ids: Array.from(group.order_ids),
+                        order_id: Array.from(group.order_ids)[0] || ''
+                    }));
+                    dailyRowsFinal = ingredientRows;
                 } else {
                     // Logs view: fetch recent consumption logs and group by menu/flavor
-                    let logsUrl = '/inventory/history?limit=100';
-                    // Tambah query start/end jika ada
+                    // Fetch logs without server-side date filters; we'll filter client-side to avoid TZ/format issues
                     const qsLogs = new URLSearchParams({ limit: '100' });
-                    if (startParam) qsLogs.set('start_date', startParam);
-                    if (endParam) qsLogs.set('end_date', endParam);
-                    logsUrl = `/inventory/history?${qsLogs.toString()}`;
+                    const logsUrl = `/inventory/history?${qsLogs.toString()}`;
                     const logsRes = await fetch(logsUrl);
                     const logsJson = await logsRes.json().catch(() => ({ history: [] }));
                     const logs = Array.isArray(logsJson.history) ? logsJson.history : [];
@@ -566,22 +802,27 @@ async function loadIngredientAnalysisData() {
                     });
                     
                     // Use actual order data from kitchen service to get real menu names and flavors
-                    // This data comes from the dashboard and contains the actual menu items ordered
+                    // Prefer the cache loaded earlier in this function to avoid race/empty states.
                     const orderDetails = {};
-                    
-                    // First, get the kitchen orders data that was already fetched
-                    const kitchenOrdersResponse = await fetch('/kitchen/orders');
-                    let kitchenOrdersData = [];
-                    if (kitchenOrdersResponse.ok) {
-                        kitchenOrdersData = await kitchenOrdersResponse.json();
+                    let kitchenOrdersData = Array.isArray(kitchenOrdersCache) ? kitchenOrdersCache : [];
+                    if (!kitchenOrdersData.length) {
+                        try {
+                            const kitchenOrdersResponse = await fetch('/kitchen/orders');
+                            if (kitchenOrdersResponse.ok) {
+                                kitchenOrdersData = await kitchenOrdersResponse.json();
+                                kitchenOrdersCache = Array.isArray(kitchenOrdersData) ? kitchenOrdersData : [];
+                            }
+                        } catch (_) {
+                            // ignore network errors and proceed with empty
+                        }
                     }
                     
-                    console.log('Kitchen orders data:', kitchenOrdersData);
+                    console.log('Kitchen orders data (using cache if available):', kitchenOrdersData);
                     
                     // Create a mapping from order_id to kitchen order data
                     const orderIdToKitchenOrder = {};
                     for (const order of kitchenOrdersData) {
-                        if (order.items && Array.isArray(order.items)) {
+                        if (order && order.items && Array.isArray(order.items)) {
                             orderIdToKitchenOrder[order.order_id] = order;
                             console.log(`Order ${order.order_id} has items:`, order.items);
                         }
@@ -662,6 +903,7 @@ async function loadIngredientAnalysisData() {
                         flavor: group.flavor,
                         date: group.date,
                         status_text: `${group.total_orders} order`,
+                        order_count: group.total_orders,
                         ingredients_affected: group.total_ingredients,
                         total_qty: group.total_ingredients,
                         order_ids: Array.from(group.order_ids),
@@ -672,6 +914,7 @@ async function loadIngredientAnalysisData() {
                     // Debug: log the data structure
                     console.log('Ingredient rows data:', ingredientRows);
                     console.log('Sample item structure:', ingredientRows[0]);
+                    logsRowsFinal = ingredientRows;
                 }
                 
                 // Also create daily aggregated data for daily view
@@ -718,16 +961,20 @@ async function loadIngredientAnalysisData() {
                 console.log('Sample item structure:', ingredientRows[0]);
                 
                 // Store both data sets
-                baseData = {
-                    logs: ingredientRows,
-                    daily: dailyRows
+                // Ensure cache keys always map to the correct datasets (logs vs daily), independent of current view
+                if (!logsRowsFinal.length) logsRowsFinal = ingredientRows; // when built in logs branch
+                if (!dailyRowsFinal.length) dailyRowsFinal = dailyRows;    // when built in logs branch
+                ingredientDataCache = {
+                    logs: logsRowsFinal,
+                    daily: dailyRowsFinal
                 };
+                baseData = ingredientDataCache;
                 // Expose groups globally for details panel usage
                 ingredientMenuFlavorGroups = menuFlavorGroups;
                 
                 // Get current view mode and set appropriate data
                 const currentViewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
-                const currentViewData = baseData[currentViewMode] || [];
+                const currentViewData = (ingredientDataCache && ingredientDataCache[currentViewMode]) ? ingredientDataCache[currentViewMode] : [];
                 // Update header/badge for clarity
                 updateReportTableHeader();
 
@@ -752,6 +999,8 @@ async function loadIngredientAnalysisData() {
                 reportCurrentPage = 1;
                 renderReportTable();
                 updateReportPagination();
+                renderIngredientAnalysis(ingredientDataCache);
+                updateIngredientSummary(ingredientDataCache);
             } else {
                 handleEmptyOrError('No recipe data available for analysis.');
             }
@@ -765,24 +1014,29 @@ async function loadIngredientAnalysisData() {
         hideLoading();
         alert('Failed to load material analysis data.');
         
-        handleEmptyOrError('Error occurred during data loading.');
+        handleEmptyOrError('Error occurred during data loading.', { preserveCache: true });
     }
 }
 
-function renderIngredientAnalysis() {
-    renderIngredientConsumptionChart();
+function renderIngredientAnalysis(dataset = null) {
+    renderIngredientConsumptionChart(dataset);
     renderIngredientConsumptionDetails();
     renderIngredientConsumptionTable();
 }
 
-function renderIngredientConsumptionChart() {
+function renderIngredientConsumptionChart(dataset = null) {
     const ctx = document.getElementById('ingredientChart');
     if (!ctx) return;
     if (ingredientChart) ingredientChart.destroy();
-    // Adapt to daily history summary if baseData present
-    const rows = Array.isArray(baseData) ? baseData : [];
+    const source = dataset ?? ingredientDataCache ?? baseData;
+    let rows = [];
+    if (Array.isArray(source)) {
+        rows = source;
+    } else if (source && typeof source === 'object') {
+        rows = source.daily || [];
+    }
     const labels = rows.map(r => r.date || r.order_id || '-');
-    const totals = rows.map(r => Number(r.total_qty || 0));
+    const totals = rows.map(r => Number(r.total_qty || r.ingredients_affected || 0));
     ingredientChart = new Chart(ctx, {
         type: 'bar',
         data: { labels, datasets: [{ label: 'Total Ingredients Used', data: totals, backgroundColor: '#DCD0A8', borderColor: '#C1B8A0', borderWidth: 1 }] },
@@ -802,14 +1056,88 @@ function renderIngredientConsumptionTable() {
     tbody.innerHTML = '';
 }
 
-function updateIngredientSummary() {
-    // Adapt summary to ingredient mode table (daily)
-    const totalMenu = 0;
-    const allIngredients = (Array.isArray(baseData) ? baseData : []).reduce((s, r) => s + (r.ingredients_affected ?? 0), 0);
-    document.getElementById('ingredient-total-menu').textContent = baseData ? baseData.length : 0;
-    document.getElementById('ingredient-total-ingredients').textContent = allIngredients;
-    document.getElementById('ingredient-most-ingredients').textContent = '-';
-    document.getElementById('ingredient-most-used').textContent = '-';
+function updateIngredientSummary(dataset = null) {
+    const source = dataset ?? ingredientDataCache ?? baseData;
+    const currentViewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
+    const summaryPeriod = document.getElementById('summary-period');
+    const summaryIncome = document.getElementById('summary-income');
+    const summaryOrders = document.getElementById('summary-orders');
+
+    const dailyRows = Array.isArray(source)
+        ? source
+        : (source && typeof source === 'object' ? (source.daily || []) : []);
+    const logsRows = Array.isArray(source)
+        ? source
+        : (source && typeof source === 'object' ? (source.logs || []) : []);
+
+    let totalOrders = 0;
+    let totalIngredients = 0;
+    const uniqueMenus = new Set();
+
+    if (dailyRows.length) {
+        dailyRows.forEach(item => {
+            const summary = item.daily_summary || {};
+            totalOrders += summary.total_orders || 0;
+            totalIngredients += summary.total_consumption || 0;
+        });
+    } else {
+        logsRows.forEach(item => {
+            const orderCount = Number(item.order_count || (Array.isArray(item.order_ids) ? item.order_ids.length : 0));
+            totalOrders += orderCount;
+            totalIngredients += Number(item.ingredients_affected || item.total_qty || 0);
+        });
+    }
+
+    logsRows.forEach(item => {
+        if (item.menu_name) uniqueMenus.add(item.menu_name);
+    });
+
+    const ingredientStart = document.getElementById('ingredient-start-date')?.value;
+    const ingredientEnd = document.getElementById('ingredient-end-date')?.value;
+    const globalStart = document.getElementById('start_date')?.value;
+    const globalEnd = document.getElementById('end_date')?.value;
+
+    if (summaryPeriod) {
+        const startLabel = ingredientStart || globalStart || 'N/A';
+        const endLabel = ingredientEnd || globalEnd || 'N/A';
+        summaryPeriod.textContent = `${startLabel} - ${endLabel}`;
+    }
+
+    if (summaryIncome) {
+        summaryIncome.textContent = `${totalIngredients.toLocaleString()} bahan`;
+    }
+
+    if (summaryOrders) {
+        summaryOrders.textContent = `${totalOrders.toLocaleString()} pesanan`;
+    }
+
+    let uniqueMenuCount = uniqueMenus.size;
+    if (!uniqueMenuCount && dailyRows.length) {
+        uniqueMenuCount = dailyRows.reduce((acc, item) => acc + (item.daily_summary?.unique_menus || 0), 0);
+    }
+
+    const totalMenuEl = document.getElementById('ingredient-total-menu');
+    if (totalMenuEl) totalMenuEl.textContent = uniqueMenuCount ? uniqueMenuCount : '-';
+
+    const totalIngredientsEl = document.getElementById('ingredient-total-ingredients');
+    if (totalIngredientsEl) totalIngredientsEl.textContent = totalIngredients.toLocaleString();
+
+    const mostIngredientsEl = document.getElementById('ingredient-most-ingredients');
+    if (mostIngredientsEl) {
+        const topMenu = logsRows.reduce((acc, item) => {
+            const qty = Number(item.ingredients_affected || item.total_qty || 0);
+            if (!acc || qty > acc.qty) {
+                return { name: item.menu_name || '-', qty };
+            }
+            return acc;
+        }, null);
+        mostIngredientsEl.textContent = topMenu && topMenu.name ? `${topMenu.name} (${topMenu.qty.toLocaleString()} bahan)` : '-';
+    }
+
+    const mostUsedEl = document.getElementById('ingredient-most-used');
+    if (mostUsedEl) {
+        mostUsedEl.textContent = currentViewMode === 'logs' ? 'Lihat detail per order 👀' : '-';
+    }
 }
 
 function hideIngredientDetailsPanel() {
@@ -2364,21 +2692,24 @@ let lastBestHash = '';
 let currentDataType = 'sales';
 let lastUserInputAt = 0;
 
-async function loadReport() {
-    const start = document.getElementById("start_date").value;
-    const end = document.getElementById("end_date").value;
-    const menuFilter = document.getElementById("menu-filter").value.trim();
-    
-    if (!start || !end) {
-        alert("Tanggal belum diisi!");
-        return;
+async function loadReport(rangeOverride = null, maybeEnd = null) {
+    if (typeof rangeOverride === 'string' && typeof maybeEnd === 'string') {
+        const { startEl, endEl } = getGlobalDateElements();
+        if (startEl) startEl.value = rangeOverride;
+        if (endEl) endEl.value = maybeEnd;
+    } else if (rangeOverride && typeof rangeOverride === 'object') {
+        const { start, end } = rangeOverride;
+        const { startEl, endEl } = getGlobalDateElements();
+        if (startEl && start) startEl.value = start;
+        if (endEl && end) endEl.value = end;
     }
-    
-    if (new Date(start) > new Date(end)) {
-        alert("Tanggal awal tidak boleh melebihi tanggal akhir!");
-        return;
-    }
-    
+
+    const validation = validateGlobalDateRange({ requireBoth: true });
+    if (!validation.valid) return;
+    const { start, end } = validation;
+    const menuFilterInput = document.getElementById("menu-filter");
+    const menuFilter = menuFilterInput ? menuFilterInput.value.trim() : '';
+
     // Show loading state
     showLoading();
 
@@ -2458,7 +2789,22 @@ async function loadReport() {
     }
 }
 
-async function loadBestSellerData(start, end) {
+async function loadBestSellerData(rangeOverride = null, maybeEnd = null) {
+    if (typeof rangeOverride === 'string' && typeof maybeEnd === 'string') {
+        const { startEl, endEl } = getGlobalDateElements();
+        if (startEl) startEl.value = rangeOverride;
+        if (endEl) endEl.value = maybeEnd;
+    } else if (rangeOverride && typeof rangeOverride === 'object') {
+        const { start, end } = rangeOverride;
+        const { startEl, endEl } = getGlobalDateElements();
+        if (startEl && start) startEl.value = start;
+        if (endEl && end) endEl.value = end;
+    }
+
+    const validation = validateGlobalDateRange({ requireBoth: true });
+    if (!validation.valid) return;
+    const { start, end } = validation;
+
     try {
         console.log('Fetching best seller data for:', start, 'to', end);
         const res = await fetch(`/report/best_seller?start_date=${start}&end_date=${end}`);
@@ -3145,21 +3491,15 @@ function updateReportTableHeader() {
     if (ingredientLogsTable) ingredientLogsTable.classList.add('hidden');
 
     // Show appropriate table based on current data type
-    if (currentDataType === 'ingredient') {
-      const viewSelect = document.getElementById('ingredient-view-select');
-      const viewMode = viewSelect ? viewSelect.value : 'daily';
+        if (currentDataType === 'ingredient') {
+            const viewSelect = document.getElementById('ingredient-view-select');
+            const viewMode = viewSelect ? viewSelect.value : 'daily';
 
-      if (viewMode === 'daily') {
-        // Show daily view table
-        if (ingredientTable) {
-          ingredientTable.classList.remove('hidden');
-        }
-      } else {
-        // Show logs view table
-        if (ingredientLogsTable) {
-          ingredientLogsTable.classList.remove('hidden');
-        }
-      }
+            if (viewMode === 'daily') {
+                if (ingredientTable) ingredientTable.classList.remove('hidden');
+            } else {
+                if (ingredientLogsTable) ingredientLogsTable.classList.remove('hidden');
+            }
     } else if (currentDataType === 'best') {
       if (bestsellerTable) bestsellerTable.classList.remove('hidden');
     } else {
@@ -3200,55 +3540,50 @@ function renderReportTable() {
         currentPageData.forEach((item, i) => {
             const actualIndex = startIndex + i;
             if (currentDataType === 'ingredient') {
-                // Debug: log the item being rendered
-                console.log('Rendering ingredient item:', item);
-                console.log('Item has menu_name:', !!item.menu_name, 'Item has flavor:', !!item.flavor);
-                
-                // Check if this is logs view (has menu_name and flavor) or daily view
-                if (item.menu_name && item.flavor !== undefined) {
-                    console.log('Using logs view format');
-                    // Logs view - show menu, flavor, and detail button
+                const viewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
+                if (viewMode === 'logs') {
+                    // Render as logs row regardless of field presence to keep layout consistent
+                    const totalOrdersCol = (item.order_count ?? (Array.isArray(item.order_ids) ? item.order_ids.length : 0) ?? 0);
                     tbody.innerHTML += `
                         <tr onclick="openGroupedConsumptionModal('${(item.order_ids || []).join(',')}', '${item.date || ''}', '${item.status_text || ''}', '${item.menu_name || ''}', '${item.flavor || ''}')" style="cursor: pointer;">
                             <td>${actualIndex + 1}</td>
                             <td>${item.menu_name || '-'}</td>
                             <td>${item.flavor || 'Default'}</td>
                             <td>${item.date || '-'}</td>
-                            <td>${item.status_text || '-'}</td>
-                            <td>${(item.ingredients_affected ?? 0).toLocaleString()}</td>
+                            <td>${Number(totalOrdersCol).toLocaleString()}</td>
+                            <td>${(item.ingredients_affected ?? item.total_qty ?? 0).toLocaleString()}</td>
                             <td>
                                 <button class="table-action-btn" onclick="event.stopPropagation(); openGroupedConsumptionModal('${(item.order_ids || []).join(',')}', '${item.date || ''}', '${item.status_text || ''}', '${item.menu_name || ''}', '${item.flavor || ''}')" title="Lihat Detail">
                                     <i class="fas fa-eye"></i>
                                 </button>
                             </td>
                         </tr>`;
-                                 } else {
-                     console.log('Using daily view format');
-                     // Daily view - show aggregated data with detail button
-                     const dailySummary = item.daily_summary || {};
-                     const totalOrders = dailySummary.total_orders || 0;
-                     const uniqueMenus = dailySummary.unique_menus || 0;
-                     const totalConsumption = dailySummary.total_consumption || 0;
-                     
-                     tbody.innerHTML += `
-                         <tr onclick="viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="cursor: pointer;">
-                             <td>${actualIndex + 1}</td>
-                             <td style="font-weight: 600; color: #1F2937;">${item.date || '-'}</td>
-                             <td style="color: #6B7280; line-height: 1.4;">
-                                <div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
-                                    <span style="background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; padding:.2rem .5rem; border-radius:9999px; font-weight:600;">${totalOrders} total orders</span>
-                                    <span style="background:#F5F3FF; color:#4C1D95; border:1px solid #DDD6FE; padding:.2rem .5rem; border-radius:9999px; font-weight:600;">${uniqueMenus} unique menus</span>
-                                 </div>
-                             </td>
-                             <td style="text-align: center; font-weight: 600; color: #059669;">${totalOrders.toLocaleString()}</td>
-                             <td style="text-align: center; font-weight: 600; color: #DC2626;">${totalConsumption.toLocaleString()}</td>
-                             <td>
-                                 <button class="table-action-btn" onclick="event.stopPropagation(); viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="white-space: nowrap; min-width: 80px;">
-                                    <i class="fas fa-eye"></i>
-                                 </button>
-                             </td>
-                         </tr>`;
-                 }
+                } else {
+                    // Daily view row
+                    const dailySummary = item.daily_summary || {};
+                    const totalOrders = dailySummary.total_orders || 0;
+                    const uniqueMenus = dailySummary.unique_menus || 0;
+                    const totalConsumption = dailySummary.total_consumption || 0;
+                    
+                    tbody.innerHTML += `
+                        <tr onclick="viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="cursor: pointer;">
+                            <td>${actualIndex + 1}</td>
+                            <td style="font-weight: 600; color: #1F2937;">${item.date || '-'}</td>
+                            <td style="color: #6B7280; line-height: 1.4;">
+                               <div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
+                                   <span style="background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; padding:.2rem .5rem; border-radius:9999px; font-weight:600;">${totalOrders} total orders</span>
+                                   <span style="background:#F5F3FF; color:#4C1D95; border:1px solid #DDD6FE; padding:.2rem .5rem; border-radius:9999px; font-weight:600;">${uniqueMenus} unique menus</span>
+                                </div>
+                            </td>
+                            <td style="text-align: center; font-weight: 600; color: #059669;">${totalOrders.toLocaleString()}</td>
+                            <td style="text-align: center; font-weight: 600; color: #DC2626;">${totalConsumption.toLocaleString()}</td>
+                            <td>
+                                <button class="table-action-btn" onclick="event.stopPropagation(); viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="white-space: nowrap; min-width: 80px;">
+                                   <i class="fas fa-eye"></i>
+                                </button>
+                            </td>
+                        </tr>`;
+                }
             } else if (currentDataType === 'sales') {
                 // Sales data - show aggregated flavor information
                 console.log('Rendering sales item:', item);
@@ -3361,10 +3696,21 @@ function initializeElements() {
     
     // ========== SEARCH FUNCTIONS ==========
     function filterTableData(searchTerm) {
-    if (!baseData) return;
-    const source = Array.isArray(baseData) ? baseData : [];
+    if (!baseData && !ingredientDataCache) return;
     const term = (searchTerm || '').toLowerCase();
     if (currentDataType === 'ingredient') {
+        // Determine current ingredient view and pick the right dataset
+        const viewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
+        let source = [];
+        if (Array.isArray(baseData)) {
+            // In some flows, baseData may already be the active array
+            source = baseData;
+        } else if (baseData && typeof baseData === 'object') {
+            source = baseData[viewMode] || [];
+        } else if (ingredientDataCache && typeof ingredientDataCache === 'object') {
+            source = ingredientDataCache[viewMode] || [];
+        }
+
         filteredData = term
             ? source.filter(item => 
                 (item.menu_name || '').toLowerCase().includes(term) || 
@@ -3441,8 +3787,6 @@ async function applyReportFilter() {
     console.log('applyReportFilter called');
     const dataTypeSelect = document.getElementById('data-type-select');
     const sortSelect = document.getElementById('sort-select');
-    const start = document.getElementById("start_date").value;
-    const end = document.getElementById("end_date").value;
     
     toggleReportFilter();
     
@@ -3461,33 +3805,17 @@ async function applyReportFilter() {
         } else if (dataType === 'best') {
             // Load best seller data
             resetToNormalMode();
-            if (start && end) {
-                await loadBestSellerData(start, end);
-            } else {
-                applyModeLayout('best');
-                // Clear data if no dates
-                baseData = [];
-                filteredData = [];
-                reportCurrentPage = 1;
-                renderReportTable();
-                updateReportPagination();
-            }
+            const range = getValidatedGlobalRange(true, true);
+            if (!range) return;
+            await loadBestSellerData(range);
       // Ensure header is updated after best seller data load
       updateReportTableHeader();
         } else {
             // Load sales data
             resetToNormalMode();
-            if (start && end) {
-                await loadReport();
-            } else {
-                applyModeLayout('sales');
-                // Clear data if no dates
-                baseData = [];
-                filteredData = [];
-                reportCurrentPage = 1;
-                renderReportTable();
-                updateReportPagination();
-            }
+            const range = getValidatedGlobalRange(true, true);
+            if (!range) return;
+            await loadReport(range);
       // Ensure header is updated after sales data load
       updateReportTableHeader();
         }
@@ -3548,6 +3876,10 @@ function clearReportFilter() {
     const dataTypeSelect = document.getElementById('data-type-select');
     if (sortSelect) sortSelect.value = 'name';
     if (dataTypeSelect) dataTypeSelect.value = 'sales';
+    const menuFilterInput = document.getElementById('menu-filter');
+    if (menuFilterInput) menuFilterInput.value = '';
+    const tableSearch = document.getElementById('table-search-input');
+    if (tableSearch) tableSearch.value = '';
     
     // Close filter dropdown immediately
     const dd = document.getElementById('report-filter-dropdown');
@@ -3570,14 +3902,13 @@ function clearReportFilter() {
     }
     
     // Re-load sales view by default
-    const start = document.getElementById("start_date").value;
-    const end = document.getElementById("end_date").value;
     resetToNormalMode();
-    loadReport(start, end);
+    const periodSelect = document.getElementById('period-select');
+    if (periodSelect) periodSelect.value = 'today';
+    applyPeriodPreset('today', { triggerReload: true, updateSelect: true });
     applyModeLayout('sales');
     // Ensure header is updated after clearing filter
     updateReportTableHeader();
-    toggleReportFilter();
 }
 
 function resetToNormalMode() {
@@ -3657,51 +3988,22 @@ function applyIngredientModeLayout() {
     if (loyal) loyal.style.display = 'none';
     if (usulan) usulan.style.display = 'none';
 
-    // Update summary with ingredient analysis insights
-    updateIngredientSummary();
-}
-
-function updateIngredientSummary() {
-    const data = Array.isArray(baseData) ? baseData : [];
-    if (data.length === 0) return;
-    
-    // Calculate ingredient analysis insights
-    let totalOrders = 0;
-    let totalIngredients = 0;
-    let uniqueMenus = new Set();
-    let totalConsumption = 0;
-    
-    data.forEach(item => {
-        if (item.daily_summary) {
-            // Daily view data
-            totalOrders += item.daily_summary.total_orders || 0;
-            totalConsumption += item.daily_summary.total_consumption || 0;
-        } else if (item.menu_name) {
-            // Logs view data
-            totalOrders += 1;
-            totalIngredients += item.ingredients_affected || 0;
-            uniqueMenus.add(item.menu_name);
-        }
-    });
-    
-    // Update summary display
-    const summaryPeriod = document.getElementById('summary-period');
-    const summaryIncome = document.getElementById('summary-income');
-    const summaryOrders = document.getElementById('summary-orders');
-    
-    if (summaryPeriod) {
-        const startDate = document.getElementById('ingredient-start-date')?.value || 'N/A';
-        const endDate = document.getElementById('ingredient-end-date')?.value || 'N/A';
-        summaryPeriod.textContent = `${startDate} - ${endDate}`;
-    }
-    
-    if (summaryIncome) {
-        summaryIncome.textContent = `${totalConsumption.toLocaleString()} bahan`;
-    }
-    
-    if (summaryOrders) {
-        summaryOrders.textContent = `${totalOrders.toLocaleString()} pesanan`;
-    }
+    // Update summary with ingredient analysis insights and ensure filtered rows match current view
+    const currentViewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
+    const dataset = (ingredientDataCache && ingredientDataCache[currentViewMode]) ? ingredientDataCache[currentViewMode] : [];
+    const term = document.getElementById('table-search-input')?.value.toLowerCase() || '';
+    filteredData = term ? dataset.filter(i =>
+        (i.menu_name || '').toLowerCase().includes(term) ||
+        (i.flavor || '').toLowerCase().includes(term) ||
+        (i.order_id || '').toLowerCase().includes(term) ||
+        (i.date || '').toLowerCase().includes(term) ||
+        (i.status_text || '').toLowerCase().includes(term)
+    ) : [...dataset];
+    reportCurrentPage = 1;
+    renderReportTable();
+    updateReportPagination();
+    renderIngredientAnalysis(ingredientDataCache);
+    updateIngredientSummary(ingredientDataCache);
 }
 
 function applyModeLayout(mode) {
@@ -3787,8 +4089,37 @@ function onIngredientViewChange() {
     if (currentDataType === 'ingredient') {
         // Update table header first
         updateReportTableHeader();
-        // Then reload data
-        loadIngredientAnalysisData();
+        const viewContainer = document.getElementById('ingredient-view-container');
+        if (viewContainer) viewContainer.style.display = 'flex';
+
+        if (ingredientDataCache) {
+            const statusEl = document.getElementById('summary-status-badge');
+            const currentViewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
+            if (statusEl) {
+                statusEl.textContent = currentViewMode === 'daily' ? 'Analisis Bahan — Harian' : 'Analisis Bahan — Per-Order (Logs)';
+                statusEl.className = 'status-badge status-making';
+            }
+            const dataSet = ingredientDataCache[currentViewMode] || [];
+            const tableSearch = document.getElementById('table-search-input');
+            const term = tableSearch ? tableSearch.value.toLowerCase() : '';
+            filteredData = term
+                ? dataSet.filter(i => 
+                    (i.menu_name || '').toLowerCase().includes(term) ||
+                    (i.flavor || '').toLowerCase().includes(term) ||
+                    (i.order_id || '').toLowerCase().includes(term) ||
+                    (i.date || '').toLowerCase().includes(term) ||
+                    (i.status_text || '').toLowerCase().includes(term)
+                )
+                : [...dataSet];
+            reportCurrentPage = 1;
+            renderReportTable();
+            updateReportPagination();
+            renderIngredientAnalysis(ingredientDataCache);
+            updateIngredientSummary(ingredientDataCache);
+        } else {
+            // Fallback to fetch if cache missing
+            loadIngredientAnalysisData();
+        }
     }
 }
     
@@ -3796,17 +4127,20 @@ function onIngredientViewChange() {
 let autoRefreshTimer = null;
 function performRefresh() {
     if (isRefreshing || document.hidden) return;
-    isRefreshing = true;
-    const start = document.getElementById("start_date").value;
-    const end = document.getElementById("end_date").value;
     const dataType = document.getElementById('data-type-select')?.value || 'sales';
+    const requireGlobalRange = dataType !== 'ingredient';
+    const range = requireGlobalRange ? getValidatedGlobalRange(true, false) : null;
+    if (requireGlobalRange && !range) {
+        return;
+    }
+    isRefreshing = true;
     const done = () => { isRefreshing = false; };
     if (dataType === 'best') {
-        loadBestSellerData(start, end).finally(done);
+        loadBestSellerData(range).finally(done);
     } else if (dataType === 'ingredient') {
         loadIngredientAnalysisData().finally(done);
     } else {
-        loadReport().finally(done);
+        loadReport(range).finally(done);
     }
     // Update chart titles for clarity in ingredient mode
     const barTitleEl = document.querySelector('#chart-bar-card .column-title');
@@ -3866,12 +4200,8 @@ document.addEventListener('visibilitychange', () => {
                 clearTimeout(this.filterTimeout);
                 this.filterTimeout = setTimeout(() => {
                     lastUserInputAt = Date.now();
-                    const dataType = document.getElementById('data-type-select')?.value || 'sales';
-                    if (dataType === 'ingredient') {
-                        filterIngredientTableData(this.value);
-                    } else {
+                    // Use unified filter that understands the current data type and view mode
                     filterTableData(this.value);
-                    }
                 }, 300);
             });
         }
@@ -3896,16 +4226,22 @@ document.addEventListener('visibilitychange', () => {
         // Data type select (Sales / Best Seller / Ingredient Analysis)
         // Removed auto-change event listener - now only applies when "Terapkan" button is clicked
 
+        const periodSelect = document.getElementById('period-select');
+        if (periodSelect) {
+            periodSelect.addEventListener('change', function() {
+                if (this.value === 'custom') {
+                    suppressPeriodSync = false;
+                    return;
+                }
+                applyPeriodPreset(this.value, { triggerReload: true, updateSelect: true });
+            });
+        }
+
         // Auto refresh start
         startAutoRefresh();
         
-        // Load initial data if dates are set
-        const startDate = document.getElementById("start_date").value;
-        const endDate = document.getElementById("end_date").value;
-        if (startDate && endDate) {
-            // Load sales data by default
-            loadReport();
-        }
+        // Initialize default range (defaults to today)
+        initializeDefaultDateRange(true);
 
         // Kitchen status filter
         const kitchenStatusFilter = document.getElementById('kitchen-status-filter');
@@ -3933,15 +4269,12 @@ document.addEventListener('visibilitychange', () => {
         const startInput = document.getElementById('start_date');
         const endInput = document.getElementById('end_date');
         const onDateChange = () => {
-            reportCurrentPage = 1;
-            const dataType = document.getElementById('data-type-select')?.value || 'sales';
-            if (dataType === 'best') {
-                loadBestSellerData(startInput.value, endInput.value);
-            } else if (dataType === 'ingredient') {
-                loadIngredientAnalysisData();
-            } else {
-                loadReport();
+            if (!suppressPeriodSync) {
+                const periodEl = document.getElementById('period-select');
+                if (periodEl) periodEl.value = 'custom';
             }
+            reportCurrentPage = 1;
+            reloadCurrentMode();
         };
         if (startInput) startInput.addEventListener('change', onDateChange);
         if (endInput) endInput.addEventListener('change', onDateChange);
@@ -3956,30 +4289,6 @@ document.addEventListener('visibilitychange', () => {
             }
         });
     });
-    
-    // ========== INITIALIZATION ==========
-window.onload = () => {
-    console.log('Window loaded, initializing report page...');
-    const today = new Date().toISOString().split('T')[0];
-    const startDateInput = document.getElementById("start_date");
-    const endDateInput = document.getElementById("end_date");
-    
-    if (startDateInput && endDateInput) {
-        startDateInput.value = today;
-        endDateInput.value = today;
-        console.log('Set default dates:', today);
-        
-        // Load initial data
-        setTimeout(() => {
-            console.log('Loading initial report data...');
-    loadReport();
-        }, 100);
-    } else {
-        console.error('Date input elements not found');
-    }
-    
-        startAutoRefresh();
-};
 
 function getItemFlavorRaw(item) {
     if (!item || typeof item !== 'object') return '';
