@@ -742,7 +742,8 @@ async function loadIngredientAnalysisData() {
                         const rawDisplay = `${iso.split('-')[2]}/${iso.split('-')[1]}/${iso.split('-')[0]}`;
                         // Try to get menu details from kitchen orders
                         const kitchenOrder = kitchenOrdersCache.find(o => o.order_id === log.order_id);
-                        if (kitchenOrder && kitchenOrder.items && kitchenOrder.items.length > 0) {
+                        // Only include completed orders
+                        if (kitchenOrder && kitchenOrder.status === 'done' && kitchenOrder.items && kitchenOrder.items.length > 0) {
                             for (const menuItem of kitchenOrder.items) {
                                 const menuName = menuItem.menu_name || 'Unknown Menu';
                                 const flavor = menuItem.preference || 'Default';
@@ -756,7 +757,7 @@ async function loadIngredientAnalysisData() {
                                         total_ingredients: 0,
                                         order_ids: new Set(),
                                         date: rawDisplay,
-                                        status_text: 'DIKONSUMSI'
+                                        status_text: 'Selesai'
                                     };
                                 }
                                 
@@ -836,7 +837,7 @@ async function loadIngredientAnalysisData() {
                         const kitchenOrder = orderIdToKitchenOrder[orderId];
 
                         // Only include orders that are completed (done); skip cancelled and others
-                        if (!kitchenOrder || kitchenOrder.status !== 'done') {
+                        if (!kitchenOrder || String(kitchenOrder.status).toLowerCase() !== 'done') {
                             continue;
                         }
                         
@@ -920,6 +921,8 @@ async function loadIngredientAnalysisData() {
                 // Also create daily aggregated data for daily view
                 const dailyGroups = {};
                 for (const group of Object.values(menuFlavorGroups)) {
+                    // Skip non-completed if any slipped through
+                    if ((group.status_text || '').toLowerCase().includes('receive')) continue;
                     const dateKey = group.date;
                     if (!dailyGroups[dateKey]) {
                         dailyGroups[dateKey] = {
@@ -927,7 +930,7 @@ async function loadIngredientAnalysisData() {
                             total_ingredients: 0,
                             total_orders: 0,
                             order_ids: new Set(),
-                            status_text: 'DIKONSUMSI'
+                            status_text: 'Selesai'
                         };
                     }
                     dailyGroups[dateKey].total_ingredients += group.total_ingredients;
