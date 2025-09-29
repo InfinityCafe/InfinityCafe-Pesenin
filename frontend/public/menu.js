@@ -1514,6 +1514,13 @@ document.addEventListener('DOMContentLoaded', () => {
             renderRecipeIngredients();
         };
     }
+    const editAddIngredientBtn = document.getElementById('edit-add-ingredient-btn');
+    if (editAddIngredientBtn) {
+        editAddIngredientBtn.onclick = () => {
+            recipeIngredients.push({ ingredient_id: '', quantity: '', unit: '' });
+            renderEditRecipeIngredients();
+        };
+    }
     setupSearch();
     setupNavigation();
 });

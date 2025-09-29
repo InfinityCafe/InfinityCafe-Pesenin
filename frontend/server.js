@@ -118,10 +118,12 @@ app.post("/custom_order", async (req, res) => {
 
 app.post("/cancel_order", async (req, res) => {
   try {
-    const body = req.body;
-    const { order_id = "" } = body || {};
+    const body = req.body || {};
+  const { order_id = "", reason = "", status: desiredStatus } = body;
+  // Normalize status to 'cancelled' if not provided (align DB expectation)
+  const finalStatus = String(desiredStatus || "cancelled").toLowerCase();
 
-    // Cek status pesanan terlebih dahulu: hanya boleh 'receive'
+  // Cek status pesanan terlebih dahulu: hanya boleh dibatalkan saat status 'receive' atau 'making' atau 'deliver'
     try {
       const encodedOrderId = encodeURIComponent(String(order_id || ""));
       const statusResp = await fetch(`http://order_service:8002/order_status/${encodedOrderId}`, {
@@ -130,12 +132,21 @@ app.post("/cancel_order", async (req, res) => {
       });
       const statusJson = await statusResp.json().catch(() => ({}));
       const currentStatus = (statusJson && (statusJson.data?.status || statusJson.status)) || "";
-      if (String(currentStatus).toLowerCase() !== "receive") {
+      const normalizedStatus = String(currentStatus).toLowerCase();
+  const cancellableStatuses = ["receive", "making", "deliver"]; // diperbolehkan batal (termasuk deliver)
+      if (!cancellableStatuses.includes(normalizedStatus)) {
         return res.status(400).json({
           status: "failed",
-          message: "Pesanan hanya bisa dibatalkan saat status 'receive'"
+          current_status: currentStatus,
+          message: "Pesanan hanya bisa dibatalkan saat status 'receive' atau 'making'"
         });
       }
+      // if (String(currentStatus).toLowerCase() !== "receive") {
+      //   return res.status(400).json({
+      //     status: "failed",
+      //     message: "Pesanan hanya bisa dibatalkan saat status 'receive'"
+      //   });
+      // }
     } catch (checkErr) {
       console.error("Failed to verify order status before cancel ", checkErr);
       return res.status(500).json({ error: "Gagal memverifikasi status pesanan sebelum batal" });
@@ -145,18 +156,36 @@ app.post("/cancel_order", async (req, res) => {
     const resp = await fetch("http://order_service:8002/cancel_kitchen", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+      body: JSON.stringify({
+        ...body,
+        // Pastikan status dikirimkan dengan nilai final
+        status: finalStatus,
+        reason: reason || body.cancel_reason || "Cancelled"
+      })
     });
 
-    const data = await resp.json();
+    const dataText = await resp.text();
+    let data;
+    try { data = JSON.parse(dataText); } catch { data = { raw: dataText }; }
+
+    // Jika cancel ke order_service berhasil, update juga status di kitchen_service
+    if (resp.ok) {
+      try {
+        await fetch(
+          `http://kitchen_service:8003/kitchen/update_status/${encodeURIComponent(String(order_id))}?status=${encodeURIComponent(finalStatus)}&reason=${encodeURIComponent(reason || "Cancelled")}`,
+          { method: "POST" }
+        );
+      } catch (ke) {
+        console.error("Failed to update kitchen_service status after cancel ", ke);
+      }
+    }
 
     // Setelah cancel berhasil, trigger webhook ke n8n (GET) - non-blocking
     try {
-      const { order_id = "", reason = "" } = body;
       const qs = new URLSearchParams({
         order_id: String(order_id),
-        status: "cancelled", // status diset manual
-        reason: String(reason || "Cancelled by user")
+        status: String(finalStatus),
+        reason: String(reason || body.cancel_reason || "Cancelled by user")
       });
 
       fetch(`${N8N_WEBHOOK_URL}?${qs.toString()}`, { method: "GET" })
@@ -165,13 +194,191 @@ app.post("/cancel_order", async (req, res) => {
       console.error("n8n webhook error ", whErr);
     }
 
-    res.json(data);
+    // Sync kitchen record to reflect final cancelled status and active items removal
+    try {
+      if (order_id) {
+        await fetch(`http://kitchen_service:8003/kitchen/sync_order_items/${encodeURIComponent(String(order_id))}`, { method: "POST" });
+      }
+    } catch (syncErr) {
+      console.error("Failed to sync kitchen order after full cancel ", syncErr);
+    }
+
+    res.status(resp.ok ? 200 : 400).json(data);
   } catch (err) {
     console.error("Failed to cancel order ", err);
     res.status(500).json({ error: "Failed to cancel order" });
   }
 });
 
+// Cancel individual order item
+app.post("/cancel_order_item", async (req, res) => {
+  try {
+    const body = req.body;
+    
+    // Forward request to order service
+    const resp = await fetch("http://order_service:8002/cancel_order_item", {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+
+    const data = await resp.json();
+
+    // Trigger webhook to n8n for item cancellation (non-blocking)
+    try {
+      const { order_id = "", reason = "" } = body;
+      const qs = new URLSearchParams({
+        order_id: String(order_id),
+        status: "item_cancelled",
+        item_name: String(body.menu_name || ""),
+        reason: String(reason || "Item cancelled")
+      });
+
+      fetch(`${N8N_WEBHOOK_URL}?${qs.toString()}`, { method: "GET" })
+        .catch(err => console.error("Failed to call n8n webhook for item cancellation ", err));
+    } catch (whErr) {
+      console.error("n8n webhook error for item cancellation ", whErr);
+    }
+
+    // After item cancel, sync kitchen order items/status to reflect latest active items
+    try {
+      const orderId = body.order_id || (data && data.data && data.data.order_id) || "";
+      if (orderId) {
+        await fetch(`http://kitchen_service:8003/kitchen/sync_order_items/${encodeURIComponent(String(orderId))}`, { method: "POST" });
+      }
+    } catch (syncErr) {
+      console.error("Failed to sync kitchen order after item cancel ", syncErr);
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error("Failed to cancel order item ", err);
+    res.status(500).json({ error: "Failed to cancel order item" });
+  }
+});
+
+// Get cancelled items from database
+app.get("/get_cancelled_items", async (req, res) => {
+  try {
+    // Get today's orders with cancelled items from order service
+    const resp = await fetch("http://order_service:8002/today_orders", {
+      method: "GET",
+      headers: { "Content-Type": "application/json" }
+    });
+    
+    const data = await resp.json();
+    
+    if (data && data.orders) {
+      // Filter orders that have cancelled items and extract the cancelled items info
+      const cancelledItemsData = [];
+      
+      for (const order of data.orders) {
+        try {
+          // Get detailed order info including cancelled items
+          const orderResp = await fetch(`http://order_service:8002/order/status/${order.queue_number}`, {
+            method: "GET",
+            headers: { "Content-Type": "application/json" }
+          });
+          
+          if (orderResp.ok) {
+            const orderData = await orderResp.json();
+            const status = String(orderData.status || "").toLowerCase();
+            const hasCancelledArray = Array.isArray(orderData.cancelled_orders) && orderData.cancelled_orders.length > 0;
+            const shouldInclude = hasCancelledArray || ["cancelled", "habis"].includes(status);
+
+            if (shouldInclude) {
+              // Helper to normalize item fields
+              const normItem = (ci) => ({
+                item_id: ci.item_id || ci.id,
+                menu_name: ci.menu_name || ci.name || ci.menu,
+                quantity: ci.quantity || 1,
+                preference: ci.preference || "",
+                notes: ci.notes || "",
+                status: "cancelled",
+                cancel_reason: ci.cancel_reason || ci.cancelled_reason || ci.reason || (orderData.cancel_reason || "Dibatalkan"),
+                cancelled_at: ci.cancelled_at || ci.time_cancelled || ci.time_cancel || null
+              });
+
+              // Build cancelled items list
+              let cancelledItems = [];
+              if (hasCancelledArray) {
+                cancelledItems = orderData.cancelled_orders.map(normItem);
+              } else {
+                // For fully-cancelled order without per-item info, try richer by-id endpoint
+                let sourceItems = Array.isArray(orderData.items) ? orderData.items : [];
+                if ((!sourceItems || sourceItems.length === 0) && orderData.order_id) {
+                  try {
+                    const byIdResp = await fetch(`http://order_service:8002/order_status/${encodeURIComponent(String(orderData.order_id))}`, {
+                      method: "GET",
+                      headers: { "Content-Type": "application/json" }
+                    });
+                    if (byIdResp.ok) {
+                      const byIdJson = await byIdResp.json().catch(() => ({}));
+                      const byIdData = (byIdJson && byIdJson.data) || byIdJson;
+                      // Prefer cancelled_orders if available; fallback to orders (active list)
+                      const cancelledList = Array.isArray(byIdData?.cancelled_orders) ? byIdData.cancelled_orders : [];
+                      const ordersList = Array.isArray(byIdData?.orders) ? byIdData.orders : [];
+                      const preferList = cancelledList.length > 0 ? cancelledList : ordersList;
+                      if (preferList.length > 0) sourceItems = preferList;
+                    }
+                  } catch (e) {
+                    console.error("Fallback order_status by id failed: ", e);
+                  }
+                }
+                cancelledItems = (sourceItems || []).map(it => normItem(it));
+              }
+
+              // Derive a reasonable time_cancelled
+              let timeCancelled = orderData.time_cancelled;
+              if (!timeCancelled) {
+                const times = cancelledItems
+                  .map(ci => ci.cancelled_at || ci.time_cancelled || ci.time_cancel || null)
+                  .filter(Boolean)
+                  .map(t => new Date(t).getTime())
+                  .filter(n => !Number.isNaN(n));
+                if (times.length > 0) {
+                  timeCancelled = new Date(Math.max(...times)).toISOString();
+                }
+              }
+
+              cancelledItemsData.push({
+                order_id: orderData.order_id,
+                queue_number: orderData.queue_number || order.queue_number,
+                customer_name: orderData.customer_name,
+                room_name: orderData.room_name,
+                time_cancelled: timeCancelled || null,
+                cancelled_items: cancelledItems
+              });
+            }
+          }
+        } catch (orderErr) {
+          console.error(`Error fetching order details for ${order.queue_number}:`, orderErr);
+        }
+      }
+      
+      res.json({
+        status: "success",
+        data: cancelledItemsData,
+        message: `Found ${cancelledItemsData.length} orders with cancelled items`
+      });
+    } else {
+      res.json({
+        status: "success", 
+        data: [],
+        message: "No orders found"
+      });
+    }
+  } catch (err) {
+    console.error("Failed to get cancelled items ", err);
+    res.status(500).json({ 
+      status: "error",
+      error: "Failed to get cancelled items",
+      message: err.message
+    });
+  }
+});
 
 // Kitchen endpoints
 app.get("/kitchen/orders", async (req, res) => {
@@ -266,7 +473,7 @@ app.get("/menu", async (req, res) => {
 // Admin passthrough for all menus (same as list, explicit path)
 app.get("/menu/all", async (req, res) => {
   try {
-    const resp = await fetch("http://menu_service:8001/menu");
+    const resp = await fetch("http://menu_service:8001/menu/all");
     const data = await resp.json();
     res.set('Cache-Control', 'no-store');
     res.json(data);
