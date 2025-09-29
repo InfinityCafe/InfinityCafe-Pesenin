@@ -49,7 +49,7 @@ def get_jakarta_isoformat(dt):
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL_INVENTORY")
-MENU_SERVICE_URL = os.getenv("MENU_SERVICE_URL", "http://menu_service:8003")
+MENU_SERVICE_URL = os.getenv("MENU_SERVICE_URL", "http://menu_service:8001")
 USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://user_service:8001")
 
 if not DATABASE_URL:
@@ -198,6 +198,10 @@ class ConsumptionIngredientDetail(Base):
     stock_before = Column(Float, nullable=False)
     stock_after = Column(Float, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
+    # New optional fields to support per-item logging and better rollback
+    order_item_id = Column(Integer, nullable=True)
+    menu_name = Column(String, nullable=True)
+    preference = Column(String, nullable=True)
     
     consumption_log = relationship("ConsumptionLog", backref="ingredient_details")
     ingredient = relationship("Inventory", backref="consumption_details")
@@ -271,6 +275,8 @@ class BatchStockItem(BaseModel):
     menu_name: str
     quantity: int = Field(gt=0)
     preference: Optional[str] = ""
+    # Optional order item id for per-item consumption tracking
+    item_id: Optional[int] = None
 
 class FlavorMappingRequest(BaseModel):
     flavor_name: str = Field(..., description="Nama flavor (e.g., 'Irish Max')")
@@ -304,6 +310,16 @@ class BatchStockResponse(BaseModel):
     partial_suggestions: list = Field(default_factory=list)
     details: list = Field(default_factory=list)
     debug_info: list = Field(default_factory=list)
+
+class PartialRollbackItem(BaseModel):
+    menu_name: str
+    quantity: int = Field(gt=0)
+    preference: Optional[str] = ""
+    item_id: Optional[int] = None
+
+class PartialRollbackRequest(BaseModel):
+    order_id: str
+    items: list[PartialRollbackItem]
 
 class StockAddRequestWithAudit(BaseModel):
     ingredient_id: int = Field(..., description="ID ingredient yang akan ditambah stoknya")
@@ -416,7 +432,10 @@ def create_consumption_log_simplified(db: Session, order_id: str, menu_items_dat
                     quantity_consumed=ingredient_data.get('deducted', 0),
                     unit=ingredient_data.get('unit', ''),
                     stock_before=ingredient_data.get('before', 0),
-                    stock_after=ingredient_data.get('after', 0)
+                    stock_after=ingredient_data.get('after', 0),
+                    order_item_id=ingredient_data.get('order_item_id'),
+                    menu_name=ingredient_data.get('menu_name'),
+                    preference=ingredient_data.get('preference')
                 )
                 db.add(ingredient_detail)
         
@@ -500,7 +519,10 @@ def update_consumption_status(db: Session, order_id: str, new_status: str, ingre
                     quantity_consumed=ingredient_data.get('deducted', 0),
                     unit=ingredient_data.get('unit', ''),
                     stock_before=ingredient_data.get('before', 0),
-                    stock_after=ingredient_data.get('after', 0)
+                    stock_after=ingredient_data.get('after', 0),
+                    order_item_id=ingredient_data.get('order_item_id'),
+                    menu_name=ingredient_data.get('menu_name'),
+                    preference=ingredient_data.get('preference')
                 )
                 db.add(ingredient_detail)
             
@@ -1725,6 +1747,7 @@ def check_and_consume(
 
     need_map = {} 
     per_menu_detail = []
+    per_item_contributions = []  # list of per-item ingredient usage for logging
     shortages = []
     
     for it in req.items:
@@ -1742,6 +1765,15 @@ def check_and_consume(
             need_map.setdefault(ing_id, {"needed": 0, "unit": r["unit"], "menus": set()})
             need_map[ing_id]["needed"] += r["quantity"] * it.quantity
             need_map[ing_id]["menus"].add(it.menu_name)
+            # Track per-item contribution
+            per_item_contributions.append({
+                "order_item_id": getattr(it, 'item_id', None),
+                "menu_name": it.menu_name,
+                "preference": (it.preference or "").strip(),
+                "ingredient_id": ing_id,
+                "unit": r["unit"],
+                "deducted": float(r["quantity"]) * it.quantity
+            })
         
         preference = it.preference or ""  
         print(f"🔍 DEBUG: Checking preference for {it.menu_name}: '{preference}'")
@@ -1769,6 +1801,15 @@ def check_and_consume(
                 need_map.setdefault(flavor_id, {"needed": 0, "unit": flavor_unit, "menus": set()})
                 need_map[flavor_id]["needed"] += flavor_qty * it.quantity
                 need_map[flavor_id]["menus"].add(f"{it.menu_name} ({preference})")
+                # Track per-item flavor contribution
+                per_item_contributions.append({
+                    "order_item_id": getattr(it, 'item_id', None),
+                    "menu_name": it.menu_name,
+                    "preference": (it.preference or "").strip(),
+                    "ingredient_id": flavor_id,
+                    "unit": flavor_unit,
+                    "deducted": float(flavor_qty) * it.quantity
+                })
                 
                 print(f"🎯 DEBUG: Added flavor {preference} (ID:{flavor_id}) {flavor_qty}{flavor_unit} for {it.menu_name}")
                 debug_info.append(f"Added flavor {preference} (ID:{flavor_id}) {flavor_qty}{flavor_unit} for {it.menu_name}")
@@ -1897,8 +1938,8 @@ def check_and_consume(
         )
 
     if not consume:
-        if not existing:
-            create_consumption_log_simplified(db, req.order_id, per_menu_detail, status='pending')
+        # Hanya cek ketersediaan: JANGAN membuat consumption_log 'pending' agar tidak membingungkan.
+        # Log konsumsi akan dibuat saat proses consume sebenarnya dipanggil.
         last_debug_info = debug_info
         return BatchStockResponse(can_fulfill=True, shortages=[], partial_suggestions=[], details=per_menu_detail, debug_info=debug_info)
 
@@ -1911,6 +1952,7 @@ def check_and_consume(
             if inv.current_quantity < data["needed"]:
                 raise ValueError(f"❌ GAGAL: {inv.name} stok tidak cukup - perlu {data['needed']}, tersedia {inv.current_quantity}")
         
+        per_ing_before_after = {}
         for ing_id, data in need_map.items():
             inv = inv_map[ing_id]
             before = inv.current_quantity
@@ -1940,10 +1982,28 @@ def check_and_consume(
                 "after": inv.current_quantity,
                 "unit": data["unit"]
             })
+            per_ing_before_after[ing_id] = {"before": before, "after": inv.current_quantity}
+        # Build per-item details rows using per_item_contributions, attach ingredient_name and stock before/after
+        per_item_details = []
+        for contrib in per_item_contributions:
+            ing_id = contrib["ingredient_id"]
+            inv = inv_map.get(ing_id)
+            before_after = per_ing_before_after.get(ing_id, {"before": 0, "after": 0})
+            per_item_details.append({
+                "ingredient_id": ing_id,
+                "ingredient_name": inv.name if inv else f"ID-{ing_id}",
+                "deducted": contrib["deducted"],
+                "before": before_after["before"],
+                "after": before_after["after"],
+                "unit": contrib["unit"],
+                "order_item_id": contrib.get("order_item_id"),
+                "menu_name": contrib.get("menu_name"),
+                "preference": contrib.get("preference")
+            })
         if existing:
-            update_consumption_status(db, req.order_id, 'consumed', per_ing_detail)
+            update_consumption_status(db, req.order_id, 'consumed', per_item_details)
         else:
-            consumption_log_id = create_consumption_log_simplified(db, req.order_id, per_menu_detail, per_ing_detail, 'consumed')
+            consumption_log_id = create_consumption_log_simplified(db, req.order_id, per_menu_detail, per_item_details, 'consumed')
         
         logging.info(f"✅ Stok berhasil dikonsumsi untuk order {req.order_id}: {len(per_ing_detail)} ingredients")
         last_debug_info = debug_info
@@ -1975,7 +2035,6 @@ def rollback_stock(order_id: str, db: Session = Depends(get_db)):
                 Inventory.id == detail.ingredient_id
             ).first()
             if ingredient:
-                ingredient.current_quantity += detail.quantity_consumed
                 before_rollback = ingredient.current_quantity
                 ingredient.current_quantity += detail.quantity_consumed
                 after_rollback = ingredient.current_quantity
@@ -2003,6 +2062,141 @@ def rollback_stock(order_id: str, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         return {"success": False, "message": f"Error rollback: {str(e)}"}
+
+@app.post("/stock/rollback_partial", summary="Rollback sebagian stok untuk item tertentu", tags=["Stock Management"])
+def rollback_partial(req: PartialRollbackRequest, db: Session = Depends(get_db)):
+    """Mengembalikan stok untuk item tertentu dalam order. Menggunakan per-item detail jika tersedia."""
+    try:
+        log = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == req.order_id).first()
+        if not log:
+            return {"success": False, "message": f"Tidak ada log konsumsi untuk order {req.order_id}"}
+
+        # Build map of ingredient_id -> total to restore from requested items
+        to_restore = {}
+        # Use flavor mapping and menu recipes to reconstruct if per-item rows missing
+        # First try per-item detail rows by item_id if present
+        item_ids = [it.item_id for it in req.items if getattr(it, 'item_id', None)]
+        used_per_item_rows = False
+        if item_ids:
+            rows = db.query(ConsumptionIngredientDetail).filter(
+                ConsumptionIngredientDetail.consumption_log_id == log.id,
+                ConsumptionIngredientDetail.order_item_id.in_(item_ids)
+            ).all()
+            if rows:
+                used_per_item_rows = True
+                for row in rows:
+                    to_restore[row.ingredient_id] = to_restore.get(row.ingredient_id, 0.0) + float(row.quantity_consumed)
+
+        if not used_per_item_rows:
+            # Fallback: reconstruct using recipes and flavor mapping
+            try:
+                resp = requests.post(
+                    f"{MENU_SERVICE_URL}/recipes/batch",
+                    json={"menu_names": [i.menu_name for i in req.items]},
+                    timeout=6
+                )
+                resp.raise_for_status()
+                recipes = resp.json().get("recipes", {})
+            except Exception as e:
+                return {"success": False, "message": f"Gagal ambil resep: {e}"}
+
+            for it in req.items:
+                for r in recipes.get(it.menu_name, []) or []:
+                    ing_id = r.get("ingredient_id")
+                    to_restore[ing_id] = to_restore.get(ing_id, 0.0) + float(r.get("quantity") or 0) * it.quantity
+                pref = (it.preference or "").strip()
+                if pref:
+                    mapping = db.query(FlavorMapping).filter(FlavorMapping.flavor_name == pref).first()
+                    if mapping:
+                        qty = mapping.quantity_per_serving
+                        if it.menu_name and "milkshake" in it.menu_name.lower() and (mapping.unit == UnitType.gram):
+                            qty = max(qty, 30)
+                        elif it.menu_name and "squash" in it.menu_name.lower() and (mapping.unit == UnitType.milliliter):
+                            qty = min(qty, 20)
+                        elif it.menu_name and any(k in it.menu_name.lower() for k in ["custom", "special", "premium"]) and (mapping.unit == UnitType.milliliter):
+                            qty = qty * 1.4
+                        to_restore[mapping.ingredient_id] = to_restore.get(mapping.ingredient_id, 0.0) + qty * it.quantity
+
+        # Cap restoration to what was actually consumed in this log
+        ing_rows = db.query(ConsumptionIngredientDetail).filter(
+            ConsumptionIngredientDetail.consumption_log_id == log.id
+        ).all()
+        consumed_map = {}
+        for row in ing_rows:
+            consumed_map[row.ingredient_id] = consumed_map.get(row.ingredient_id, 0.0) + float(row.quantity_consumed)
+
+        restored = []
+        for ing_id, req_qty in to_restore.items():
+            max_available = consumed_map.get(ing_id, 0.0)
+            if max_available <= 0:
+                continue
+            restore_qty = min(req_qty, max_available)
+            ing = db.query(Inventory).filter(Inventory.id == ing_id).first()
+            if not ing:
+                continue
+            before = ing.current_quantity
+            ing.current_quantity = before + restore_qty
+            after = ing.current_quantity
+            create_stock_history(
+                db=db,
+                ingredient_id=ing_id,
+                action_type="rollback",
+                quantity_before=before,
+                quantity_after=after,
+                performed_by="SYSTEM",
+                notes=f"Partial rollback order {req.order_id} +{restore_qty}",
+                order_id=req.order_id
+            )
+
+            # Reduce or remove detail rows
+            remain = restore_qty
+            # Prefer reducing per-item rows for these items if available
+            if item_ids:
+                rows = db.query(ConsumptionIngredientDetail).filter(
+                    ConsumptionIngredientDetail.consumption_log_id == log.id,
+                    ConsumptionIngredientDetail.ingredient_id == ing_id,
+                    ConsumptionIngredientDetail.order_item_id.in_(item_ids)
+                ).order_by(ConsumptionIngredientDetail.id.asc()).all()
+            else:
+                rows = db.query(ConsumptionIngredientDetail).filter(
+                    ConsumptionIngredientDetail.consumption_log_id == log.id,
+                    ConsumptionIngredientDetail.ingredient_id == ing_id
+                ).order_by(ConsumptionIngredientDetail.id.asc()).all()
+
+            for row in rows:
+                if remain <= 0:
+                    break
+                dec = min(float(row.quantity_consumed), remain)
+                row.quantity_consumed = float(row.quantity_consumed) - dec
+                remain -= dec
+                if row.quantity_consumed <= 0.000001:
+                    db.delete(row)
+
+            restored.append({
+                "ingredient_id": ing_id,
+                "ingredient_name": ing.name,
+                "restored": restore_qty,
+                "unit": ing.unit.value
+            })
+
+        # Update log status: if no ingredient details remain, mark rolled_back else keep consumed
+        remaining = db.query(ConsumptionIngredientDetail).filter(
+            ConsumptionIngredientDetail.consumption_log_id == log.id
+        ).count()
+        if remaining == 0:
+            log.status = 'rolled_back'
+            log.rolled_back_at = datetime.now(jakarta_tz)
+        db.commit()
+
+        return {
+            "success": True,
+            "message": f"Partial rollback berhasil untuk order {req.order_id}",
+            "restored": restored,
+            "remaining_ingredients_entries": remaining
+        }
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "message": f"Error partial rollback: {str(e)}"}
 
 @app.get("/flavors", summary="Daftar flavor yang tersedia", tags=["Utility"])
 def get_available_flavors(db: Session = Depends(get_db)):
@@ -2550,9 +2744,23 @@ def get_daily_consumption_history(
 
 def init_db():
     try:
+        # Ensure base tables exist
         Base.metadata.create_all(bind=engine)
-        with engine.connect() as conn:
+        # Run lightweight schema migrations with an explicit transaction so DDL is committed
+        with engine.begin() as conn:
             conn.exec_driver_sql("SELECT 1")
+            try:
+                conn.exec_driver_sql(
+                    "ALTER TABLE consumption_ingredient_details ADD COLUMN IF NOT EXISTS order_item_id INTEGER"
+                )
+                conn.exec_driver_sql(
+                    "ALTER TABLE consumption_ingredient_details ADD COLUMN IF NOT EXISTS menu_name VARCHAR"
+                )
+                conn.exec_driver_sql(
+                    "ALTER TABLE consumption_ingredient_details ADD COLUMN IF NOT EXISTS preference VARCHAR"
+                )
+            except Exception as mig_e:
+                logging.warning(f"Schema migration warning: {mig_e}")
         logging.info("✅ inventory_service: migrasi selesai. Tables: %s", list(Base.metadata.tables.keys()))
     except Exception as e:
         logging.exception(f"❌ Gagal init_db inventory_service: {e}")

@@ -268,6 +268,27 @@ def validate_room_name(room_name: str, db: Session) -> Optional[str]:
     
     return None
 
+def check_stock_combined(order_items: List["OrderItemSchema"], order_id: str) -> dict:
+    """Cek stok untuk seluruh pesanan sekaligus agar memperhitungkan bahan yang sama.
+    Mengembalikan dict response dari inventory_service /stock/check_availability
+    """
+    try:
+        payload = {
+            "order_id": order_id,
+            "items": [
+                {
+                    "menu_name": it.menu_name,
+                    "quantity": it.quantity,
+                    "preference": (it.preference or "")
+                } for it in order_items
+            ]
+        }
+        resp = requests.post(f"{INVENTORY_SERVICE_URL}/stock/check_availability", json=payload, timeout=7)
+        return resp.json() if resp is not None else {"success": False, "can_fulfill": False, "message": "No response"}
+    except Exception as e:
+        logging.error(f"Error combined stock check: {e}")
+        return {"success": False, "can_fulfill": False, "message": str(e)}
+
 def cancel_order_item_by_stock(order_id: str, menu_name: str, reason: str, db: Session) -> dict:
     """
     Membatalkan item order tertentu karena stok habis.
@@ -665,6 +686,29 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         return JSONResponse(status_code=200, content={"status": "error", "message": f"Pesanan dengan ID {order_id} sudah dalam proses.", "data": None})
     
     try:
+        # Guard: pastikan kombinasi item bisa dipenuhi (cek agregat sekali)
+        combined_check = check_stock_combined(req.orders, temp_order_id)
+        if not combined_check.get("can_fulfill", False):
+            shortages = combined_check.get("shortages") or []
+            # Format pesan ringkas berdasarkan bahan yang kurang
+            if shortages:
+                detail = "; ".join([
+                    f"{s.get('ingredient_name','?')}: perlu {s.get('required',0)} tersedia {s.get('available',0)}"
+                    for s in shortages[:5]
+                ])
+                extra = f" dan {max(0, len(shortages)-5)} item lainnya" if len(shortages) > 5 else ""
+                msg = f"Stok tidak mencukupi untuk kombinasi menu ini. Detail: {detail}{extra}"
+            else:
+                msg = combined_check.get("message", "Stok tidak mencukupi untuk kombinasi menu ini")
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": msg,
+                "data": {
+                    "order_id": temp_order_id,
+                    "shortages": shortages
+                }
+            })
+
         # Cek stok per item untuk partial cancellation
         can_fulfill_all, available_items, unavailable_items = check_stock_per_item(req.orders, temp_order_id)
         
@@ -765,12 +809,21 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
 
     try:
         print(f"🔥 ORDER SERVICE: Mengkonsumsi stok untuk order {order_id}")
-        # Hanya konsumsi stok untuk item yang tersedia
+        # Hanya konsumsi stok untuk item yang tersedia (status active)
+        active_items = db.query(OrderItem).filter(
+            OrderItem.order_id == order_id,
+            OrderItem.status == "active"
+        ).all()
         consume_payload = {
             "order_id": order_id,
             "items": [
-                {"menu_name": item.menu_name, "quantity": item.quantity, "preference": item.preference}
-                for item in order_items_to_create
+                {
+                    "menu_name": item.menu_name,
+                    "quantity": item.quantity,
+                    "preference": item.preference,
+                    "item_id": item.id
+                }
+                for item in active_items
             ]
         }
         consume_resp = requests.post(
@@ -964,6 +1017,28 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     
     
     try:
+        # Guard: pastikan kombinasi item bisa dipenuhi (cek agregat sekali)
+        combined_check = check_stock_combined(req.orders, temp_order_id)
+        if not combined_check.get("can_fulfill", False):
+            shortages = combined_check.get("shortages") or []
+            if shortages:
+                detail = "; ".join([
+                    f"{s.get('ingredient_name','?')}: perlu {s.get('required',0)} tersedia {s.get('available',0)}"
+                    for s in shortages[:5]
+                ])
+                extra = f" dan {max(0, len(shortages)-5)} item lainnya" if len(shortages) > 5 else ""
+                msg = f"Stok tidak mencukupi untuk kombinasi menu ini. Detail: {detail}{extra}"
+            else:
+                msg = combined_check.get("message", "Stok tidak mencukupi untuk kombinasi menu ini")
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": msg,
+                "data": {
+                    "order_id": temp_order_id,
+                    "shortages": shortages
+                }
+            })
+
         # Cek stok per item untuk partial cancellation (sama seperti create_order)
         can_fulfill_all, available_items, unavailable_items = check_stock_per_item(req.orders, temp_order_id)
         
@@ -1065,12 +1140,21 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
 
     try:
         print(f"🔥 ORDER SERVICE: Mengkonsumsi stok untuk custom order {order_id}")
-        # Hanya konsumsi stok untuk item yang tersedia
+        # Hanya konsumsi stok untuk item yang tersedia (status active)
+        active_items = db.query(OrderItem).filter(
+            OrderItem.order_id == order_id,
+            OrderItem.status == "active"
+        ).all()
         consume_payload = {
             "order_id": order_id,
             "items": [
-                {"menu_name": item.menu_name, "quantity": item.quantity, "preference": item.preference}
-                for item in order_items_to_create
+                {
+                    "menu_name": item.menu_name,
+                    "quantity": item.quantity,
+                    "preference": item.preference,
+                    "item_id": item.id
+                }
+                for item in active_items
             ]
         }
         consume_resp = requests.post(
@@ -1426,7 +1510,8 @@ async def cancel_order_item_endpoint(request: Request, db: Session = Depends(get
                 {
                     "menu_name": order_item.menu_name,
                     "quantity": order_item.quantity,
-                    "preference": order_item.preference
+                    "preference": order_item.preference,
+                    "item_id": order_item.id
                 }
             ]
         }
