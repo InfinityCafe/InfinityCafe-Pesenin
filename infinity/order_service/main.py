@@ -522,7 +522,8 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         # Jika item memiliki preference, validasi apakah menu tersebut boleh memiliki flavor
         if item.preference and item.preference.strip():
             try:
-                flavor_url = f"{MENU_SERVICE_URL}/menu/by_name/{item.menu_name}/flavors"
+                # Ambil hanya flavor yang available (isAvail=True) untuk validasi
+                flavor_url = f"{MENU_SERVICE_URL}/menu/by_name/{item.menu_name}/flavors?include_unavailable=false"
                 logging.info(f"🔍 DEBUG: Validating flavor for menu '{item.menu_name}', preference: '{item.preference}'")
                 logging.info(f"🔍 DEBUG: Calling flavor endpoint: {flavor_url}")
                 flavor_response = requests.get(flavor_url, timeout=3)
@@ -532,9 +533,30 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
                     return JSONResponse(status_code=200, content={"status": "error", "message": f"Gagal mendapatkan data rasa untuk {item.menu_name}", "data": None})
                 
                 available_flavors = flavor_response.json()
-                
-                # Jika menu tidak memiliki pasangan flavor sama sekali
+
+                # Jika tidak ada flavor available, cek apakah sebenarnya menu punya flavor tapi sedang tidak tersedia
                 if not available_flavors or len(available_flavors) == 0:
+                    try:
+                        all_flavors_resp = requests.get(
+                            f"{MENU_SERVICE_URL}/menu/by_name/{item.menu_name}/flavors?include_unavailable=true",
+                            timeout=3
+                        )
+                        if all_flavors_resp.status_code == 200 and len(all_flavors_resp.json() or []) > 0:
+                            return JSONResponse(
+                                status_code=200,
+                                content={
+                                    "status": "error",
+                                    "message": f"Semua varian rasa untuk '{item.menu_name}' sedang tidak tersedia. Silakan pilih menu lain atau coba lagi nanti.",
+                                    "data": {
+                                        "menu_item": item.menu_name,
+                                        "invalid_preference": item.preference,
+                                        "reason": "Semua flavor sedang tidak tersedia"
+                                    }
+                                }
+                            )
+                    except Exception:
+                        pass
+                    # Default: menu memang tidak punya flavor standar
                     logging.info(f"🚫 DEBUG: Menu '{item.menu_name}' tidak memiliki pasangan flavor, tapi preference diberikan: '{item.preference}'")
                     return JSONResponse(
                         status_code=200,
@@ -614,7 +636,8 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         # Menu yang wajib memiliki flavor tapi tidak ada preference
         elif item.menu_name in flavor_required_menus and not item.preference:
             try:
-                flavor_url = f"{MENU_SERVICE_URL}/menu/by_name/{item.menu_name}/flavors"
+                # Ambil hanya flavor yang available (isAvail=True) untuk validasi
+                flavor_url = f"{MENU_SERVICE_URL}/menu/by_name/{item.menu_name}/flavors?include_unavailable=false"
                 flavor_response = requests.get(flavor_url, timeout=3)
                 
                 if flavor_response.status_code == 200:
