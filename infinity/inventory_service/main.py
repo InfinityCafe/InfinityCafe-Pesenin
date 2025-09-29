@@ -2787,3 +2787,124 @@ def start_outbox_worker():
                 db.close()
             time.sleep(5)
     threading.Thread(target=worker, daemon=True).start()
+
+# ==========================
+# Consumption log utilities
+# ==========================
+
+def _format_consumption_log_entry(db: Session, log: ConsumptionLog):
+    """Internal helper to format a consumption log entry for UI/compat."""
+    try:
+        menu_names = json.loads(log.menu_names) if log.menu_names else []
+    except (json.JSONDecodeError, TypeError):
+        menu_names = []
+
+    # Build a compact payload similar to older frontend expectations
+    per_menu_payload = []
+    if menu_names:
+        # Best effort: count occurrences if duplicates exist
+        from collections import Counter
+        counts = Counter(menu_names)
+        for name, qty in counts.items():
+            per_menu_payload.append({"name": name, "quantity": qty})
+
+    ingredient_count = db.query(ConsumptionIngredientDetail).filter(
+        ConsumptionIngredientDetail.consumption_log_id == log.id
+    ).count()
+
+    return {
+        "order_id": log.order_id,
+        "per_menu_payload": json.dumps(per_menu_payload) if per_menu_payload else None,
+        "consumed": (log.status == 'consumed'),
+        "rolled_back": (log.status == 'rolled_back'),
+        "ingredients_affected": ingredient_count,
+        "status": log.status,
+        "created_at": log.created_at.isoformat() if log.created_at else None,
+        "consumed_at": log.consumed_at.isoformat() if log.consumed_at else None,
+        "rolled_back_at": log.rolled_back_at.isoformat() if log.rolled_back_at else None,
+        "menu_summary": log.menu_summary,
+    }
+
+
+@app.get("/consumption_log", summary="Daftar consumption log (kompatibel frontend)", tags=["Stock Management"])
+def list_consumption_logs(limit: int = Query(50, ge=1, le=500), db: Session = Depends(get_db)):
+    """Expose consumption logs for UI. Includes minimal fields and consumed flags."""
+    logs = db.query(ConsumptionLog).order_by(ConsumptionLog.created_at.desc()).limit(limit).all()
+    data = [_format_consumption_log_entry(db, log) for log in logs]
+    # Frontend expects a raw array in some routes
+    return data
+
+
+@app.get("/consumption_log/{order_id}", summary="Detail consumption log per order", tags=["Stock Management"])
+def get_consumption_log(order_id: str, db: Session = Depends(get_db)):
+    log = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
+    if not log:
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": f"Consumption log untuk order '{order_id}' tidak ditemukan",
+            "data": None
+        })
+
+    details = db.query(ConsumptionIngredientDetail).filter(
+        ConsumptionIngredientDetail.consumption_log_id == log.id
+    ).order_by(ConsumptionIngredientDetail.id.asc()).all()
+
+    return JSONResponse(status_code=200, content={
+        "status": "success",
+        "message": f"Consumption log untuk order {order_id}",
+        "data": {
+            "log": _format_consumption_log_entry(db, log),
+            "ingredients": [
+                {
+                    "ingredient_id": d.ingredient_id,
+                    "ingredient_name": d.ingredient_name,
+                    "quantity_consumed": d.quantity_consumed,
+                    "unit": d.unit,
+                    "stock_before": d.stock_before,
+                    "stock_after": d.stock_after,
+                    "order_item_id": d.order_item_id,
+                    "menu_name": d.menu_name,
+                    "preference": d.preference,
+                    "created_at": d.created_at.isoformat() if d.created_at else None,
+                }
+                for d in details
+            ]
+        }
+    })
+
+
+@app.post("/admin/fix_pending_consumption_logs", summary="Perbaiki log 'pending' jadi 'consumed' bila sudah ada history consume", tags=["Admin"])
+def fix_pending_consumption_logs(db: Session = Depends(get_db)):
+    """
+    Repair utility: find consumption logs with status 'pending' that already have
+    stock histories with action_type='consume' for the same order_id, then mark them
+    as 'consumed' and set consumed_at. Useful to fix legacy pending logs.
+    """
+    try:
+        pending_logs = db.query(ConsumptionLog).filter(ConsumptionLog.status == 'pending').all()
+        fixed = []
+        for log in pending_logs:
+            histories = db.query(StockHistory).filter(
+                and_(
+                    StockHistory.order_id == log.order_id,
+                    StockHistory.action_type == 'consume'
+                )
+            ).all()
+            if histories:
+                log.status = 'consumed'
+                log.consumed_at = datetime.now(jakarta_tz)
+                fixed.append(log.order_id)
+        if fixed:
+            db.commit()
+        return JSONResponse(status_code=200, content={
+            "status": "success",
+            "message": f"Diperbaiki {len(fixed)} log pending menjadi consumed",
+            "data": {"fixed_order_ids": fixed}
+        })
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=500, content={
+            "status": "error",
+            "message": f"Gagal memperbaiki pending logs: {str(e)}",
+            "data": None
+        })
