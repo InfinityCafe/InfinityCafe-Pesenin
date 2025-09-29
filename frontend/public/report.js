@@ -286,6 +286,15 @@ function initializeDefaultDateRange(forceReload = true) {
     }
     const periodSelect = document.getElementById('period-select');
     if (periodSelect) periodSelect.value = 'today';
+    // Set inputs explicitly to today before applying preset to avoid any race
+    const { startEl, endEl } = getGlobalDateElements();
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    const todayIso = `${y}-${m}-${d}`;
+    if (startEl) startEl.value = todayIso;
+    if (endEl) endEl.value = todayIso;
     applyPeriodPreset('today', { triggerReload: forceReload, updateSelect: true });
 }
 
@@ -462,8 +471,25 @@ async function loadIngredientAnalysisData() {
         const endEl = document.getElementById('ingredient-end-date');
         const globalStartEl = document.getElementById('start_date');
         const globalEndEl = document.getElementById('end_date');
-        const startVal = (startEl && startEl.value) ? startEl.value : (globalStartEl && globalStartEl.value ? globalStartEl.value : '');
-        const endVal = (endEl && endEl.value) ? endEl.value : (globalEndEl && globalEndEl.value ? globalEndEl.value : '');
+        let startVal = (startEl && startEl.value) ? startEl.value : (globalStartEl && globalStartEl.value ? globalStartEl.value : '');
+        let endVal = (endEl && endEl.value) ? endEl.value : (globalEndEl && globalEndEl.value ? globalEndEl.value : '');
+
+        // If both dates are empty, default to today and reflect it in the inputs
+        if (!startVal && !endVal) {
+            const today = new Date();
+            const y = today.getFullYear();
+            const m = String(today.getMonth() + 1).padStart(2, '0');
+            const d = String(today.getDate()).padStart(2, '0');
+            const todayIso = `${y}-${m}-${d}`;
+            startVal = todayIso;
+            endVal = todayIso;
+            if (globalStartEl && !globalStartEl.value) globalStartEl.value = todayIso;
+            if (globalEndEl && !globalEndEl.value) globalEndEl.value = todayIso;
+            if (startEl && !startEl.value) startEl.value = todayIso;
+            if (endEl && !endEl.value) endEl.value = todayIso;
+            const periodSelect = document.getElementById('period-select');
+            if (periodSelect && periodSelect.value !== 'today') periodSelect.value = 'today';
+        }
 
         const validation = validateIngredientDateRange(startVal, endVal);
         [startEl, endEl].forEach(el => { if (el) el.classList.remove('input-error'); });
@@ -641,6 +667,9 @@ async function loadIngredientAnalysisData() {
                 let ingredientRows = [];
                 let menuFlavorGroups = {}; // Initialize menuFlavorGroups for both view modes
                 
+                let logsRowsFinal = [];
+                let dailyRowsFinal = [];
+
                 if (viewMode === 'daily') {
                     // Build from logs: group by date with better daily aggregation
                     // Sertakan start_date & end_date jika tersedia (backend boleh abaikan jika tidak didukung)
@@ -739,14 +768,24 @@ async function loadIngredientAnalysisData() {
                             // Fallback removed to keep table clean
                         }
                     }
+                    // After building daily ingredientRows and menuFlavorGroups, also build logsRows from menuFlavorGroups
+                    logsRowsFinal = Object.values(menuFlavorGroups).map(group => ({
+                        menu_name: group.menu_name,
+                        flavor: group.flavor,
+                        date: group.date,
+                        status_text: `${group.total_orders} order`,
+                        order_count: group.total_orders,
+                        ingredients_affected: group.total_ingredients,
+                        total_qty: group.total_ingredients,
+                        order_ids: Array.from(group.order_ids),
+                        order_id: Array.from(group.order_ids)[0] || ''
+                    }));
+                    dailyRowsFinal = ingredientRows;
                 } else {
                     // Logs view: fetch recent consumption logs and group by menu/flavor
-                    let logsUrl = '/inventory/history?limit=100';
-                    // Tambah query start/end jika ada
+                    // Fetch logs without server-side date filters; we'll filter client-side to avoid TZ/format issues
                     const qsLogs = new URLSearchParams({ limit: '100' });
-                    if (startParam) qsLogs.set('start_date', startParam);
-                    if (endParam) qsLogs.set('end_date', endParam);
-                    logsUrl = `/inventory/history?${qsLogs.toString()}`;
+                    const logsUrl = `/inventory/history?${qsLogs.toString()}`;
                     const logsRes = await fetch(logsUrl);
                     const logsJson = await logsRes.json().catch(() => ({ history: [] }));
                     const logs = Array.isArray(logsJson.history) ? logsJson.history : [];
@@ -763,22 +802,27 @@ async function loadIngredientAnalysisData() {
                     });
                     
                     // Use actual order data from kitchen service to get real menu names and flavors
-                    // This data comes from the dashboard and contains the actual menu items ordered
+                    // Prefer the cache loaded earlier in this function to avoid race/empty states.
                     const orderDetails = {};
-                    
-                    // First, get the kitchen orders data that was already fetched
-                    const kitchenOrdersResponse = await fetch('/kitchen/orders');
-                    let kitchenOrdersData = [];
-                    if (kitchenOrdersResponse.ok) {
-                        kitchenOrdersData = await kitchenOrdersResponse.json();
+                    let kitchenOrdersData = Array.isArray(kitchenOrdersCache) ? kitchenOrdersCache : [];
+                    if (!kitchenOrdersData.length) {
+                        try {
+                            const kitchenOrdersResponse = await fetch('/kitchen/orders');
+                            if (kitchenOrdersResponse.ok) {
+                                kitchenOrdersData = await kitchenOrdersResponse.json();
+                                kitchenOrdersCache = Array.isArray(kitchenOrdersData) ? kitchenOrdersData : [];
+                            }
+                        } catch (_) {
+                            // ignore network errors and proceed with empty
+                        }
                     }
                     
-                    console.log('Kitchen orders data:', kitchenOrdersData);
+                    console.log('Kitchen orders data (using cache if available):', kitchenOrdersData);
                     
                     // Create a mapping from order_id to kitchen order data
                     const orderIdToKitchenOrder = {};
                     for (const order of kitchenOrdersData) {
-                        if (order.items && Array.isArray(order.items)) {
+                        if (order && order.items && Array.isArray(order.items)) {
                             orderIdToKitchenOrder[order.order_id] = order;
                             console.log(`Order ${order.order_id} has items:`, order.items);
                         }
@@ -870,6 +914,7 @@ async function loadIngredientAnalysisData() {
                     // Debug: log the data structure
                     console.log('Ingredient rows data:', ingredientRows);
                     console.log('Sample item structure:', ingredientRows[0]);
+                    logsRowsFinal = ingredientRows;
                 }
                 
                 // Also create daily aggregated data for daily view
@@ -916,9 +961,12 @@ async function loadIngredientAnalysisData() {
                 console.log('Sample item structure:', ingredientRows[0]);
                 
                 // Store both data sets
+                // Ensure cache keys always map to the correct datasets (logs vs daily), independent of current view
+                if (!logsRowsFinal.length) logsRowsFinal = ingredientRows; // when built in logs branch
+                if (!dailyRowsFinal.length) dailyRowsFinal = dailyRows;    // when built in logs branch
                 ingredientDataCache = {
-                    logs: ingredientRows,
-                    daily: dailyRows
+                    logs: logsRowsFinal,
+                    daily: dailyRowsFinal
                 };
                 baseData = ingredientDataCache;
                 // Expose groups globally for details panel usage
@@ -926,7 +974,7 @@ async function loadIngredientAnalysisData() {
                 
                 // Get current view mode and set appropriate data
                 const currentViewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
-                const currentViewData = ingredientDataCache[currentViewMode] || [];
+                const currentViewData = (ingredientDataCache && ingredientDataCache[currentViewMode]) ? ingredientDataCache[currentViewMode] : [];
                 // Update header/badge for clarity
                 updateReportTableHeader();
 
@@ -3443,21 +3491,15 @@ function updateReportTableHeader() {
     if (ingredientLogsTable) ingredientLogsTable.classList.add('hidden');
 
     // Show appropriate table based on current data type
-    if (currentDataType === 'ingredient') {
-      const viewSelect = document.getElementById('ingredient-view-select');
-      const viewMode = viewSelect ? viewSelect.value : 'daily';
+        if (currentDataType === 'ingredient') {
+            const viewSelect = document.getElementById('ingredient-view-select');
+            const viewMode = viewSelect ? viewSelect.value : 'daily';
 
-      if (viewMode === 'daily') {
-        // Show daily view table
-        if (ingredientTable) {
-          ingredientTable.classList.remove('hidden');
-        }
-      } else {
-        // Show logs view table
-        if (ingredientLogsTable) {
-          ingredientLogsTable.classList.remove('hidden');
-        }
-      }
+            if (viewMode === 'daily') {
+                if (ingredientTable) ingredientTable.classList.remove('hidden');
+            } else {
+                if (ingredientLogsTable) ingredientLogsTable.classList.remove('hidden');
+            }
     } else if (currentDataType === 'best') {
       if (bestsellerTable) bestsellerTable.classList.remove('hidden');
     } else {
@@ -3498,55 +3540,50 @@ function renderReportTable() {
         currentPageData.forEach((item, i) => {
             const actualIndex = startIndex + i;
             if (currentDataType === 'ingredient') {
-                // Debug: log the item being rendered
-                console.log('Rendering ingredient item:', item);
-                console.log('Item has menu_name:', !!item.menu_name, 'Item has flavor:', !!item.flavor);
-                
-                // Check if this is logs view (has menu_name and flavor) or daily view
-                if (item.menu_name && item.flavor !== undefined) {
-                    console.log('Using logs view format');
-                    // Logs view - show menu, flavor, and detail button
+                const viewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
+                if (viewMode === 'logs') {
+                    // Render as logs row regardless of field presence to keep layout consistent
+                    const totalOrdersCol = (item.order_count ?? (Array.isArray(item.order_ids) ? item.order_ids.length : 0) ?? 0);
                     tbody.innerHTML += `
                         <tr onclick="openGroupedConsumptionModal('${(item.order_ids || []).join(',')}', '${item.date || ''}', '${item.status_text || ''}', '${item.menu_name || ''}', '${item.flavor || ''}')" style="cursor: pointer;">
                             <td>${actualIndex + 1}</td>
                             <td>${item.menu_name || '-'}</td>
                             <td>${item.flavor || 'Default'}</td>
                             <td>${item.date || '-'}</td>
-                            <td>${item.status_text || '-'}</td>
-                            <td>${(item.ingredients_affected ?? 0).toLocaleString()}</td>
+                            <td>${Number(totalOrdersCol).toLocaleString()}</td>
+                            <td>${(item.ingredients_affected ?? item.total_qty ?? 0).toLocaleString()}</td>
                             <td>
                                 <button class="table-action-btn" onclick="event.stopPropagation(); openGroupedConsumptionModal('${(item.order_ids || []).join(',')}', '${item.date || ''}', '${item.status_text || ''}', '${item.menu_name || ''}', '${item.flavor || ''}')" title="Lihat Detail">
                                     <i class="fas fa-eye"></i>
                                 </button>
                             </td>
                         </tr>`;
-                                 } else {
-                     console.log('Using daily view format');
-                     // Daily view - show aggregated data with detail button
-                     const dailySummary = item.daily_summary || {};
-                     const totalOrders = dailySummary.total_orders || 0;
-                     const uniqueMenus = dailySummary.unique_menus || 0;
-                     const totalConsumption = dailySummary.total_consumption || 0;
-                     
-                     tbody.innerHTML += `
-                         <tr onclick="viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="cursor: pointer;">
-                             <td>${actualIndex + 1}</td>
-                             <td style="font-weight: 600; color: #1F2937;">${item.date || '-'}</td>
-                             <td style="color: #6B7280; line-height: 1.4;">
-                                <div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
-                                    <span style="background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; padding:.2rem .5rem; border-radius:9999px; font-weight:600;">${totalOrders} total orders</span>
-                                    <span style="background:#F5F3FF; color:#4C1D95; border:1px solid #DDD6FE; padding:.2rem .5rem; border-radius:9999px; font-weight:600;">${uniqueMenus} unique menus</span>
-                                 </div>
-                             </td>
-                             <td style="text-align: center; font-weight: 600; color: #059669;">${totalOrders.toLocaleString()}</td>
-                             <td style="text-align: center; font-weight: 600; color: #DC2626;">${totalConsumption.toLocaleString()}</td>
-                             <td>
-                                 <button class="table-action-btn" onclick="event.stopPropagation(); viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="white-space: nowrap; min-width: 80px;">
-                                    <i class="fas fa-eye"></i>
-                                 </button>
-                             </td>
-                         </tr>`;
-                 }
+                } else {
+                    // Daily view row
+                    const dailySummary = item.daily_summary || {};
+                    const totalOrders = dailySummary.total_orders || 0;
+                    const uniqueMenus = dailySummary.unique_menus || 0;
+                    const totalConsumption = dailySummary.total_consumption || 0;
+                    
+                    tbody.innerHTML += `
+                        <tr onclick="viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="cursor: pointer;">
+                            <td>${actualIndex + 1}</td>
+                            <td style="font-weight: 600; color: #1F2937;">${item.date || '-'}</td>
+                            <td style="color: #6B7280; line-height: 1.4;">
+                               <div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
+                                   <span style="background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; padding:.2rem .5rem; border-radius:9999px; font-weight:600;">${totalOrders} total orders</span>
+                                   <span style="background:#F5F3FF; color:#4C1D95; border:1px solid #DDD6FE; padding:.2rem .5rem; border-radius:9999px; font-weight:600;">${uniqueMenus} unique menus</span>
+                                </div>
+                            </td>
+                            <td style="text-align: center; font-weight: 600; color: #059669;">${totalOrders.toLocaleString()}</td>
+                            <td style="text-align: center; font-weight: 600; color: #DC2626;">${totalConsumption.toLocaleString()}</td>
+                            <td>
+                                <button class="table-action-btn" onclick="event.stopPropagation(); viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="white-space: nowrap; min-width: 80px;">
+                                   <i class="fas fa-eye"></i>
+                                </button>
+                            </td>
+                        </tr>`;
+                }
             } else if (currentDataType === 'sales') {
                 // Sales data - show aggregated flavor information
                 console.log('Rendering sales item:', item);
@@ -3659,10 +3696,21 @@ function initializeElements() {
     
     // ========== SEARCH FUNCTIONS ==========
     function filterTableData(searchTerm) {
-    if (!baseData) return;
-    const source = Array.isArray(baseData) ? baseData : [];
+    if (!baseData && !ingredientDataCache) return;
     const term = (searchTerm || '').toLowerCase();
     if (currentDataType === 'ingredient') {
+        // Determine current ingredient view and pick the right dataset
+        const viewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
+        let source = [];
+        if (Array.isArray(baseData)) {
+            // In some flows, baseData may already be the active array
+            source = baseData;
+        } else if (baseData && typeof baseData === 'object') {
+            source = baseData[viewMode] || [];
+        } else if (ingredientDataCache && typeof ingredientDataCache === 'object') {
+            source = ingredientDataCache[viewMode] || [];
+        }
+
         filteredData = term
             ? source.filter(item => 
                 (item.menu_name || '').toLowerCase().includes(term) || 
@@ -3940,7 +3988,20 @@ function applyIngredientModeLayout() {
     if (loyal) loyal.style.display = 'none';
     if (usulan) usulan.style.display = 'none';
 
-    // Update summary with ingredient analysis insights
+    // Update summary with ingredient analysis insights and ensure filtered rows match current view
+    const currentViewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
+    const dataset = (ingredientDataCache && ingredientDataCache[currentViewMode]) ? ingredientDataCache[currentViewMode] : [];
+    const term = document.getElementById('table-search-input')?.value.toLowerCase() || '';
+    filteredData = term ? dataset.filter(i =>
+        (i.menu_name || '').toLowerCase().includes(term) ||
+        (i.flavor || '').toLowerCase().includes(term) ||
+        (i.order_id || '').toLowerCase().includes(term) ||
+        (i.date || '').toLowerCase().includes(term) ||
+        (i.status_text || '').toLowerCase().includes(term)
+    ) : [...dataset];
+    reportCurrentPage = 1;
+    renderReportTable();
+    updateReportPagination();
     renderIngredientAnalysis(ingredientDataCache);
     updateIngredientSummary(ingredientDataCache);
 }
@@ -4139,12 +4200,8 @@ document.addEventListener('visibilitychange', () => {
                 clearTimeout(this.filterTimeout);
                 this.filterTimeout = setTimeout(() => {
                     lastUserInputAt = Date.now();
-                    const dataType = document.getElementById('data-type-select')?.value || 'sales';
-                    if (dataType === 'ingredient') {
-                        filterIngredientTableData(this.value);
-                    } else {
+                    // Use unified filter that understands the current data type and view mode
                     filterTableData(this.value);
-                    }
                 }, 300);
             });
         }
