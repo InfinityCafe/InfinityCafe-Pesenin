@@ -2212,6 +2212,116 @@ def get_order_ingredients_detail(order_id: str, db: Session = Depends(get_db)):
             
         ingredients_detail.sort(key=lambda x: x['ingredient_name'])
 
+        # Build per-item breakdown by querying order_service and recipes
+        menu_breakdown = []
+        try:
+            # Fetch order items from order_service (internal network URL)
+            order_service_url = os.getenv("ORDER_SERVICE_URL", "http://order_service:8002")
+            resp = requests.get(f"{order_service_url}/order_status/{order_id}", timeout=5)
+            if resp.status_code == 200:
+                ord_data = resp.json().get("data") or {}
+                items = ord_data.get("orders") or []
+                # Fetch recipes in batch for all menu names present
+                try:
+                    menu_names = [it.get("menu_name") for it in items if it]
+                    recipes_resp = requests.post(
+                        f"{MENU_SERVICE_URL}/recipes/batch",
+                        json={"menu_names": menu_names},
+                        timeout=6
+                    )
+                    recipes_resp.raise_for_status()
+                    recipes = recipes_resp.json().get("recipes", {})
+                except Exception as e:
+                    logging.warning(f"Failed to fetch recipes for per-item breakdown: {e}")
+                    recipes = {}
+
+                # Index ingredient stock history for this order to get before/after where possible
+                ing_history_map = {}
+                try:
+                    histories = db.query(StockHistory).filter(
+                        StockHistory.order_id == order_id,
+                        StockHistory.action_type == "consume"
+                    ).all()
+                    for h in histories:
+                        ing_history_map[h.ingredient_id] = {
+                            "before": h.quantity_before,
+                            "after": h.quantity_after
+                        }
+                except Exception:
+                    ing_history_map = {}
+
+                # Helper to resolve flavor mapping
+                def resolve_flavor(pref: str):
+                    if not pref:
+                        return None
+                    mapping = db.query(FlavorMapping).filter(FlavorMapping.flavor_name == pref).first()
+                    if not mapping:
+                        return None
+                    return {
+                        "ingredient_id": mapping.ingredient_id,
+                        "quantity": mapping.quantity_per_serving,
+                        "unit": mapping.unit.value if mapping.unit else ""
+                    }
+
+                # Build each item breakdown
+                for it in items:
+                    item_id = it.get("item_id")
+                    menu_name = it.get("menu_name")
+                    qty = int(it.get("quantity") or 1)
+                    pref = (it.get("preference") or "").strip()
+
+                    item_ings = []
+                    # Base recipe ingredients scaled by quantity
+                    for r in recipes.get(menu_name, []) or []:
+                        ing_id = r.get("ingredient_id")
+                        req_qty = float(r.get("quantity") or 0) * qty
+                        unit = r.get("unit")
+                        inv = db.query(Inventory).filter(Inventory.id == ing_id).first()
+                        item_ings.append({
+                            "ingredient_id": ing_id,
+                            "ingredient_name": inv.name if inv else r.get("ingredient_name", "Unknown"),
+                            "required_quantity": req_qty,
+                            "unit": unit,
+                            "stock_before_consumption": ing_history_map.get(ing_id, {}).get("before"),
+                            "stock_after_consumption": ing_history_map.get(ing_id, {}).get("after")
+                        })
+
+                    # Add flavor ingredient if any
+                    flav = resolve_flavor(pref)
+                    if flav:
+                        # Simple heuristic adjustments matching consume logic
+                        adjusted_qty = flav["quantity"]
+                        if menu_name and "milkshake" in menu_name.lower() and (flav["unit"] == "gram"):
+                            adjusted_qty = max(adjusted_qty, 30)
+                        elif menu_name and "squash" in menu_name.lower() and (flav["unit"] == "milliliter"):
+                            adjusted_qty = min(adjusted_qty, 20)
+                        elif menu_name and any(k in menu_name.lower() for k in ["custom", "special", "premium"]) and (flav["unit"] == "milliliter"):
+                            adjusted_qty = adjusted_qty * 1.4
+
+                        inv = db.query(Inventory).filter(Inventory.id == flav["ingredient_id"]).first()
+                        item_ings.append({
+                            "ingredient_id": flav["ingredient_id"],
+                            "ingredient_name": inv.name if inv else "Flavor",
+                            "required_quantity": adjusted_qty * qty,
+                            "unit": flav["unit"],
+                            "stock_before_consumption": ing_history_map.get(flav["ingredient_id"], {}).get("before"),
+                            "stock_after_consumption": ing_history_map.get(flav["ingredient_id"], {}).get("after")
+                        })
+
+                    # Mark consumed flags based on log status
+                    menu_breakdown.append({
+                        "order_item_id": item_id,
+                        "menu_name": menu_name,
+                        "preference": pref,
+                        "quantity": qty,
+                        "consumed": log.status == 'consumed',
+                        "rolled_back": log.status == 'rolled_back',
+                        "consumed_at": get_jakarta_isoformat(log.consumed_at) if log.consumed_at else None,
+                        "ingredients": item_ings
+                    })
+        except Exception as e:
+            logging.warning(f"Failed building menu_breakdown for {order_id}: {e}")
+
         return JSONResponse(status_code=200, content={
             "status": "success",
             "message": f"Detail konsumsi bahan untuk order {order_id}",
@@ -2229,6 +2339,7 @@ def get_order_ingredients_detail(order_id: str, db: Session = Depends(get_db)):
                     "total_ingredients_used": total_ingredients_used,
                     "details": ingredients_detail
                 },
+                "menu_breakdown": menu_breakdown,
                 "summary": {
                     "total_ingredients": total_ingredients_used,
                     "consumption_date": format_jakarta_time(log.created_at)

@@ -1558,6 +1558,7 @@ def get_order_status(order_id: str, db: Session = Depends(get_db)):
         "is_custom": order.is_custom,
         "orders": [
             {
+                "item_id": item.id,
                 "menu_name": item.menu_name,
                 "quantity": item.quantity,
                 "preference": item.preference if item.preference else "",
