@@ -672,7 +672,7 @@ async function loadIngredientAnalysisData() {
 
                 if (viewMode === 'daily') {
                     // Build from logs: group by date with better daily aggregation
-                    // Sertakan start_date & end_date jika tersedia (backend boleh abaikan jika tidak didukung)
+                    // Always send start_date & end_date so backend returns the correct window
                     const qsDaily = new URLSearchParams({ limit: '500' });
                     if (startParam) qsDaily.append('start_date', startParam);
                     if (endParam) qsDaily.append('end_date', endParam);
@@ -783,138 +783,81 @@ async function loadIngredientAnalysisData() {
                     }));
                     dailyRowsFinal = ingredientRows;
                 } else {
-                    // Logs view: fetch recent consumption logs and group by menu/flavor
-                    // Fetch logs without server-side date filters; we'll filter client-side to avoid TZ/format issues
-                    const qsLogs = new URLSearchParams({ limit: '100' });
+                    // Logs view: fetch consumption logs with server-side date filters
+                    const qsLogs = new URLSearchParams({ limit: '500' });
+                    if (startParam) qsLogs.append('start_date', startParam);
+                    if (endParam) qsLogs.append('end_date', endParam);
                     const logsUrl = `/inventory/history?${qsLogs.toString()}`;
                     const logsRes = await fetch(logsUrl);
                     const logsJson = await logsRes.json().catch(() => ({ history: [] }));
                     const logs = Array.isArray(logsJson.history) ? logsJson.history : [];
-                    // Terapkan filter tanggal pada mode per-order (logs)
-                    // Catatan: Backend mengembalikan format dd/mm/yyyy HH:MM, sehingga perlu konversi manual
-                    // ke yyyy-mm-dd untuk perbandingan string konsisten tanpa efek timezone.
-                    // Kita menghindari penggunaan Date+toISOString agar tidak terjadi pergeseran hari.
-                    const filteredLogs = logs.filter(row => {
-                        const iso = getLogIsoDate(row);
-                        if (!iso) return false;
-                        if (startParam && iso < startParam) return false;
-                        if (endParam && iso > endParam) return false;
-                        return true;
-                    });
-                    
-                    // Use actual order data from kitchen service to get real menu names and flavors
-                    // Prefer the cache loaded earlier in this function to avoid race/empty states.
-                    const orderDetails = {};
-                    let kitchenOrdersData = Array.isArray(kitchenOrdersCache) ? kitchenOrdersCache : [];
-                    if (!kitchenOrdersData.length) {
-                        try {
-                            const kitchenOrdersResponse = await fetch('/kitchen/orders');
-                            if (kitchenOrdersResponse.ok) {
-                                kitchenOrdersData = await kitchenOrdersResponse.json();
-                                kitchenOrdersCache = Array.isArray(kitchenOrdersData) ? kitchenOrdersData : [];
-                            }
-                        } catch (_) {
-                            // ignore network errors and proceed with empty
-                        }
-                    }
-                    
-                    console.log('Kitchen orders data (using cache if available):', kitchenOrdersData);
-                    
-                    // Create a mapping from order_id to kitchen order data
-                    const orderIdToKitchenOrder = {};
-                    for (const order of kitchenOrdersData) {
-                        if (order && order.items && Array.isArray(order.items)) {
-                            orderIdToKitchenOrder[order.order_id] = order;
-                            console.log(`Order ${order.order_id} has items:`, order.items);
-                        }
-                    }
-                    
-                    console.log('Order ID to kitchen order mapping:', orderIdToKitchenOrder);
-                    
-                    // Now process consumption logs and match with kitchen order data
-                    for (const log of filteredLogs) {
+
+                    // Build rows primarily from per_menu_payload returned by backend; fallback to generic row
+                    const rows = [];
+                    for (const log of logs) {
                         const orderId = log.order_id;
-                        const kitchenOrder = orderIdToKitchenOrder[orderId];
-
-                        // Only include orders that are completed (done); skip cancelled and others
-                        if (!kitchenOrder || String(kitchenOrder.status).toLowerCase() !== 'done') {
-                            continue;
+                        const ingAffected = Number(log.ingredients_affected || 0);
+                        const iso = getLogIsoDate(log);
+                        const displayDate = iso ? `${iso.split('-')[2]}/${iso.split('-')[1]}/${iso.split('-')[0]}` : (log.date || '-');
+                        let payload = log.per_menu_payload;
+                        if (typeof payload === 'string') {
+                            try { payload = JSON.parse(payload); } catch { payload = null; }
                         }
-                        
-                        if (!orderDetails[orderId]) {
-                            orderDetails[orderId] = {
-                                order_id: orderId,
-                                date: log.date,
-                                status: kitchenOrder.status,
-                                status_text: 'Selesai',
-                                ingredients_affected: log.ingredients_affected || 0,
-                                menu_items: kitchenOrder.items || []
-                            };
-                        }
-                        
-                        console.log(`Log ${orderId} matched with kitchen order (status=${kitchenOrder.status}):`, 'YES');
-                            console.log(`Kitchen order items for ${orderId}:`, kitchenOrder.items);
-                    }
-                    
-                    // Group by actual menu name and flavor from kitchen orders
-                    for (const orderId in orderDetails) {
-                        const order = orderDetails[orderId];
-                        
-                        if (order.menu_items && order.menu_items.length > 0) {
-                            // Calculate per-item share to prevent inflating totals
-                            const itemsCount = Math.max(1, order.menu_items.length);
-                            const perItemIngredients = Math.max(0, Math.round((order.ingredients_affected || 0) / itemsCount));
-
-                            // Process each menu item with its actual name and flavor from dashboard
-                            for (const menuItem of order.menu_items) {
-                                const menuName = menuItem.menu_name || 'Unknown Menu';
-                                const flavor = (menuItem.preference && menuItem.preference.trim()) ? menuItem.preference : 'Default';
-                                const key = `${menuName}|${flavor}`;
-                                
-                                console.log(`Processing menu item: ${menuName} with flavor: ${flavor}`);
-                                
-                                if (!menuFlavorGroups[key]) {
-                                    menuFlavorGroups[key] = {
-                                        menu_name: menuName,
-                                        flavor: flavor,
-                                        total_orders: 0,
-                                        total_ingredients: 0,
-                                        order_ids: new Set(),
-                                        date: order.date,
-                                        status_text: order.status_text
-                                    };
-                                }
-                                
-                                menuFlavorGroups[key].total_orders += 1;
-                                // Add only the per-item share to avoid duplication across items
-                                menuFlavorGroups[key].total_ingredients += perItemIngredients;
-                                menuFlavorGroups[key].order_ids.add(orderId);
+                        if (Array.isArray(payload) && payload.length) {
+                            const totalQty = payload.reduce((a, p) => a + (Number(p.quantity)||0), 0) || 1;
+                            for (const p of payload) {
+                                const menuName = p.name || p.menu_name || 'Unknown Menu';
+                                const qty = Number(p.quantity || 0) || 0;
+                                const share = Math.round((ingAffected * qty) / totalQty);
+                                rows.push({
+                                    menu_name: menuName,
+                                    flavor: 'Default',
+                                    date: displayDate,
+                                    status_text: 'Selesai',
+                                    order_count: qty,
+                                    ingredients_affected: share,
+                                    total_qty: share,
+                                    order_ids: [orderId],
+                                    order_id: orderId
+                                });
                             }
                         } else {
-                            // If we cannot map to a menu item, skip creating generic rows to keep table clean
-                            continue;
+                            // Fallback single row
+                            rows.push({
+                                menu_name: '-',
+                                flavor: 'Default',
+                                date: displayDate,
+                                status_text: 'Selesai',
+                                order_count: 1,
+                                ingredients_affected: ingAffected,
+                                total_qty: ingAffected,
+                                order_ids: [orderId],
+                                order_id: orderId
+                            });
                         }
                     }
-                    
-                    console.log('Final menu flavor groups:', menuFlavorGroups);
-                    
-                    // Convert grouped data to table rows
-                    ingredientRows = Object.values(menuFlavorGroups).map(group => ({
-                        menu_name: group.menu_name,
-                        flavor: group.flavor,
-                        date: group.date,
-                        status_text: `${group.total_orders} order`,
-                        order_count: group.total_orders,
-                        ingredients_affected: group.total_ingredients,
-                        total_qty: group.total_ingredients,
-                        order_ids: Array.from(group.order_ids),
-                        // Add order_id for compatibility with daily view
-                        order_id: Array.from(group.order_ids)[0] || ''
-                    }));
-                    
-                    // Debug: log the data structure
-                    console.log('Ingredient rows data:', ingredientRows);
-                    console.log('Sample item structure:', ingredientRows[0]);
+
+                    ingredientRows = rows;
+                    // For details panel support, also construct a lightweight group map by menu
+                    menuFlavorGroups = {};
+                    for (const r of rows) {
+                        const key = `${r.menu_name}|${r.flavor}`;
+                        if (!menuFlavorGroups[key]) {
+                            menuFlavorGroups[key] = {
+                                menu_name: r.menu_name,
+                                flavor: r.flavor,
+                                total_orders: 0,
+                                total_ingredients: 0,
+                                order_ids: new Set(),
+                                date: r.date,
+                                status_text: r.status_text
+                            };
+                        }
+                        menuFlavorGroups[key].total_orders += Number(r.order_count || 0);
+                        menuFlavorGroups[key].total_ingredients += Number(r.ingredients_affected || 0);
+                        (r.order_ids || []).forEach(id => menuFlavorGroups[key].order_ids.add(id));
+                    }
+
                     logsRowsFinal = ingredientRows;
                 }
                 

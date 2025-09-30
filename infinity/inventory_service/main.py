@@ -1536,6 +1536,47 @@ def update_ingredient_with_audit(
                 notes=f"Edit minimum: {req.notes} (nama: {old_name} → {req.name})"
             )
         
+        # New: track non-quantity edits for audit history
+        # We record quantity_before == quantity_after to indicate no stock change, details are in notes
+        try:
+            if old_name != req.name:
+                create_stock_history(
+                    db=db,
+                    ingredient_id=req.id,
+                    action_type="edit_item_name",
+                    quantity_before=ing.current_quantity,
+                    quantity_after=ing.current_quantity,
+                    performed_by=current_username,
+                    notes=f"Edit item name: {old_name} → {req.name}"
+                )
+            if (old_category.value if hasattr(old_category, 'value') else str(old_category)) != (
+                req.category.value if hasattr(req.category, 'value') else str(req.category)
+            ):
+                create_stock_history(
+                    db=db,
+                    ingredient_id=req.id,
+                    action_type="edit_category",
+                    quantity_before=ing.current_quantity,
+                    quantity_after=ing.current_quantity,
+                    performed_by=current_username,
+                    notes=f"Edit category: {(old_category.value if hasattr(old_category,'value') else str(old_category))} → {(req.category.value if hasattr(req.category,'value') else str(req.category))} (nama: {req.name})"
+                )
+            if (old_unit.value if hasattr(old_unit, 'value') else str(old_unit)) != (
+                req.unit.value if hasattr(req.unit, 'value') else str(req.unit)
+            ):
+                create_stock_history(
+                    db=db,
+                    ingredient_id=req.id,
+                    action_type="edit_unit",
+                    quantity_before=ing.current_quantity,
+                    quantity_after=ing.current_quantity,
+                    performed_by=current_username,
+                    notes=f"Edit unit: {(old_unit.value if hasattr(old_unit,'value') else str(old_unit))} → {(req.unit.value if hasattr(req.unit,'value') else str(req.unit))} (nama: {req.name})"
+                )
+        except Exception as _audit_e:
+            # Do not block the update if audit enrichment fails; the main edits are already recorded above
+            logging.error(f"Failed to record extended audit history: {_audit_e}")
+        
         db.commit()
         
         create_outbox_event(db, "ingredient_updated", {
@@ -1583,7 +1624,7 @@ def update_ingredient_with_audit(
 def get_ingredient_stock_history(
     ingredient_id: int, 
     limit: int = Query(50, description="Jumlah record maksimal"),
-    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable"),
+    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable, edit_item_name, edit_category, edit_unit"),
     db: Session = Depends(get_db)
 ):
     """Menampilkan history perubahan stock untuk ingredient tertentu"""
@@ -1644,7 +1685,7 @@ def get_ingredient_stock_history(
 @app.get("/stock/history", summary="History perubahan stock semua ingredient", tags=["Stock Management"])
 def get_all_stock_history(
     limit: int = Query(100, description="Jumlah record maksimal"),
-    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable"),
+    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable, edit_item_name, edit_category, edit_unit"),
     performed_by: Optional[str] = Query(None, description="Filter by user name"),
     db: Session = Depends(get_db)
 ):
@@ -2347,16 +2388,44 @@ def get_flavors_for_ingredient(ingredient_id: int, db: Session = Depends(get_db)
 @app.get("/history", summary="History penggunaan stok", tags=["Stock Management"])
 def get_stock_history(
     order_id: str = Query(None, description="Filter by order ID"),
-    limit: int = Query(20, description="Jumlah record maksimal"),
+    start_date: Optional[str] = Query(None, description="Tanggal mulai (YYYY-MM-DD) untuk filter rentang"),
+    end_date: Optional[str] = Query(None, description="Tanggal akhir (YYYY-MM-DD) untuk filter rentang"),
+    limit: int = Query(500, description="Jumlah record maksimal"),
     db: Session = Depends(get_db)
 ):
-    """History penggunaan stok dengan filter yang berfungsi"""
-    
+    """History penggunaan stok dengan filter order_id dan rentang tanggal (Asia/Jakarta)."""
+
+    from datetime import datetime
+
     query = db.query(ConsumptionLog)
-    
+
     if order_id:
         query = query.filter(ConsumptionLog.order_id == order_id)
-    
+
+    # Terapkan filter tanggal bila disediakan
+    if start_date and end_date:
+        try:
+            sd = datetime.strptime(start_date, "%Y-%m-%d").date()
+            ed = datetime.strptime(end_date, "%Y-%m-%d").date()
+            if sd > ed:
+                return JSONResponse(status_code=400, content={
+                    "success": False,
+                    "message": "start_date tidak boleh lebih besar dari end_date",
+                    "history": []
+                })
+            query = query.filter(
+                and_(
+                    func.date(ConsumptionLog.created_at) >= sd,
+                    func.date(ConsumptionLog.created_at) <= ed
+                )
+            )
+        except ValueError:
+            return JSONResponse(status_code=400, content={
+                "success": False,
+                "message": "Format tanggal tidak valid. Gunakan YYYY-MM-DD",
+                "history": []
+            })
+
     logs = query.order_by(ConsumptionLog.created_at.desc()).limit(limit).all()
     
     result = []
@@ -2364,20 +2433,34 @@ def get_stock_history(
         ingredient_count = db.query(ConsumptionIngredientDetail).filter(
             ConsumptionIngredientDetail.consumption_log_id == log.id
         ).count()
-        
+
         status_text = "PENDING"
         if log.status == 'consumed':
             status_text = "DIKONSUMSI"
         elif log.status == 'rolled_back':
             status_text = "DIBATALKAN"
-        
+
+        # Build per_menu_payload similar to /consumption_log for better frontend grouping
+        try:
+            menu_names = json.loads(log.menu_names) if log.menu_names else []
+        except (json.JSONDecodeError, TypeError):
+            menu_names = []
+        per_menu_payload = None
+        if menu_names:
+            from collections import Counter
+            counts = Counter(menu_names)
+            per_menu_payload = [{"name": name, "quantity": qty} for name, qty in counts.items()]
+
         result.append({
             "order_id": log.order_id,
             "date": format_jakarta_time(log.created_at).replace("/", "/").replace(" ", " ")[:16],
-            "consumed": log.status == 'consumed',  
-            "rolled_back": log.status == 'rolled_back',  
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+            "consumed": log.status == 'consumed',
+            "rolled_back": log.status == 'rolled_back',
             "ingredients_affected": ingredient_count,
-            "status": status_text
+            "status": status_text,
+            "status_text": status_text,
+            "per_menu_payload": per_menu_payload
         })
     
     return {

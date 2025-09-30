@@ -1151,10 +1151,12 @@ app.get("/inventory/flavor_mapping", async (req, res) => {
 // Proxy: inventory logs history
 app.get("/inventory/history", async (req, res) => {
   try {
-    const { order_id, limit } = req.query;
+    const { order_id, limit, start_date, end_date } = req.query;
     const params = new URLSearchParams();
     if (order_id) params.set("order_id", order_id);
     if (limit) params.set("limit", limit);
+    if (start_date) params.set("start_date", start_date);
+    if (end_date) params.set("end_date", end_date);
     const url = params.toString()
       ? `http://inventory_service:8006/history?${params.toString()}`
       : `http://inventory_service:8006/history`;
