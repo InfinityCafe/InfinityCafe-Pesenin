@@ -1505,6 +1505,8 @@ def update_ingredient_with_audit(
         old_quantity = ing.current_quantity
         old_minimum = ing.minimum_quantity
         old_name = ing.name
+        old_category = ing.category
+        old_unit = ing.unit
         
         ing.name = req.name
         ing.current_quantity = req.current_quantity
@@ -1562,7 +1564,9 @@ def update_ingredient_with_audit(
                 "changes": {
                     "quantity_changed": old_quantity != req.current_quantity,
                     "minimum_changed": old_minimum != req.minimum_quantity,
-                    "name_changed": old_name != req.name
+                    "name_changed": old_name != req.name,
+                    "category_changed": old_category != req.category,
+                    "unit_changed": old_unit != req.unit
                 }
             }
         })
@@ -2137,6 +2141,8 @@ def rollback_partial(req: PartialRollbackRequest, db: Session = Depends(get_db))
             before = ing.current_quantity
             ing.current_quantity = before + restore_qty
             after = ing.current_quantity
+            old_category = ing.category
+            old_unit = ing.unit
             create_stock_history(
                 db=db,
                 ingredient_id=ing_id,
@@ -2166,6 +2172,39 @@ def rollback_partial(req: PartialRollbackRequest, db: Session = Depends(get_db))
             for row in rows:
                 if remain <= 0:
                     break
+
+                if old_name != req.name:
+                    create_stock_history(
+                        db=db,
+                        ingredient_id=req.id,
+                        action_type="edit_item_name",
+                        quantity_before=0,
+                        quantity_after=0,
+                        performed_by=current_username,
+                        notes=f"Edit nama: {old_name} → {req.name}"
+                    )
+
+                if old_category != req.category:
+                    create_stock_history(
+                        db=db,
+                        ingredient_id=req.id,
+                        action_type="edit_category",
+                        quantity_before=0,
+                        quantity_after=0,
+                        performed_by=current_username,
+                        notes=f"Edit kategori: {old_category.value} → {req.category.value} (nama: {old_name})"
+                    )
+
+                if old_unit != req.unit:
+                    create_stock_history(
+                        db=db,
+                        ingredient_id=req.id,
+                        action_type="edit_unit",
+                        quantity_before=0,
+                        quantity_after=0,
+                        performed_by=current_username,
+                        notes=f"Edit unit: {old_unit.value} → {req.unit.value} (nama: {old_name})"
+                    )
                 dec = min(float(row.quantity_consumed), remain)
                 row.quantity_consumed = float(row.quantity_consumed) - dec
                 remain -= dec
