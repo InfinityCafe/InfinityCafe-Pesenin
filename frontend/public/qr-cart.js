@@ -375,11 +375,14 @@ class QRCartManager {
     updateOrderSummary() {
         const totalItems = this.cart.reduce((sum, item) => sum + item.quantity, 0);
         const totalPrice = this.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        const maxTime = Math.max(...this.cart.map(item => item.making_time), 0);
+        const totalPrepTime = this.cart.reduce((sum, item) => sum + (item.making_time * item.quantity), 0);
+        const deliveryBuffer = totalItems > 0 ? 1 : 0;
+        const estimatedTime = totalPrepTime + deliveryBuffer;
+        // const maxTime = Math.max(...this.cart.map(item => item.making_time), 0);
         
         document.getElementById('total-items').textContent = totalItems;
         document.getElementById('total-price').textContent = `Rp ${totalPrice.toLocaleString('id-ID')}`;
-        document.getElementById('estimated-time').textContent = `${maxTime} menit`;
+        document.getElementById('estimated-time').textContent = `${estimatedTime} menit`;
         
         this.updateConfirmButton();
     }
