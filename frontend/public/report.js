@@ -671,84 +671,59 @@ async function loadIngredientAnalysisData() {
                 let dailyRowsFinal = [];
 
                 if (viewMode === 'daily') {
-                    // Build from logs: group by date with better daily aggregation
-                    // Always send start_date & end_date so backend returns the correct window
-                    const qsDaily = new URLSearchParams({ limit: '500' });
-                    if (startParam) qsDaily.append('start_date', startParam);
-                    if (endParam) qsDaily.append('end_date', endParam);
-                    const logsRes = await fetch(`/inventory/history?${qsDaily.toString()}`);
+                    // Prefer backend daily aggregation to cover historical ranges beyond today
+                    const qsDailyAgg = new URLSearchParams();
+                    if (startParam) qsDailyAgg.append('start_date', startParam);
+                    if (endParam) qsDailyAgg.append('end_date', endParam);
+                    const dailyRes = await fetch(`/inventory/consumption/daily?${qsDailyAgg.toString()}`);
+                    const dailyJson = await dailyRes.json().catch(() => ({ data: { daily_consumption: [] }}));
+                    const daily = (dailyJson && dailyJson.data && Array.isArray(dailyJson.data.daily_consumption)) ? dailyJson.data.daily_consumption : [];
+
+                    // Map daily API to table rows
+                    ingredientRows = daily.map(d => {
+                        const dateIso = d.date || (d.date_formatted ? d.date_formatted.split('/').reverse().join('-') : null);
+                        const displayDate = d.date_formatted || (dateIso ? `${dateIso.split('-')[2]}/${dateIso.split('-')[1]}/${dateIso.split('-')[0]}` : '-');
+                        const totalOrders = Number(d.total_orders || d.summary?.total_orders || 0);
+                        const totalConsumption = Number(d.summary?.total_quantity_consumed || d.ingredients_consumed?.reduce((a,x)=>a+(x.total_consumed||0),0) || 0);
+                        return {
+                            order_id: `Daily ${displayDate}`,
+                            date: displayDate,
+                            status_text: `${totalOrders} order • ${Number(d.summary?.total_ingredients_types || 0)} menu/bahan`,
+                            ingredients_affected: totalConsumption,
+                            total_qty: totalConsumption,
+                            daily_summary: {
+                                total_orders: totalOrders,
+                                unique_menus: Number(d.summary?.total_ingredients_types || 0),
+                                total_consumption: totalConsumption,
+                                order_ids: []
+                            }
+                        };
+                    }).sort((a,b)=>{
+                        const toIso = (s) => /^\d{2}\/\d{2}\/\d{4}$/.test(s) ? `${s.split('/')[2]}-${s.split('/')[1]}-${s.split('/')[0]}` : s;
+                        return toIso(b.date).localeCompare(toIso(a.date));
+                    });
+
+                    // Build detail groups for panel by fetching logs within same range
+                    const qsLogsForGroups = new URLSearchParams({ limit: '2000' });
+                    if (startParam) qsLogsForGroups.append('start_date', startParam);
+                    if (endParam) qsLogsForGroups.append('end_date', endParam);
+                    const logsRes = await fetch(`/inventory/history?${qsLogsForGroups.toString()}`);
                     const logsJson = await logsRes.json().catch(() => ({ history: [] }));
                     const logs = Array.isArray(logsJson.history) ? logsJson.history : [];
-                    
-                    // Group logs by date with more comprehensive data
-                    const byDate = {};
-                    const addDailyAggregate = (map, displayDate, logRow) => {
-                        if (!map[displayDate]) {
-                            map[displayDate] = {
-                                total_orders: 0,
-                                ingredients_affected: 0,
-                                unique_menus: new Set(),
-                                total_consumption: 0,
-                                order_ids: new Set()
-                            };
-                        }
-                        map[displayDate].total_orders += 1;
-                        map[displayDate].ingredients_affected += (logRow.ingredients_affected || 0);
-                        map[displayDate].total_consumption += (logRow.ingredients_affected || 0);
-                        map[displayDate].order_ids.add(logRow.order_id);
-                    };
-
-                    logs.forEach(l => {
-                        const iso = getLogIsoDate(l);
-                        if (!iso) { console.warn('[Ingredient-Daily] Gagal parse tanggal log', l); return; }
-                        if (startParam && iso < startParam) return;
-                        if (endParam && iso > endParam) return;
-                        const displayDate = `${iso.split('-')[2]}/${iso.split('-')[1]}/${iso.split('-')[0]}`;
-                        addDailyAggregate(byDate, displayDate, l);
-                        // Try to get menu details from kitchen orders
-                        const kitchenOrder = kitchenOrdersCache.find(o => o.order_id === l.order_id);
-                        if (kitchenOrder && kitchenOrder.items) {
-                            kitchenOrder.items.forEach(item => {
-                                if (item.menu_name) byDate[displayDate].unique_menus.add(item.menu_name);
-                            });
-                        }
-                    });
-                    
-                    // Create daily rows with better information
-                    ingredientRows = Object.entries(byDate).sort((a,b)=>{
-                        // sort by ISO date descending using conversion
-                        const [ad] = a; const [bd] = b;
-                        const toIso = (s) => /^\d{2}\/\d{2}\/\d{4}$/.test(s) ? `${s.split('/')[2]}-${s.split('/')[1]}-${s.split('/')[0]}` : s;
-                        return toIso(bd).localeCompare(toIso(ad));
-                    }).map(([displayDate, v]) => ({
-                        order_id: `Daily ${displayDate}`,
-                        date: displayDate, // keep dd/mm/yyyy for UI
-                        status_text: `${v.total_orders} order • ${v.unique_menus.size} menu`,
-                        ingredients_affected: v.total_consumption,
-                        total_qty: v.total_consumption,
-                        daily_summary: {
-                            total_orders: v.total_orders,
-                            unique_menus: v.unique_menus.size,
-                            total_consumption: v.total_consumption,
-                            order_ids: Array.from(v.order_ids)
-                        }
-                    }));
-                    
-                    // For daily view, also create menuFlavorGroups from the same logs data
-                    // This allows us to show detailed breakdown when clicking detail button
                     for (const log of logs) {
                         const iso = getLogIsoDate(log);
                         if (!iso) continue;
                         const rawDisplay = `${iso.split('-')[2]}/${iso.split('-')[1]}/${iso.split('-')[0]}`;
-                        // Try to get menu details from kitchen orders
                         const kitchenOrder = kitchenOrdersCache.find(o => o.order_id === log.order_id);
-                        // Only include completed orders
                         if (kitchenOrder && kitchenOrder.status === 'done' && kitchenOrder.items && kitchenOrder.items.length > 0) {
+                            // Distribute ingredient usage proportionally by item quantity
+                            const totalQty = kitchenOrder.items.reduce((a, it) => a + (Number(it.quantity) || 0), 0) || 1;
                             for (const menuItem of kitchenOrder.items) {
                                 const menuName = menuItem.menu_name || 'Unknown Menu';
-                                const flavor = menuItem.preference || 'Default';
+                                const flavor = menuItem.preference || menuItem.flavor || '-';
+                                const qty = Number(menuItem.quantity || 0) || 0;
+                                const share = Math.round((Number(log.ingredients_affected || 0) * qty) / totalQty);
                                 const key = `${menuName}|${flavor}`;
-                                
                                 if (!menuFlavorGroups[key]) {
                                     menuFlavorGroups[key] = {
                                         menu_name: menuName,
@@ -760,16 +735,42 @@ async function loadIngredientAnalysisData() {
                                         status_text: 'Selesai'
                                     };
                                 }
-                                
-                                menuFlavorGroups[key].total_orders += 1;
-                                menuFlavorGroups[key].total_ingredients += (log.ingredients_affected || 0);
+                                menuFlavorGroups[key].total_orders += qty;
+                                menuFlavorGroups[key].total_ingredients += share;
                                 menuFlavorGroups[key].order_ids.add(log.order_id);
                             }
                         } else {
-                            // Fallback removed to keep table clean
+                            // Fallback for historical days: use per_menu_payload when kitchen order not found
+                            let payload = log.per_menu_payload;
+                            if (typeof payload === 'string') {
+                                try { payload = JSON.parse(payload); } catch { payload = null; }
+                            }
+                            if (Array.isArray(payload) && payload.length) {
+                                const totalQty = payload.reduce((a, p) => a + (Number(p.quantity) || 0), 0) || 1;
+                                for (const p of payload) {
+                                    const menuName = p.name || p.menu_name || 'Unknown Menu';
+                                    const flavor = p.flavor || p.preference || '-';
+                                    const qty = Number(p.quantity || 0) || 0;
+                                    const share = Math.round((Number(log.ingredients_affected || 0) * qty) / totalQty);
+                                    const key = `${menuName}|${flavor}`;
+                                    if (!menuFlavorGroups[key]) {
+                                        menuFlavorGroups[key] = {
+                                            menu_name: menuName,
+                                            flavor: flavor,
+                                            total_orders: 0,
+                                            total_ingredients: 0,
+                                            order_ids: new Set(),
+                                            date: rawDisplay,
+                                            status_text: 'Selesai'
+                                        };
+                                    }
+                                    menuFlavorGroups[key].total_orders += qty;
+                                    menuFlavorGroups[key].total_ingredients += share;
+                                    menuFlavorGroups[key].order_ids.add(log.order_id);
+                                }
+                            }
                         }
                     }
-                    // After building daily ingredientRows and menuFlavorGroups, also build logsRows from menuFlavorGroups
                     logsRowsFinal = Object.values(menuFlavorGroups).map(group => ({
                         menu_name: group.menu_name,
                         flavor: group.flavor,
@@ -792,26 +793,26 @@ async function loadIngredientAnalysisData() {
                     const logsJson = await logsRes.json().catch(() => ({ history: [] }));
                     const logs = Array.isArray(logsJson.history) ? logsJson.history : [];
 
-                    // Build rows primarily from per_menu_payload returned by backend; fallback to generic row
+                    // Build rows primarily from kitchen orders (for precise flavor),
+                    // fallback to per_menu_payload; then aggregate by menu+flavor+date
                     const rows = [];
                     for (const log of logs) {
                         const orderId = log.order_id;
                         const ingAffected = Number(log.ingredients_affected || 0);
                         const iso = getLogIsoDate(log);
                         const displayDate = iso ? `${iso.split('-')[2]}/${iso.split('-')[1]}/${iso.split('-')[0]}` : (log.date || '-');
-                        let payload = log.per_menu_payload;
-                        if (typeof payload === 'string') {
-                            try { payload = JSON.parse(payload); } catch { payload = null; }
-                        }
-                        if (Array.isArray(payload) && payload.length) {
-                            const totalQty = payload.reduce((a, p) => a + (Number(p.quantity)||0), 0) || 1;
-                            for (const p of payload) {
-                                const menuName = p.name || p.menu_name || 'Unknown Menu';
-                                const qty = Number(p.quantity || 0) || 0;
+                        // Prefer kitchen orders to get accurate flavor
+                        const kOrder = kitchenOrdersCache.find(o => String(o.order_id) === String(orderId));
+                        if (kOrder && Array.isArray(kOrder.items) && kOrder.items.length) {
+                            const totalQty = kOrder.items.reduce((a, it) => a + (Number(it.quantity) || 0), 0) || 1;
+                            for (const it of kOrder.items) {
+                                const menuName = it.menu_name || 'Unknown Menu';
+                                const qty = Number(it.quantity || 0) || 0;
                                 const share = Math.round((ingAffected * qty) / totalQty);
+                                const flavor = it.preference || it.flavor || '-';
                                 rows.push({
                                     menu_name: menuName,
-                                    flavor: 'Default',
+                                    flavor,
                                     date: displayDate,
                                     status_text: 'Selesai',
                                     order_count: qty,
@@ -822,25 +823,84 @@ async function loadIngredientAnalysisData() {
                                 });
                             }
                         } else {
-                            // Fallback single row
-                            rows.push({
-                                menu_name: '-',
-                                flavor: 'Default',
-                                date: displayDate,
-                                status_text: 'Selesai',
-                                order_count: 1,
-                                ingredients_affected: ingAffected,
-                                total_qty: ingAffected,
-                                order_ids: [orderId],
-                                order_id: orderId
-                            });
+                            // Fallback to per_menu_payload if available
+                            let payload = log.per_menu_payload;
+                            if (typeof payload === 'string') {
+                                try { payload = JSON.parse(payload); } catch { payload = null; }
+                            }
+                            if (Array.isArray(payload) && payload.length) {
+                                const totalQty = payload.reduce((a, p) => a + (Number(p.quantity)||0), 0) || 1;
+                                for (const p of payload) {
+                                    const menuName = p.name || p.menu_name || 'Unknown Menu';
+                                    const qty = Number(p.quantity || 0) || 0;
+                                    const share = Math.round((ingAffected * qty) / totalQty);
+                                    const flavor = p.flavor || p.preference || '-';
+                                    rows.push({
+                                        menu_name: menuName,
+                                        flavor,
+                                        date: displayDate,
+                                        status_text: 'Selesai',
+                                        order_count: qty,
+                                        ingredients_affected: share,
+                                        total_qty: share,
+                                        order_ids: [orderId],
+                                        order_id: orderId
+                                    });
+                                }
+                            } else {
+                                // Minimal fallback single row
+                                rows.push({
+                                    menu_name: '-',
+                                    flavor: '-',
+                                    date: displayDate,
+                                    status_text: 'Selesai',
+                                    order_count: 1,
+                                    ingredients_affected: ingAffected,
+                                    total_qty: ingAffected,
+                                    order_ids: [orderId],
+                                    order_id: orderId
+                                });
+                            }
                         }
                     }
 
-                    ingredientRows = rows;
+                    // Aggregate by menu+flavor+date
+                    const agg = {};
+                    for (const r of rows) {
+                        const key = `${r.menu_name}|${r.flavor}|${r.date}`;
+                        if (!agg[key]) {
+                            agg[key] = {
+                                menu_name: r.menu_name,
+                                flavor: r.flavor,
+                                date: r.date,
+                                status_text: r.status_text || 'Selesai',
+                                order_count: 0,
+                                ingredients_affected: 0,
+                                total_qty: 0,
+                                order_ids: new Set()
+                            };
+                        }
+                        agg[key].order_count += Number(r.order_count || 0);
+                        agg[key].ingredients_affected += Number(r.ingredients_affected || 0);
+                        agg[key].total_qty += Number(r.total_qty || 0);
+                        (r.order_ids || []).forEach(id => agg[key].order_ids.add(id));
+                    }
+                    const aggregatedRows = Object.values(agg).map(g => ({
+                        menu_name: g.menu_name,
+                        flavor: g.flavor,
+                        date: g.date,
+                        status_text: g.status_text,
+                        order_count: g.order_count,
+                        ingredients_affected: g.ingredients_affected,
+                        total_qty: g.total_qty,
+                        order_ids: Array.from(g.order_ids),
+                        order_id: Array.from(g.order_ids)[0] || ''
+                    }));
+
+                    ingredientRows = aggregatedRows;
                     // For details panel support, also construct a lightweight group map by menu
                     menuFlavorGroups = {};
-                    for (const r of rows) {
+                    for (const r of aggregatedRows) {
                         const key = `${r.menu_name}|${r.flavor}`;
                         if (!menuFlavorGroups[key]) {
                             menuFlavorGroups[key] = {
@@ -1269,31 +1329,30 @@ function hideIngredientDetailsPanel() {
 
 // ========== INGREDIENT ANALYSIS EXPORT FUNCTIONS ==========
 function exportIngredientExcel() {
-    // Get current data based on the active view
+    // Use current view mode and cached dataset
+    const viewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
+    const dataset = ingredientDataCache && ingredientDataCache[viewMode] ? ingredientDataCache[viewMode] : (Array.isArray(baseData) ? baseData : []);
     let exportData = [];
     let headers = [];
-    
-    if (document.getElementById('ingredient-daily-view').classList.contains('active')) {
-        // Daily consumption view
-        headers = ['No', 'Tanggal', 'Ringkasan', 'Total Pesanan', 'Total Konsumsi', 'Detail'];
-        exportData = (Array.isArray(baseData) ? baseData : []).map((r, index) => [
+
+    if (viewMode === 'daily') {
+        headers = ['No', 'Tanggal', 'Ringkasan', 'Total Pesanan', 'Total Konsumsi'];
+        exportData = dataset.map((r, index) => [
             index + 1,
             r.date || '-',
             r.daily_summary ? `${r.daily_summary.total_orders || 0} pesanan, ${r.daily_summary.unique_menus || 0} menu unik` : '-',
             r.daily_summary?.total_orders || 0,
-            r.daily_summary?.total_consumption || 0,
-            'Lihat detail untuk informasi lengkap'
+            r.daily_summary?.total_consumption || 0
         ]);
     } else {
-        // Grouped consumption view (logs)
-        headers = ['No', 'Menu', 'Flavor', 'Tanggal', 'Status', 'Bahan Terpengaruh', 'Order IDs'];
-        exportData = (Array.isArray(baseData) ? baseData : []).map((r, index) => [
+        headers = ['No', 'Menu', 'Flavor', 'Tanggal', 'Total Orders', 'Total Ingredients Used', 'Order IDs'];
+        exportData = dataset.map((r, index) => [
             index + 1,
             r.menu_name || '-',
             r.flavor || '-',
             r.date || '-',
-            r.status_text || '-',
-            r.ingredients_affected ?? 0,
+            (r.order_count ?? (Array.isArray(r.order_ids) ? r.order_ids.length : 0) ?? 0),
+            (r.ingredients_affected ?? r.total_qty ?? 0),
             Array.isArray(r.order_ids) ? r.order_ids.join(', ') : (r.order_id || '-')
         ]);
     }
@@ -1336,48 +1395,34 @@ function exportIngredientExcel() {
 }
  
  function exportIngredientCSV() {
-    // Export aligned with ingredient mode (daily history aggregation)
-    let exportData = [];
+    const viewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
+    const dataset = ingredientDataCache && ingredientDataCache[viewMode] ? ingredientDataCache[viewMode] : (Array.isArray(baseData) ? baseData : []);
     let headers = [];
+    let exportData = [];
 
-    if (document.getElementById('ingredient-daily-view').classList.contains('active')) {
-        // Daily consumption view
-        headers = ['No', 'Tanggal', 'Order ID', 'Status', 'Total Bahan', 'Total Qty', 'Detail Bahan'];
-        exportData = (Array.isArray(baseData) ? baseData : []).map((r, index) => [
+    if (viewMode === 'daily') {
+        headers = ['No', 'Tanggal', 'Ringkasan', 'Total Pesanan', 'Total Konsumsi'];
+        exportData = dataset.map((r, index) => [
             index + 1,
-        r.date || '-',
-            r.order_id || '-',
-        r.status_text || '-',
-        r.ingredients_affected ?? 0,
-            r.total_qty ?? 0,
-            r.ingredients_detail || '-'
+            r.date || '-',
+            r.daily_summary ? `${r.daily_summary.total_orders || 0} pesanan, ${r.daily_summary.unique_menus || 0} menu unik` : '-',
+            r.daily_summary?.total_orders || 0,
+            r.daily_summary?.total_consumption || 0
         ]);
     } else {
-        // Grouped consumption view
-        headers = ['No', 'Menu + Flavor', 'Total Order', 'Bahan yang Digunakan'];
-        exportData = Object.entries(ingredientMenuFlavorGroups).map(([key, data], index) => {
-            const [menuName, flavorName] = key.split('|');
-            const ingredients = Object.entries(data.ingredients || {})
-                .map(([ingId, ingData]) => {
-                    const ingredient = ingredientData[ingId];
-                    return `${ingredient?.name || 'Unknown'}: ${ingData.totalQuantity} ${ingData.unit}`;
-                })
-                .join('; ');
-            
-            return [
-                index + 1,
-                `${menuName} (${flavorName})`,
-                data.totalOrder || 0,
-                ingredients || 'Tidak ada data'
-            ];
-        });
+        headers = ['No', 'Menu', 'Flavor', 'Tanggal', 'Total Orders', 'Total Ingredients Used', 'Order IDs'];
+        exportData = dataset.map((r, index) => [
+            index + 1,
+            r.menu_name || '-',
+            r.flavor || '-',
+            r.date || '-',
+            (r.order_count ?? (Array.isArray(r.order_ids) ? r.order_ids.length : 0) ?? 0),
+            (r.ingredients_affected ?? r.total_qty ?? 0),
+            Array.isArray(r.order_ids) ? r.order_ids.join(', ') : (r.order_id || '-')
+        ]);
     }
-    
-    const csvContent = [
-        headers,
-        ...exportData
-    ].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
-    
+
+    const csvContent = [headers, ...exportData].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1388,8 +1433,9 @@ function exportIngredientExcel() {
 }
 
 function exportIngredientPDF() {
-    const isDaily = document.getElementById('ingredient-daily-view').classList.contains('active');
-    const rows = Array.isArray(baseData) ? baseData : [];
+    const viewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
+    const isDaily = viewMode === 'daily';
+    const rows = ingredientDataCache && ingredientDataCache[viewMode] ? ingredientDataCache[viewMode] : (Array.isArray(baseData) ? baseData : []);
     const startDate = (document.getElementById('ingredient-start-date')?.value) || '-';
     const endDate = (document.getElementById('ingredient-end-date')?.value) || '-';
 
@@ -2896,31 +2942,27 @@ async function fetchSuggestedMenu() {
 
 // ========== GLOBAL EXPORT DISPATCHERS (AGGREGATED) ==========
 function exportCSV() {
+    // Dispatch based on current data type instead of hidden sections
     const kitchenVisible = !document.getElementById('kitchen-report-section')?.classList.contains('hidden');
-    const ingredientVisible = !document.getElementById('ingredient-analysis-section')?.classList.contains('hidden');
+    if (currentDataType === 'ingredient') { return exportIngredientCSV(); }
     if (kitchenVisible) { return exportKitchenCSV(); }
-    if (ingredientVisible) { return exportIngredientCSV(); }
     return exportSalesCSVEnhanced();
 }
 
 async function exportPDF() {
+    // Dispatch based on current data type instead of hidden sections
     const kitchenVisible = !document.getElementById('kitchen-report-section')?.classList.contains('hidden');
-    const ingredientVisible = !document.getElementById('ingredient-analysis-section')?.classList.contains('hidden');
+    if (currentDataType === 'ingredient') { return exportIngredientPDF(); }
     if (kitchenVisible) { return exportKitchenPDF(); }
-    if (ingredientVisible) { return exportIngredientPDF(); }
     return exportSalesPDFEnhanced();
 }
 
 // ========== GLOBAL EXCEL EXPORT DISPATCHER ==========
 function exportExcel() {
+    // Dispatch based on current data type instead of hidden sections
     const kitchenVisible = !document.getElementById('kitchen-report-section')?.classList.contains('hidden');
-    const ingredientVisible = !document.getElementById('ingredient-analysis-section')?.classList.contains('hidden');
-    if (kitchenVisible) {
-        return exportKitchenExcel();
-    }
-    if (ingredientVisible) {
-        return exportIngredientExcel();
-    }
+    if (currentDataType === 'ingredient') { return exportIngredientExcel(); }
+    if (kitchenVisible) { return exportKitchenExcel(); }
     return exportSalesExcelEnhanced();
 }
 
@@ -3512,7 +3554,7 @@ function renderReportTable() {
                     const totalConsumption = dailySummary.total_consumption || 0;
                     
                     tbody.innerHTML += `
-                        <tr onclick="viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="cursor: pointer;">
+                        <tr onclick="viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}'); setTimeout(()=>{ const p=document.getElementById('ingredient-details-panel'); if(p && !p.classList.contains('hidden')) p.scrollIntoView({behavior:'smooth', block:'start', inline:'nearest'}); }, 150);" style="cursor: pointer;">
                             <td>${actualIndex + 1}</td>
                             <td style="font-weight: 600; color: #1F2937;">${item.date || '-'}</td>
                             <td style="color: #6B7280; line-height: 1.4;">
@@ -3524,7 +3566,7 @@ function renderReportTable() {
                             <td style="text-align: center; font-weight: 600; color: #059669;">${totalOrders.toLocaleString()}</td>
                             <td style="text-align: center; font-weight: 600; color: #DC2626;">${totalConsumption.toLocaleString()}</td>
                             <td>
-                                <button class="table-action-btn" onclick="event.stopPropagation(); viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}')" style="white-space: nowrap; min-width: 80px;">
+                                          <button class="table-action-btn" onclick="event.stopPropagation(); viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}'); setTimeout(()=>{ const p=document.getElementById('ingredient-details-panel'); if(p && !p.classList.contains('hidden')) p.scrollIntoView({behavior:'smooth', block:'start', inline:'nearest'}); }, 150);" style="white-space: nowrap; min-width: 80px;">
                                    <i class="fas fa-eye"></i>
                                 </button>
                             </td>
@@ -4393,4 +4435,7 @@ function closeModalAndViewConsumption(orderId, dateStr, statusText) {
         }, 200);
     }, 100);
 }
+
+// Handle action click for logs rows: prefer grouped modal when we have many orders, fallback to direct details for single order or missing cache
+// (removed custom handler; using grouped modal directly for action clicks)
 
