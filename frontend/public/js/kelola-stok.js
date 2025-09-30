@@ -1430,7 +1430,11 @@ class InventoryManager {
       'rollback': 'warning',
       'restock': 'success',
       'make_available': 'success',
-      'make_unavailable': 'danger'
+      'make_unavailable': 'danger',
+      // new granular edits for audit history
+      'edit_item_name': 'warning',
+      'edit_category': 'warning',
+      'edit_unit': 'warning'
     };
     return actionMap[actionType.toLowerCase()] || 'default';
   }
