@@ -1029,10 +1029,14 @@ function updateSummary(orders) {
     // Urutkan orders dalam setiap menu berdasarkan nomor antrian
     data.orders.sort((a, b) => (a.queue || Infinity) - (b.queue || Infinity));
     
-    // Remove duplicates from orders array
-    const uniqueOrders = data.orders.filter((order, index, self) => 
-      index === self.findIndex(o => o.id === order.id)
-    );
+    // Remove duplicates from orders array, but keep distinct variants (and notes) per order
+    // Previously we deduped by order.id only, which caused different flavors within the same order
+    // to collapse into a single row. Now we dedupe by (order.id + variant + notes).
+    const uniqueOrders = data.orders.filter((order, index, self) => {
+      const key = `${order.id}__${(order.variant || '').toLowerCase()}__${(order.notes || '').trim().toLowerCase()}`;
+      const firstIdx = self.findIndex(o => `${o.id}__${(o.variant || '').toLowerCase()}__${(o.notes || '').trim().toLowerCase()}` === key);
+      return index === firstIdx;
+    });
     
     const summaryItem = document.createElement('div');
     summaryItem.className = 'summary-item';
