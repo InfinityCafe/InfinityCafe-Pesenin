@@ -3642,45 +3642,89 @@ function initializeElements() {
     
     // ========== SEARCH FUNCTIONS ==========
     function filterTableData(searchTerm) {
-    if (!baseData && !ingredientDataCache) return;
-    const term = (searchTerm || '').toLowerCase();
+    // Unified, mode-aware search across the currently visible table
+    const term = (searchTerm || '').toLowerCase().trim();
+
+    // Helper to convert any value to a comparable string
+    const S = (v) => (v === null || v === undefined) ? '' : String(v).toLowerCase();
+
+    let source = [];
+
     if (currentDataType === 'ingredient') {
         // Determine current ingredient view and pick the right dataset
         const viewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
-        let source = [];
         if (Array.isArray(baseData)) {
-            // In some flows, baseData may already be the active array
+            // In some flows, baseData may already be the active array for the active view
             source = baseData;
         } else if (baseData && typeof baseData === 'object') {
             source = baseData[viewMode] || [];
         } else if (ingredientDataCache && typeof ingredientDataCache === 'object') {
             source = ingredientDataCache[viewMode] || [];
+        } else {
+            source = [];
         }
 
-        filteredData = term
-            ? source.filter(item => 
-                (item.menu_name || '').toLowerCase().includes(term) || 
-                (item.flavor || '').toLowerCase().includes(term) ||
-                (item.order_id || '').toLowerCase().includes(term) || 
-                (item.date || '').toLowerCase().includes(term) || 
-                (item.status_text || '').toLowerCase().includes(term)
-            )
-            : [...source];
-    } else if (currentDataType === 'sales') {
-        // Sales data: filter by menu name and flavor
-        filteredData = term
-            ? source.filter(item => 
-                (item.menu_name || '').toLowerCase().includes(term) ||
-                (item.flavor || '').toLowerCase().includes(term)
-            )
-            : [...source];
+        if (!term) {
+            filteredData = [...source];
+        } else if (viewMode === 'daily') {
+            // Daily view visible columns: Date, Daily Summary (orders, unique menus), Total Orders, Total Ingredients
+            filteredData = source.filter(item => {
+                const summary = item.daily_summary || {};
+                const fields = [
+                    item.date,
+                    item.status_text,
+                    summary.total_orders,
+                    summary.unique_menus,
+                    summary.total_consumption
+                ];
+                return fields.some(f => S(f).includes(term));
+            });
+        } else {
+            // Logs view visible columns: Menu, Flavor, Date, Total Orders, Total Ingredients, Status
+            filteredData = source.filter(item => {
+                const fields = [
+                    item.menu_name,
+                    item.flavor,
+                    item.date,
+                    item.status_text,
+                    item.order_count,
+                    item.ingredients_affected,
+                    Array.isArray(item.order_ids) ? item.order_ids.join(',') : item.order_id
+                ];
+                return fields.some(f => S(f).includes(term));
+            });
+        }
     } else {
-        // Best seller data: filter by menu name only
-    filteredData = term
-        ? source.filter(item => (item.menu_name || '').toLowerCase().includes(term))
-        : [...source];
+        // Sales or Best Seller
+        source = Array.isArray(baseData) ? baseData : [];
+        if (!term) {
+            filteredData = [...source];
+        } else if (currentDataType === 'sales') {
+            // Visible columns: Menu, Flavor, Qty, Price, Total
+            filteredData = source.filter(item => {
+                const fields = [
+                    item.menu_name,
+                    item.flavor,
+                    item.quantity,
+                    item.base_price,
+                    item.total_price
+                ];
+                return fields.some(f => S(f).includes(term));
+            });
+        } else {
+            // Best seller visible columns: Menu, Qty, Price, Total
+            filteredData = source.filter(item => {
+                const fields = [
+                    item.menu_name,
+                    (item.total_quantity ?? item.quantity),
+                    item.unit_price,
+                    (item.total_revenue ?? item.total)
+                ];
+                return fields.some(f => S(f).includes(term));
+            });
+        }
     }
-    
+
     reportCurrentPage = 1;
     renderReportTable();
     updateReportPagination();
