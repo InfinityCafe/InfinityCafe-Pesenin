@@ -1169,6 +1169,26 @@ app.get("/inventory/history", async (req, res) => {
   }
 });
 
+// Proxy: daily consumption history (supports date or start_date/end_date)
+app.get("/inventory/consumption/daily", async (req, res) => {
+  try {
+    const { date, start_date, end_date } = req.query;
+    const params = new URLSearchParams();
+    if (date) params.set("date", date);
+    if (start_date) params.set("start_date", start_date);
+    if (end_date) params.set("end_date", end_date);
+    const url = params.toString()
+      ? `http://inventory_service:8006/consumption/history/daily?${params.toString()}`
+      : `http://inventory_service:8006/consumption/history/daily`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    res.status(resp.status).json(data);
+  } catch (err) {
+    console.error("Failed to fetch daily consumption history ", err);
+    res.status(500).json({ error: "Failed to fetch daily consumption history" });
+  }
+});
+
 // Audit History
 // app.get("/inventory/stock/history", async (req,res) => {
 //   try {

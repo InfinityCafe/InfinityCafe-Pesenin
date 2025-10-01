@@ -3023,3 +3023,107 @@ def fix_pending_consumption_logs(db: Session = Depends(get_db)):
             "message": f"Gagal memperbaiki pending logs: {str(e)}",
             "data": None
         })
+
+
+@app.post("/admin/backdate_consumption_log", summary="Backdate created_at/consumed_at consumption log dan record terkait", tags=["Admin"])
+def backdate_consumption_log(
+    order_id: str = Query(..., description="Order ID dari consumption log"),
+    date: str = Query(..., description="Tanggal baru dalam format YYYY-MM-DD"),
+    time: Optional[str] = Query(None, description="Opsional, jam-menit dalam format HH:MM (default 12:00)"),
+    db: Session = Depends(get_db)
+):
+    """Backdate consumption log ke tanggal yang diinginkan (Asia/Jakarta) dan sinkronkan created_at
+    pada detail bahan serta stock_history untuk order tersebut.
+
+    Catatan:
+    - Hanya memodifikasi timestamp; tidak mengubah kuantitas/isi log.
+    - Jika consumed_at ada dan lebih kecil dari created_at baru, consumed_at akan digeser +5 menit.
+    """
+    try:
+        from datetime import datetime
+        # Validasi dan parsing tanggal/jam
+        try:
+            base_date = datetime.strptime(date, "%Y-%m-%d")
+        except ValueError:
+            return JSONResponse(status_code=400, content={
+                "status": "error",
+                "message": "Format 'date' tidak valid. Gunakan YYYY-MM-DD",
+                "data": None
+            })
+
+        if time:
+            try:
+                hh, mm = time.split(":")
+                base_date = base_date.replace(hour=int(hh), minute=int(mm))
+            except Exception:
+                return JSONResponse(status_code=400, content={
+                    "status": "error",
+                    "message": "Format 'time' tidak valid. Gunakan HH:MM",
+                    "data": None
+                })
+        else:
+            # Default ke tengah hari untuk mencegah ambigu zona waktu
+            base_date = base_date.replace(hour=12, minute=0)
+
+        # Buat timezone-aware di Asia/Jakarta
+        if base_date.tzinfo is None:
+            new_dt = jakarta_tz.localize(base_date)
+        else:
+            new_dt = base_date.astimezone(jakarta_tz)
+
+        # Ambil consumption_log
+        log = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
+        if not log:
+            return JSONResponse(status_code=404, content={
+                "status": "error",
+                "message": f"Consumption log untuk order '{order_id}' tidak ditemukan",
+                "data": None
+            })
+
+        # Update created_at log
+        log.created_at = new_dt
+        # Jika consumed_at ada dan lebih kecil dari created_at baru, geser consumed_at sedikit sesudahnya
+        if log.consumed_at:
+            try:
+                from datetime import timedelta
+                if log.consumed_at.astimezone(jakarta_tz) < new_dt:
+                    log.consumed_at = new_dt + timedelta(minutes=5)
+            except Exception:
+                pass
+
+        # Update ingredient details timestamps
+        try:
+            details = db.query(ConsumptionIngredientDetail).filter(
+                ConsumptionIngredientDetail.consumption_log_id == log.id
+            ).all()
+            for d in details:
+                d.created_at = new_dt
+        except Exception as e:
+            logging.warning(f"Gagal update timestamp ingredient_details: {e}")
+
+        # Update stock_history timestamps untuk order yang sama
+        try:
+            histories = db.query(StockHistory).filter(StockHistory.order_id == order_id).all()
+            for h in histories:
+                h.created_at = new_dt
+        except Exception as e:
+            logging.warning(f"Gagal update timestamp stock_history: {e}")
+
+        db.commit()
+        return JSONResponse(status_code=200, content={
+            "status": "success",
+            "message": f"Timestamp consumption log '{order_id}' berhasil diubah ke {new_dt.isoformat()}",
+            "data": {
+                "order_id": order_id,
+                "created_at": new_dt.isoformat(),
+                "consumed_at": log.consumed_at.isoformat() if log.consumed_at else None
+            }
+        })
+    except Exception as e:
+        db.rollback()
+        logging.error(f"Error backdate consumption log for {order_id}: {e}")
+        return JSONResponse(status_code=500, content={
+            "status": "error",
+            "message": f"Gagal backdate consumption log: {str(e)}",
+            "data": None
+        })
