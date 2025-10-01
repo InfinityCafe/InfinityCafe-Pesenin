@@ -103,7 +103,8 @@ function getLogIsoDate(row) {
 // Menghasilkan { valid: boolean, message?: string, fields: {start:boolean,end:boolean} }
 function validateIngredientDateRange(startVal, endVal) {
     const res = { valid: true, message: '', fields: { start: false, end: false } };
-    if (!startVal && !endVal) return res; // keduanya kosong: dianggap bebas
+    // Allow empty range (will default elsewhere)
+    if (!startVal && !endVal) return res;
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (startVal && !dateRegex.test(startVal)) {
         res.valid = false; res.fields.start = true; res.message = 'Format tanggal awal tidak valid (harus yyyy-mm-dd).';
@@ -116,6 +117,27 @@ function validateIngredientDateRange(startVal, endVal) {
     if (startVal && endVal && startVal > endVal) {
         res.valid = false; res.fields.start = true; res.fields.end = true; res.message = 'Tanggal awal tidak boleh melebihi tanggal akhir.';
         return res;
+    }
+    // Logical constraints: no future dates, limit span
+    const today = new Date();
+    const todayIso = _toIsoDateLocal(today);
+    if (startVal && startVal > todayIso) {
+        res.valid = false; res.fields.start = true; res.message = 'Tanggal awal tidak boleh melebihi hari ini.';
+        return res;
+    }
+    if (endVal && endVal > todayIso) {
+        res.valid = false; res.fields.end = true; res.message = 'Tanggal akhir tidak boleh melebihi hari ini.';
+        return res;
+    }
+    if (startVal && endVal) {
+        // Limit maximum range length to 180 days to prevent heavy loads
+        const start = new Date(startVal + 'T00:00:00');
+        const end = new Date(endVal + 'T23:59:59');
+        const diffDays = Math.ceil((end - start) / (1000*60*60*24));
+        if (diffDays > 180) {
+            res.valid = false; res.fields.start = true; res.fields.end = true; res.message = 'Rentang tanggal terlalu panjang (maksimal 180 hari).';
+            return res;
+        }
     }
     return res;
 }
@@ -1008,10 +1030,126 @@ async function loadIngredientAnalysisData() {
                 renderIngredientAnalysis(ingredientDataCache);
                 updateIngredientSummary(ingredientDataCache);
             } else {
-                handleEmptyOrError('No recipe data available for analysis.');
+                // Fallback: proceed building datasets from backend even if recipes are unavailable
+                const viewSelect = document.getElementById('ingredient-view-select');
+                const viewMode = viewSelect ? viewSelect.value : 'daily';
+                const globalStartEl = document.getElementById('start_date');
+                const globalEndEl = document.getElementById('end_date');
+                const startParam = (startEl && startEl.value) ? startEl.value : (globalStartEl && globalStartEl.value ? globalStartEl.value : null);
+                const endParam = (endEl && endEl.value) ? endEl.value : (globalEndEl && globalEndEl.value ? globalEndEl.value : null);
+
+                // Daily
+                const qsDailyAgg = new URLSearchParams(); if (startParam) qsDailyAgg.append('start_date', startParam); if (endParam) qsDailyAgg.append('end_date', endParam);
+                const dailyRes = await fetch(`/inventory/consumption/daily?${qsDailyAgg.toString()}`);
+                const dailyJson = await dailyRes.json().catch(() => ({ data: { daily_consumption: [] }}));
+                const daily = (dailyJson && dailyJson.data && Array.isArray(dailyJson.data.daily_consumption)) ? dailyJson.data.daily_consumption : [];
+                const dailyRowsFinal = daily.map(d => {
+                    const dateIso = d.date || (d.date_formatted ? d.date_formatted.split('/').reverse().join('-') : null);
+                    const displayDate = d.date_formatted || (dateIso ? `${dateIso.split('-')[2]}/${dateIso.split('-')[1]}/${dateIso.split('-')[0]}` : '-');
+                    const totalOrders = Number(d.total_orders || d.summary?.total_orders || 0);
+                    const totalConsumption = Number(d.summary?.total_quantity_consumed || d.ingredients_consumed?.reduce((a,x)=>a+(x.total_consumed||0),0) || 0);
+                    return { order_id: `Daily ${displayDate}`, date: displayDate, status_text: `${totalOrders} order • ${Number(d.summary?.total_ingredients_types || 0)} menu/bahan`, ingredients_affected: totalConsumption, total_qty: totalConsumption, daily_summary: { total_orders: totalOrders, unique_menus: Number(d.summary?.total_ingredients_types || 0), total_consumption: totalConsumption, order_ids: [] } };
+                }).sort((a,b)=>{ const toIso=(s)=>/^\d{2}\/\d{2}\/\d{4}$/.test(s)?`${s.split('/')[2]}-${s.split('/')[1]}-${s.split('/')[0]}`:s; return toIso(b.date).localeCompare(toIso(a.date)); });
+
+                // Logs aggregated
+                const qsLogs = new URLSearchParams({ limit: '500' }); if (startParam) qsLogs.append('start_date', startParam); if (endParam) qsLogs.append('end_date', endParam);
+                const logsRes = await fetch(`/inventory/history?${qsLogs.toString()}`);
+                const logsJson = await logsRes.json().catch(() => ({ history: [] }));
+                const logs = Array.isArray(logsJson.history) ? logsJson.history : [];
+                const rows = [];
+                for (const log of logs) {
+                    const orderId = log.order_id; const ingAffected = Number(log.ingredients_affected || 0);
+                    const iso = getLogIsoDate(log);
+                    const displayDate = iso ? `${iso.split('-')[2]}/${iso.split('-')[1]}/${iso.split('-')[0]}` : (log.date || '-');
+                    const kOrder = kitchenOrdersCache.find(o => String(o.order_id) === String(orderId));
+                    if (kOrder && Array.isArray(kOrder.items) && kOrder.items.length) {
+                        const totalQty = kOrder.items.reduce((a, it) => a + (Number(it.quantity) || 0), 0) || 1;
+                        for (const it of kOrder.items) {
+                            const menuName = it.menu_name || 'Unknown Menu'; const qty = Number(it.quantity || 0) || 0; const share = Math.round((ingAffected * qty) / totalQty); const flavor = it.preference || it.flavor || '-';
+                            rows.push({ menu_name: menuName, flavor, date: displayDate, status_text: 'Selesai', order_count: qty, ingredients_affected: share, total_qty: share, order_ids: [orderId], order_id: orderId });
+                        }
+                    } else {
+                        let payload = log.per_menu_payload; if (typeof payload === 'string') { try { payload = JSON.parse(payload); } catch { payload = null; } }
+                        if (Array.isArray(payload) && payload.length) {
+                            const totalQty = payload.reduce((a, p) => a + (Number(p.quantity)||0), 0) || 1;
+                            for (const p of payload) {
+                                const menuName = p.name || p.menu_name || 'Unknown Menu'; const qty = Number(p.quantity || 0) || 0; const share = Math.round((ingAffected * qty) / totalQty); const flavor = p.flavor || p.preference || '-';
+                                rows.push({ menu_name: menuName, flavor, date: displayDate, status_text: 'Selesai', order_count: qty, ingredients_affected: share, total_qty: share, order_ids: [orderId], order_id: orderId });
+                            }
+                        } else {
+                            rows.push({ menu_name: '-', flavor: '-', date: displayDate, status_text: 'Selesai', order_count: 1, ingredients_affected: ingAffected, total_qty: ingAffected, order_ids: [orderId], order_id: orderId });
+                        }
+                    }
+                }
+                const agg = {}; for (const r of rows) { const key = `${r.menu_name}|${r.flavor}|${r.date}`; if (!agg[key]) { agg[key] = { menu_name: r.menu_name, flavor: r.flavor, date: r.date, status_text: r.status_text || 'Selesai', order_count: 0, ingredients_affected: 0, total_qty: 0, order_ids: new Set() }; } agg[key].order_count += Number(r.order_count||0); agg[key].ingredients_affected += Number(r.ingredients_affected||0); agg[key].total_qty += Number(r.total_qty||0); (r.order_ids||[]).forEach(id => agg[key].order_ids.add(id)); }
+                const logsRowsFinal = Object.values(agg).map(g => ({ menu_name: g.menu_name, flavor: g.flavor, date: g.date, status_text: g.status_text, order_count: g.order_count, ingredients_affected: g.ingredients_affected, total_qty: g.total_qty, order_ids: Array.from(g.order_ids), order_id: Array.from(g.order_ids)[0] || '' }));
+
+                // Groups for details
+                const menuFlavorGroups = {}; for (const r of logsRowsFinal) { const key = `${r.menu_name}|${r.flavor}`; if (!menuFlavorGroups[key]) { menuFlavorGroups[key] = { menu_name: r.menu_name, flavor: r.flavor, total_orders: 0, total_ingredients: 0, order_ids: new Set(), date: r.date, status_text: r.status_text }; } menuFlavorGroups[key].total_orders += Number(r.order_count||0); menuFlavorGroups[key].total_ingredients += Number(r.ingredients_affected||0); (r.order_ids||[]).forEach(id => menuFlavorGroups[key].order_ids.add(id)); }
+
+                ingredientDataCache = { logs: logsRowsFinal, daily: dailyRowsFinal };
+                baseData = ingredientDataCache;
+                ingredientMenuFlavorGroups = menuFlavorGroups;
+
+                const currentViewMode = viewMode; const currentViewData = ingredientDataCache[currentViewMode] || [];
+                updateReportTableHeader();
+                const tableSearch = document.getElementById('table-search-input'); const term = tableSearch ? tableSearch.value.toLowerCase() : '';
+                filteredData = term ? currentViewData.filter(i => (i.menu_name||'').toLowerCase().includes(term) || (i.flavor||'').toLowerCase().includes(term) || (i.order_id||'').toLowerCase().includes(term) || (i.date||'').toLowerCase().includes(term) || (i.status_text||'').toLowerCase().includes(term)) : [...currentViewData];
+                reportCurrentPage = 1; renderReportTable(); updateReportPagination(); renderIngredientAnalysis(ingredientDataCache); updateIngredientSummary(ingredientDataCache);
             }
         } else {
-            handleEmptyOrError('No completed order data for this period.');
+            // Fallback when there are no completed kitchen orders: build from inventory daily & logs directly
+            const viewSelect = document.getElementById('ingredient-view-select');
+            const viewMode = viewSelect ? viewSelect.value : 'daily';
+            const globalStartEl = document.getElementById('start_date');
+            const globalEndEl = document.getElementById('end_date');
+            const startParam = (startEl && startEl.value) ? startEl.value : (globalStartEl && globalStartEl.value ? globalStartEl.value : null);
+            const endParam = (endEl && endEl.value) ? endEl.value : (globalEndEl && globalEndEl.value ? globalEndEl.value : null);
+
+            const qsDailyAgg = new URLSearchParams(); if (startParam) qsDailyAgg.append('start_date', startParam); if (endParam) qsDailyAgg.append('end_date', endParam);
+            const dailyRes = await fetch(`/inventory/consumption/daily?${qsDailyAgg.toString()}`);
+            const dailyJson = await dailyRes.json().catch(() => ({ data: { daily_consumption: [] }}));
+            const daily = (dailyJson && dailyJson.data && Array.isArray(dailyJson.data.daily_consumption)) ? dailyJson.data.daily_consumption : [];
+            const dailyRowsFinal = daily.map(d => {
+                const dateIso = d.date || (d.date_formatted ? d.date_formatted.split('/').reverse().join('-') : null);
+                const displayDate = d.date_formatted || (dateIso ? `${dateIso.split('-')[2]}/${dateIso.split('-')[1]}/${dateIso.split('-')[0]}` : '-');
+                const totalOrders = Number(d.total_orders || d.summary?.total_orders || 0);
+                const totalConsumption = Number(d.summary?.total_quantity_consumed || d.ingredients_consumed?.reduce((a,x)=>a+(x.total_consumed||0),0) || 0);
+                return { order_id: `Daily ${displayDate}`, date: displayDate, status_text: `${totalOrders} order • ${Number(d.summary?.total_ingredients_types || 0)} menu/bahan`, ingredients_affected: totalConsumption, total_qty: totalConsumption, daily_summary: { total_orders: totalOrders, unique_menus: Number(d.summary?.total_ingredients_types || 0), total_consumption: totalConsumption, order_ids: [] } };
+            }).sort((a,b)=>{ const toIso=(s)=>/^\d{2}\/\d{2}\/\d{4}$/.test(s)?`${s.split('/')[2]}-${s.split('/')[1]}-${s.split('/')[0]}`:s; return toIso(b.date).localeCompare(toIso(a.date)); });
+
+            const qsLogs = new URLSearchParams({ limit: '500' }); if (startParam) qsLogs.append('start_date', startParam); if (endParam) qsLogs.append('end_date', endParam);
+            const logsRes = await fetch(`/inventory/history?${qsLogs.toString()}`);
+            const logsJson = await logsRes.json().catch(() => ({ history: [] }));
+            const logs = Array.isArray(logsJson.history) ? logsJson.history : [];
+            const rows = [];
+            for (const log of logs) {
+                const orderId = log.order_id; const ingAffected = Number(log.ingredients_affected || 0);
+                const iso = getLogIsoDate(log);
+                const displayDate = iso ? `${iso.split('-')[2]}/${iso.split('-')[1]}/${iso.split('-')[0]}` : (log.date || '-');
+                let payload = log.per_menu_payload; if (typeof payload === 'string') { try { payload = JSON.parse(payload); } catch { payload = null; } }
+                if (Array.isArray(payload) && payload.length) {
+                    const totalQty = payload.reduce((a, p) => a + (Number(p.quantity)||0), 0) || 1;
+                    for (const p of payload) {
+                        const menuName = p.name || p.menu_name || 'Unknown Menu'; const qty = Number(p.quantity || 0) || 0; const share = Math.round((ingAffected * qty) / totalQty); const flavor = p.flavor || p.preference || '-';
+                        rows.push({ menu_name: menuName, flavor, date: displayDate, status_text: 'Selesai', order_count: qty, ingredients_affected: share, total_qty: share, order_ids: [orderId], order_id: orderId });
+                    }
+                } else {
+                    rows.push({ menu_name: '-', flavor: '-', date: displayDate, status_text: 'Selesai', order_count: 1, ingredients_affected: ingAffected, total_qty: ingAffected, order_ids: [orderId], order_id: orderId });
+                }
+            }
+            const agg = {}; for (const r of rows) { const key = `${r.menu_name}|${r.flavor}|${r.date}`; if (!agg[key]) { agg[key] = { menu_name: r.menu_name, flavor: r.flavor, date: r.date, status_text: r.status_text || 'Selesai', order_count: 0, ingredients_affected: 0, total_qty: 0, order_ids: new Set() }; } agg[key].order_count += Number(r.order_count||0); agg[key].ingredients_affected += Number(r.ingredients_affected||0); agg[key].total_qty += Number(r.total_qty||0); (r.order_ids||[]).forEach(id => agg[key].order_ids.add(id)); }
+            const logsRowsFinal = Object.values(agg).map(g => ({ menu_name: g.menu_name, flavor: g.flavor, date: g.date, status_text: g.status_text, order_count: g.order_count, ingredients_affected: g.ingredients_affected, total_qty: g.total_qty, order_ids: Array.from(g.order_ids), order_id: Array.from(g.order_ids)[0] || '' }));
+
+            const menuFlavorGroups = {}; for (const r of logsRowsFinal) { const key = `${r.menu_name}|${r.flavor}`; if (!menuFlavorGroups[key]) { menuFlavorGroups[key] = { menu_name: r.menu_name, flavor: r.flavor, total_orders: 0, total_ingredients: 0, order_ids: new Set(), date: r.date, status_text: r.status_text }; } menuFlavorGroups[key].total_orders += Number(r.order_count||0); menuFlavorGroups[key].total_ingredients += Number(r.ingredients_affected||0); (r.order_ids||[]).forEach(id => menuFlavorGroups[key].order_ids.add(id)); }
+
+            ingredientDataCache = { logs: logsRowsFinal, daily: dailyRowsFinal };
+            baseData = ingredientDataCache; ingredientMenuFlavorGroups = menuFlavorGroups;
+            const currentViewMode = viewMode; const currentViewData = ingredientDataCache[currentViewMode] || [];
+            updateReportTableHeader();
+            const tableSearch = document.getElementById('table-search-input'); const term = tableSearch ? tableSearch.value.toLowerCase() : '';
+            filteredData = term ? currentViewData.filter(i => (i.menu_name||'').toLowerCase().includes(term) || (i.flavor||'').toLowerCase().includes(term) || (i.order_id||'').toLowerCase().includes(term) || (i.date||'').toLowerCase().includes(term) || (i.status_text||'').toLowerCase().includes(term)) : [...currentViewData];
+            reportCurrentPage = 1; renderReportTable(); updateReportPagination(); renderIngredientAnalysis(ingredientDataCache); updateIngredientSummary(ingredientDataCache);
         }
         
         hideLoading();
