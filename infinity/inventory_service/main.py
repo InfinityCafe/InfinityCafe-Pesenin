@@ -1575,6 +1575,9 @@ def update_ingredient_with_audit(
                 ing.unit_price = 0.0
         
         if old_quantity != req.current_quantity:
+            stock_notes = f"Edit stok: {old_quantity} → {req.current_quantity}"
+            if req.notes:
+                stock_notes += f" | {req.notes}"
             create_stock_history(
                 db=db,
                 ingredient_id=req.id,
@@ -1582,10 +1585,13 @@ def update_ingredient_with_audit(
                 quantity_before=old_quantity,
                 quantity_after=req.current_quantity,
                 performed_by=current_username,  
-                notes=req.notes
+                notes=stock_notes
             )
         
         if old_minimum != req.minimum_quantity:
+            min_notes = f"Edit minimum: {old_minimum} → {req.minimum_quantity}"
+            if req.notes:
+                min_notes += f" | {req.notes}"
             create_stock_history(
                 db=db,
                 ingredient_id=req.id,
@@ -1593,7 +1599,7 @@ def update_ingredient_with_audit(
                 quantity_before=old_minimum,
                 quantity_after=req.minimum_quantity,
                 performed_by=current_username,  
-                notes=req.notes
+                notes=min_notes
             )
         
         try:
@@ -1615,6 +1621,9 @@ def update_ingredient_with_audit(
             new_unit_val = str(req.unit)
 
         if str(old_name) != str(req.name):
+            name_notes = f"Edit nama: {old_name} → {req.name}"
+            if req.notes:
+                name_notes += f" | {req.notes}"
             create_stock_history(
                 db=db,
                 ingredient_id=req.id,
@@ -1622,10 +1631,13 @@ def update_ingredient_with_audit(
                 quantity_before=old_quantity,
                 quantity_after=old_quantity,
                 performed_by=current_username,
-                notes=req.notes
+                notes=name_notes
             )
 
         if str(old_cat_val).lower() != str(new_cat_val).lower():
+            cat_notes = f"Edit kategori: {old_cat_val} → {new_cat_val}"
+            if req.notes:
+                cat_notes += f" | {req.notes}"
             create_stock_history(
                 db=db,
                 ingredient_id=req.id,
@@ -1633,10 +1645,13 @@ def update_ingredient_with_audit(
                 quantity_before=old_quantity,
                 quantity_after=old_quantity,
                 performed_by=current_username,
-                notes=req.notes
+                notes=cat_notes
             )
 
         if str(old_unit_val).lower() != str(new_unit_val).lower():
+            unit_notes = f"Edit unit: {old_unit_val} → {new_unit_val}"
+            if req.notes:
+                unit_notes += f" | {req.notes}"
             create_stock_history(
                 db=db,
                 ingredient_id=req.id,
@@ -1644,11 +1659,18 @@ def update_ingredient_with_audit(
                 quantity_before=old_quantity,
                 quantity_after=old_quantity,
                 performed_by=current_username,
-                notes=req.notes
+                notes=unit_notes
             )
         
         if price_changed:
             try:
+                price_notes = (
+                    f"Edit harga: total {old_price_total} → {float(ing.purchase_price_total or 0.0)}, "
+                    f"qty {old_purchase_qty} → {float(ing.purchase_quantity or 0.0)}, "
+                    f"unit_price {old_unit_price} → {float(ing.unit_price or 0.0)}"
+                )
+                if req.notes:
+                    price_notes += f" | {req.notes}"
                 create_stock_history(
                     db=db,
                     ingredient_id=req.id,
@@ -1656,10 +1678,7 @@ def update_ingredient_with_audit(
                     quantity_before=old_unit_price,
                     quantity_after=float(ing.unit_price or 0.0),
                     performed_by=current_username,
-                    notes=req.notes or (
-                        f"Update harga: total {old_price_total}→{float(ing.purchase_price_total or 0.0)}, "
-                        f"qty {old_purchase_qty}→{float(ing.purchase_quantity or 0.0)}"
-                    ),
+                    notes=price_notes,
                 )
             except Exception:
                 pass
