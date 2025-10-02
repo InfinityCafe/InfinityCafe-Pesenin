@@ -269,6 +269,53 @@ def get_report(
             "total_income": 0,
             "details": []
         }
+
+    # Prepare inventory lookup and flavor mapping for ingredient cost calculation
+    inventory_lookup = {}
+    try:
+        inv_resp = make_request(f"{INVENTORY_SERVICE_URL}/list_ingredients")
+        inv_items = inv_resp.get('data') if isinstance(inv_resp, dict) and 'data' in inv_resp else inv_resp
+        if isinstance(inv_items, dict) and 'all_ingredients' in inv_items:
+            inv_list = inv_items.get('all_ingredients', [])
+        else:
+            inv_list = inv_items if isinstance(inv_items, list) else []
+
+        for inv in inv_list:
+            try:
+                iid = int(inv.get('id') or inv.get('ingredient_id'))
+            except Exception:
+                continue
+            try:
+                unit_price = float(inv.get('unit_price') or 0)
+            except Exception:
+                unit_price = 0.0
+            inventory_lookup[iid] = {
+                'unit_price': unit_price,
+                'name': inv.get('name') or inv.get('ingredient_name') or '' ,
+                'unit': inv.get('unit') or inv.get('unit_type') or '',
+                'category': inv.get('category') or inv.get('category_name') or ''
+            }
+    except Exception:
+        inventory_lookup = {}
+
+    flavor_mapping_lookup = {}
+    try:
+        fm_resp = make_request(f"{INVENTORY_SERVICE_URL}/list_flavor_mappings")
+        fm_items = fm_resp.get('data') if isinstance(fm_resp, dict) and 'data' in fm_resp else fm_resp
+        fm_list = fm_items if isinstance(fm_items, list) else []
+        for m in fm_list:
+            # key by flavor_name, flavor_name_en, flavor_name_id if present
+            if m.get('flavor_name'):
+                flavor_mapping_lookup[m.get('flavor_name')] = m
+            if m.get('flavor_name_en'):
+                flavor_mapping_lookup[m.get('flavor_name_en')] = m
+            if m.get('flavor_name_id'):
+                flavor_mapping_lookup[m.get('flavor_name_id')] = m
+    except Exception:
+        flavor_mapping_lookup = {}
+
+    # cache recipes per menu name
+    recipes_cache = {}
     
     # Process orders — align logic with best_seller: use order status/items from order service
     total_income = 0
@@ -333,15 +380,65 @@ def get_report(
             item_total = quantity * unit_price
             total_income += item_total
             
+            # get or init menu summary including ingredient/profit fields
             if display_name not in menu_summary:
                 menu_summary[display_name] = {
                     "menu_name": display_name,
                     "quantity": 0,
                     "unit_price": unit_price,
-                    "total": 0
+                    "total": 0,
+                    "total_ingredient_cost": 0.0,
+                    "total_profit": 0.0
                 }
+
+            # compute ingredient cost for this item (recipe * qty)
+            ingredient_cost_item = 0.0
+            # fetch recipe (cached)
+            recipe_items = recipes_cache.get(display_name)
+            if recipe_items is None:
+                try:
+                    r = requests.post(f"{MENU_SERVICE_URL}/recipes/batch", json={"menu_names": [display_name]}, timeout=6)
+                    if r.status_code == 200:
+                        rr = r.json().get('recipes', {})
+                        recipe_items = rr.get(display_name, []) or []
+                    else:
+                        recipe_items = []
+                except Exception:
+                    recipe_items = []
+                recipes_cache[display_name] = recipe_items
+
+            for ri in (recipe_items or []):
+                try:
+                    ing_id = int(ri.get('ingredient_id'))
+                    qty_per_serving = float(ri.get('quantity') or 0)
+                except Exception:
+                    continue
+                inv = inventory_lookup.get(ing_id, {})
+                unit_price_ing = float(inv.get('unit_price') if inv else inv.get('unit_price') if isinstance(inv, dict) else 0) if inv else 0
+                cost = qty_per_serving * unit_price_ing * quantity
+                ingredient_cost_item += cost
+
+            # include flavor mapped ingredient cost if flavor maps to an ingredient
+            preference = item.get('preference', '').strip() if item.get('preference') else ''
+            if preference:
+                fm = flavor_mapping_lookup.get(preference)
+                if fm:
+                    try:
+                        f_ing_id = int(fm.get('ingredient_id'))
+                        f_qty = float(fm.get('quantity_per_serving') or 0)
+                        invf = inventory_lookup.get(f_ing_id, {})
+                        f_unit_price = float(invf.get('unit_price') or 0) if invf else 0
+                        f_cost = f_qty * f_unit_price * quantity
+                        ingredient_cost_item += f_cost
+                    except Exception:
+                        pass
+
+            # aggregate
             menu_summary[display_name]["quantity"] += quantity
             menu_summary[display_name]["total"] += item_total
+            menu_summary[display_name]["total_ingredient_cost"] += round(ingredient_cost_item, 2)
+            # profit = revenue - ingredient cost
+            menu_summary[display_name]["total_profit"] += round(item_total - ingredient_cost_item, 2)
     
     # Sort by quantity descending
     details = sorted(menu_summary.values(), key=lambda x: x["quantity"], reverse=True)
