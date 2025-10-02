@@ -161,6 +161,9 @@ class Inventory(Base):
     category = Column(SQLEnum(StockCategory), index=True)
     unit = Column(SQLEnum(UnitType), index=True)
     is_available = Column(Boolean, default=True, index=True)
+    purchase_price_total = Column(Float, default=0)
+    purchase_quantity = Column(Float, default=0)
+    unit_price = Column(Float, default=0)
 
 class InventoryOutbox(Base):
     __tablename__ = "inventory_outbox"
@@ -198,7 +201,6 @@ class ConsumptionIngredientDetail(Base):
     stock_before = Column(Float, nullable=False)
     stock_after = Column(Float, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
-    # New optional fields to support per-item logging and better rollback
     order_item_id = Column(Integer, nullable=True)
     menu_name = Column(String, nullable=True)
     preference = Column(String, nullable=True)
@@ -238,6 +240,8 @@ class ValidateIngredientRequest(BaseModel):
     minimum_quantity: float
     category: StockCategory
     unit: UnitType
+    purchase_price_total: Optional[float] = 0.0
+    purchase_quantity: Optional[float] = 0.0
 
     @field_validator('category', 'unit', mode='before')
     @classmethod
@@ -266,6 +270,10 @@ class ValidateIngredientRequest(BaseModel):
             raise ValueError("Jumlah tidak boleh negatif")
         if self.current_quantity < self.minimum_quantity:
             raise ValueError("Current quantity tidak boleh kurang dari minimum")
+        if self.purchase_price_total is not None and self.purchase_price_total < 0:
+            raise ValueError("Harga total pembelian tidak boleh negatif")
+        if self.purchase_quantity is not None and self.purchase_quantity < 0:
+            raise ValueError("Jumlah pembelian (paket) tidak boleh negatif")
         return self
 
 class UpdateIngredientRequest(ValidateIngredientRequest):
@@ -275,7 +283,6 @@ class BatchStockItem(BaseModel):
     menu_name: str
     quantity: int = Field(gt=0)
     preference: Optional[str] = ""
-    # Optional order item id for per-item consumption tracking
     item_id: Optional[int] = None
 
 class FlavorMappingRequest(BaseModel):
@@ -333,6 +340,8 @@ class UpdateIngredientRequestWithAudit(BaseModel):
     minimum_quantity: float
     category: StockCategory
     unit: UnitType
+    purchase_price_total: Optional[float] = None
+    purchase_quantity: Optional[float] = None
     notes: Optional[str] = Field("Update data ingredient", description="Alasan/catatan update")
 
     @field_validator('category', 'unit', mode='before')
@@ -355,6 +364,10 @@ class UpdateIngredientRequestWithAudit(BaseModel):
             raise ValueError("Jumlah harus diisi")
         if self.current_quantity < 0 or self.minimum_quantity < 0:
             raise ValueError("Jumlah tidak boleh negatif")
+        if self.purchase_price_total is not None and self.purchase_price_total < 0:
+            raise ValueError("Harga total pembelian tidak boleh negatif")
+        if self.purchase_quantity is not None and self.purchase_quantity < 0:
+            raise ValueError("Jumlah pembelian (paket) tidak boleh negatif")
         return self
 
 class MinimumStockRequestWithAudit(BaseModel):
@@ -625,7 +638,10 @@ def list_ingredients(db: Session = Depends(get_db), show_unavailable: bool = Que
                 "minimum_quantity": r.minimum_quantity,
                 "category": r.category.value,
                 "unit": r.unit.value,
-                "is_available": r.is_available
+                "is_available": r.is_available,
+                "purchase_price_total": r.purchase_price_total,
+                "purchase_quantity": r.purchase_quantity,
+                "unit_price": r.unit_price
             } for r in rows
         ]
         
@@ -667,13 +683,23 @@ def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)
                 }
             })
         
+        calc_unit_price = 0.0
+        try:
+            if (req.purchase_price_total or 0) > 0 and (req.purchase_quantity or 0) > 0:
+                calc_unit_price = float(req.purchase_price_total) / float(req.purchase_quantity)
+        except Exception:
+            calc_unit_price = 0.0
+
         ing = Inventory(
             name=req.name,
             current_quantity=req.current_quantity,
             minimum_quantity=req.minimum_quantity,
             category=req.category,
             unit=req.unit,
-            is_available=True
+            is_available=True,
+            purchase_price_total=float(req.purchase_price_total or 0),
+            purchase_quantity=float(req.purchase_quantity or 0),
+            unit_price=calc_unit_price
         )
         print(f"📝 DEBUG: Created inventory object: {ing.name} - {ing.category} - {ing.unit}")
         logging.info(f"📝 DEBUG: Created inventory object: {ing.name} - {ing.category} - {ing.unit}")
@@ -735,7 +761,10 @@ def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)
                 "minimum_quantity": ing.minimum_quantity,
                 "category": ing.category.value,
                 "unit": ing.unit.value,
-                "is_available": ing.is_available
+                "is_available": ing.is_available,
+                "purchase_price_total": ing.purchase_price_total,
+                "purchase_quantity": ing.purchase_quantity,
+                "unit_price": ing.unit_price
             }
         }
         
@@ -1010,7 +1039,10 @@ def update_ingredient(req: UpdateIngredientRequest, db: Session = Depends(get_db
                 "minimum_quantity": ing.minimum_quantity,
                 "category": ing.category.value,
                 "unit": ing.unit.value,
-                "is_available": ing.is_available
+                "is_available": ing.is_available,
+                "purchase_price_total": ing.purchase_price_total,
+                "purchase_quantity": ing.purchase_quantity,
+                "unit_price": ing.unit_price
             }
         })
         
@@ -1513,6 +1545,23 @@ def update_ingredient_with_audit(
         ing.minimum_quantity = req.minimum_quantity
         ing.category = req.category
         ing.unit = req.unit
+        old_price_total = ing.purchase_price_total
+        old_purchase_qty = ing.purchase_quantity
+        old_unit_price = ing.unit_price
+        price_changed = False
+        if req.purchase_price_total is not None:
+            ing.purchase_price_total = float(req.purchase_price_total)
+            price_changed = True
+        if req.purchase_quantity is not None:
+            ing.purchase_quantity = float(req.purchase_quantity)
+            price_changed = True
+        try:
+            if price_changed and (ing.purchase_price_total or 0) > 0 and (ing.purchase_quantity or 0) > 0:
+                ing.unit_price = float(ing.purchase_price_total) / float(ing.purchase_quantity)
+            elif price_changed:
+                ing.unit_price = 0.0
+        except Exception:
+            ing.unit_price = 0.0
         
         if old_quantity != req.current_quantity:
             create_stock_history(
@@ -1535,9 +1584,18 @@ def update_ingredient_with_audit(
                 performed_by=current_username,  
                 notes=f"Edit minimum: {req.notes} (nama: {old_name} → {req.name})"
             )
+
+        if price_changed:
+            create_stock_history(
+                db=db,
+                ingredient_id=req.id,
+                action_type="edit_price",
+                quantity_before=old_unit_price,
+                quantity_after=ing.unit_price,
+                performed_by=current_username,
+                notes=f"Edit harga: total={old_price_total}→{ing.purchase_price_total}, qty={old_purchase_qty}→{ing.purchase_quantity}, unit_price={old_unit_price}→{ing.unit_price}"
+            )
         
-        # New: track non-quantity edits for audit history
-        # We record quantity_before == quantity_after to indicate no stock change, details are in notes
         try:
             if old_name != req.name:
                 create_stock_history(
@@ -1574,7 +1632,6 @@ def update_ingredient_with_audit(
                     notes=f"Edit unit: {(old_unit.value if hasattr(old_unit,'value') else str(old_unit))} → {(req.unit.value if hasattr(req.unit,'value') else str(req.unit))} (nama: {req.name})"
                 )
         except Exception as _audit_e:
-            # Do not block the update if audit enrichment fails; the main edits are already recorded above
             logging.error(f"Failed to record extended audit history: {_audit_e}")
         
         db.commit()
@@ -1600,6 +1657,9 @@ def update_ingredient_with_audit(
                 "category": ing.category.value,
                 "unit": ing.unit.value,
                 "is_available": ing.is_available,
+                "purchase_price_total": ing.purchase_price_total,
+                "purchase_quantity": ing.purchase_quantity,
+                "unit_price": ing.unit_price,
                 "performed_by": current_username,  
                 "notes": req.notes,
                 "changes": {
@@ -1607,7 +1667,8 @@ def update_ingredient_with_audit(
                     "minimum_changed": old_minimum != req.minimum_quantity,
                     "name_changed": old_name != req.name,
                     "category_changed": old_category != req.category,
-                    "unit_changed": old_unit != req.unit
+                    "unit_changed": old_unit != req.unit,
+                    "price_changed": price_changed
                 }
             }
         })
@@ -1624,7 +1685,7 @@ def update_ingredient_with_audit(
 def get_ingredient_stock_history(
     ingredient_id: int, 
     limit: int = Query(50, description="Jumlah record maksimal"),
-    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable, edit_item_name, edit_category, edit_unit"),
+    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable, edit_item_name, edit_category, edit_unit, edit_price"),
     db: Session = Depends(get_db)
 ):
     """Menampilkan history perubahan stock untuk ingredient tertentu"""
@@ -1685,7 +1746,7 @@ def get_ingredient_stock_history(
 @app.get("/stock/history", summary="History perubahan stock semua ingredient", tags=["Stock Management"])
 def get_all_stock_history(
     limit: int = Query(100, description="Jumlah record maksimal"),
-    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable, edit_item_name, edit_category, edit_unit"),
+    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable, edit_item_name, edit_category, edit_unit, edit_price"),
     performed_by: Optional[str] = Query(None, description="Filter by user name"),
     db: Session = Depends(get_db)
 ):
@@ -1792,7 +1853,7 @@ def check_and_consume(
 
     need_map = {} 
     per_menu_detail = []
-    per_item_contributions = []  # list of per-item ingredient usage for logging
+    per_item_contributions = []  
     shortages = []
     
     for it in req.items:
@@ -1810,7 +1871,6 @@ def check_and_consume(
             need_map.setdefault(ing_id, {"needed": 0, "unit": r["unit"], "menus": set()})
             need_map[ing_id]["needed"] += r["quantity"] * it.quantity
             need_map[ing_id]["menus"].add(it.menu_name)
-            # Track per-item contribution
             per_item_contributions.append({
                 "order_item_id": getattr(it, 'item_id', None),
                 "menu_name": it.menu_name,
@@ -1846,7 +1906,6 @@ def check_and_consume(
                 need_map.setdefault(flavor_id, {"needed": 0, "unit": flavor_unit, "menus": set()})
                 need_map[flavor_id]["needed"] += flavor_qty * it.quantity
                 need_map[flavor_id]["menus"].add(f"{it.menu_name} ({preference})")
-                # Track per-item flavor contribution
                 per_item_contributions.append({
                     "order_item_id": getattr(it, 'item_id', None),
                     "menu_name": it.menu_name,
@@ -1983,8 +2042,6 @@ def check_and_consume(
         )
 
     if not consume:
-        # Hanya cek ketersediaan: JANGAN membuat consumption_log 'pending' agar tidak membingungkan.
-        # Log konsumsi akan dibuat saat proses consume sebenarnya dipanggil.
         last_debug_info = debug_info
         return BatchStockResponse(can_fulfill=True, shortages=[], partial_suggestions=[], details=per_menu_detail, debug_info=debug_info)
 
@@ -2028,7 +2085,6 @@ def check_and_consume(
                 "unit": data["unit"]
             })
             per_ing_before_after[ing_id] = {"before": before, "after": inv.current_quantity}
-        # Build per-item details rows using per_item_contributions, attach ingredient_name and stock before/after
         per_item_details = []
         for contrib in per_item_contributions:
             ing_id = contrib["ingredient_id"]
@@ -2116,10 +2172,7 @@ def rollback_partial(req: PartialRollbackRequest, db: Session = Depends(get_db))
         if not log:
             return {"success": False, "message": f"Tidak ada log konsumsi untuk order {req.order_id}"}
 
-        # Build map of ingredient_id -> total to restore from requested items
         to_restore = {}
-        # Use flavor mapping and menu recipes to reconstruct if per-item rows missing
-        # First try per-item detail rows by item_id if present
         item_ids = [it.item_id for it in req.items if getattr(it, 'item_id', None)]
         used_per_item_rows = False
         if item_ids:
@@ -2133,7 +2186,6 @@ def rollback_partial(req: PartialRollbackRequest, db: Session = Depends(get_db))
                     to_restore[row.ingredient_id] = to_restore.get(row.ingredient_id, 0.0) + float(row.quantity_consumed)
 
         if not used_per_item_rows:
-            # Fallback: reconstruct using recipes and flavor mapping
             try:
                 resp = requests.post(
                     f"{MENU_SERVICE_URL}/recipes/batch",
@@ -2162,7 +2214,6 @@ def rollback_partial(req: PartialRollbackRequest, db: Session = Depends(get_db))
                             qty = qty * 1.4
                         to_restore[mapping.ingredient_id] = to_restore.get(mapping.ingredient_id, 0.0) + qty * it.quantity
 
-        # Cap restoration to what was actually consumed in this log
         ing_rows = db.query(ConsumptionIngredientDetail).filter(
             ConsumptionIngredientDetail.consumption_log_id == log.id
         ).all()
@@ -2195,9 +2246,7 @@ def rollback_partial(req: PartialRollbackRequest, db: Session = Depends(get_db))
                 order_id=req.order_id
             )
 
-            # Reduce or remove detail rows
             remain = restore_qty
-            # Prefer reducing per-item rows for these items if available
             if item_ids:
                 rows = db.query(ConsumptionIngredientDetail).filter(
                     ConsumptionIngredientDetail.consumption_log_id == log.id,
@@ -2259,7 +2308,6 @@ def rollback_partial(req: PartialRollbackRequest, db: Session = Depends(get_db))
                 "unit": ing.unit.value
             })
 
-        # Update log status: if no ingredient details remain, mark rolled_back else keep consumed
         remaining = db.query(ConsumptionIngredientDetail).filter(
             ConsumptionIngredientDetail.consumption_log_id == log.id
         ).count()
@@ -2402,7 +2450,6 @@ def get_stock_history(
     if order_id:
         query = query.filter(ConsumptionLog.order_id == order_id)
 
-    # Terapkan filter tanggal bila disediakan
     if start_date and end_date:
         try:
             sd = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -2440,7 +2487,6 @@ def get_stock_history(
         elif log.status == 'rolled_back':
             status_text = "DIBATALKAN"
 
-        # Build per_menu_payload similar to /consumption_log for better frontend grouping
         try:
             menu_names = json.loads(log.menu_names) if log.menu_names else []
         except (json.JSONDecodeError, TypeError):
@@ -2528,16 +2574,13 @@ def get_order_ingredients_detail(order_id: str, db: Session = Depends(get_db)):
             
         ingredients_detail.sort(key=lambda x: x['ingredient_name'])
 
-        # Build per-item breakdown by querying order_service and recipes
         menu_breakdown = []
         try:
-            # Fetch order items from order_service (internal network URL)
             order_service_url = os.getenv("ORDER_SERVICE_URL", "http://order_service:8002")
             resp = requests.get(f"{order_service_url}/order_status/{order_id}", timeout=5)
             if resp.status_code == 200:
                 ord_data = resp.json().get("data") or {}
                 items = ord_data.get("orders") or []
-                # Fetch recipes in batch for all menu names present
                 try:
                     menu_names = [it.get("menu_name") for it in items if it]
                     recipes_resp = requests.post(
@@ -2551,7 +2594,6 @@ def get_order_ingredients_detail(order_id: str, db: Session = Depends(get_db)):
                     logging.warning(f"Failed to fetch recipes for per-item breakdown: {e}")
                     recipes = {}
 
-                # Index ingredient stock history for this order to get before/after where possible
                 ing_history_map = {}
                 try:
                     histories = db.query(StockHistory).filter(
@@ -2566,7 +2608,6 @@ def get_order_ingredients_detail(order_id: str, db: Session = Depends(get_db)):
                 except Exception:
                     ing_history_map = {}
 
-                # Helper to resolve flavor mapping
                 def resolve_flavor(pref: str):
                     if not pref:
                         return None
@@ -2579,7 +2620,6 @@ def get_order_ingredients_detail(order_id: str, db: Session = Depends(get_db)):
                         "unit": mapping.unit.value if mapping.unit else ""
                     }
 
-                # Build each item breakdown
                 for it in items:
                     item_id = it.get("item_id")
                     menu_name = it.get("menu_name")
@@ -2587,7 +2627,6 @@ def get_order_ingredients_detail(order_id: str, db: Session = Depends(get_db)):
                     pref = (it.get("preference") or "").strip()
 
                     item_ings = []
-                    # Base recipe ingredients scaled by quantity
                     for r in recipes.get(menu_name, []) or []:
                         ing_id = r.get("ingredient_id")
                         req_qty = float(r.get("quantity") or 0) * qty
@@ -2602,10 +2641,8 @@ def get_order_ingredients_detail(order_id: str, db: Session = Depends(get_db)):
                             "stock_after_consumption": ing_history_map.get(ing_id, {}).get("after")
                         })
 
-                    # Add flavor ingredient if any
                     flav = resolve_flavor(pref)
                     if flav:
-                        # Simple heuristic adjustments matching consume logic
                         adjusted_qty = flav["quantity"]
                         if menu_name and "milkshake" in menu_name.lower() and (flav["unit"] == "gram"):
                             adjusted_qty = max(adjusted_qty, 30)
@@ -2624,7 +2661,6 @@ def get_order_ingredients_detail(order_id: str, db: Session = Depends(get_db)):
                             "stock_after_consumption": ing_history_map.get(flav["ingredient_id"], {}).get("after")
                         })
 
-                    # Mark consumed flags based on log status
                     menu_breakdown.append({
                         "order_item_id": item_id,
                         "menu_name": menu_name,
@@ -2866,9 +2902,7 @@ def get_daily_consumption_history(
 
 def init_db():
     try:
-        # Ensure base tables exist
         Base.metadata.create_all(bind=engine)
-        # Run lightweight schema migrations with an explicit transaction so DDL is committed
         with engine.begin() as conn:
             conn.exec_driver_sql("SELECT 1")
             try:
@@ -2946,7 +2980,6 @@ def list_consumption_logs(limit: int = Query(50, ge=1, le=500), db: Session = De
     """Expose consumption logs for UI. Includes minimal fields and consumed flags."""
     logs = db.query(ConsumptionLog).order_by(ConsumptionLog.created_at.desc()).limit(limit).all()
     data = [_format_consumption_log_entry(db, log) for log in logs]
-    # Frontend expects a raw array in some routes
     return data
 
 
@@ -3033,15 +3066,9 @@ def backdate_consumption_log(
     db: Session = Depends(get_db)
 ):
     """Backdate consumption log ke tanggal yang diinginkan (Asia/Jakarta) dan sinkronkan created_at
-    pada detail bahan serta stock_history untuk order tersebut.
-
-    Catatan:
-    - Hanya memodifikasi timestamp; tidak mengubah kuantitas/isi log.
-    - Jika consumed_at ada dan lebih kecil dari created_at baru, consumed_at akan digeser +5 menit.
-    """
+    pada detail bahan serta stock_history untuk order tersebut."""
     try:
         from datetime import datetime
-        # Validasi dan parsing tanggal/jam
         try:
             base_date = datetime.strptime(date, "%Y-%m-%d")
         except ValueError:
@@ -3062,16 +3089,13 @@ def backdate_consumption_log(
                     "data": None
                 })
         else:
-            # Default ke tengah hari untuk mencegah ambigu zona waktu
             base_date = base_date.replace(hour=12, minute=0)
 
-        # Buat timezone-aware di Asia/Jakarta
         if base_date.tzinfo is None:
             new_dt = jakarta_tz.localize(base_date)
         else:
             new_dt = base_date.astimezone(jakarta_tz)
 
-        # Ambil consumption_log
         log = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
         if not log:
             return JSONResponse(status_code=404, content={
@@ -3080,9 +3104,7 @@ def backdate_consumption_log(
                 "data": None
             })
 
-        # Update created_at log
         log.created_at = new_dt
-        # Jika consumed_at ada dan lebih kecil dari created_at baru, geser consumed_at sedikit sesudahnya
         if log.consumed_at:
             try:
                 from datetime import timedelta
@@ -3091,7 +3113,6 @@ def backdate_consumption_log(
             except Exception:
                 pass
 
-        # Update ingredient details timestamps
         try:
             details = db.query(ConsumptionIngredientDetail).filter(
                 ConsumptionIngredientDetail.consumption_log_id == log.id
@@ -3101,7 +3122,6 @@ def backdate_consumption_log(
         except Exception as e:
             logging.warning(f"Gagal update timestamp ingredient_details: {e}")
 
-        # Update stock_history timestamps untuk order yang sama
         try:
             histories = db.query(StockHistory).filter(StockHistory.order_id == order_id).all()
             for h in histories:
