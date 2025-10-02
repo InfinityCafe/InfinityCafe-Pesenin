@@ -1395,6 +1395,7 @@ def add_ingredient_stock(
         
         ingredient.current_quantity = new_quantity
         
+        # Use the user-provided note/reason as the canonical audit note
         create_stock_history(
             db=db,
             ingredient_id=req.ingredient_id,
@@ -1451,6 +1452,7 @@ def update_minimum_stock(
         
         ingredient.minimum_quantity = req.new_minimum
         
+        # Record minimum update using the user's provided reason
         create_stock_history(
             db=db,
             ingredient_id=req.ingredient_id,
@@ -1458,7 +1460,7 @@ def update_minimum_stock(
             quantity_before=old_minimum,
             quantity_after=req.new_minimum,
             performed_by=current_username, 
-            notes=f"Update minimum stock: {req.notes}"
+            notes=req.notes
         )
         
         db.commit()
@@ -1522,7 +1524,7 @@ def update_ingredient_with_audit(
                 quantity_before=old_quantity,
                 quantity_after=req.current_quantity,
                 performed_by=current_username,  
-                notes=f"Edit stock: {req.notes} (nama: {old_name} → {req.name})"
+                notes=req.notes
             )
         
         if old_minimum != req.minimum_quantity:
@@ -1533,9 +1535,62 @@ def update_ingredient_with_audit(
                 quantity_before=old_minimum,
                 quantity_after=req.minimum_quantity,
                 performed_by=current_username,  
-                notes=f"Edit minimum: {req.notes} (nama: {old_name} → {req.name})"
+                notes=req.notes
             )
         
+        # Audit perubahan metadata: name, category, unit
+        # Normalize values to compare safely (Enum vs str)
+        try:
+            old_cat_val = old_category.value if hasattr(old_category, "value") else str(old_category)
+        except Exception:
+            old_cat_val = str(old_category)
+        try:
+            new_cat_val = req.category.value if hasattr(req.category, "value") else str(req.category)
+        except Exception:
+            new_cat_val = str(req.category)
+
+        try:
+            old_unit_val = old_unit.value if hasattr(old_unit, "value") else str(old_unit)
+        except Exception:
+            old_unit_val = str(old_unit)
+        try:
+            new_unit_val = req.unit.value if hasattr(req.unit, "value") else str(req.unit)
+        except Exception:
+            new_unit_val = str(req.unit)
+
+        if str(old_name) != str(req.name):
+            create_stock_history(
+                db=db,
+                ingredient_id=req.id,
+                action_type="edit_item_name",
+                quantity_before=old_quantity,
+                quantity_after=old_quantity,
+                performed_by=current_username,
+                notes=req.notes
+            )
+
+        if str(old_cat_val).lower() != str(new_cat_val).lower():
+            create_stock_history(
+                db=db,
+                ingredient_id=req.id,
+                action_type="edit_category",
+                quantity_before=old_quantity,
+                quantity_after=old_quantity,
+                performed_by=current_username,
+                notes=req.notes
+            )
+
+        if str(old_unit_val).lower() != str(new_unit_val).lower():
+            create_stock_history(
+                db=db,
+                ingredient_id=req.id,
+                action_type="edit_unit",
+                quantity_before=old_quantity,
+                quantity_after=old_quantity,
+                performed_by=current_username,
+                notes=req.notes
+            )
+
         db.commit()
         
         create_outbox_event(db, "ingredient_updated", {
@@ -2172,39 +2227,7 @@ def rollback_partial(req: PartialRollbackRequest, db: Session = Depends(get_db))
             for row in rows:
                 if remain <= 0:
                     break
-
-                if old_name != req.name:
-                    create_stock_history(
-                        db=db,
-                        ingredient_id=req.id,
-                        action_type="edit_item_name",
-                        quantity_before=0,
-                        quantity_after=0,
-                        performed_by=current_username,
-                        notes=f"Edit nama: {old_name} → {req.name}"
-                    )
-
-                if old_category != req.category:
-                    create_stock_history(
-                        db=db,
-                        ingredient_id=req.id,
-                        action_type="edit_category",
-                        quantity_before=0,
-                        quantity_after=0,
-                        performed_by=current_username,
-                        notes=f"Edit kategori: {old_category.value} → {req.category.value} (nama: {old_name})"
-                    )
-
-                if old_unit != req.unit:
-                    create_stock_history(
-                        db=db,
-                        ingredient_id=req.id,
-                        action_type="edit_unit",
-                        quantity_before=0,
-                        quantity_after=0,
-                        performed_by=current_username,
-                        notes=f"Edit unit: {old_unit.value} → {req.unit.value} (nama: {old_name})"
-                    )
+                # Kurangi atau hapus baris detail sesuai jumlah yang direstore.
                 dec = min(float(row.quantity_consumed), remain)
                 row.quantity_consumed = float(row.quantity_consumed) - dec
                 remain -= dec
