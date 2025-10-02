@@ -21,7 +21,9 @@ SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-that-is-long-and-ran
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Use bcrypt_sha256 to avoid the 72-byte truncation issue and ensure compatibility
+# with different bcrypt backends. Keep bcrypt as fallback for verifying existing hashes.
+pwd_context = CryptContext(schemes=["bcrypt_sha256", "bcrypt"], deprecated="auto")
 
 DATABASE_URL = os.getenv("DATABASE_URL_USER")
 if not DATABASE_URL:
