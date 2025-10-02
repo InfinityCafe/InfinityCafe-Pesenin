@@ -812,6 +812,9 @@ class InventoryManager {
       if (element) element.value = fields[id];
     });
 
+    const notesField = document.getElementById('item-notes');
+    if (notesField) notesField.value = '';
+
     const itemForm = document.getElementById('item-form');
     if (itemForm) {
       itemForm.setAttribute('data-item-id', itemId);
@@ -1072,8 +1075,11 @@ class InventoryManager {
     if (modalId === 'item-modal') {
       const itemForm = document.getElementById('item-form');
       if (itemForm) {
+        itemForm.reset();
         itemForm.removeAttribute('data-item-id');
       }
+      const notesField = document.getElementById('item-notes');
+      if (notesField) notesField.value = '';
     }
   }
 
