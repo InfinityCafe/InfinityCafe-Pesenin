@@ -2233,8 +2233,6 @@ def rollback_partial(req: PartialRollbackRequest, db: Session = Depends(get_db))
             before = ing.current_quantity
             ing.current_quantity = before + restore_qty
             after = ing.current_quantity
-            old_category = ing.category
-            old_unit = ing.unit
             create_stock_history(
                 db=db,
                 ingredient_id=ing_id,
@@ -2262,39 +2260,6 @@ def rollback_partial(req: PartialRollbackRequest, db: Session = Depends(get_db))
             for row in rows:
                 if remain <= 0:
                     break
-
-                if old_name != req.name:
-                    create_stock_history(
-                        db=db,
-                        ingredient_id=req.id,
-                        action_type="edit_item_name",
-                        quantity_before=0,
-                        quantity_after=0,
-                        performed_by=current_username,
-                        notes=f"Edit nama: {old_name} → {req.name}"
-                    )
-
-                if old_category != req.category:
-                    create_stock_history(
-                        db=db,
-                        ingredient_id=req.id,
-                        action_type="edit_category",
-                        quantity_before=0,
-                        quantity_after=0,
-                        performed_by=current_username,
-                        notes=f"Edit kategori: {old_category.value} → {req.category.value} (nama: {old_name})"
-                    )
-
-                if old_unit != req.unit:
-                    create_stock_history(
-                        db=db,
-                        ingredient_id=req.id,
-                        action_type="edit_unit",
-                        quantity_before=0,
-                        quantity_after=0,
-                        performed_by=current_username,
-                        notes=f"Edit unit: {old_unit.value} → {req.unit.value} (nama: {old_name})"
-                    )
                 dec = min(float(row.quantity_consumed), remain)
                 row.quantity_consumed = float(row.quantity_consumed) - dec
                 remain -= dec
@@ -2799,6 +2764,7 @@ def get_daily_consumption_history(
                     "date_formatted": log_date.strftime('%d/%m/%Y'),
                     "day_name": log_date.strftime('%A'),
                     "total_orders": 0,
+                    "orders": [],  
                     "ingredients_consumed": {},
                     "summary": {
                         "total_ingredients_types": 0,
@@ -2807,6 +2773,29 @@ def get_daily_consumption_history(
                 }
             
             daily_consumption[date_str]["total_orders"] += 1
+
+            order_ing_map = {}
+            for od in ingredient_details:
+                key = od.ingredient_id
+                if key not in order_ing_map:
+                    order_ing_map[key] = {
+                        "ingredient_id": od.ingredient_id,
+                        "ingredient_name": od.ingredient_name,
+                        "unit": od.unit,
+                        "total_consumed": 0.0
+                    }
+                try:
+                    order_ing_map[key]["total_consumed"] += float(od.quantity_consumed)
+                except Exception:
+                    pass
+
+            daily_consumption[date_str]["orders"].append({
+                "order_id": log.order_id,
+                "created_at": format_jakarta_time(log.created_at),
+                "menu_summary": log.menu_summary,
+                "total_ingredients_used": len(order_ing_map),
+                "ingredients_used": list(order_ing_map.values())
+            })
             
             for item in ingredient_details:
                 ingredient_id = item.ingredient_id
@@ -2839,6 +2828,10 @@ def get_daily_consumption_history(
             
             daily_consumption[date_str]["detailed_consumption"] = detailed_consumption
             daily_consumption[date_str]["ingredients_consumed"] = list(ingredients.values())
+            daily_consumption[date_str]["headline"] = (
+                f"Pada {daily_consumption[date_str]['date_formatted']}, total ada "
+                f"{daily_consumption[date_str]['summary']['total_ingredients_types']} item bahan yang digunakan"
+            )
         
         sorted_daily_consumption = dict(sorted(daily_consumption.items(), reverse=True))
         
