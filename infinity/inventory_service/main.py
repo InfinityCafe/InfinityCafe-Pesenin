@@ -1427,7 +1427,6 @@ def add_ingredient_stock(
         
         ingredient.current_quantity = new_quantity
         
-        # Use the user-provided note/reason as the canonical audit note
         create_stock_history(
             db=db,
             ingredient_id=req.ingredient_id,
@@ -1484,7 +1483,6 @@ def update_minimum_stock(
         
         ingredient.minimum_quantity = req.new_minimum
         
-        # Record minimum update using the user's provided reason
         create_stock_history(
             db=db,
             ingredient_id=req.ingredient_id,
@@ -1547,25 +1545,39 @@ def update_ingredient_with_audit(
         ing.minimum_quantity = req.minimum_quantity
         ing.category = req.category
         ing.unit = req.unit
-        old_price_total = ing.purchase_price_total
-        old_purchase_qty = ing.purchase_quantity
-        old_unit_price = ing.unit_price
-        price_changed = False
+        old_price_total = float(ing.purchase_price_total or 0.0)
+        old_purchase_qty = float(ing.purchase_quantity or 0.0)
+        old_unit_price = float(ing.unit_price or 0.0)
+
+        price_total_changed = False
+        qty_changed = False
+
         if req.purchase_price_total is not None:
-            ing.purchase_price_total = float(req.purchase_price_total)
-            price_changed = True
+            new_total = float(req.purchase_price_total)
+            price_total_changed = (new_total != old_price_total)
+            if price_total_changed:
+                ing.purchase_price_total = new_total
+
         if req.purchase_quantity is not None:
-            ing.purchase_quantity = float(req.purchase_quantity)
-            price_changed = True
-        try:
-            if price_changed and (ing.purchase_price_total or 0) > 0 and (ing.purchase_quantity or 0) > 0:
-                ing.unit_price = float(ing.purchase_price_total) / float(ing.purchase_quantity)
-            elif price_changed:
+            new_qty = float(req.purchase_quantity)
+            qty_changed = (new_qty != old_purchase_qty)
+            if qty_changed:
+                ing.purchase_quantity = new_qty
+
+        price_changed = price_total_changed or qty_changed
+
+        if price_changed:
+            new_total = float(ing.purchase_price_total or 0.0)
+            new_qty = float(ing.purchase_quantity or 0.0)
+            try:
+                ing.unit_price = (new_total / new_qty) if (new_total > 0 and new_qty > 0) else 0.0
+            except Exception:
                 ing.unit_price = 0.0
-        except Exception:
-            ing.unit_price = 0.0
         
         if old_quantity != req.current_quantity:
+            stock_notes = f"Edit stok: {old_quantity} → {req.current_quantity}"
+            if req.notes:
+                stock_notes += f" | {req.notes}"
             create_stock_history(
                 db=db,
                 ingredient_id=req.id,
@@ -1573,10 +1585,13 @@ def update_ingredient_with_audit(
                 quantity_before=old_quantity,
                 quantity_after=req.current_quantity,
                 performed_by=current_username,  
-                notes=req.notes
+                notes=stock_notes
             )
         
         if old_minimum != req.minimum_quantity:
+            min_notes = f"Edit minimum: {old_minimum} → {req.minimum_quantity}"
+            if req.notes:
+                min_notes += f" | {req.notes}"
             create_stock_history(
                 db=db,
                 ingredient_id=req.id,
@@ -1584,11 +1599,9 @@ def update_ingredient_with_audit(
                 quantity_before=old_minimum,
                 quantity_after=req.minimum_quantity,
                 performed_by=current_username,  
-                notes=req.notes
+                notes=min_notes
             )
         
-        # Audit perubahan metadata: name, category, unit
-        # Normalize values to compare safely (Enum vs str)
         try:
             old_cat_val = old_category.value if hasattr(old_category, "value") else str(old_category)
         except Exception:
@@ -1608,6 +1621,9 @@ def update_ingredient_with_audit(
             new_unit_val = str(req.unit)
 
         if str(old_name) != str(req.name):
+            name_notes = f"Edit nama: {old_name} → {req.name}"
+            if req.notes:
+                name_notes += f" | {req.notes}"
             create_stock_history(
                 db=db,
                 ingredient_id=req.id,
@@ -1615,10 +1631,13 @@ def update_ingredient_with_audit(
                 quantity_before=old_quantity,
                 quantity_after=old_quantity,
                 performed_by=current_username,
-                notes=req.notes
+                notes=name_notes
             )
 
         if str(old_cat_val).lower() != str(new_cat_val).lower():
+            cat_notes = f"Edit kategori: {old_cat_val} → {new_cat_val}"
+            if req.notes:
+                cat_notes += f" | {req.notes}"
             create_stock_history(
                 db=db,
                 ingredient_id=req.id,
@@ -1626,10 +1645,13 @@ def update_ingredient_with_audit(
                 quantity_before=old_quantity,
                 quantity_after=old_quantity,
                 performed_by=current_username,
-                notes=req.notes
+                notes=cat_notes
             )
 
         if str(old_unit_val).lower() != str(new_unit_val).lower():
+            unit_notes = f"Edit unit: {old_unit_val} → {new_unit_val}"
+            if req.notes:
+                unit_notes += f" | {req.notes}"
             create_stock_history(
                 db=db,
                 ingredient_id=req.id,
@@ -1637,9 +1659,30 @@ def update_ingredient_with_audit(
                 quantity_before=old_quantity,
                 quantity_after=old_quantity,
                 performed_by=current_username,
-                notes=req.notes
+                notes=unit_notes
             )
         
+        if price_changed:
+            try:
+                price_notes = (
+                    f"Edit harga: total {old_price_total} → {float(ing.purchase_price_total or 0.0)}, "
+                    f"qty {old_purchase_qty} → {float(ing.purchase_quantity or 0.0)}, "
+                    f"unit_price {old_unit_price} → {float(ing.unit_price or 0.0)}"
+                )
+                if req.notes:
+                    price_notes += f" | {req.notes}"
+                create_stock_history(
+                    db=db,
+                    ingredient_id=req.id,
+                    action_type="edit_price",
+                    quantity_before=old_unit_price,
+                    quantity_after=float(ing.unit_price or 0.0),
+                    performed_by=current_username,
+                    notes=price_notes,
+                )
+            except Exception:
+                pass
+
         db.commit()
         
         create_outbox_event(db, "ingredient_updated", {
@@ -2266,11 +2309,6 @@ def rollback_partial(req: PartialRollbackRequest, db: Session = Depends(get_db))
             for row in rows:
                 if remain <= 0:
                     break
-                # Only adjust per-item consumption quantities here.
-                # Metadata edits (name/category/unit) are recorded in
-                # /update_ingredient_with_audit and must not be emitted
-                # during rollback operations to avoid duplicate or
-                # context-mismatched history entries.
                 dec = min(float(row.quantity_consumed), remain)
                 row.quantity_consumed = float(row.quantity_consumed) - dec
                 remain -= dec
