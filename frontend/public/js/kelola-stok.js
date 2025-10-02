@@ -750,6 +750,9 @@ class InventoryManager {
     document.getElementById('view-item-current').textContent = `${item.current_quantity.toFixed(2)} ${item.unit}`;
     document.getElementById('view-item-unit').textContent = this.capitalizeFirst(item.unit);
     document.getElementById('view-item-minimum').textContent = `${item.minimum_quantity.toFixed(2)} ${item.unit}`;
+    document.getElementById('view-item-purchase-price-total').textContent = `Rp. ${item.purchase_price_total.toFixed(2)}`;
+    document.getElementById('view-item-purchase-quantity').textContent = `Rp. ${item.purchase_quantity.toFixed(2)}`;
+    document.getElementById('view-item-unit-price').textContent = `Rp. ${item.unit_price.toFixed(2)}`;
     document.getElementById('view-item-availability').textContent = item.is_available ? 'Available' : 'Unavailable';
 
     const status = this.getStockStatus(item);
@@ -799,13 +802,18 @@ class InventoryManager {
       'item-category': item.category,
       'item-unit': item.unit,
       'item-current': item.current_quantity,
-      'item-minimum': item.minimum_quantity
+      'item-minimum': item.minimum_quantity,
+      'item-purchase-price-total': item.purchase_price_total ?? '',
+      'item-purchase-quantity': item.purchase_quantity ?? '',
     };
 
     Object.keys(fields).forEach(id => {
       const element = document.getElementById(id);
       if (element) element.value = fields[id];
     });
+
+    const notesField = document.getElementById('item-notes');
+    if (notesField) notesField.value = '';
 
     const itemForm = document.getElementById('item-form');
     if (itemForm) {
@@ -886,6 +894,8 @@ class InventoryManager {
     const unitRaw = (formData.get('unit') || '').toString().trim().toLowerCase();
     const currentQtyRaw = formData.get('current_quantity');
     const minimumQtyRaw = formData.get('minimum_quantity');
+    const purchasePriceTotal = formData.get('purchase_price_total');
+    const purchaseQuantity = formData.get('purchase_quantity');
 
     // Basic required validations
     if (!nameRaw) { showErrorModal('Nama item wajib diisi.'); return; }
@@ -896,6 +906,8 @@ class InventoryManager {
     const minimumQty = Number(parseFloat(minimumQtyRaw));
     const safeCurrent = isNaN(currentQty) ? 0 : currentQty;
     const safeMinimum = isNaN(minimumQty) ? 0 : minimumQty;
+    const safePurchasePriceTotal = isNaN(purchasePriceTotal) ? 0 : purchasePriceTotal;
+    const safePurchaseQuantity = isNaN(purchaseQuantity) ? 0 : purchaseQuantity;
 
     const itemData = {
       name: nameRaw,
@@ -903,6 +915,8 @@ class InventoryManager {
       unit: unitRaw,
       current_quantity: safeCurrent,
       minimum_quantity: safeMinimum,
+      purchase_price_total: safePurchasePriceTotal,
+      purchase_quantity: safePurchaseQuantity,
       notes: (formData.get('notes') || 'Stock opname update').toString()
     };
 
@@ -1061,8 +1075,11 @@ class InventoryManager {
     if (modalId === 'item-modal') {
       const itemForm = document.getElementById('item-form');
       if (itemForm) {
+        itemForm.reset();
         itemForm.removeAttribute('data-item-id');
       }
+      const notesField = document.getElementById('item-notes');
+      if (notesField) notesField.value = '';
     }
   }
 
