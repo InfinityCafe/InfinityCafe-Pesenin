@@ -2750,7 +2750,7 @@ function updateSummaryWithFinancialData(data, type = 'sales') {
     if (summaryIncome) {
         const summary = data.summary;
         if (summary) {
-            summaryIncome.textContent = `Rp ${(summary.total_omzet || 0).toLocaleString()}`;
+            summaryIncome.textContent = `Rp ${(summary.total_profit || 0).toLocaleString()}`;
         } else {
             summaryIncome.textContent = 'Rp 0';
         }
