@@ -861,24 +861,41 @@ async function loadIngredientAnalysisData() {
                 }
                 
                 // Create daily rows
-                const dailyRows = Object.values(dailyGroups).map(group => ({
-                    date: group.date,
-                    status_text: `${group.total_orders} completed orders`,
-                    ingredients_affected: group.total_ingredients,
-                    order_id: Array.from(group.order_ids)[0] || '',
-                    // For daily view, we don't need menu_name and flavor
-                    menu_name: undefined,
-                    flavor: undefined,
-                    order_ids: Array.from(group.order_ids),
-                    total_qty: group.total_ingredients,
-                    // Provide summary for table and detail panel
-                    daily_summary: {
-                        total_orders: group.total_orders,
-                        unique_menus: group.unique_menus ? group.unique_menus.size || group.unique_menus : 0,
-                        total_consumption: group.total_ingredients,
-                    order_ids: Array.from(group.order_ids)
+                const dailyRows = Object.values(dailyGroups).map(group => {
+                    // group.date should be in DD/MM/YYYY or YYYY-MM-DD format
+                    let displayDate = group.date;
+                    let isoDate = group.date;
+                    
+                    // Convert to proper formats if needed
+                    if (/^\d{2}\/\d{2}\/\d{4}$/.test(group.date)) {
+                        // Already DD/MM/YYYY
+                        const parts = group.date.split('/');
+                        isoDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                    } else if (/^\d{4}-\d{2}-\d{2}$/.test(group.date)) {
+                        // YYYY-MM-DD, convert to DD/MM/YYYY for display
+                        const parts = group.date.split('-');
+                        displayDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                        isoDate = group.date;
                     }
-                }));
+                    
+                    return {
+                        date: displayDate, // Display format DD/MM/YYYY
+                        date_iso: isoDate, // ISO format YYYY-MM-DD for API calls
+                        status_text: `${group.total_orders} completed orders`,
+                        ingredients_affected: group.total_ingredients,
+                        order_id: Array.from(group.order_ids)[0] || '',
+                        menu_name: undefined,
+                        flavor: undefined,
+                        order_ids: Array.from(group.order_ids),
+                        total_qty: group.total_ingredients,
+                        daily_summary: {
+                            total_orders: group.total_orders,
+                            unique_menus: group.unique_menus ? group.unique_menus.size || group.unique_menus : 0,
+                            total_consumption: group.total_ingredients,
+                            order_ids: Array.from(group.order_ids)
+                        }
+                    };
+                });
                 
                 // Debug: log the data structure
                 console.log('Ingredient rows data:', ingredientRows);
@@ -982,11 +999,25 @@ async function loadIngredientAnalysisData() {
             const dailyJson = await dailyRes.json().catch(() => ({ data: { daily_consumption: [] }}));
             const daily = (dailyJson && dailyJson.data && Array.isArray(dailyJson.data.daily_consumption)) ? dailyJson.data.daily_consumption : [];
             const dailyRowsFinal = daily.map(d => {
+                // Use the actual date from response (YYYY-MM-DD), not range
                 const dateIso = d.date || (d.date_formatted ? d.date_formatted.split('/').reverse().join('-') : null);
                 const displayDate = d.date_formatted || (dateIso ? `${dateIso.split('-')[2]}/${dateIso.split('-')[1]}/${dateIso.split('-')[0]}` : '-');
                 const totalOrders = Number(d.total_orders || d.summary?.total_orders || 0);
                 const totalConsumption = Number(d.summary?.total_quantity_consumed || d.ingredients_consumed?.reduce((a,x)=>a+(x.total_consumed||0),0) || 0);
-                return { order_id: `Daily ${displayDate}`, date: displayDate, status_text: `${totalOrders} order • ${Number(d.summary?.total_ingredients_types || 0)} menu/bahan`, ingredients_affected: totalConsumption, total_qty: totalConsumption, daily_summary: { total_orders: totalOrders, unique_menus: Number(d.summary?.total_ingredients_types || 0), total_consumption: totalConsumption, order_ids: [] } };
+                return { 
+                    order_id: `Daily ${displayDate}`, 
+                    date: displayDate, // This should be single date like "03/10/2025", NOT range
+                    date_iso: dateIso, // Store ISO format for API calls
+                    status_text: `${totalOrders} order • ${Number(d.summary?.total_ingredients_types || 0)} menu/bahan`, 
+                    ingredients_affected: totalConsumption, 
+                    total_qty: totalConsumption, 
+                    daily_summary: { 
+                        total_orders: totalOrders, 
+                        unique_menus: Number(d.summary?.total_ingredients_types || 0), 
+                        total_consumption: totalConsumption, 
+                        order_ids: [] 
+                    } 
+                };
             }).sort((a,b)=>{ const toIso=(s)=>/^\d{2}\/\d{2}\/\d{4}$/.test(s)?`${s.split('/')[2]}-${s.split('/')[1]}-${s.split('/')[0]}`:s; return toIso(b.date).localeCompare(toIso(a.date)); });
 
             const qsLogs = new URLSearchParams({ limit: '500' }); if (startParam) qsLogs.append('start_date', startParam); if (endParam) qsLogs.append('end_date', endParam);
@@ -1014,7 +1045,17 @@ async function loadIngredientAnalysisData() {
                 for (const r of rows) {
                     const key = `${r.menu_name}`;
                     if (!menuAgg[key]) {
-                        menuAgg[key] = { menu_name: r.menu_name, date: `${startParam ? `${startParam.split('-').reverse().join('/')}` : '-'}${endParam ? ` - ${endParam.split('-').reverse().join('/')}` : ''}`.trim(), status_text: 'Selesai', order_count: 0, ingredients_affected: 0, total_qty: 0, order_ids: new Set() };
+                        // For logs view, date can be range since it aggregates across period
+                        const dateRange = `${startParam ? `${startParam.split('-').reverse().join('/')}` : '-'}${endParam ? ` - ${endParam.split('-').reverse().join('/')}` : ''}`.trim();
+                        menuAgg[key] = { 
+                            menu_name: r.menu_name, 
+                            date: dateRange, // Range for logs view
+                            status_text: 'Selesai', 
+                            order_count: 0, 
+                            ingredients_affected: 0, 
+                            total_qty: 0, 
+                            order_ids: new Set() 
+                        };
                     }
                     menuAgg[key].order_count += Number(r.order_count || 0);
                     menuAgg[key].ingredients_affected += Number(r.ingredients_affected || 0);
@@ -1190,17 +1231,36 @@ function hideIngredientDetailsPanel() {
          if (panel) panel.classList.remove('hidden');
          
          if (isAggregated) {
-            // Switch header to menu breakdown for daily view (5 columns)
+            // Switch header to menu breakdown for daily view (6 columns)
             if (headRow) {
                 headRow.innerHTML = `
                     <th>No</th>
                     <th>Menu</th>
-                    
-                    <th>Ingredients Total</th>
-                    <th>Order Detail</th>`;
+                    <th>Total Pesanan</th>
+                    <th>Total Bahan</th>
+                    <th>Action</th>`;
+            }
+            // For daily view, try to find the item in filteredData to get date_iso
+            let dateParam = dateStr;
+            const dailyItem = filteredData.find(item => item.date === dateStr && item.daily_summary);
+            if (dailyItem && dailyItem.date_iso) {
+                // Use the ISO date if available
+                dateParam = dailyItem.date_iso;
+            } else {
+                // Fallback: sanitize and convert to ISO
+                let displayDate = dateStr || '';
+                if (displayDate.includes(' - ')) {
+                    displayDate = displayDate.split(' - ')[0].trim();
+                }
+                if (/^\d{2}\/\d{2}\/\d{4}$/.test(displayDate)) {
+                    const [dd, mm, yyyy] = displayDate.split('/');
+                    dateParam = `${yyyy}-${mm}-${dd}`;
+                } else if (/^\d{4}-\d{2}-\d{2}$/.test(displayDate)) {
+                    dateParam = displayDate;
+                }
             }
              // Show aggregated daily consumption data
-             await showDailyAggregatedConsumption(dateStr, statusText);
+             await showDailyAggregatedConsumption(dateStr, statusText, dateParam);
              return;
         } else {
             // Restore header for per-order ingredient details (6 columns)
@@ -1335,56 +1395,198 @@ function hideIngredientDetailsPanel() {
          }
  }
  
- async function showDailyAggregatedConsumption(dateStr, statusText) {
+ async function showDailyAggregatedConsumption(dateStr, statusText, dateIsoOverride) {
      try {
          const body = document.getElementById('ingredient-details-body');
          
-         // Get the daily summary data for the specific date
-         const dailyItem = filteredData.find(item => 
-             item.date === dateStr && item.daily_summary
-         );
+         // Show loading state
+         body.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 1.5rem;"><i class="fas fa-spinner fa-spin"></i> Memuat data...</td></tr>';
          
-         if (!dailyItem || !dailyItem.daily_summary) {
-            body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #615a5a; padding: 1.5rem; font-weight: 500;">Tidak ada data detail untuk tanggal ini</td></tr>';
-             return;
+         // Use override if provided, otherwise convert display date to ISO format
+         let dateParam;
+         
+         if (dateIsoOverride) {
+             // Sanitize override: support range and DD/MM/YYYY
+             let override = dateIsoOverride;
+             if (override && typeof override === 'string' && override.includes(' - ')) {
+                 // Extract first date from range
+                 override = override.split(' - ')[0].trim();
+             }
+             // Convert DD/MM/YYYY to YYYY-MM-DD if needed
+             if (override && /^\d{2}\/\d{2}\/\d{4}$/.test(override)) {
+                 const parts = override.split('/');
+                 dateParam = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
+             } else {
+                 // Assume already ISO or acceptable
+                 dateParam = override;
+             }
+         } else {
+             // Convert display date to ISO format (YYYY-MM-DD) for API call
+             dateParam = dateStr;
+             
+             // Handle date range format "DD/MM/YYYY - DD/MM/YYYY" - extract first date
+             if (dateStr && dateStr.includes(' - ')) {
+                 const dateParts = dateStr.split(' - ');
+                 dateStr = dateParts[0].trim(); // Use first date from range
+             }
+             
+             // Convert DD/MM/YYYY to YYYY-MM-DD
+             if (dateStr && /^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+                 const parts = dateStr.split('/');
+                 dateParam = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
+             } else if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                 // Already in YYYY-MM-DD format
+                 dateParam = dateStr;
+             }
          }
          
-         const dailySummary = dailyItem.daily_summary;
+        // Final guard: ensure ISO format YYYY-MM-DD
+        if (typeof dateParam === 'string' && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+            // Try to extract first DD/MM/YYYY in the string
+            const m = dateParam.match(/(\d{2}\/\d{2}\/\d{4})/);
+            if (m && m[1]) {
+                const [dd, mm, yyyy] = m[1].split('/');
+                dateParam = `${yyyy}-${mm}-${dd}`;
+            }
+        }
+        console.log('Original dateStr:', dateStr);
+        console.log('Date ISO override:', dateIsoOverride);
+        console.log('Fetching daily consumption for date:', dateParam);
+         
+         // Fetch daily consumption data from inventory service
+         const response = await fetch(`/inventory/consumption/daily?date=${dateParam}`);
+         if (!response.ok) {
+             throw new Error(`HTTP error! status: ${response.status}`);
+         }
+         
+         const json = await response.json();
+         console.log('Daily consumption response:', json);
+         
+         const dailyData = json?.data?.daily_consumption?.[0];
+         
+        if (!dailyData) {
+            body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #615a5a; padding: 1.5rem; font-weight: 500;">Tidak ada data detail untuk tanggal ini</td></tr>';
+            return;
+        }
+         
+         const summary = dailyData.summary || {};
+         const orders = dailyData.orders || [];
+         
+        // Aggregate orders by menu name (combine same menu regardless of flavor)
+         const menuAggregation = {};
+         orders.forEach(order => {
+             // Extract menu names from menu_summary
+             const menuSummary = order.menu_summary || '';
+             const orderIngsUsed = order.ingredients_used || [];
+             
+             // Parse menu_summary to extract individual menu items
+             // Format: "Menu1 x2, Menu2 x1" or similar
+             const menuItems = menuSummary.split(',').map(item => item.trim());
+             
+             menuItems.forEach(menuItem => {
+                // Clean menu name: remove quantity at prefix like "2x " and suffix like " x2"
+                const cleaned = (menuItem || '').trim();
+                const withoutPrefixQty = cleaned.replace(/^\s*\d+\s*x?\s*/i, '');
+                const menuName = (withoutPrefixQty.replace(/\s*x\s*\d+\s*$/i, '').trim()) || 'Unknown Menu';
+                 
+                 if (!menuAggregation[menuName]) {
+                     menuAggregation[menuName] = {
+                         menu_name: menuName,
+                         total_orders: 0,
+                         total_ingredients_used: 0,
+                         ingredients_map: {}, // To aggregate ingredient consumption
+                         order_ids: []
+                     };
+                 }
+                 
+                // Extract quantity from menu item, supporting both suffix "x2" and prefix "2x"
+                let qty = 1;
+                let qtyMatch = cleaned.match(/x\s*(\d+)\s*$/i);
+                if (qtyMatch) {
+                    qty = parseInt(qtyMatch[1]);
+                } else {
+                    qtyMatch = cleaned.match(/^\s*(\d+)\s*x/i);
+                    if (qtyMatch) qty = parseInt(qtyMatch[1]);
+                }
+                 
+                 menuAggregation[menuName].total_orders += qty;
+                 menuAggregation[menuName].order_ids.push(order.order_id);
+                 
+                 // Aggregate ingredients proportionally
+                 orderIngsUsed.forEach(ing => {
+                     const ingKey = ing.ingredient_name;
+                     if (!menuAggregation[menuName].ingredients_map[ingKey]) {
+                         menuAggregation[menuName].ingredients_map[ingKey] = {
+                             ingredient_name: ing.ingredient_name,
+                             total_consumed: 0,
+                             unit: ing.unit
+                         };
+                     }
+                     // Distribute ingredient consumption proportionally based on menu quantity
+                    const totalQtyInOrder = menuItems.reduce((sum, item) => {
+                        const it = (item || '').trim();
+                        let q = 1;
+                        let m = it.match(/x\s*(\d+)\s*$/i);
+                        if (m) q = parseInt(m[1]);
+                        else {
+                            m = it.match(/^\s*(\d+)\s*x/i);
+                            if (m) q = parseInt(m[1]);
+                        }
+                        return sum + q;
+                    }, 0);
+                     const proportion = qty / totalQtyInOrder;
+                     menuAggregation[menuName].ingredients_map[ingKey].total_consumed += 
+                         (ing.total_consumed || 0) * proportion;
+                 });
+             });
+         });
+         
+         // Calculate total ingredients used per menu
+         Object.values(menuAggregation).forEach(menu => {
+             menu.total_ingredients_used = Object.keys(menu.ingredients_map).length;
+             menu.ingredients_list = Object.values(menu.ingredients_map);
+         });
          
          // Create a summary header row
+         const totalUniqueMenus = Object.keys(menuAggregation).length;
          const summaryRow = `
              <tr style="background-color: #F9FAFB; border-bottom: 2px solid #E5E7EB;">
-                <td colspan="5" style="padding: 1rem; text-align: center;">
+                 <td colspan="5" style="padding: 1rem; text-align: center;">
                      <div style="font-size: 1.1rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;">
-                         📅 Ringkasan Konsumsi Harian - ${dateStr}
+                         📅 Ringkasan Konsumsi Harian - ${dailyData.date_formatted || dateStr}
                      </div>
                      <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
                          <div style="text-align: center;">
-                             <div style="font-size: 1.5rem; font-weight: 700; color: #059669;">${dailySummary.total_orders}</div>
+                             <div style="font-size: 1.5rem; font-weight: 700; color: #059669;">${dailyData.total_orders || 0}</div>
                              <div style="font-size: 0.9rem; color: #6B7280;">Total Pesanan</div>
                          </div>
                          <div style="text-align: center;">
-                             <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">${dailySummary.unique_menus}</div>
+                             <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">${totalUniqueMenus}</div>
                              <div style="font-size: 0.9rem; color: #6B7280;">Menu Unik</div>
                          </div>
                          <div style="text-align: center;">
-                             <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${dailySummary.total_consumption.toLocaleString()}</div>
-                             <div style="font-size: 0.9rem; color: #6B7280;">Total Bahan</div>
+                             <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${summary.total_ingredients_types || 0}</div>
+                             <div style="font-size: 0.9rem; color: #6B7280;">Jenis Bahan</div>
                          </div>
+                         <div style="text-align: center;">
+                             <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${(summary.total_quantity_consumed || 0).toLocaleString()}</div>
+                             <div style="font-size: 0.9rem; color: #6B7280;">Total Konsumsi</div>
+                         </div>
+                     </div>
+                     <div style="margin-top: 1rem;">
+                         <button class="btn-primary" onclick="showDailyIngredientAccumulation('${dateParam}', '${dailyData.date_formatted || dateStr}')" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 0.6rem 1.5rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 500; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)';">
+                             <i class="fas fa-layer-group"></i> Lihat Akumulasi Semua Bahan
+                         </button>
                      </div>
                  </td>
              </tr>
          `;
          
-        // Use global groups captured during load
-        const dateMenuData = Object.values(ingredientMenuFlavorGroups).filter(group => 
-             group.date === dateStr
-         );
-         
-         if (dateMenuData.length === 0) {
+         // Generate table rows for menu aggregation
+         if (Object.keys(menuAggregation).length === 0) {
              body.innerHTML = summaryRow + `
                  <tr>
-                    <td colspan="5" style="text-align: center; color: #6B7280; padding: 1.5rem; font-weight: 500;">
+                     <td colspan="5" style="text-align: center; color: #6B7280; padding: 1.5rem; font-weight: 500;">
                          Tidak ada detail menu untuk tanggal ini
                      </td>
                  </tr>
@@ -1392,16 +1594,33 @@ function hideIngredientDetailsPanel() {
              return;
          }
          
-        // Generate table rows for menu breakdown (5 columns)
-         const menuRows = dateMenuData.map((group, idx) => `
-             <tr style="border-bottom: 1px solid #F3F4F6;">
-                 <td>${idx + 1}</td>
-                 <td>${group.menu_name}</td>
-                 <td>${group.flavor}</td>
-                 <td>${group.total_ingredients.toLocaleString()}</td>
-                 <td>${group.total_orders}</td>
-             </tr>
-         `).join('');
+         // Sort menus by total_orders descending
+         const sortedMenus = Object.values(menuAggregation).sort((a, b) => b.total_orders - a.total_orders);
+         
+         const menuRows = sortedMenus.map((menu, idx) => {
+             const ingredientsList = menu.ingredients_list || [];
+             const ingredientSummary = ingredientsList.slice(0, 3).map(ing => 
+                 `${ing.ingredient_name}: ${Number(ing.total_consumed || 0).toFixed(1)} ${ing.unit || ''}`
+             ).join(', ');
+             const moreCount = ingredientsList.length > 3 ? ` (+${ingredientsList.length - 3} lainnya)` : '';
+             
+             // Store menu data globally for the detail view
+             const menuDataJson = JSON.stringify(menu).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+             
+             return `
+                 <tr style="border-bottom: 1px solid #F3F4F6;">
+                     <td>${idx + 1}</td>
+                     <td style="font-weight: 600; color: #1F2937;">${menu.menu_name}</td>
+                     <td style="text-align: center; font-weight: 600; color: #059669;">${menu.total_orders}</td>
+                     <td style="text-align: center; font-weight: 600; color: #DC2626;">${menu.total_ingredients_used}</td>
+                     <td style="text-align: center;">
+                         <button class="table-action-btn" onclick="event.stopPropagation(); showMenuIngredientDetails('${menu.menu_name.replace(/'/g, "\\'").replace(/"/g, '&quot;')}', '${dailyData.date_formatted || dateStr}', ${menuDataJson});" title="Lihat Detail Bahan Menu">
+                             <i class="fas fa-eye"></i> Detail
+                         </button>
+                     </td>
+                 </tr>
+             `;
+         }).join('');
          
          body.innerHTML = summaryRow + menuRows;
          
@@ -1409,13 +1628,255 @@ function hideIngredientDetailsPanel() {
          console.error('Failed to load daily aggregated consumption:', e);
          const body = document.getElementById('ingredient-details-body');
          if (body) {
-            body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #ef4444; padding: 1.5rem; font-weight: 500;">Gagal memuat data konsumsi harian</td></tr>';
+             body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #ef4444; padding: 1.5rem; font-weight: 500;">Gagal memuat data konsumsi harian: ' + e.message + '</td></tr>';
+         }
+     }
+ }
+
+// ========== HELPER FUNCTIONS FOR DAILY INGREDIENT DETAILS ==========
+function showMenuIngredientDetails(menuName, dateStr, menuData) {
+    try {
+        const panel = document.getElementById('ingredient-details-panel');
+        const body = document.getElementById('ingredient-details-body');
+        const headRow = document.querySelector('#ingredient-details-table thead tr');
+        
+        // Update panel header
+        document.getElementById('detail-order-id').textContent = menuName;
+        document.getElementById('detail-order-date').textContent = dateStr;
+        document.getElementById('detail-order-status').textContent = `${menuData.total_orders} pesanan`;
+        
+        // Update table header for ingredient details (6 columns)
+        if (headRow) {
+            headRow.innerHTML = `
+                <th>No</th>
+                <th>Nama Bahan</th>
+                <th>Total Konsumsi</th>
+                <th>Unit</th>
+                <th>Avg per Pesanan</th>
+                <th>Kontribusi</th>`;
+        }
+        
+        const ingredientsList = menuData.ingredients_list || [];
+        
+        if (ingredientsList.length === 0) {
+            body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada data bahan untuk menu ini</td></tr>';
+            if (panel) panel.classList.remove('hidden');
+            setTimeout(() => {
+                panel.scrollIntoView({behavior: 'smooth', block: 'start'});
+            }, 150);
+            return;
+        }
+        
+        // Calculate total consumption for percentage
+        const totalConsumption = ingredientsList.reduce((sum, ing) => sum + (ing.total_consumed || 0), 0);
+        
+        // Sort ingredients by total_consumed descending
+        const sortedIngredients = ingredientsList.sort((a, b) => b.total_consumed - a.total_consumed);
+        
+        const rows = sortedIngredients.map((ing, idx) => {
+            const avgPerOrder = menuData.total_orders > 0 ? 
+                (ing.total_consumed / menuData.total_orders).toFixed(2) : 0;
+            const contribution = totalConsumption > 0 ? 
+                ((ing.total_consumed / totalConsumption) * 100).toFixed(1) : 0;
+            
+            return `
+                <tr style="border-bottom: 1px solid #F3F4F6;">
+                    <td>${idx + 1}</td>
+                    <td style="font-weight: 500; color: #1F2937;">${ing.ingredient_name}</td>
+                    <td style="text-align: center; font-weight: 600; color: #DC2626;">${Number(ing.total_consumed || 0).toFixed(2)}</td>
+                    <td style="text-align: center; color: #6B7280;">${ing.unit || '-'}</td>
+                    <td style="text-align: center; color: #059669;">${avgPerOrder}</td>
+                    <td style="text-align: center;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
+                            <div style="width: 60px; height: 8px; background: #E5E7EB; border-radius: 4px; overflow: hidden;">
+                                <div style="width: ${contribution}%; height: 100%; background: linear-gradient(90deg, #DC2626, #F59E0B); transition: width 0.3s;"></div>
+                            </div>
+                            <span style="font-size: 0.85rem; font-weight: 600; color: #6B7280;">${contribution}%</span>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        
+        body.innerHTML = rows;
+        
+        // Show panel and scroll to it
+        if (panel) panel.classList.remove('hidden');
+        setTimeout(() => {
+            panel.scrollIntoView({behavior: 'smooth', block: 'start'});
+        }, 150);
+        
+    } catch (e) {
+        console.error('Failed to show menu ingredient details:', e);
+        alert('Gagal menampilkan detail bahan menu');
+    }
+}
+
+async function showDailyIngredientAccumulation(dateParam, dateFormatted) {
+    try {
+        const panel = document.getElementById('ingredient-details-panel');
+        const body = document.getElementById('ingredient-details-body');
+        const headRow = document.querySelector('#ingredient-details-table thead tr');
+        // Helper: map backend enum category to friendly label used in stock management UI
+        const mapStockCategoryLabel = (cat) => {
+            const key = String(cat || '').toLowerCase();
+            const map = {
+                'packaging': 'Kemasan',
+                'ingredients': 'Bahan',
+                'coffee_flavors': 'Perisa Kopi',
+                'squash_flavors': 'Perisa Squash',
+                'milk_shake_flavors': 'Perisa Milk Shake'
+            };
+            return map[key] || (key ? key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Umum');
+        };
+        
+        // Update panel header
+        document.getElementById('detail-order-id').textContent = `Akumulasi Bahan Harian`;
+        document.getElementById('detail-order-date').textContent = dateFormatted;
+        document.getElementById('detail-order-status').textContent = 'Semua Menu';
+        
+        // Show loading
+        body.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 1.5rem;"><i class="fas fa-spinner fa-spin"></i> Memuat akumulasi bahan...</td></tr>';
+        
+        // Show panel immediately
+        if (panel) panel.classList.remove('hidden');
+        
+        // Ensure dateParam is a single YYYY-MM-DD
+        let dateArg = dateParam;
+        if (typeof dateArg === 'string') {
+            if (dateArg.includes(' - ')) {
+                dateArg = dateArg.split(' - ')[0].trim();
+            }
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateArg)) {
+                const [dd, mm, yyyy] = dateArg.split('/');
+                dateArg = `${yyyy}-${mm}-${dd}`;
+            } else if (!/^\d{4}-\d{2}-\d{2}$/.test(dateArg)) {
+                // Try to extract first DD/MM/YYYY in the string
+                const m = dateArg.match(/(\d{2}\/\d{2}\/\d{4})/);
+                if (m && m[1]) {
+                    const [dd, mm, yyyy] = m[1].split('/');
+                    dateArg = `${yyyy}-${mm}-${dd}`;
+                }
+            }
+        }
+        // Fetch daily data
+        const response = await fetch(`/inventory/consumption/daily?date=${encodeURIComponent(dateArg)}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const json = await response.json();
+        const dailyData = json?.data?.daily_consumption?.[0];
+        
+        if (!dailyData) {
+            body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #615a5a; padding: 1.5rem;">Tidak ada data bahan untuk tanggal ini</td></tr>';
+            return;
+        }
+        
+        // Update table header for accumulated ingredients (6 columns)
+        if (headRow) {
+            headRow.innerHTML = `
+                <th>No</th>
+                <th>Nama Bahan</th>
+                <th>Total Konsumsi</th>
+                <th>Unit</th>
+                <th>Kategori</th>
+                <th>Frekuensi</th>`;
+        }
+        
+        const ingredientsConsumed = dailyData.ingredients_consumed || [];
+        
+        if (ingredientsConsumed.length === 0) {
+            body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada data konsumsi bahan</td></tr>';
+            return;
+        }
+        
+        // Sort by total_consumed descending
+        const sortedIngredients = ingredientsConsumed.sort((a, b) => 
+            (b.total_consumed || 0) - (a.total_consumed || 0)
+        );
+        
+        const totalConsumption = sortedIngredients.reduce((sum, ing) => sum + (ing.total_consumed || 0), 0);
+        
+        const rows = sortedIngredients.map((ing, idx) => {
+            const contribution = totalConsumption > 0 ? 
+                ((ing.total_consumed / totalConsumption) * 100).toFixed(1) : 0;
+            const frequency = ing.consumption_count || 1;
+            const categoryLabel = mapStockCategoryLabel(ing.category);
+            
+            // Color based on contribution
+            let barColor = '#10B981'; // green
+            if (contribution > 50) barColor = '#DC2626'; // red
+            else if (contribution > 20) barColor = '#F59E0B'; // orange
+            
+            return `
+                <tr style="border-bottom: 1px solid #F3F4F6;">
+                    <td>${idx + 1}</td>
+                    <td style="font-weight: 500; color: #1F2937;">${ing.ingredient_name}</td>
+                    <td style="text-align: center; font-weight: 600;">
+                        <span style="color: ${barColor};">${Number(ing.total_consumed || 0).toFixed(2)}</span>
+                    </td>
+                    <td style="text-align: center; color: #6B7280;">${ing.unit || '-'}</td>
+                    <td style="text-align: center;">
+                        <span style="background: #F3F4F6; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.85rem; color: #6B7280;">
+                            ${categoryLabel}
+                        </span>
+                    </td>
+                    <td style="text-align: center;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
+                            <span style="background: #DBEAFE; color: #1E40AF; padding: 0.2rem 0.5rem; border-radius: 12px; font-size: 0.85rem; font-weight: 600;">
+                                ${frequency}x
+                            </span>
+                            <div style="width: 50px; height: 6px; background: #E5E7EB; border-radius: 3px; overflow: hidden;">
+                                <div style="width: ${contribution}%; height: 100%; background: ${barColor}; transition: width 0.3s;"></div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        
+        // Add summary row at top
+        const summaryRow = `
+            <tr style="background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%); border-bottom: 2px solid #E5E7EB; font-weight: 600;">
+                <td colspan="6" style="padding: 1rem; text-align: center;">
+                    <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
+                        <div>
+                            <span style="color: #6B7280; font-size: 0.9rem;">Total Jenis Bahan:</span>
+                            <span style="color: #1F2937; font-size: 1.1rem; margin-left: 0.5rem;">${sortedIngredients.length}</span>
+                        </div>
+                        <div>
+                            <span style="color: #6B7280; font-size: 0.9rem;">Total Konsumsi:</span>
+                            <span style="color: #DC2626; font-size: 1.1rem; margin-left: 0.5rem; font-weight: 700;">${totalConsumption.toFixed(2)}</span>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        `;
+        
+        body.innerHTML = summaryRow + rows;
+        
+        // Scroll to panel
+        setTimeout(() => {
+            panel.scrollIntoView({behavior: 'smooth', block: 'start'});
+        }, 150);
+        
+    } catch (e) {
+        console.error('Failed to show daily ingredient accumulation:', e);
+        const body = document.getElementById('ingredient-details-body');
+        if (body) {
+            body.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 1.5rem;">Gagal memuat akumulasi bahan: ${e.message}</td></tr>`;
         }
     }
 }
 
 // ========== INGREDIENT ANALYSIS EXPORT FUNCTIONS ==========
 async function exportIngredientExcel() {
+    const cleanMenuName = (name) => {
+        const cleaned = String(name || '').trim();
+        const noPrefix = cleaned.replace(/^\s*\d+\s*x?\s*/i, '');
+        return noPrefix.replace(/\s*x\s*\d+\s*$/i, '').trim();
+    };
     // Export for Ingredient Analysis using inventory truth per-order breakdown
     const viewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
     const { start, end } = (function () {
@@ -1510,7 +1971,7 @@ async function exportIngredientExcel() {
 
         if (Array.isArray(b.menu_breakdown) && b.menu_breakdown.length) {
             for (const it of b.menu_breakdown) {
-                const menuName = it?.menu_name || 'Unknown Menu';
+                const menuName = cleanMenuName(it?.menu_name || 'Unknown Menu');
                 const itemQty = Number(it?.quantity || 0) || 0;
                 itemListForDistribution.push({ menu: menuName, qty: itemQty });
                 const ings = Array.isArray(it?.ingredients) ? it.ingredients : [];
@@ -1550,7 +2011,7 @@ async function exportIngredientExcel() {
         // Fallback: if no per-item breakdown, try recipe-based from kitchen order + globalFlavorMap (legacy behavior)
         if (kitchenOrder && Array.isArray(kitchenOrder.items)) {
             for (const it of kitchenOrder.items) {
-                const menuName = it.menu_name || 'Unknown Menu';
+                const menuName = cleanMenuName(it.menu_name || 'Unknown Menu');
                 const qty = Number(it.quantity || 0) || 0; if (!qty) continue;
                 itemListForDistribution.push({ menu: menuName, qty });
                 const flavorRaw = (it.preference || it.flavor || '-');
@@ -1758,6 +2219,11 @@ async function exportIngredientPDF() {
     }
 
     const breakdowns = await fetchAllBreakdowns(targetOrderIds);
+    const cleanMenuName = (name) => {
+        const cleaned = String(name || '').trim();
+        const noPrefix = cleaned.replace(/^\s*\d+\s*x?\s*/i, '');
+        return noPrefix.replace(/\s*x\s*\d+\s*$/i, '').trim();
+    };
     const detailRows = [];
     for (const b of breakdowns) {
         const iso = toIso(b.order_date);
@@ -1769,7 +2235,7 @@ async function exportIngredientPDF() {
 
         if (Array.isArray(b.menu_breakdown) && b.menu_breakdown.length) {
             for (const it of b.menu_breakdown) {
-                const menuName = it?.menu_name || 'Unknown Menu';
+                const menuName = cleanMenuName(it?.menu_name || 'Unknown Menu');
                 const itemQty = Number(it?.quantity || 0) || 0;
                 itemListForDistribution.push({ menu: menuName, qty: itemQty });
                 const ings = Array.isArray(it?.ingredients) ? it.ingredients : [];
@@ -1807,7 +2273,7 @@ async function exportIngredientPDF() {
 
         if (kitchenOrder && Array.isArray(kitchenOrder.items)) {
             for (const it of kitchenOrder.items) {
-                const menuName = it.menu_name || 'Unknown Menu';
+                const menuName = cleanMenuName(it.menu_name || 'Unknown Menu');
                 const qty = Number(it.quantity || 0) || 0; if (!qty) continue;
                 itemListForDistribution.push({ menu: menuName, qty });
                 const flavorRaw = (it.preference || it.flavor || '-');
