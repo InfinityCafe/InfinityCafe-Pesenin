@@ -3344,53 +3344,58 @@ function exportSalesExcelEnhanced() {
     
     // Determine data type and structure
     const dataType = currentDataType || 'sales';
-    let totalQty = 0, totalRevenue = 0, totalModal = 0;
+    let totalQty = 0, totalRevenue = 0, totalModal = 0, totalProfit = 0;
     const itemMap = {};
     
     // Process data based on current data type
     data.forEach(r => {
-        let qty, price, total, modal, menu, flavor;
+        let qty, price, revenue, modal, profit, menu, flavor;
         
         if (dataType === 'sales') {
             // Sales data structure (aggregated by menu + flavor)
             qty = Number(r.quantity || 0);
             price = Number(r.unit_price || 0);
-            total = Number(r.profit || 0);
+            revenue = Number(r.total_revenue || 0);
             modal = Number(r.total_ingredient_cost || 0);
+            profit = Number(r.profit || 0);
             menu = r.menu_name || 'Unknown';
             flavor = r.flavor || '-';
         } else if (dataType === 'best') {
             // Best seller data structure
             qty = Number(r.total_quantity || r.quantity || 0);
             price = Number(r.unit_price || 0);
-            total = Number(r.total_revenue || r.total || 0);
+            revenue = Number(r.total_revenue || r.total || 0);
             modal = 0; // Best seller doesn't have modal data
+            profit = 0; // Best seller doesn't have profit data
             menu = r.menu_name || 'Unknown';
             flavor = '-'; // Best seller doesn't have flavor
         } else {
             // Fallback for other data types
             qty = Number(r.qty || r.quantity || r.amount || 0);
             price = Number(r.price || r.price_per_unit || r.unit_price || 0);
-            total = Number(r.total || r.revenue || (qty * price));
+            revenue = Number(r.total_revenue || r.total || (qty * price));
             modal = Number(r.total_ingredient_cost || 0);
+            profit = Number(r.profit || 0);
             menu = r.menu_name || r.name || r.menu || 'Unknown';
             flavor = r.flavor || '-';
         }
         
         totalQty += qty; 
-        totalRevenue += total;
+        totalRevenue += revenue;
         totalModal += modal;
+        totalProfit += profit;
         
         // Create unique key for aggregation (include flavor for sales)
         const key = dataType === 'sales' ? `${menu}|${flavor}` : menu;
-        if (!itemMap[key]) itemMap[key] = { qty: 0, revenue: 0, modal: 0, menu, flavor };
-        itemMap[key].qty += qty; 
-        itemMap[key].revenue += total;
+        if (!itemMap[key]) itemMap[key] = { qty: 0, revenue: 0, modal: 0, profit: 0, menu, flavor };
+        itemMap[key].qty += qty;
+        itemMap[key].revenue += revenue;
         itemMap[key].modal += modal;
+        itemMap[key].profit += profit;
     });
     
     const topItems = Object.entries(itemMap)
-        .map(([key, v]) => ({ name: v.menu, flavor: v.flavor, qty: v.qty, revenue: v.revenue, modal: v.modal }))
+        .map(([key, v]) => ({ name: v.menu, flavor: v.flavor, qty: v.qty, revenue: v.revenue, modal: v.modal, profit: v.profit }))
         .sort((a,b) => b.qty - a.qty)
         .slice(0, 10);
     const allItems = Object.entries(itemMap)
@@ -3405,10 +3410,12 @@ function exportSalesExcelEnhanced() {
         ['Total Records', data.length],
         ['Total Qty', totalQty],
         ['Total Revenue', totalRevenue],
+        ['Total Modal', totalModal],
+        ['Total Profit', totalProfit],
         [''],
         ['Top 10 Items (by Qty)'],
-        dataType === 'sales' ? ['Item','Flavor','Qty','Revenue'] : ['Item','Qty','Revenue'],
-        ...topItems.map(i => dataType === 'sales' ? [i.name, i.flavor, i.qty, i.revenue] : [i.name, i.qty, i.revenue]),
+        dataType === 'sales' ? ['No', 'Menu', 'Flavor', 'Qty', 'Unit Price', 'Total Modal', 'Total Revenue', 'Total Profit'] : ['No', 'Menu', 'Qty', 'Revenue'],
+        ...topItems.map((i,idx) => dataType === 'sales' ? [idx+1, i.name, i.flavor, i.qty, 0, i.modal, i.revenue, i.profit] : [idx+1, i.name, i.qty, i.revenue]),
         [''],
         ['All Items Summary'],
         dataType === 'sales' ? ['Item','Flavor','Qty','Revenue'] : ['Item','Qty','Revenue'],
@@ -3419,11 +3426,11 @@ function exportSalesExcelEnhanced() {
     
     // Data Summary (raw rows)
     const dataAoA = dataType === 'sales' ? 
-        [['No','Item','Flavor','Qty','Unit Price','Total Modal', 'Total Revenue']] : 
+        [['No','Item','Flavor','Qty','Unit Price','Total Modal', 'Total Revenue', 'Total Profit']] : 
         [['No','Item','Qty','Price','Total']];
     
     data.forEach((r, i) => {
-        let name, flavor, qty, price, total, modal;
+        let name, flavor, qty, price, totalRevenue, totalModal, totalProfit;
         
         if (dataType === 'sales') {
             name = r.menu_name || '-';
@@ -3431,21 +3438,22 @@ function exportSalesExcelEnhanced() {
             qty = Number(r.quantity || 0);
             price = Number(r.unit_price || 0);
             totalModal = Number(r.total_ingredient_cost || 0);
-            totalRevenue = Number(r.profit || r.total || 0);
-            dataAoA.push([i+1, name, flavor, qty, price, totalModal, totalRevenue]);
+            totalRevenue = Number(r.total_revenue || r.total || 0);
+            totalProfit = Number(r.profit || 0);
+            dataAoA.push([i+1, name, flavor, qty, price, totalModal, totalRevenue, totalProfit]);
         } else if (dataType === 'best') {
             name = r.menu_name || '-';
             qty = Number(r.total_quantity || r.quantity || 0);
             price = Number(r.unit_price || 0);
-            total = Number(r.total_revenue || r.total || 0);
-            dataAoA.push([i+1, name, qty, price, total]);
+            totalRevenue = Number(r.total_revenue || r.total || 0);
+            dataAoA.push([i+1, name, qty, price, totalRevenue]);
         } else {
             name = r.menu_name || r.name || r.menu || '-';
             flavor = r.flavor || '-';
             qty = Number(r.qty || r.quantity || r.amount || 0);
             price = Number(r.price || r.price_per_unit || r.unit_price || 0);
-            total = Number(r.total || r.revenue || (qty * price));
-            dataAoA.push([i+1, name, flavor, qty, price, total]);
+            totalRevenue = Number(r.total || r.revenue || (qty * price));
+            dataAoA.push([i+1, name, flavor, qty, price, totalRevenue]);
         }
     });
     
@@ -3607,44 +3615,53 @@ function exportSalesPDFEnhanced() {
     doc.setFontSize(10);
 
     const data = Array.isArray(baseData) ? baseData : [];
-    let totalQty = 0, totalAmount = 0;
+    let totalQty = 0, totalRevenue = 0, totalModal = 0, totalProfit = 0;
     const itemMap = {};
     
     data.forEach(r => {
-        let qty, price, total, menu, flavor;
+        let qty, price, revenue, modal, profit, menu, flavor;
         
         if (dataType === 'sales') {
             qty = Number(r.quantity || 0);
             price = Number(r.unit_price || 0);
-            total = Number(r.profit || 0);
+            revenue = Number(r.total_revenue || 0);
             modal = Number(r.total_ingredient_cost || 0);
+            profit = Number(r.profit || 0);
             menu = r.menu_name || 'Unknown';
             flavor = r.flavor || '-';
         } else if (dataType === 'best') {
             qty = Number(r.total_quantity || r.quantity || 0);
             price = Number(r.unit_price || 0);
-            total = Number(r.total_revenue|| r.total || 0);
+            revenue = Number(r.total_revenue || r.total || 0);
+            modal = 0;
+            profit = 0;
             menu = r.menu_name || 'Unknown';
             flavor = '-';
         } else {
             qty = Number(r.qty || r.quantity || 0);
             price = Number(r.price || 0);
-            total = Number(r.total || (qty * price));
+            revenue = Number(r.total_revenue || (qty * price));
+            modal = Number(r.total_ingredient_cost || 0);
+            profit = Number(r.profit || 0);
             menu = r.menu_name || r.name || 'Unknown';
             flavor = r.flavor || '-';
         }
         
         totalQty += qty; 
-        totalAmount += total;
-        
+        totalRevenue += revenue;
+        totalModal += modal;
+        totalProfit += profit;
+
         const key = dataType === 'sales' ? `${menu}|${flavor}` : menu;
-        if (!itemMap[key]) itemMap[key] = { qty: 0, total: 0, menu, flavor };
+        if (!itemMap[key]) itemMap[key] = { qty: 0, revenue: 0, modal: 0, profit: 0, menu, flavor };
         itemMap[key].qty += qty; 
-        itemMap[key].total += total;
+        itemMap[key].revenue += revenue;
+        itemMap[key].modal += modal;
+        itemMap[key].profit += profit;
     });
     
     const topItems = Object.entries(itemMap)
-        .map(([key, v]) => ({ name: v.menu, flavor: v.flavor, qty: v.qty, total: v.total }))
+        .map(([key, v]) => ({ name: v.menu, flavor: v.flavor, qty: v.qty, revenue: v.revenue, modal: v.modal, profit: v.profit }))
         .sort((a,b) => b.qty - a.qty)
         .slice(0, 10);
 
@@ -3658,7 +3675,9 @@ function exportSalesPDFEnhanced() {
     doc.text(`Generated: ${new Date().toLocaleString('id-ID')}`, 60, y+7);
     doc.text(`Total Records: ${data.length}`, 120, y+7);
     doc.text(`Total Qty: ${totalQty}`, 60, y+14);
-    doc.text(`Total Revenue: ${totalAmount}`, 120, y+14);
+    doc.text(`Total Revenue: Rp ${totalRevenue.toLocaleString()}`, 120, y+14);
+    doc.text(`Total Modal: Rp ${totalModal.toLocaleString()}`, 60, y+21);
+    doc.text(`Total Profit: Rp ${totalProfit.toLocaleString()}`, 120, y+21);
     y += 26;
 
     doc.setFont('helvetica','bold'); doc.text('Top 10 Items (by Qty):', 14, y); y+=6; doc.setFont('helvetica','normal');
@@ -3675,28 +3694,30 @@ function exportSalesPDFEnhanced() {
     doc.setFont('helvetica','bold'); doc.text(summaryTitle, 14, y); y+=4; doc.setFont('helvetica','normal');
 
     // Build table data (content unchanged)
-    const tableHead = dataType === 'sales' ? ['No', 'Item', 'Flavor', 'Qty', 'Price', 'Total'] : ['No', 'Item', 'Qty', 'Price', 'Total'];
+    const tableHead = dataType === 'sales' ? ['No', 'Menu', 'Flavor', 'Qty', 'Price', 'Modal', 'Revenue', 'Profit'] : ['No', 'Menu', 'Qty', 'Price', 'Total'];
     const tableBody = data.slice(0, 25).map((r, i) => {
         if (dataType === 'sales') {
             const name = r.menu_name || '-';
             const flavor = r.flavor || '-';
             const qty = Number(r.quantity || 0);
-            const price = Number(r.base_price || 0);
-            const total = Number(r.total_price || 0);
-            return [i+1, name, flavor, qty, price, total];
+            const price = Number(r.unit_price || 0);
+            const modal = Number(r.total_ingredient_cost || 0);
+            const revenue = Number(r.total_revenue || 0);
+            const profit = Number(r.profit || 0);
+            return [i+1, name, flavor, qty, price, modal, revenue, profit];
         } else if (dataType === 'best') {
             const name = r.menu_name || '-';
             const qty = Number(r.total_quantity || r.quantity || 0);
             const price = Number(r.unit_price || 0);
-            const total = Number(r.total_revenue || r.total || 0);
-            return [i+1, name, qty, price, total];
+            const revenue = Number(r.total_revenue || r.total || 0);
+            return [i+1, name, qty, price, revenue];
         } else {
             const name = r.menu_name || r.name || '-';
             const flavor = r.flavor || '-';
             const qty = Number(r.qty || r.quantity || 0);
             const price = Number(r.price || 0);
-            const total = Number(r.total || (qty * price));
-            return [i+1, name, flavor, qty, price, total];
+            const revenue = Number(r.total_revenue || r.total || (qty * price));
+            return [i+1, name, flavor, qty, price, revenue];
         }
     });
 
