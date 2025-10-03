@@ -200,7 +200,7 @@ def get_suggested_menu(
     
     return result
 
-@app.get("/report", tags=["Report"])
+@app.get("  ", tags=["Report"])
 def get_report(
     start_date: str = Query(...),
     end_date: str = Query(...),

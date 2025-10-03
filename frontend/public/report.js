@@ -2798,6 +2798,8 @@ function showEmptyState(message, type = 'info') {
     colspan = 6;
     } else if (currentDataType === 'best') {
       colspan = 5;
+    } else if (currentDataType === 'sales') {
+      colspan = 7; // Updated untuk 7 kolom (termasuk Total Modal)
     }
 
     const icon = type === 'error' ? '❌' : type === 'warning' ? '⚠️' : '📊';
@@ -2834,7 +2836,7 @@ function updateSummaryWithData(data, type = 'sales') {
             summaryIncome.textContent = `Rp ${(data.total_income || 0).toLocaleString()}`;
         } else if (type === 'best') {
             const totalRevenue = data.best_sellers ? 
-                data.best_sellers.reduce((sum, item) => sum + (item.total_revenue || 0), 0) : 0;
+                data.best_sellers.reduce((sum, item) => sum + (item.profit || 0), 0) : 0;
             summaryIncome.textContent = `Rp ${totalRevenue.toLocaleString()}`;
         }
     }
@@ -3039,7 +3041,7 @@ function computeDataHash(arr) {
     try {
         if (!Array.isArray(arr)) return '0';
         // lightweight hash: join key fields to avoid heavy stringify
-        const key = arr.map(i => `${i.menu_name}|${i.quantity ?? i.total_quantity ?? 0}|${i.total ?? i.total_revenue ?? 0}`).join('#');
+        const key = arr.map(i => `${i.menu_name}|${i.quantity ?? i.total_quantity ?? 0}|${i.total ?? i.profit ?? 0}`).join('#');
         let hash = 0;
         for (let i = 0; i < key.length; i++) hash = ((hash << 5) - hash) + key.charCodeAt(i) | 0;
         return String(hash);
@@ -3091,24 +3093,24 @@ async function loadReport(rangeOverride = null, maybeEnd = null) {
             }
             
             const data = await res.json();
-        console.log('Report data received:', data);
+            console.log('Report data received:', data);
             currentReportData = data;
-        // Set current type as early as possible to avoid stale state
-        const previousType = currentDataType;
+            // Set current type as early as possible to avoid stale state
+            const previousType = currentDataType;
             currentDataType = 'sales';
 
             // Update summary with new structure
-        updateSummaryWithFinancialData(data, 'sales');
+            updateSummaryWithFinancialData(data, 'sales');
             applyModeLayout('sales');
 
             // Use transactions array for detailed data with flavor information
-            const rawDetails = Array.isArray(data.transactions) ? data.transactions : [];
-        console.log('Report transactions:', rawDetails);
+            const rawTransactions = Array.isArray(data.transactions) ? data.transactions : [];
+        console.log('Report transactions:', rawTransactions);
         console.log('Data structure:', data);
-        console.log('Transactions length:', rawDetails.length);
-        
+        console.log('Transactions length:', rawTransactions.length);
+
             // Aggregate sales data by menu + flavor combination
-            const details = aggregateSalesData(rawDetails);
+            const details = aggregateSalesData(rawTransactions);
         console.log('Aggregated sales data:', details);
         
             const newHash = computeDataHash(details);
@@ -3126,8 +3128,8 @@ async function loadReport(rangeOverride = null, maybeEnd = null) {
         const chartData = details.map(item => ({
             menu_name: item.menu_name || 'N/A',
             quantity: item.quantity || 0,
-            unit_price: item.base_price || 0,
-            total: item.total_price || 0
+            unit_price: item.unit_price || 0,
+            total: item.total_revenue || 0
         }));
         renderCharts(chartData);
 
@@ -3193,7 +3195,7 @@ async function loadBestSellerData(rangeOverride = null, maybeEnd = null) {
             
             // Calculate total revenue from best sellers
             const totalRevenue = data.best_sellers.reduce((sum, item) => sum + (item.total_revenue || 0), 0);
-            
+
             // Update summary with best seller data
             updateSummaryWithData(data, 'best');
             applyModeLayout('best');
@@ -3342,18 +3344,19 @@ function exportSalesExcelEnhanced() {
     
     // Determine data type and structure
     const dataType = currentDataType || 'sales';
-    let totalQty = 0, totalRevenue = 0;
+    let totalQty = 0, totalRevenue = 0, totalModal = 0;
     const itemMap = {};
     
     // Process data based on current data type
     data.forEach(r => {
-        let qty, price, total, menu, flavor;
+        let qty, price, total, modal, menu, flavor;
         
         if (dataType === 'sales') {
             // Sales data structure (aggregated by menu + flavor)
             qty = Number(r.quantity || 0);
-            price = Number(r.base_price || 0);
-            total = Number(r.total_price || 0);
+            price = Number(r.unit_price || 0);
+            total = Number(r.profit || 0);
+            modal = Number(r.total_ingredient_cost || 0);
             menu = r.menu_name || 'Unknown';
             flavor = r.flavor || '-';
         } else if (dataType === 'best') {
@@ -3361,6 +3364,7 @@ function exportSalesExcelEnhanced() {
             qty = Number(r.total_quantity || r.quantity || 0);
             price = Number(r.unit_price || 0);
             total = Number(r.total_revenue || r.total || 0);
+            modal = 0; // Best seller doesn't have modal data
             menu = r.menu_name || 'Unknown';
             flavor = '-'; // Best seller doesn't have flavor
         } else {
@@ -3368,22 +3372,25 @@ function exportSalesExcelEnhanced() {
             qty = Number(r.qty || r.quantity || r.amount || 0);
             price = Number(r.price || r.price_per_unit || r.unit_price || 0);
             total = Number(r.total || r.revenue || (qty * price));
+            modal = Number(r.total_ingredient_cost || 0);
             menu = r.menu_name || r.name || r.menu || 'Unknown';
             flavor = r.flavor || '-';
         }
         
         totalQty += qty; 
         totalRevenue += total;
+        totalModal += modal;
         
         // Create unique key for aggregation (include flavor for sales)
         const key = dataType === 'sales' ? `${menu}|${flavor}` : menu;
-        if (!itemMap[key]) itemMap[key] = { qty: 0, revenue: 0, menu, flavor };
+        if (!itemMap[key]) itemMap[key] = { qty: 0, revenue: 0, modal: 0, menu, flavor };
         itemMap[key].qty += qty; 
         itemMap[key].revenue += total;
+        itemMap[key].modal += modal;
     });
     
     const topItems = Object.entries(itemMap)
-        .map(([key, v]) => ({ name: v.menu, flavor: v.flavor, qty: v.qty, revenue: v.revenue }))
+        .map(([key, v]) => ({ name: v.menu, flavor: v.flavor, qty: v.qty, revenue: v.revenue, modal: v.modal }))
         .sort((a,b) => b.qty - a.qty)
         .slice(0, 10);
     const allItems = Object.entries(itemMap)
@@ -3412,19 +3419,20 @@ function exportSalesExcelEnhanced() {
     
     // Data Summary (raw rows)
     const dataAoA = dataType === 'sales' ? 
-        [['No','Item','Flavor','Qty','Price','Total']] : 
+        [['No','Item','Flavor','Qty','Unit Price','Total Modal', 'Total Revenue']] : 
         [['No','Item','Qty','Price','Total']];
     
     data.forEach((r, i) => {
-        let name, flavor, qty, price, total;
+        let name, flavor, qty, price, total, modal;
         
         if (dataType === 'sales') {
             name = r.menu_name || '-';
             flavor = r.flavor || '-';
             qty = Number(r.quantity || 0);
-            price = Number(r.base_price || 0);
-            total = Number(r.total_price || 0);
-            dataAoA.push([i+1, name, flavor, qty, price, total]);
+            price = Number(r.unit_price || 0);
+            totalModal = Number(r.total_ingredient_cost || 0);
+            totalRevenue = Number(r.profit || r.total || 0);
+            dataAoA.push([i+1, name, flavor, qty, price, totalModal, totalRevenue]);
         } else if (dataType === 'best') {
             name = r.menu_name || '-';
             qty = Number(r.total_quantity || r.quantity || 0);
@@ -3443,7 +3451,7 @@ function exportSalesExcelEnhanced() {
     
     const wsData = XLSX.utils.aoa_to_sheet(dataAoA);
     wsData['!cols'] = dataType === 'sales' ? 
-        [{wch:6},{wch:30},{wch:18},{wch:10},{wch:12},{wch:14}] :
+        [{wch:6},{wch:30},{wch:18},{wch:10},{wch:12},{wch:14}, {wch:14}] :
         [{wch:6},{wch:30},{wch:10},{wch:12},{wch:14}];
     XLSX.utils.book_append_sheet(wb, wsData, dataType === 'sales' ? 'Sales Data' : dataType === 'best' ? 'Best Seller Data' : 'Data');
     
@@ -3465,7 +3473,7 @@ function exportSalesCSVEnhanced() {
         if (dataType === 'sales') {
             qty = Number(r.quantity || 0);
             price = Number(r.base_price || 0);
-            total = Number(r.total_price || 0);
+            total = Number(r.profit || 0);
             menu = r.menu_name || 'Unknown';
             flavor = r.flavor || '-';
         } else if (dataType === 'best') {
@@ -3607,14 +3615,15 @@ function exportSalesPDFEnhanced() {
         
         if (dataType === 'sales') {
             qty = Number(r.quantity || 0);
-            price = Number(r.base_price || 0);
-            total = Number(r.total_price || 0);
+            price = Number(r.unit_price || 0);
+            total = Number(r.profit || 0);
+            modal = Number(r.total_ingredient_cost || 0);
             menu = r.menu_name || 'Unknown';
             flavor = r.flavor || '-';
         } else if (dataType === 'best') {
             qty = Number(r.total_quantity || r.quantity || 0);
             price = Number(r.unit_price || 0);
-            total = Number(r.total_revenue || r.total || 0);
+            total = Number(r.total_revenue|| r.total || 0);
             menu = r.menu_name || 'Unknown';
             flavor = '-';
         } else {
@@ -3723,20 +3732,23 @@ function aggregateSalesData(rawTransactions) {
                 menu_name: menuName,
                 flavor: flavor,
                 quantity: 0,
-                base_price: transaction.base_price || 0,
-                total_price: 0,
+                unit_price: transaction.base_price || 0,
+                total_ingredient_cost: 0,
+                profit: 0,
                 transaction_count: 0
             };
         }
         
         // Aggregate quantities and totals
         groupedData[key].quantity += (transaction.quantity || 0);
-        groupedData[key].total_price += (transaction.total_price || 0);
+        groupedData[key].total_ingredient_cost += (transaction.total_ingredient_cost || 0);
+        groupedData[key].total_revenue += (transaction.total_price || 0);
+        groupedData[key].profit += (transaction.profit || 0);
         groupedData[key].transaction_count += 1;
     });
     
     // Convert grouped data to array and sort by total_price descending
-    return Object.values(groupedData).sort((a, b) => b.total_price - a.total_price);
+    return Object.values(groupedData).sort((a, b) => b.profit - a.profit);
 }
 
 // ========== PAGINATION FUNCTIONS ==========
@@ -3944,20 +3956,23 @@ function renderReportTable() {
             } else if (currentDataType === 'sales') {
                 // Sales data - show aggregated flavor information
                 console.log('Rendering sales item:', item);
+                const menuName = item.menu_name || 'N/A';
                 const flavor = item.flavor || '-';
-                const totalPrice = item.total_price || 0;
-                const unitPrice = item.base_price || 0;
                 const quantity = item.quantity || 0;
-                const transactionCount = item.transaction_count || 1;
+                const unitPrice = item.unit_price || 0;
+                const totalIngredientCost = item.total_ingredient_cost || 0;
+                const totalRevenue = item.profit || 0;
+                // const transactionCount = item.transaction_count || 1;
                 
                 tbody.innerHTML += `
                     <tr>
                         <td>${actualIndex + 1}</td>
-                        <td>${item.menu_name || 'N/A'}</td>
+                        <td>${menuName}</td>
                         <td>${flavor}</td>
                         <td>${quantity.toLocaleString()}</td>
                         <td>Rp ${unitPrice.toLocaleString()}</td>
-                        <td>Rp ${totalPrice.toLocaleString()}</td>
+                        <td>Rp ${totalIngredientCost.toLocaleString()}</td>
+                        <td>Rp ${totalRevenue.toLocaleString()}</td>
                     </tr>`;
             } else {
                 // Best Seller data - aggregated view
@@ -4120,8 +4135,9 @@ function initializeElements() {
                     item.menu_name,
                     item.flavor,
                     item.quantity,
-                    item.base_price,
-                    item.total_price
+                    item.unit_price,
+                    item.total_ingredient_cost,
+                    item.profit
                 ];
                 return fields.some(f => S(f).includes(term));
             });
@@ -4260,8 +4276,8 @@ async function applyReportFilter() {
                 return qb - qa; // desc
             }
             if (val === 'total') {
-                const ta = a.total ?? a.total_revenue ?? 0;
-                const tb = b.total ?? b.total_revenue ?? 0;
+                const ta = a.total ?? a.profit ?? 0;
+                const tb = b.total ?? b.profit ?? 0;
                 return tb - ta; // desc
             }
             return 0;
@@ -4434,10 +4450,11 @@ function applyModeLayout(mode) {
             tableHeader.innerHTML = `
             <th>No</th>
             <th>Menu</th>
-                
-                <th>Qty</th>
-                <th>Price</th>
-                <th>Total</th>
+            <th>Flavor</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th>Total Modal</th>
+            <th>Total Revenue</th>
             `;
         } else if (isBest) {
             // Best Seller mode: no flavor column
@@ -4445,7 +4462,7 @@ function applyModeLayout(mode) {
             <th>No</th>
             <th>Menu</th>
             <th>Qty</th>
-            <th>Price</th>
+            <th>Unit Price</th>
             <th>Total</th>
         `;
         }
