@@ -750,9 +750,9 @@ class InventoryManager {
     document.getElementById('view-item-current').textContent = `${item.current_quantity.toFixed(2)} ${item.unit}`;
     document.getElementById('view-item-unit').textContent = this.capitalizeFirst(item.unit);
     document.getElementById('view-item-minimum').textContent = `${item.minimum_quantity.toFixed(2)} ${item.unit}`;
-    document.getElementById('view-item-purchase-price-total').textContent = `Rp. ${item.purchase_price_total.toFixed(2)}`;
-    document.getElementById('view-item-purchase-quantity').textContent = `Rp. ${item.purchase_quantity.toFixed(2)}`;
-    document.getElementById('view-item-unit-price').textContent = `Rp. ${item.unit_price.toFixed(2)}`;
+    document.getElementById('view-item-purchase-price-total').textContent = `Rp. ${item.purchase_price_total.toLocaleString('id-ID')}`;
+    document.getElementById('view-item-purchase-quantity').textContent = `${item.purchase_quantity.toLocaleString('id-ID')}`;
+    document.getElementById('view-item-unit-price').textContent = `Rp. ${item.unit_price.toLocaleString('id-ID', { minimumFractionDigits: 2 })}`;
     document.getElementById('view-item-availability').textContent = item.is_available ? 'Available' : 'Unavailable';
 
     const status = this.getStockStatus(item);
