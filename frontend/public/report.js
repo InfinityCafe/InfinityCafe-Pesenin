@@ -3821,7 +3821,7 @@ function exportSalesExcelEnhanced() {
             // Sales data structure (aggregated by menu + flavor)
             qty = Number(r.quantity || 0);
             price = Number(r.unit_price || 0);
-            revenue = Number(r.total_revenue || 0);
+            revenue = Number(r.total_revenue || r.profit || (qty * price) || 0);
             modal = Number(r.total_ingredient_cost || 0);
             profit = Number(r.profit || 0);
             menu = r.menu_name || 'Unknown';
@@ -3893,7 +3893,7 @@ function exportSalesExcelEnhanced() {
     // Data Summary (raw rows)
     const dataAoA = dataType === 'sales' ? 
         [['No','Item','Flavor','Qty','Unit Price','Total Modal', 'Total Revenue', 'Total Profit']] : 
-        [['No','Item','Qty','Price','Total']];
+        [['No','Item','Qty','Price','TotalRevenue']];
     
     data.forEach((r, i) => {
         let name, flavor, qty, price, totalRevenue, totalModal, totalProfit;
@@ -4150,8 +4150,8 @@ function exportSalesPDFEnhanced() {
     topItems.forEach((it, idx) => { 
         if (y>270){doc.addPage(); y=20;} 
         const itemText = dataType === 'sales' ? 
-            `${idx+1}. ${it.name} (${it.flavor}) - Qty: ${it.qty} | Total: ${it.total}` :
-            `${idx+1}. ${it.name} - Qty: ${it.qty} | Total: ${it.total}`;
+            `${idx+1}. ${it.name} (${it.flavor}) - Qty: ${it.qty} | Total: ${it.revenue}` :
+            `${idx+1}. ${it.name} - Qty: ${it.qty} | Total: ${it.revenue}`;
         doc.text(itemText, 14, y); y+=6; 
     });
 
@@ -4221,6 +4221,7 @@ function aggregateSalesData(rawTransactions) {
                 quantity: 0,
                 unit_price: transaction.base_price || 0,
                 total_ingredient_cost: 0,
+                total_revenue: 0,
                 profit: 0,
                 transaction_count: 0
             };
@@ -4448,7 +4449,8 @@ function renderReportTable() {
                 const quantity = item.quantity || 0;
                 const unitPrice = item.unit_price || 0;
                 const totalIngredientCost = item.total_ingredient_cost || 0;
-                const totalRevenue = item.profit || 0;
+                const totalRevenue = item.total_revenue || 0;
+                const profit = item.profit || 0;
                 // const transactionCount = item.transaction_count || 1;
                 
                 tbody.innerHTML += `
@@ -4460,6 +4462,7 @@ function renderReportTable() {
                         <td>Rp ${unitPrice.toLocaleString()}</td>
                         <td>Rp ${totalIngredientCost.toLocaleString()}</td>
                         <td>Rp ${totalRevenue.toLocaleString()}</td>
+                        <td>Rp ${profit.toLocaleString()}</td>
                     </tr>`;
             } else {
                 // Best Seller data - aggregated view
