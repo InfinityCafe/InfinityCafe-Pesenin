@@ -87,12 +87,23 @@ def get_order_ingredients_via_report(order_id: str):
             raise HTTPException(status_code=503, detail="Order service unavailable")
 
         order_status = None
-        if isinstance(status_json, dict) and status_json.get("status") == "success":
-            order_info = status_json.get("data", {})
-            order_status = order_info.get("status")
+        if isinstance(status_json, dict):
+            # Skenario sukses standar
+            if status_json.get("status") == "success":
+                order_info = status_json.get("data") or {}
+                if isinstance(order_info, dict):
+                    order_status = order_info.get("status")
+                else:
+                    order_status = None
+            else:
+                # Skenario error atau struktur berbeda: pastikan aman jika data=None
+                data_field = status_json.get("data")
+                if isinstance(data_field, dict):
+                    order_status = data_field.get("status")
+                else:
+                    order_status = None
         else:
-            # Fallback kalau struktur berbeda
-            order_status = (status_json or {}).get("data", {}).get("status")
+            order_status = None
 
         # Hanya proses jika status done
         if order_status != "done":
@@ -200,7 +211,7 @@ def get_suggested_menu(
     
     return result
 
-@app.get("/report", tags=["Report"])
+@app.get("  ", tags=["Report"])
 def get_report(
     start_date: str = Query(...),
     end_date: str = Query(...),

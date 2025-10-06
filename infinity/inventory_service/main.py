@@ -2831,7 +2831,9 @@ def get_daily_consumption_history(
                         "ingredient_id": od.ingredient_id,
                         "ingredient_name": od.ingredient_name,
                         "unit": od.unit,
-                        "total_consumed": 0.0
+                        "total_consumed": 0.0,
+                        # include category from stock management
+                        "category": (str(od.ingredient.category.value) if getattr(od, "ingredient", None) and getattr(od.ingredient, "category", None) else None)
                     }
                 try:
                     order_ing_map[key]["total_consumed"] += float(od.quantity_consumed)
@@ -2851,6 +2853,11 @@ def get_daily_consumption_history(
                 ingredient_name = item.ingredient_name
                 quantity_consumed = item.quantity_consumed
                 unit = item.unit
+                # fetch category from related Inventory (stock management category)
+                try:
+                    category_value = str(item.ingredient.category.value) if getattr(item, "ingredient", None) and getattr(item.ingredient, "category", None) else None
+                except Exception:
+                    category_value = None
                 
                 if ingredient_id not in daily_consumption[date_str]["ingredients_consumed"]:
                     daily_consumption[date_str]["ingredients_consumed"][ingredient_id] = {
@@ -2858,11 +2865,15 @@ def get_daily_consumption_history(
                         "ingredient_name": ingredient_name,
                         "unit": unit,
                         "total_consumed": 0,
-                        "consumption_count": 0
+                        "consumption_count": 0,
+                        "category": category_value
                     }
                 
                 daily_consumption[date_str]["ingredients_consumed"][ingredient_id]["total_consumed"] += quantity_consumed
                 daily_consumption[date_str]["ingredients_consumed"][ingredient_id]["consumption_count"] += 1
+                # update/ensure category remains set if previously None
+                if not daily_consumption[date_str]["ingredients_consumed"][ingredient_id].get("category") and category_value:
+                    daily_consumption[date_str]["ingredients_consumed"][ingredient_id]["category"] = category_value
         
         for date_str in daily_consumption:
             ingredients = daily_consumption[date_str]["ingredients_consumed"]

@@ -687,43 +687,14 @@ async function loadIngredientAnalysisData() {
                     console.warn('[Ingredient] Rentang tanggal tidak valid: start > end');
                 }
                 let ingredientRows = [];
-                let menuFlavorGroups = {}; // Initialize menuFlavorGroups for both view modes
+                let menuFlavorGroups = {}; // Initialize menu groups (merged across flavors)
                 
                 let logsRowsFinal = [];
                 let dailyRowsFinal = [];
 
-                if (viewMode === 'daily') {
-                    // Prefer backend daily aggregation to cover historical ranges beyond today
-                    const qsDailyAgg = new URLSearchParams();
-                    if (startParam) qsDailyAgg.append('start_date', startParam);
-                    if (endParam) qsDailyAgg.append('end_date', endParam);
-                    const dailyRes = await fetch(`/inventory/consumption/daily?${qsDailyAgg.toString()}`);
-                    const dailyJson = await dailyRes.json().catch(() => ({ data: { daily_consumption: [] }}));
-                    const daily = (dailyJson && dailyJson.data && Array.isArray(dailyJson.data.daily_consumption)) ? dailyJson.data.daily_consumption : [];
-
-                    // Map daily API to table rows
-                    ingredientRows = daily.map(d => {
-                        const dateIso = d.date || (d.date_formatted ? d.date_formatted.split('/').reverse().join('-') : null);
-                        const displayDate = d.date_formatted || (dateIso ? `${dateIso.split('-')[2]}/${dateIso.split('-')[1]}/${dateIso.split('-')[0]}` : '-');
-                        const totalOrders = Number(d.total_orders || d.summary?.total_orders || 0);
-                        const totalConsumption = Number(d.summary?.total_quantity_consumed || d.ingredients_consumed?.reduce((a,x)=>a+(x.total_consumed||0),0) || 0);
-                        return {
-                            order_id: `Daily ${displayDate}`,
-                            date: displayDate,
-                            status_text: `${totalOrders} order • ${Number(d.summary?.total_ingredients_types || 0)} menu/bahan`,
-                            ingredients_affected: totalConsumption,
-                            total_qty: totalConsumption,
-                            daily_summary: {
-                                total_orders: totalOrders,
-                                unique_menus: Number(d.summary?.total_ingredients_types || 0),
-                                total_consumption: totalConsumption,
-                                order_ids: []
-                            }
-                        };
-                    }).sort((a,b)=>{
-                        const toIso = (s) => /^\d{2}\/\d{2}\/\d{4}$/.test(s) ? `${s.split('/')[2]}-${s.split('/')[1]}-${s.split('/')[0]}` : s;
-                        return toIso(b.date).localeCompare(toIso(a.date));
-                    });
+                if (viewMode === 'logs') {
+                    // Aggregated logs by menu across date range (flavors merged)
+                            // continue building datasets below
 
                     // Build detail groups for panel by fetching logs within same range
                     const qsLogsForGroups = new URLSearchParams({ limit: '2000' });
@@ -742,14 +713,13 @@ async function loadIngredientAnalysisData() {
                             const totalQty = kitchenOrder.items.reduce((a, it) => a + (Number(it.quantity) || 0), 0) || 1;
                             for (const menuItem of kitchenOrder.items) {
                                 const menuName = menuItem.menu_name || 'Unknown Menu';
-                                const flavor = menuItem.preference || menuItem.flavor || '-';
                                 const qty = Number(menuItem.quantity || 0) || 0;
                                 const share = Math.round((Number(log.ingredients_affected || 0) * qty) / totalQty);
-                                const key = `${menuName}|${flavor}`;
+                                const key = `${menuName}`;
                                 if (!menuFlavorGroups[key]) {
                                     menuFlavorGroups[key] = {
                                         menu_name: menuName,
-                                        flavor: flavor,
+                                        flavor: '-',
                                         total_orders: 0,
                                         total_ingredients: 0,
                                         order_ids: new Set(),
@@ -771,14 +741,13 @@ async function loadIngredientAnalysisData() {
                                 const totalQty = payload.reduce((a, p) => a + (Number(p.quantity) || 0), 0) || 1;
                                 for (const p of payload) {
                                     const menuName = p.name || p.menu_name || 'Unknown Menu';
-                                    const flavor = p.flavor || p.preference || '-';
                                     const qty = Number(p.quantity || 0) || 0;
                                     const share = Math.round((Number(log.ingredients_affected || 0) * qty) / totalQty);
-                                    const key = `${menuName}|${flavor}`;
+                                    const key = `${menuName}`;
                                     if (!menuFlavorGroups[key]) {
                                         menuFlavorGroups[key] = {
                                             menu_name: menuName,
-                                            flavor: flavor,
+                                            flavor: '-',
                                             total_orders: 0,
                                             total_ingredients: 0,
                                             order_ids: new Set(),
@@ -795,7 +764,6 @@ async function loadIngredientAnalysisData() {
                     }
                     logsRowsFinal = Object.values(menuFlavorGroups).map(group => ({
                         menu_name: group.menu_name,
-                        flavor: group.flavor,
                         date: group.date,
                         status_text: `${group.total_orders} order`,
                         order_count: group.total_orders,
@@ -806,141 +774,70 @@ async function loadIngredientAnalysisData() {
                     }));
                     dailyRowsFinal = ingredientRows;
                 } else {
-                    // Logs view: fetch consumption logs with server-side date filters
-                    const qsLogs = new URLSearchParams({ limit: '500' });
+                    // Logs view: aggregate across selected range by menu (flavors merged)
+                    const qsLogs = new URLSearchParams({ limit: '2000' });
                     if (startParam) qsLogs.append('start_date', startParam);
                     if (endParam) qsLogs.append('end_date', endParam);
-                    const logsUrl = `/inventory/history?${qsLogs.toString()}`;
-                    const logsRes = await fetch(logsUrl);
+                    const logsRes = await fetch(`/inventory/history?${qsLogs.toString()}`);
                     const logsJson = await logsRes.json().catch(() => ({ history: [] }));
                     const logs = Array.isArray(logsJson.history) ? logsJson.history : [];
 
-                    // Build rows primarily from kitchen orders (for precise flavor),
-                    // fallback to per_menu_payload; then aggregate by menu+flavor+date
-                    const rows = [];
+                    // Build groups using kitchen orders when available; fallback to per_menu_payload
+                    const groups = {};
+                    const toDisp = (iso) => (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) ? `${iso.slice(8,10)}/${iso.slice(5,7)}/${iso.slice(0,4)}` : (iso || '-');
+                    const dateLabel = (startParam && endParam)
+                        ? `${toDisp(startParam)} - ${toDisp(endParam)}`
+                        : (startParam ? toDisp(startParam) : (endParam ? toDisp(endParam) : '-'));
+
                     for (const log of logs) {
-                        const orderId = log.order_id;
                         const ingAffected = Number(log.ingredients_affected || 0);
-                        const iso = getLogIsoDate(log);
-                        const displayDate = iso ? `${iso.split('-')[2]}/${iso.split('-')[1]}/${iso.split('-')[0]}` : (log.date || '-');
-                        // Prefer kitchen orders to get accurate flavor
-                        const kOrder = kitchenOrdersCache.find(o => String(o.order_id) === String(orderId));
+                        const kOrder = kitchenOrdersCache.find(o => String(o.order_id) === String(log.order_id));
                         if (kOrder && Array.isArray(kOrder.items) && kOrder.items.length) {
                             const totalQty = kOrder.items.reduce((a, it) => a + (Number(it.quantity) || 0), 0) || 1;
                             for (const it of kOrder.items) {
                                 const menuName = it.menu_name || 'Unknown Menu';
                                 const qty = Number(it.quantity || 0) || 0;
                                 const share = Math.round((ingAffected * qty) / totalQty);
-                                const flavor = it.preference || it.flavor || '-';
-                                rows.push({
-                                    menu_name: menuName,
-                                    flavor,
-                                    date: displayDate,
-                                    status_text: 'Selesai',
-                                    order_count: qty,
-                                    ingredients_affected: share,
-                                    total_qty: share,
-                                    order_ids: [orderId],
-                                    order_id: orderId
-                                });
+                                const key = `${menuName}`;
+                                if (!groups[key]) {
+                                    groups[key] = { menu_name: menuName, flavor: '-', total_orders: 0, total_ingredients: 0, order_ids: new Set(), date: dateLabel, status_text: 'Selesai' };
+                                }
+                                groups[key].total_orders += qty;
+                                groups[key].total_ingredients += share;
+                                groups[key].order_ids.add(log.order_id);
                             }
                         } else {
-                            // Fallback to per_menu_payload if available
-                            let payload = log.per_menu_payload;
-                            if (typeof payload === 'string') {
-                                try { payload = JSON.parse(payload); } catch { payload = null; }
-                            }
+                            let payload = log.per_menu_payload; if (typeof payload === 'string') { try { payload = JSON.parse(payload); } catch { payload = null; } }
                             if (Array.isArray(payload) && payload.length) {
                                 const totalQty = payload.reduce((a, p) => a + (Number(p.quantity)||0), 0) || 1;
                                 for (const p of payload) {
                                     const menuName = p.name || p.menu_name || 'Unknown Menu';
                                     const qty = Number(p.quantity || 0) || 0;
                                     const share = Math.round((ingAffected * qty) / totalQty);
-                                    const flavor = p.flavor || p.preference || '-';
-                                    rows.push({
-                                        menu_name: menuName,
-                                        flavor,
-                                        date: displayDate,
-                                        status_text: 'Selesai',
-                                        order_count: qty,
-                                        ingredients_affected: share,
-                                        total_qty: share,
-                                        order_ids: [orderId],
-                                        order_id: orderId
-                                    });
+                                    const key = `${menuName}`;
+                                    if (!groups[key]) {
+                                        groups[key] = { menu_name: menuName, flavor: '-', total_orders: 0, total_ingredients: 0, order_ids: new Set(), date: dateLabel, status_text: 'Selesai' };
+                                    }
+                                    groups[key].total_orders += qty;
+                                    groups[key].total_ingredients += share;
+                                    groups[key].order_ids.add(log.order_id);
                                 }
-                            } else {
-                                // Minimal fallback single row
-                                rows.push({
-                                    menu_name: '-',
-                                    flavor: '-',
-                                    date: displayDate,
-                                    status_text: 'Selesai',
-                                    order_count: 1,
-                                    ingredients_affected: ingAffected,
-                                    total_qty: ingAffected,
-                                    order_ids: [orderId],
-                                    order_id: orderId
-                                });
                             }
                         }
                     }
 
-                    // Aggregate by menu+flavor+date
-                    const agg = {};
-                    for (const r of rows) {
-                        const key = `${r.menu_name}|${r.flavor}|${r.date}`;
-                        if (!agg[key]) {
-                            agg[key] = {
-                                menu_name: r.menu_name,
-                                flavor: r.flavor,
-                                date: r.date,
-                                status_text: r.status_text || 'Selesai',
-                                order_count: 0,
-                                ingredients_affected: 0,
-                                total_qty: 0,
-                                order_ids: new Set()
-                            };
-                        }
-                        agg[key].order_count += Number(r.order_count || 0);
-                        agg[key].ingredients_affected += Number(r.ingredients_affected || 0);
-                        agg[key].total_qty += Number(r.total_qty || 0);
-                        (r.order_ids || []).forEach(id => agg[key].order_ids.add(id));
-                    }
-                    const aggregatedRows = Object.values(agg).map(g => ({
+                    menuFlavorGroups = groups;
+                    logsRowsFinal = Object.values(groups).map(g => ({
                         menu_name: g.menu_name,
-                        flavor: g.flavor,
                         date: g.date,
-                        status_text: g.status_text,
-                        order_count: g.order_count,
-                        ingredients_affected: g.ingredients_affected,
-                        total_qty: g.total_qty,
+                        status_text: `${g.total_orders} order`,
+                        order_count: g.total_orders,
+                        ingredients_affected: g.total_ingredients,
+                        total_qty: g.total_ingredients,
                         order_ids: Array.from(g.order_ids),
                         order_id: Array.from(g.order_ids)[0] || ''
                     }));
-
-                    ingredientRows = aggregatedRows;
-                    // For details panel support, also construct a lightweight group map by menu
-                    menuFlavorGroups = {};
-                    for (const r of aggregatedRows) {
-                        const key = `${r.menu_name}|${r.flavor}`;
-                        if (!menuFlavorGroups[key]) {
-                            menuFlavorGroups[key] = {
-                                menu_name: r.menu_name,
-                                flavor: r.flavor,
-                                total_orders: 0,
-                                total_ingredients: 0,
-                                order_ids: new Set(),
-                                date: r.date,
-                                status_text: r.status_text
-                            };
-                        }
-                        menuFlavorGroups[key].total_orders += Number(r.order_count || 0);
-                        menuFlavorGroups[key].total_ingredients += Number(r.ingredients_affected || 0);
-                        (r.order_ids || []).forEach(id => menuFlavorGroups[key].order_ids.add(id));
-                    }
-
-                    logsRowsFinal = ingredientRows;
+                    ingredientRows = logsRowsFinal;
                 }
                 
                 // Also create daily aggregated data for daily view
@@ -964,24 +861,41 @@ async function loadIngredientAnalysisData() {
                 }
                 
                 // Create daily rows
-                const dailyRows = Object.values(dailyGroups).map(group => ({
-                    date: group.date,
-                    status_text: `${group.total_orders} completed orders`,
-                    ingredients_affected: group.total_ingredients,
-                    order_id: Array.from(group.order_ids)[0] || '',
-                    // For daily view, we don't need menu_name and flavor
-                    menu_name: undefined,
-                    flavor: undefined,
-                    order_ids: Array.from(group.order_ids),
-                    total_qty: group.total_ingredients,
-                    // Provide summary for table and detail panel
-                    daily_summary: {
-                        total_orders: group.total_orders,
-                        unique_menus: group.unique_menus ? group.unique_menus.size || group.unique_menus : 0,
-                        total_consumption: group.total_ingredients,
-                    order_ids: Array.from(group.order_ids)
+                const dailyRows = Object.values(dailyGroups).map(group => {
+                    // group.date should be in DD/MM/YYYY or YYYY-MM-DD format
+                    let displayDate = group.date;
+                    let isoDate = group.date;
+                    
+                    // Convert to proper formats if needed
+                    if (/^\d{2}\/\d{2}\/\d{4}$/.test(group.date)) {
+                        // Already DD/MM/YYYY
+                        const parts = group.date.split('/');
+                        isoDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                    } else if (/^\d{4}-\d{2}-\d{2}$/.test(group.date)) {
+                        // YYYY-MM-DD, convert to DD/MM/YYYY for display
+                        const parts = group.date.split('-');
+                        displayDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                        isoDate = group.date;
                     }
-                }));
+                    
+                    return {
+                        date: displayDate, // Display format DD/MM/YYYY
+                        date_iso: isoDate, // ISO format YYYY-MM-DD for API calls
+                        status_text: `${group.total_orders} completed orders`,
+                        ingredients_affected: group.total_ingredients,
+                        order_id: Array.from(group.order_ids)[0] || '',
+                        menu_name: undefined,
+                        flavor: undefined,
+                        order_ids: Array.from(group.order_ids),
+                        total_qty: group.total_ingredients,
+                        daily_summary: {
+                            total_orders: group.total_orders,
+                            unique_menus: group.unique_menus ? group.unique_menus.size || group.unique_menus : 0,
+                            total_consumption: group.total_ingredients,
+                            order_ids: Array.from(group.order_ids)
+                        }
+                    };
+                });
                 
                 // Debug: log the data structure
                 console.log('Ingredient rows data:', ingredientRows);
@@ -1015,13 +929,11 @@ async function loadIngredientAnalysisData() {
                 
                 const tableSearch = document.getElementById('table-search-input');
                 const term = tableSearch ? tableSearch.value.toLowerCase() : '';
+                const isLogs = (currentViewMode === 'logs');
                 filteredData = term
-                    ? currentViewData.filter(i => 
-                        (i.menu_name || '').toLowerCase().includes(term) || 
-                        (i.flavor || '').toLowerCase().includes(term) || 
-                        (i.order_id || '').toLowerCase().includes(term) || 
-                        (i.date || '').toLowerCase().includes(term) || 
-                        (i.status_text || '').toLowerCase().includes(term)
+                    ? currentViewData.filter(i => isLogs
+                        ? ((i.menu_name || '').toLowerCase().includes(term) || (i.date || '').toLowerCase().includes(term) || (i.status_text || '').toLowerCase().includes(term))
+                        : ((i.date || '').toLowerCase().includes(term) || (i.daily_summary ? `${i.daily_summary.total_orders}` : '').includes(term))
                     )
                     : [...currentViewData];
                 reportCurrentPage = 1;
@@ -1051,50 +963,26 @@ async function loadIngredientAnalysisData() {
                     return { order_id: `Daily ${displayDate}`, date: displayDate, status_text: `${totalOrders} order • ${Number(d.summary?.total_ingredients_types || 0)} menu/bahan`, ingredients_affected: totalConsumption, total_qty: totalConsumption, daily_summary: { total_orders: totalOrders, unique_menus: Number(d.summary?.total_ingredients_types || 0), total_consumption: totalConsumption, order_ids: [] } };
                 }).sort((a,b)=>{ const toIso=(s)=>/^\d{2}\/\d{2}\/\d{4}$/.test(s)?`${s.split('/')[2]}-${s.split('/')[1]}-${s.split('/')[0]}`:s; return toIso(b.date).localeCompare(toIso(a.date)); });
 
-                // Logs aggregated
+                // Logs per-order (grouped by menu only)
                 const qsLogs = new URLSearchParams({ limit: '500' }); if (startParam) qsLogs.append('start_date', startParam); if (endParam) qsLogs.append('end_date', endParam);
                 const logsRes = await fetch(`/inventory/history?${qsLogs.toString()}`);
                 const logsJson = await logsRes.json().catch(() => ({ history: [] }));
                 const logs = Array.isArray(logsJson.history) ? logsJson.history : [];
-                const rows = [];
-                for (const log of logs) {
-                    const orderId = log.order_id; const ingAffected = Number(log.ingredients_affected || 0);
+                const ingredientRows = logs.map(log => {
                     const iso = getLogIsoDate(log);
                     const displayDate = iso ? `${iso.split('-')[2]}/${iso.split('-')[1]}/${iso.split('-')[0]}` : (log.date || '-');
-                    const kOrder = kitchenOrdersCache.find(o => String(o.order_id) === String(orderId));
-                    if (kOrder && Array.isArray(kOrder.items) && kOrder.items.length) {
-                        const totalQty = kOrder.items.reduce((a, it) => a + (Number(it.quantity) || 0), 0) || 1;
-                        for (const it of kOrder.items) {
-                            const menuName = it.menu_name || 'Unknown Menu'; const qty = Number(it.quantity || 0) || 0; const share = Math.round((ingAffected * qty) / totalQty); const flavor = it.preference || it.flavor || '-';
-                            rows.push({ menu_name: menuName, flavor, date: displayDate, status_text: 'Selesai', order_count: qty, ingredients_affected: share, total_qty: share, order_ids: [orderId], order_id: orderId });
-                        }
-                    } else {
-                        let payload = log.per_menu_payload; if (typeof payload === 'string') { try { payload = JSON.parse(payload); } catch { payload = null; } }
-                        if (Array.isArray(payload) && payload.length) {
-                            const totalQty = payload.reduce((a, p) => a + (Number(p.quantity)||0), 0) || 1;
-                            for (const p of payload) {
-                                const menuName = p.name || p.menu_name || 'Unknown Menu'; const qty = Number(p.quantity || 0) || 0; const share = Math.round((ingAffected * qty) / totalQty); const flavor = p.flavor || p.preference || '-';
-                                rows.push({ menu_name: menuName, flavor, date: displayDate, status_text: 'Selesai', order_count: qty, ingredients_affected: share, total_qty: share, order_ids: [orderId], order_id: orderId });
-                            }
-                        } else {
-                            rows.push({ menu_name: '-', flavor: '-', date: displayDate, status_text: 'Selesai', order_count: 1, ingredients_affected: ingAffected, total_qty: ingAffected, order_ids: [orderId], order_id: orderId });
-                        }
-                    }
-                }
-                const agg = {}; for (const r of rows) { const key = `${r.menu_name}|${r.flavor}|${r.date}`; if (!agg[key]) { agg[key] = { menu_name: r.menu_name, flavor: r.flavor, date: r.date, status_text: r.status_text || 'Selesai', order_count: 0, ingredients_affected: 0, total_qty: 0, order_ids: new Set() }; } agg[key].order_count += Number(r.order_count||0); agg[key].ingredients_affected += Number(r.ingredients_affected||0); agg[key].total_qty += Number(r.total_qty||0); (r.order_ids||[]).forEach(id => agg[key].order_ids.add(id)); }
-                const logsRowsFinal = Object.values(agg).map(g => ({ menu_name: g.menu_name, flavor: g.flavor, date: g.date, status_text: g.status_text, order_count: g.order_count, ingredients_affected: g.ingredients_affected, total_qty: g.total_qty, order_ids: Array.from(g.order_ids), order_id: Array.from(g.order_ids)[0] || '' }));
+                    const statusText = log.status_text || (log.consumed ? 'DIKONSUMSI' : log.rolled_back ? 'DIBATALKAN' : 'PENDING');
+                    return { order_id: log.order_id, date: displayDate, ingredients_affected: Number(log.ingredients_affected || 0), status_text: statusText };
+                });
 
-                // Groups for details
-                const menuFlavorGroups = {}; for (const r of logsRowsFinal) { const key = `${r.menu_name}|${r.flavor}`; if (!menuFlavorGroups[key]) { menuFlavorGroups[key] = { menu_name: r.menu_name, flavor: r.flavor, total_orders: 0, total_ingredients: 0, order_ids: new Set(), date: r.date, status_text: r.status_text }; } menuFlavorGroups[key].total_orders += Number(r.order_count||0); menuFlavorGroups[key].total_ingredients += Number(r.ingredients_affected||0); (r.order_ids||[]).forEach(id => menuFlavorGroups[key].order_ids.add(id)); }
-
-                ingredientDataCache = { logs: logsRowsFinal, daily: dailyRowsFinal };
+                ingredientDataCache = { logs: ingredientRows, daily: dailyRowsFinal };
                 baseData = ingredientDataCache;
-                ingredientMenuFlavorGroups = menuFlavorGroups;
+                ingredientMenuFlavorGroups = {};
 
                 const currentViewMode = viewMode; const currentViewData = ingredientDataCache[currentViewMode] || [];
                 updateReportTableHeader();
                 const tableSearch = document.getElementById('table-search-input'); const term = tableSearch ? tableSearch.value.toLowerCase() : '';
-                filteredData = term ? currentViewData.filter(i => (i.menu_name||'').toLowerCase().includes(term) || (i.flavor||'').toLowerCase().includes(term) || (i.order_id||'').toLowerCase().includes(term) || (i.date||'').toLowerCase().includes(term) || (i.status_text||'').toLowerCase().includes(term)) : [...currentViewData];
+                filteredData = term ? currentViewData.filter(i => (i.order_id||'').toLowerCase().includes(term) || (i.date||'').toLowerCase().includes(term) || (i.status_text||'').toLowerCase().includes(term)) : [...currentViewData];
                 reportCurrentPage = 1; renderReportTable(); updateReportPagination(); renderIngredientAnalysis(ingredientDataCache); updateIngredientSummary(ingredientDataCache);
             }
         } else {
@@ -1111,18 +999,32 @@ async function loadIngredientAnalysisData() {
             const dailyJson = await dailyRes.json().catch(() => ({ data: { daily_consumption: [] }}));
             const daily = (dailyJson && dailyJson.data && Array.isArray(dailyJson.data.daily_consumption)) ? dailyJson.data.daily_consumption : [];
             const dailyRowsFinal = daily.map(d => {
+                // Use the actual date from response (YYYY-MM-DD), not range
                 const dateIso = d.date || (d.date_formatted ? d.date_formatted.split('/').reverse().join('-') : null);
                 const displayDate = d.date_formatted || (dateIso ? `${dateIso.split('-')[2]}/${dateIso.split('-')[1]}/${dateIso.split('-')[0]}` : '-');
                 const totalOrders = Number(d.total_orders || d.summary?.total_orders || 0);
                 const totalConsumption = Number(d.summary?.total_quantity_consumed || d.ingredients_consumed?.reduce((a,x)=>a+(x.total_consumed||0),0) || 0);
-                return { order_id: `Daily ${displayDate}`, date: displayDate, status_text: `${totalOrders} order • ${Number(d.summary?.total_ingredients_types || 0)} menu/bahan`, ingredients_affected: totalConsumption, total_qty: totalConsumption, daily_summary: { total_orders: totalOrders, unique_menus: Number(d.summary?.total_ingredients_types || 0), total_consumption: totalConsumption, order_ids: [] } };
+                return { 
+                    order_id: `Daily ${displayDate}`, 
+                    date: displayDate, // This should be single date like "03/10/2025", NOT range
+                    date_iso: dateIso, // Store ISO format for API calls
+                    status_text: `${totalOrders} order • ${Number(d.summary?.total_ingredients_types || 0)} menu/bahan`, 
+                    ingredients_affected: totalConsumption, 
+                    total_qty: totalConsumption, 
+                    daily_summary: { 
+                        total_orders: totalOrders, 
+                        unique_menus: Number(d.summary?.total_ingredients_types || 0), 
+                        total_consumption: totalConsumption, 
+                        order_ids: [] 
+                    } 
+                };
             }).sort((a,b)=>{ const toIso=(s)=>/^\d{2}\/\d{2}\/\d{4}$/.test(s)?`${s.split('/')[2]}-${s.split('/')[1]}-${s.split('/')[0]}`:s; return toIso(b.date).localeCompare(toIso(a.date)); });
 
             const qsLogs = new URLSearchParams({ limit: '500' }); if (startParam) qsLogs.append('start_date', startParam); if (endParam) qsLogs.append('end_date', endParam);
             const logsRes = await fetch(`/inventory/history?${qsLogs.toString()}`);
             const logsJson = await logsRes.json().catch(() => ({ history: [] }));
             const logs = Array.isArray(logsJson.history) ? logsJson.history : [];
-            const rows = [];
+                const rows = [];
             for (const log of logs) {
                 const orderId = log.order_id; const ingAffected = Number(log.ingredients_affected || 0);
                 const iso = getLogIsoDate(log);
@@ -1131,24 +1033,45 @@ async function loadIngredientAnalysisData() {
                 if (Array.isArray(payload) && payload.length) {
                     const totalQty = payload.reduce((a, p) => a + (Number(p.quantity)||0), 0) || 1;
                     for (const p of payload) {
-                        const menuName = p.name || p.menu_name || 'Unknown Menu'; const qty = Number(p.quantity || 0) || 0; const share = Math.round((ingAffected * qty) / totalQty); const flavor = p.flavor || p.preference || '-';
-                        rows.push({ menu_name: menuName, flavor, date: displayDate, status_text: 'Selesai', order_count: qty, ingredients_affected: share, total_qty: share, order_ids: [orderId], order_id: orderId });
+                        const menuName = p.name || p.menu_name || 'Unknown Menu'; const qty = Number(p.quantity || 0) || 0; const share = Math.round((ingAffected * qty) / totalQty);
+                        rows.push({ menu_name: menuName, flavor: '-', date: displayDate, status_text: 'Selesai', order_count: qty, ingredients_affected: share, total_qty: share, order_ids: [orderId], order_id: orderId });
                     }
                 } else {
                     rows.push({ menu_name: '-', flavor: '-', date: displayDate, status_text: 'Selesai', order_count: 1, ingredients_affected: ingAffected, total_qty: ingAffected, order_ids: [orderId], order_id: orderId });
                 }
             }
-            const agg = {}; for (const r of rows) { const key = `${r.menu_name}|${r.flavor}|${r.date}`; if (!agg[key]) { agg[key] = { menu_name: r.menu_name, flavor: r.flavor, date: r.date, status_text: r.status_text || 'Selesai', order_count: 0, ingredients_affected: 0, total_qty: 0, order_ids: new Set() }; } agg[key].order_count += Number(r.order_count||0); agg[key].ingredients_affected += Number(r.ingredients_affected||0); agg[key].total_qty += Number(r.total_qty||0); (r.order_ids||[]).forEach(id => agg[key].order_ids.add(id)); }
-            const logsRowsFinal = Object.values(agg).map(g => ({ menu_name: g.menu_name, flavor: g.flavor, date: g.date, status_text: g.status_text, order_count: g.order_count, ingredients_affected: g.ingredients_affected, total_qty: g.total_qty, order_ids: Array.from(g.order_ids), order_id: Array.from(g.order_ids)[0] || '' }));
+                // Merge by menu only across the selected date range
+                const menuAgg = {};
+                for (const r of rows) {
+                    const key = `${r.menu_name}`;
+                    if (!menuAgg[key]) {
+                        // For logs view, date can be range since it aggregates across period
+                        const dateRange = `${startParam ? `${startParam.split('-').reverse().join('/')}` : '-'}${endParam ? ` - ${endParam.split('-').reverse().join('/')}` : ''}`.trim();
+                        menuAgg[key] = { 
+                            menu_name: r.menu_name, 
+                            date: dateRange, // Range for logs view
+                            status_text: 'Selesai', 
+                            order_count: 0, 
+                            ingredients_affected: 0, 
+                            total_qty: 0, 
+                            order_ids: new Set() 
+                        };
+                    }
+                    menuAgg[key].order_count += Number(r.order_count || 0);
+                    menuAgg[key].ingredients_affected += Number(r.ingredients_affected || 0);
+                    menuAgg[key].total_qty += Number(r.total_qty || 0);
+                    (r.order_ids || []).forEach(id => menuAgg[key].order_ids.add(id));
+                }
+                const logsRowsFinal = Object.values(menuAgg).map(g => ({ menu_name: g.menu_name, date: g.date, status_text: `${g.order_count} order`, order_count: g.order_count, ingredients_affected: g.ingredients_affected, total_qty: g.total_qty, order_ids: Array.from(g.order_ids), order_id: Array.from(g.order_ids)[0] || '' }));
 
-            const menuFlavorGroups = {}; for (const r of logsRowsFinal) { const key = `${r.menu_name}|${r.flavor}`; if (!menuFlavorGroups[key]) { menuFlavorGroups[key] = { menu_name: r.menu_name, flavor: r.flavor, total_orders: 0, total_ingredients: 0, order_ids: new Set(), date: r.date, status_text: r.status_text }; } menuFlavorGroups[key].total_orders += Number(r.order_count||0); menuFlavorGroups[key].total_ingredients += Number(r.ingredients_affected||0); (r.order_ids||[]).forEach(id => menuFlavorGroups[key].order_ids.add(id)); }
+                const menuFlavorGroups = {}; for (const r of logsRowsFinal) { const key = `${r.menu_name}`; if (!menuFlavorGroups[key]) { menuFlavorGroups[key] = { menu_name: r.menu_name, flavor: '-', total_orders: 0, total_ingredients: 0, order_ids: new Set(), date: r.date, status_text: r.status_text }; } menuFlavorGroups[key].total_orders += Number(r.order_count||0); menuFlavorGroups[key].total_ingredients += Number(r.ingredients_affected||0); (r.order_ids||[]).forEach(id => menuFlavorGroups[key].order_ids.add(id)); }
 
             ingredientDataCache = { logs: logsRowsFinal, daily: dailyRowsFinal };
             baseData = ingredientDataCache; ingredientMenuFlavorGroups = menuFlavorGroups;
             const currentViewMode = viewMode; const currentViewData = ingredientDataCache[currentViewMode] || [];
             updateReportTableHeader();
             const tableSearch = document.getElementById('table-search-input'); const term = tableSearch ? tableSearch.value.toLowerCase() : '';
-            filteredData = term ? currentViewData.filter(i => (i.menu_name||'').toLowerCase().includes(term) || (i.flavor||'').toLowerCase().includes(term) || (i.order_id||'').toLowerCase().includes(term) || (i.date||'').toLowerCase().includes(term) || (i.status_text||'').toLowerCase().includes(term)) : [...currentViewData];
+            filteredData = term ? currentViewData.filter(i => (i.menu_name||'').toLowerCase().includes(term) || (i.order_id||'').toLowerCase().includes(term) || (i.date||'').toLowerCase().includes(term) || (i.status_text||'').toLowerCase().includes(term)) : [...currentViewData];
             reportCurrentPage = 1; renderReportTable(); updateReportPagination(); renderIngredientAnalysis(ingredientDataCache); updateIngredientSummary(ingredientDataCache);
         }
         
@@ -1248,11 +1171,11 @@ function updateIngredientSummary(dataset = null) {
     }
 
     if (summaryIncome) {
-        summaryIncome.textContent = `${totalIngredients.toLocaleString()} bahan`;
+        summaryIncome.textContent = `${totalIngredients.toLocaleString('id-ID')} bahan`;
     }
 
     if (summaryOrders) {
-        summaryOrders.textContent = `${totalOrders.toLocaleString()} pesanan`;
+        summaryOrders.textContent = `${totalOrders.toLocaleString('id-ID')} pesanan`;
     }
 
     let uniqueMenuCount = uniqueMenus.size;
@@ -1264,7 +1187,7 @@ function updateIngredientSummary(dataset = null) {
     if (totalMenuEl) totalMenuEl.textContent = uniqueMenuCount ? uniqueMenuCount : '-';
 
     const totalIngredientsEl = document.getElementById('ingredient-total-ingredients');
-    if (totalIngredientsEl) totalIngredientsEl.textContent = totalIngredients.toLocaleString();
+    if (totalIngredientsEl) totalIngredientsEl.textContent = totalIngredients.toLocaleString('id-ID');
 
     const mostIngredientsEl = document.getElementById('ingredient-most-ingredients');
     if (mostIngredientsEl) {
@@ -1275,7 +1198,7 @@ function updateIngredientSummary(dataset = null) {
             }
             return acc;
         }, null);
-        mostIngredientsEl.textContent = topMenu && topMenu.name ? `${topMenu.name} (${topMenu.qty.toLocaleString()} bahan)` : '-';
+        mostIngredientsEl.textContent = topMenu && topMenu.name ? `${topMenu.name} (${topMenu.qty.toLocaleString('id-ID')} bahan)` : '-';
     }
 
     const mostUsedEl = document.getElementById('ingredient-most-used');
@@ -1300,20 +1223,44 @@ function hideIngredientDetailsPanel() {
          document.getElementById('detail-order-date').textContent = dateStr || '-';
          document.getElementById('detail-order-status').textContent = statusText || '-';
          body.innerHTML = '';
+         // Clean up any previously injected per-item breakdown container
+         const prevBreakdown = document.getElementById('order-item-breakdown');
+         if (prevBreakdown && prevBreakdown.parentElement) {
+             prevBreakdown.parentElement.removeChild(prevBreakdown);
+         }
          if (panel) panel.classList.remove('hidden');
          
          if (isAggregated) {
-            // Switch header to menu breakdown for daily view (5 columns)
+            // Switch header to menu breakdown for daily view (6 columns)
             if (headRow) {
                 headRow.innerHTML = `
                     <th>No</th>
                     <th>Menu</th>
-                    <th>Flavor</th>
-                    <th>Ingredients Total</th>
-                    <th>Order Detail</th>`;
+                    <th>Total Pesanan</th>
+                    <th>Total Bahan</th>
+                    <th>Action</th>`;
+            }
+            // For daily view, try to find the item in filteredData to get date_iso
+            let dateParam = dateStr;
+            const dailyItem = filteredData.find(item => item.date === dateStr && item.daily_summary);
+            if (dailyItem && dailyItem.date_iso) {
+                // Use the ISO date if available
+                dateParam = dailyItem.date_iso;
+            } else {
+                // Fallback: sanitize and convert to ISO
+                let displayDate = dateStr || '';
+                if (displayDate.includes(' - ')) {
+                    displayDate = displayDate.split(' - ')[0].trim();
+                }
+                if (/^\d{2}\/\d{2}\/\d{4}$/.test(displayDate)) {
+                    const [dd, mm, yyyy] = displayDate.split('/');
+                    dateParam = `${yyyy}-${mm}-${dd}`;
+                } else if (/^\d{4}-\d{2}-\d{2}$/.test(displayDate)) {
+                    dateParam = displayDate;
+                }
             }
              // Show aggregated daily consumption data
-             await showDailyAggregatedConsumption(dateStr, statusText);
+             await showDailyAggregatedConsumption(dateStr, statusText, dateParam);
              return;
         } else {
             // Restore header for per-order ingredient details (6 columns)
@@ -1342,6 +1289,8 @@ function hideIngredientDetailsPanel() {
                         json?.data?.ingredients_breakdown?.details ||
                        json?.details || 
                        [];
+        // Extract per-order item breakdown when available
+        const perItem = json?.data?.menu_breakdown || json?.menu_breakdown || [];
 
         if (!Array.isArray(details)) {
             console.warn('Expected array of details but got:', details);
@@ -1367,13 +1316,73 @@ function hideIngredientDetailsPanel() {
                 <tr style="border-bottom: 1px solid #F3F4F6;">
                     <td>${idx + 1}</td>
                     <td>${ingredientName}</td>
-                    <td>${Number(quantityConsumed).toLocaleString()}</td>
+                    <td>${Number(quantityConsumed).toLocaleString('id-ID')}</td>
                     <td>${unit}</td>
-                    <td>${Number(stockBefore).toLocaleString()}</td>
-                    <td>${Number(stockAfter).toLocaleString()}</td>
+                    <td>${Number(stockBefore).toLocaleString('id-ID')}</td>
+                    <td>${Number(stockAfter).toLocaleString('id-ID')}</td>
                 </tr>
             `;
         }).join('');
+
+        // If per-order item breakdown is available, render a second table below the first one
+        try {
+            if (Array.isArray(perItem) && perItem.length) {
+                const container = document.createElement('div');
+                container.id = 'order-item-breakdown';
+                container.style.marginTop = '1rem';
+                container.innerHTML = `
+                    <div class="summary-header" style="margin: 0 0 0.5rem 0; align-items: center; gap: 8px;">
+                        <span class="summary-name">🧾 Per-Item Breakdown</span>
+                    </div>
+                    <div class="table-container" style="margin-top: 0;">
+                        <table id="order-item-table" style="margin-top: 0;">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Menu</th>
+                                    
+                                    <th>Qty</th>
+                                    <th>Ingredients (Qty • Unit)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="order-item-body"></tbody>
+                        </table>
+                    </div>`;
+
+                // Insert after the primary details table container
+                const tableContainer = document.querySelector('#ingredient-details-panel .table-container');
+                if (tableContainer && tableContainer.parentElement) {
+                    tableContainer.parentElement.appendChild(container);
+                } else if (panel) {
+                    panel.appendChild(container);
+                }
+
+                const tbody2 = container.querySelector('#order-item-body');
+                const rows = perItem.map((it, i) => {
+                    const menuName = it?.menu_name || '-';
+                    const pref = it?.preference || '-';
+                    const qty = Number(it?.quantity || 0) || 0;
+                    const ings = Array.isArray(it?.ingredients) ? it.ingredients : [];
+                    const ingStr = ings.map(ing => {
+                        const name = ing?.ingredient_name || '-';
+                        const rq = Number(ing?.required_quantity || 0) || 0;
+                        const unit = ing?.unit || '';
+                        return `${name} (${rq.toLocaleString('id-ID')} ${unit})`;
+                    }).join(', ');
+                    return `
+                        <tr style="border-bottom: 1px solid #F3F4F6;">
+                            <td>${i + 1}</td>
+                            <td>${menuName}</td>
+                            <td>${pref || '-'}</td>
+                            <td>${qty.toLocaleString('id-ID')}</td>
+                            <td style="white-space: normal; line-height: 1.4;">${ingStr || '-'}</td>
+                        </tr>`;
+                }).join('');
+                if (tbody2) tbody2.innerHTML = rows || '<tr><td colspan="5" style="text-align:center; color:#6B7280; padding: 1rem;">Tidak ada item</td></tr>';
+            }
+        } catch (perItemErr) {
+            console.warn('Failed rendering per-item breakdown:', perItemErr);
+        }
         
     } catch (e) {
         console.error('Failed loading consumption details for orderId:', orderId, 'Error:', e);
@@ -1386,56 +1395,198 @@ function hideIngredientDetailsPanel() {
          }
  }
  
- async function showDailyAggregatedConsumption(dateStr, statusText) {
+ async function showDailyAggregatedConsumption(dateStr, statusText, dateIsoOverride) {
      try {
          const body = document.getElementById('ingredient-details-body');
          
-         // Get the daily summary data for the specific date
-         const dailyItem = filteredData.find(item => 
-             item.date === dateStr && item.daily_summary
-         );
+         // Show loading state
+         body.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 1.5rem;"><i class="fas fa-spinner fa-spin"></i> Memuat data...</td></tr>';
          
-         if (!dailyItem || !dailyItem.daily_summary) {
-            body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #615a5a; padding: 1.5rem; font-weight: 500;">Tidak ada data detail untuk tanggal ini</td></tr>';
-             return;
+         // Use override if provided, otherwise convert display date to ISO format
+         let dateParam;
+         
+         if (dateIsoOverride) {
+             // Sanitize override: support range and DD/MM/YYYY
+             let override = dateIsoOverride;
+             if (override && typeof override === 'string' && override.includes(' - ')) {
+                 // Extract first date from range
+                 override = override.split(' - ')[0].trim();
+             }
+             // Convert DD/MM/YYYY to YYYY-MM-DD if needed
+             if (override && /^\d{2}\/\d{2}\/\d{4}$/.test(override)) {
+                 const parts = override.split('/');
+                 dateParam = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
+             } else {
+                 // Assume already ISO or acceptable
+                 dateParam = override;
+             }
+         } else {
+             // Convert display date to ISO format (YYYY-MM-DD) for API call
+             dateParam = dateStr;
+             
+             // Handle date range format "DD/MM/YYYY - DD/MM/YYYY" - extract first date
+             if (dateStr && dateStr.includes(' - ')) {
+                 const dateParts = dateStr.split(' - ');
+                 dateStr = dateParts[0].trim(); // Use first date from range
+             }
+             
+             // Convert DD/MM/YYYY to YYYY-MM-DD
+             if (dateStr && /^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+                 const parts = dateStr.split('/');
+                 dateParam = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
+             } else if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                 // Already in YYYY-MM-DD format
+                 dateParam = dateStr;
+             }
          }
          
-         const dailySummary = dailyItem.daily_summary;
+        // Final guard: ensure ISO format YYYY-MM-DD
+        if (typeof dateParam === 'string' && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+            // Try to extract first DD/MM/YYYY in the string
+            const m = dateParam.match(/(\d{2}\/\d{2}\/\d{4})/);
+            if (m && m[1]) {
+                const [dd, mm, yyyy] = m[1].split('/');
+                dateParam = `${yyyy}-${mm}-${dd}`;
+            }
+        }
+        console.log('Original dateStr:', dateStr);
+        console.log('Date ISO override:', dateIsoOverride);
+        console.log('Fetching daily consumption for date:', dateParam);
+         
+         // Fetch daily consumption data from inventory service
+         const response = await fetch(`/inventory/consumption/daily?date=${dateParam}`);
+         if (!response.ok) {
+             throw new Error(`HTTP error! status: ${response.status}`);
+         }
+         
+         const json = await response.json();
+         console.log('Daily consumption response:', json);
+         
+         const dailyData = json?.data?.daily_consumption?.[0];
+         
+        if (!dailyData) {
+            body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #615a5a; padding: 1.5rem; font-weight: 500;">Tidak ada data detail untuk tanggal ini</td></tr>';
+            return;
+        }
+         
+         const summary = dailyData.summary || {};
+         const orders = dailyData.orders || [];
+         
+        // Aggregate orders by menu name (combine same menu regardless of flavor)
+         const menuAggregation = {};
+         orders.forEach(order => {
+             // Extract menu names from menu_summary
+             const menuSummary = order.menu_summary || '';
+             const orderIngsUsed = order.ingredients_used || [];
+             
+             // Parse menu_summary to extract individual menu items
+             // Format: "Menu1 x2, Menu2 x1" or similar
+             const menuItems = menuSummary.split(',').map(item => item.trim());
+             
+             menuItems.forEach(menuItem => {
+                // Clean menu name: remove quantity at prefix like "2x " and suffix like " x2"
+                const cleaned = (menuItem || '').trim();
+                const withoutPrefixQty = cleaned.replace(/^\s*\d+\s*x?\s*/i, '');
+                const menuName = (withoutPrefixQty.replace(/\s*x\s*\d+\s*$/i, '').trim()) || 'Unknown Menu';
+                 
+                 if (!menuAggregation[menuName]) {
+                     menuAggregation[menuName] = {
+                         menu_name: menuName,
+                         total_orders: 0,
+                         total_ingredients_used: 0,
+                         ingredients_map: {}, // To aggregate ingredient consumption
+                         order_ids: []
+                     };
+                 }
+                 
+                // Extract quantity from menu item, supporting both suffix "x2" and prefix "2x"
+                let qty = 1;
+                let qtyMatch = cleaned.match(/x\s*(\d+)\s*$/i);
+                if (qtyMatch) {
+                    qty = parseInt(qtyMatch[1]);
+                } else {
+                    qtyMatch = cleaned.match(/^\s*(\d+)\s*x/i);
+                    if (qtyMatch) qty = parseInt(qtyMatch[1]);
+                }
+                 
+                 menuAggregation[menuName].total_orders += qty;
+                 menuAggregation[menuName].order_ids.push(order.order_id);
+                 
+                 // Aggregate ingredients proportionally
+                 orderIngsUsed.forEach(ing => {
+                     const ingKey = ing.ingredient_name;
+                     if (!menuAggregation[menuName].ingredients_map[ingKey]) {
+                         menuAggregation[menuName].ingredients_map[ingKey] = {
+                             ingredient_name: ing.ingredient_name,
+                             total_consumed: 0,
+                             unit: ing.unit
+                         };
+                     }
+                     // Distribute ingredient consumption proportionally based on menu quantity
+                    const totalQtyInOrder = menuItems.reduce((sum, item) => {
+                        const it = (item || '').trim();
+                        let q = 1;
+                        let m = it.match(/x\s*(\d+)\s*$/i);
+                        if (m) q = parseInt(m[1]);
+                        else {
+                            m = it.match(/^\s*(\d+)\s*x/i);
+                            if (m) q = parseInt(m[1]);
+                        }
+                        return sum + q;
+                    }, 0);
+                     const proportion = qty / totalQtyInOrder;
+                     menuAggregation[menuName].ingredients_map[ingKey].total_consumed += 
+                         (ing.total_consumed || 0) * proportion;
+                 });
+             });
+         });
+         
+         // Calculate total ingredients used per menu
+         Object.values(menuAggregation).forEach(menu => {
+             menu.total_ingredients_used = Object.keys(menu.ingredients_map).length;
+             menu.ingredients_list = Object.values(menu.ingredients_map);
+         });
          
          // Create a summary header row
+         const totalUniqueMenus = Object.keys(menuAggregation).length;
          const summaryRow = `
              <tr style="background-color: #F9FAFB; border-bottom: 2px solid #E5E7EB;">
-                <td colspan="5" style="padding: 1rem; text-align: center;">
+                 <td colspan="5" style="padding: 1rem; text-align: center;">
                      <div style="font-size: 1.1rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;">
-                         📅 Ringkasan Konsumsi Harian - ${dateStr}
+                         📅 Ringkasan Konsumsi Harian - ${dailyData.date_formatted || dateStr}
                      </div>
                      <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
                          <div style="text-align: center;">
-                             <div style="font-size: 1.5rem; font-weight: 700; color: #059669;">${dailySummary.total_orders}</div>
+                             <div style="font-size: 1.5rem; font-weight: 700; color: #059669;">${dailyData.total_orders || 0}</div>
                              <div style="font-size: 0.9rem; color: #6B7280;">Total Pesanan</div>
                          </div>
                          <div style="text-align: center;">
-                             <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">${dailySummary.unique_menus}</div>
+                             <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">${totalUniqueMenus}</div>
                              <div style="font-size: 0.9rem; color: #6B7280;">Menu Unik</div>
                          </div>
                          <div style="text-align: center;">
-                             <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${dailySummary.total_consumption.toLocaleString()}</div>
-                             <div style="font-size: 0.9rem; color: #6B7280;">Total Bahan</div>
+                             <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${summary.total_ingredients_types || 0}</div>
+                             <div style="font-size: 0.9rem; color: #6B7280;">Jenis Bahan</div>
                          </div>
+                         <div style="text-align: center;">
+                             <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${(summary.total_quantity_consumed || 0).toLocaleString('id-ID')}</div>
+                             <div style="font-size: 0.9rem; color: #6B7280;">Total Konsumsi</div>
+                         </div>
+                     </div>
+                     <div style="margin-top: 1rem;">
+                         <button class="btn-primary" onclick="showDailyIngredientAccumulation('${dateParam}', '${dailyData.date_formatted || dateStr}')" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 0.6rem 1.5rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 500; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)';">
+                             <i class="fas fa-layer-group"></i> Lihat Akumulasi Semua Bahan
+                         </button>
                      </div>
                  </td>
              </tr>
          `;
          
-        // Use global groups captured during load
-        const dateMenuData = Object.values(ingredientMenuFlavorGroups).filter(group => 
-             group.date === dateStr
-         );
-         
-         if (dateMenuData.length === 0) {
+         // Generate table rows for menu aggregation
+         if (Object.keys(menuAggregation).length === 0) {
              body.innerHTML = summaryRow + `
                  <tr>
-                    <td colspan="5" style="text-align: center; color: #6B7280; padding: 1.5rem; font-weight: 500;">
+                     <td colspan="5" style="text-align: center; color: #6B7280; padding: 1.5rem; font-weight: 500;">
                          Tidak ada detail menu untuk tanggal ini
                      </td>
                  </tr>
@@ -1443,16 +1594,33 @@ function hideIngredientDetailsPanel() {
              return;
          }
          
-        // Generate table rows for menu breakdown (5 columns)
-         const menuRows = dateMenuData.map((group, idx) => `
-             <tr style="border-bottom: 1px solid #F3F4F6;">
-                 <td>${idx + 1}</td>
-                 <td>${group.menu_name}</td>
-                 <td>${group.flavor}</td>
-                 <td>${group.total_ingredients.toLocaleString()}</td>
-                 <td>${group.total_orders}</td>
-             </tr>
-         `).join('');
+         // Sort menus by total_orders descending
+         const sortedMenus = Object.values(menuAggregation).sort((a, b) => b.total_orders - a.total_orders);
+         
+         const menuRows = sortedMenus.map((menu, idx) => {
+             const ingredientsList = menu.ingredients_list || [];
+             const ingredientSummary = ingredientsList.slice(0, 3).map(ing => 
+                 `${ing.ingredient_name}: ${Number(ing.total_consumed || 0).toFixed(1)} ${ing.unit || ''}`
+             ).join(', ');
+             const moreCount = ingredientsList.length > 3 ? ` (+${ingredientsList.length - 3} lainnya)` : '';
+             
+             // Store menu data globally for the detail view
+             const menuDataJson = JSON.stringify(menu).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+             
+             return `
+                 <tr style="border-bottom: 1px solid #F3F4F6;">
+                     <td>${idx + 1}</td>
+                     <td style="font-weight: 600; color: #1F2937;">${menu.menu_name}</td>
+                     <td style="text-align: center; font-weight: 600; color: #059669;">${menu.total_orders}</td>
+                     <td style="text-align: center; font-weight: 600; color: #DC2626;">${menu.total_ingredients_used}</td>
+                     <td style="text-align: center;">
+                         <button class="table-action-btn" onclick="event.stopPropagation(); showMenuIngredientDetails('${menu.menu_name.replace(/'/g, "\\'").replace(/"/g, '&quot;')}', '${dailyData.date_formatted || dateStr}', ${menuDataJson});" title="Lihat Detail Bahan Menu">
+                             <i class="fas fa-eye"></i> Detail
+                         </button>
+                     </td>
+                 </tr>
+             `;
+         }).join('');
          
          body.innerHTML = summaryRow + menuRows;
          
@@ -1460,15 +1628,257 @@ function hideIngredientDetailsPanel() {
          console.error('Failed to load daily aggregated consumption:', e);
          const body = document.getElementById('ingredient-details-body');
          if (body) {
-            body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #ef4444; padding: 1.5rem; font-weight: 500;">Gagal memuat data konsumsi harian</td></tr>';
+             body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #ef4444; padding: 1.5rem; font-weight: 500;">Gagal memuat data konsumsi harian: ' + e.message + '</td></tr>';
+         }
+     }
+ }
+
+// ========== HELPER FUNCTIONS FOR DAILY INGREDIENT DETAILS ==========
+function showMenuIngredientDetails(menuName, dateStr, menuData) {
+    try {
+        const panel = document.getElementById('ingredient-details-panel');
+        const body = document.getElementById('ingredient-details-body');
+        const headRow = document.querySelector('#ingredient-details-table thead tr');
+        
+        // Update panel header
+        document.getElementById('detail-order-id').textContent = menuName;
+        document.getElementById('detail-order-date').textContent = dateStr;
+        document.getElementById('detail-order-status').textContent = `${menuData.total_orders} pesanan`;
+        
+        // Update table header for ingredient details (6 columns)
+        if (headRow) {
+            headRow.innerHTML = `
+                <th>No</th>
+                <th>Nama Bahan</th>
+                <th>Total Konsumsi</th>
+                <th>Unit</th>
+                <th>Avg per Pesanan</th>
+                <th>Kontribusi</th>`;
+        }
+        
+        const ingredientsList = menuData.ingredients_list || [];
+        
+        if (ingredientsList.length === 0) {
+            body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada data bahan untuk menu ini</td></tr>';
+            if (panel) panel.classList.remove('hidden');
+            setTimeout(() => {
+                panel.scrollIntoView({behavior: 'smooth', block: 'start'});
+            }, 150);
+            return;
+        }
+        
+        // Calculate total consumption for percentage
+        const totalConsumption = ingredientsList.reduce((sum, ing) => sum + (ing.total_consumed || 0), 0);
+        
+        // Sort ingredients by total_consumed descending
+        const sortedIngredients = ingredientsList.sort((a, b) => b.total_consumed - a.total_consumed);
+        
+        const rows = sortedIngredients.map((ing, idx) => {
+            const avgPerOrder = menuData.total_orders > 0 ? 
+                (ing.total_consumed / menuData.total_orders).toFixed(2) : 0;
+            const contribution = totalConsumption > 0 ? 
+                ((ing.total_consumed / totalConsumption) * 100).toFixed(1) : 0;
+            
+            return `
+                <tr style="border-bottom: 1px solid #F3F4F6;">
+                    <td>${idx + 1}</td>
+                    <td style="font-weight: 500; color: #1F2937;">${ing.ingredient_name}</td>
+                    <td style="text-align: center; font-weight: 600; color: #DC2626;">${Number(ing.total_consumed || 0).toFixed(2)}</td>
+                    <td style="text-align: center; color: #6B7280;">${ing.unit || '-'}</td>
+                    <td style="text-align: center; color: #059669;">${avgPerOrder}</td>
+                    <td style="text-align: center;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
+                            <div style="width: 60px; height: 8px; background: #E5E7EB; border-radius: 4px; overflow: hidden;">
+                                <div style="width: ${contribution}%; height: 100%; background: linear-gradient(90deg, #DC2626, #F59E0B); transition: width 0.3s;"></div>
+                            </div>
+                            <span style="font-size: 0.85rem; font-weight: 600; color: #6B7280;">${contribution}%</span>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        
+        body.innerHTML = rows;
+        
+        // Show panel and scroll to it
+        if (panel) panel.classList.remove('hidden');
+        setTimeout(() => {
+            panel.scrollIntoView({behavior: 'smooth', block: 'start'});
+        }, 150);
+        
+    } catch (e) {
+        console.error('Failed to show menu ingredient details:', e);
+        alert('Gagal menampilkan detail bahan menu');
+    }
+}
+
+async function showDailyIngredientAccumulation(dateParam, dateFormatted) {
+    try {
+        const panel = document.getElementById('ingredient-details-panel');
+        const body = document.getElementById('ingredient-details-body');
+        const headRow = document.querySelector('#ingredient-details-table thead tr');
+        // Helper: map backend enum category to friendly label used in stock management UI
+        const mapStockCategoryLabel = (cat) => {
+            const key = String(cat || '').toLowerCase();
+            const map = {
+                'packaging': 'Kemasan',
+                'ingredients': 'Bahan',
+                'coffee_flavors': 'Perisa Kopi',
+                'squash_flavors': 'Perisa Squash',
+                'milk_shake_flavors': 'Perisa Milk Shake'
+            };
+            return map[key] || (key ? key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Umum');
+        };
+        
+        // Update panel header
+        document.getElementById('detail-order-id').textContent = `Akumulasi Bahan Harian`;
+        document.getElementById('detail-order-date').textContent = dateFormatted;
+        document.getElementById('detail-order-status').textContent = 'Semua Menu';
+        
+        // Show loading
+        body.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 1.5rem;"><i class="fas fa-spinner fa-spin"></i> Memuat akumulasi bahan...</td></tr>';
+        
+        // Show panel immediately
+        if (panel) panel.classList.remove('hidden');
+        
+        // Ensure dateParam is a single YYYY-MM-DD
+        let dateArg = dateParam;
+        if (typeof dateArg === 'string') {
+            if (dateArg.includes(' - ')) {
+                dateArg = dateArg.split(' - ')[0].trim();
+            }
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateArg)) {
+                const [dd, mm, yyyy] = dateArg.split('/');
+                dateArg = `${yyyy}-${mm}-${dd}`;
+            } else if (!/^\d{4}-\d{2}-\d{2}$/.test(dateArg)) {
+                // Try to extract first DD/MM/YYYY in the string
+                const m = dateArg.match(/(\d{2}\/\d{2}\/\d{4})/);
+                if (m && m[1]) {
+                    const [dd, mm, yyyy] = m[1].split('/');
+                    dateArg = `${yyyy}-${mm}-${dd}`;
+                }
+            }
+        }
+        // Fetch daily data
+        const response = await fetch(`/inventory/consumption/daily?date=${encodeURIComponent(dateArg)}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const json = await response.json();
+        const dailyData = json?.data?.daily_consumption?.[0];
+        
+        if (!dailyData) {
+            body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #615a5a; padding: 1.5rem;">Tidak ada data bahan untuk tanggal ini</td></tr>';
+            return;
+        }
+        
+        // Update table header for accumulated ingredients (6 columns)
+        if (headRow) {
+            headRow.innerHTML = `
+                <th>No</th>
+                <th>Nama Bahan</th>
+                <th>Total Konsumsi</th>
+                <th>Unit</th>
+                <th>Kategori</th>
+                <th>Frekuensi</th>`;
+        }
+        
+        const ingredientsConsumed = dailyData.ingredients_consumed || [];
+        
+        if (ingredientsConsumed.length === 0) {
+            body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada data konsumsi bahan</td></tr>';
+            return;
+        }
+        
+        // Sort by total_consumed descending
+        const sortedIngredients = ingredientsConsumed.sort((a, b) => 
+            (b.total_consumed || 0) - (a.total_consumed || 0)
+        );
+        
+        const totalConsumption = sortedIngredients.reduce((sum, ing) => sum + (ing.total_consumed || 0), 0);
+        
+        const rows = sortedIngredients.map((ing, idx) => {
+            const contribution = totalConsumption > 0 ? 
+                ((ing.total_consumed / totalConsumption) * 100).toFixed(1) : 0;
+            const frequency = ing.consumption_count || 1;
+            const categoryLabel = mapStockCategoryLabel(ing.category);
+            
+            // Color based on contribution
+            let barColor = '#10B981'; // green
+            if (contribution > 50) barColor = '#DC2626'; // red
+            else if (contribution > 20) barColor = '#F59E0B'; // orange
+            
+            return `
+                <tr style="border-bottom: 1px solid #F3F4F6;">
+                    <td>${idx + 1}</td>
+                    <td style="font-weight: 500; color: #1F2937;">${ing.ingredient_name}</td>
+                    <td style="text-align: center; font-weight: 600;">
+                        <span style="color: ${barColor};">${Number(ing.total_consumed || 0).toFixed(2)}</span>
+                    </td>
+                    <td style="text-align: center; color: #6B7280;">${ing.unit || '-'}</td>
+                    <td style="text-align: center;">
+                        <span style="background: #F3F4F6; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.85rem; color: #6B7280;">
+                            ${categoryLabel}
+                        </span>
+                    </td>
+                    <td style="text-align: center;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
+                            <span style="background: #DBEAFE; color: #1E40AF; padding: 0.2rem 0.5rem; border-radius: 12px; font-size: 0.85rem; font-weight: 600;">
+                                ${frequency}x
+                            </span>
+                            <div style="width: 50px; height: 6px; background: #E5E7EB; border-radius: 3px; overflow: hidden;">
+                                <div style="width: ${contribution}%; height: 100%; background: ${barColor}; transition: width 0.3s;"></div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        
+        // Add summary row at top
+        const summaryRow = `
+            <tr style="background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%); border-bottom: 2px solid #E5E7EB; font-weight: 600;">
+                <td colspan="6" style="padding: 1rem; text-align: center;">
+                    <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
+                        <div>
+                            <span style="color: #6B7280; font-size: 0.9rem;">Total Jenis Bahan:</span>
+                            <span style="color: #1F2937; font-size: 1.1rem; margin-left: 0.5rem;">${sortedIngredients.length}</span>
+                        </div>
+                        <div>
+                            <span style="color: #6B7280; font-size: 0.9rem;">Total Konsumsi:</span>
+                            <span style="color: #DC2626; font-size: 1.1rem; margin-left: 0.5rem; font-weight: 700;">${totalConsumption.toFixed(2)}</span>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        `;
+        
+        body.innerHTML = summaryRow + rows;
+        
+        // Scroll to panel
+        setTimeout(() => {
+            panel.scrollIntoView({behavior: 'smooth', block: 'start'});
+        }, 150);
+        
+    } catch (e) {
+        console.error('Failed to show daily ingredient accumulation:', e);
+        const body = document.getElementById('ingredient-details-body');
+        if (body) {
+            body.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 1.5rem;">Gagal memuat akumulasi bahan: ${e.message}</td></tr>`;
         }
     }
 }
 
 // ========== INGREDIENT ANALYSIS EXPORT FUNCTIONS ==========
-function exportIngredientExcel() {
-    // We will export two sheets: per-day per-item details and cumulative totals by ingredient
-    // Build datasets from current cached context (recipes + flavor map + orders within selected range)
+async function exportIngredientExcel() {
+    const cleanMenuName = (name) => {
+        const cleaned = String(name || '').trim();
+        const noPrefix = cleaned.replace(/^\s*\d+\s*x?\s*/i, '');
+        return noPrefix.replace(/\s*x\s*\d+\s*$/i, '').trim();
+    };
+    // Export for Ingredient Analysis using inventory truth per-order breakdown
+    const viewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
     const { start, end } = (function () {
         const s1 = document.getElementById('ingredient-start-date')?.value?.trim();
         const e1 = document.getElementById('ingredient-end-date')?.value?.trim();
@@ -1477,87 +1887,182 @@ function exportIngredientExcel() {
         return { start: s1 || s2 || '', end: e1 || e2 || '' };
     })();
 
-    // Guard: ensure we have required context
-    if (!Array.isArray(kitchenOrdersCache)) {
-        alert('Data pesanan dapur belum tersedia. Muat ulang analisis bahan terlebih dahulu.');
-        return;
+    const toIso = (s) => parseAnyDateToIso(String(s)) || null;
+    const fmtDisplay = (iso) => (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) ? `${iso.slice(8,10)}/${iso.slice(5,7)}/${iso.slice(0,4)}` : (iso || '-');
+
+    // 1) Collect target order IDs from inventory history within range (source of truth), plus kitchen cache fallback
+    const orderIdSet = new Set();
+    try {
+        const qp = new URLSearchParams();
+        if (start) qp.append('start_date', start);
+        if (end) qp.append('end_date', end);
+        qp.append('limit', '2000');
+        const logsRes = await fetch(`/inventory/history?${qp.toString()}`);
+        const logsJson = await logsRes.json().catch(() => ({}));
+        const logs = Array.isArray(logsJson.history) ? logsJson.history : [];
+        for (const row of logs) {
+            if (!row || !row.order_id) continue;
+            if (row.rolled_back) continue;
+            // prefer consumed-only when available
+            if (typeof row.consumed === 'boolean' && !row.consumed) continue;
+            orderIdSet.add(String(row.order_id));
+        }
+    } catch (e) {
+        console.warn('Failed to load inventory history for export; falling back to kitchen cache only', e);
+    }
+    if (Array.isArray(kitchenOrdersCache)) {
+        for (const o of kitchenOrdersCache) {
+            if (!o || o.status !== 'done') continue;
+            const iso = toIso(o.time_done || o.time || o.time_done_at);
+            if (!iso) continue;
+            if (start && iso < start) continue;
+            if (end && iso > end) continue;
+            if (o.order_id) orderIdSet.add(String(o.order_id));
+        }
+    }
+    const targetOrderIds = Array.from(orderIdSet);
+
+    // 2) Fetch per-order ingredient breakdowns (menu_breakdown preferred)
+    async function fetchBreakdown(orderId) {
+        try {
+            const res = await fetch(`/report/order/${encodeURIComponent(orderId)}/ingredients`, { cache: 'no-store' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = await res.json();
+            const data = json?.data || json || {};
+            const mb = data.menu_breakdown || json.menu_breakdown || [];
+            const ib = (data.ingredients_breakdown || json.ingredients_breakdown || {});
+            const details = Array.isArray(ib.details) ? ib.details : (Array.isArray(json?.details) ? json.details : []);
+            const orderDate = data.order_date || data.date || json.order_date || json.date || '';
+            return { order_id: orderId, order_date: orderDate, menu_breakdown: Array.isArray(mb) ? mb : [], details };
+        } catch (e) {
+            console.warn('Failed fetching breakdown for order', orderId, e);
+            return { order_id: orderId, order_date: '', menu_breakdown: [], details: [] };
+        }
     }
 
-    // Helpers
-    const toIso = (s) => parseAnyDateToIso(String(s)) || null;
-    const withinRange = (dtIso) => {
-        if (!dtIso) return false;
-        if (start && dtIso < start) return false;
-        if (end && dtIso > end) return false;
-        return true;
-    };
-    const fmtDisplay = (iso) => (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) ? `${iso.slice(8,10)}/${iso.slice(5,7)}/${iso.slice(0,4)}` : (iso || '-');
-    const getIngName = (id) => {
-        const it = ingredientData && ingredientData[id];
-        return (it && (it.name || it.ingredient_name || it.base_name)) || String(id);
-    };
-    const getIngUnit = (id, fallback) => {
-        const it = ingredientData && ingredientData[id];
-        return fallback || (it && (it.unit || it.unit_name)) || '';
-    };
-
-    // Compute detail rows (per-day per-item)
-    const detailRows = [];
-    const doneOrders = kitchenOrdersCache.filter(o => o && o.status === 'done');
-    for (const order of doneOrders) {
-        const iso = toIso(order.time_done || order.time || order.time_done_at);
-        if (!withinRange(iso)) continue;
-        const dateDisp = fmtDisplay(iso);
-        const orderId = order.order_id || order.id || '';
-        const items = Array.isArray(order.items) ? order.items : [];
-        for (const it of items) {
-            const menuName = it.menu_name || 'Unknown Menu';
-            const qty = Number(it.quantity || 0) || 0;
-            if (!qty) continue;
-            const flavorRaw = (it.preference || it.flavor || '-');
-            const flavorKey = String(flavorRaw || '-').toLowerCase();
-
-            // Base recipe ingredients
-            const recipes = menuRecipes && menuRecipes[menuName] ? menuRecipes[menuName] : [];
-            for (const r of recipes) {
-                const ingId = r.ingredient_id;
-                const perServing = Number(r.quantity || 0) || 0;
-                const used = perServing * qty;
-                if (!ingId || !used) continue;
-                detailRows.push({
-                    date: dateDisp,
-                    order_id: orderId,
-                    menu: menuName,
-                    flavor: flavorRaw || '-',
-                    ingredient_id: ingId,
-                    ingredient: getIngName(ingId),
-                    qty: used,
-                    unit: getIngUnit(ingId, r.unit)
-                });
+    // Limit concurrency to avoid flooding backend
+    async function fetchAllBreakdowns(ids, concurrency = 5) {
+        const results = [];
+        let index = 0;
+        async function worker() {
+            while (index < ids.length) {
+                const id = ids[index++];
+                const r = await fetchBreakdown(id);
+                results.push(r);
             }
+        }
+        const workers = Array.from({ length: Math.min(concurrency, ids.length || 0) }, () => worker());
+        await Promise.all(workers);
+        return results;
+    }
 
-            // Flavor-mapped extra ingredients
-            const mappings = globalFlavorMap && globalFlavorMap[flavorKey] ? globalFlavorMap[flavorKey] : [];
-            for (const fm of mappings) {
-                const ingId = fm.ingredient_id;
-                const perServing = Number(fm.quantity_per_serving || fm.quantity || 0) || 0;
-                const used = perServing * qty;
-                if (!ingId || !used) continue;
-                detailRows.push({
-                    date: dateDisp,
-                    order_id: orderId,
-                    menu: menuName,
-                    flavor: flavorRaw || '-',
-                    ingredient_id: ingId,
-                    ingredient: getIngName(ingId),
-                    qty: used,
-                    unit: getIngUnit(ingId, fm.unit)
-                });
+    const breakdowns = await fetchAllBreakdowns(targetOrderIds);
+
+    // 3) Build per-item detail rows, preferring menu_breakdown; fallback to recipe-based if needed
+    const detailRows = [];
+    for (const b of breakdowns) {
+        const iso = toIso(b.order_date);
+        // fallback: try kitchen cache to resolve date
+        const kitchenOrder = kitchenOrdersCache.find(o => String(o.order_id) === String(b.order_id));
+        const dateIso = iso || (kitchenOrder ? toIso(kitchenOrder.time_done || kitchenOrder.time_done_at || kitchenOrder.time) : null);
+        const dateDisp = fmtDisplay(dateIso);
+        let perItemIngredientIds = new Set();
+        let itemListForDistribution = [];
+
+        if (Array.isArray(b.menu_breakdown) && b.menu_breakdown.length) {
+            for (const it of b.menu_breakdown) {
+                const menuName = cleanMenuName(it?.menu_name || 'Unknown Menu');
+                const itemQty = Number(it?.quantity || 0) || 0;
+                itemListForDistribution.push({ menu: menuName, qty: itemQty });
+                const ings = Array.isArray(it?.ingredients) ? it.ingredients : [];
+                for (const ing of ings) {
+                    const name = ing?.ingredient_name || '-';
+                    const id = ing?.ingredient_id || name;
+                    const qty = Number(ing?.required_quantity ?? ing?.quantity ?? ing?.consumed_quantity ?? 0) || 0;
+                    const unit = ing?.unit || '';
+                    if (!qty) continue;
+                    detailRows.push({ date: dateDisp, order_id: b.order_id, menu: menuName, ingredient_id: id, ingredient: name, qty, unit });
+                    perItemIngredientIds.add(String(id));
+                }
+            }
+            // Distribute any leftover ingredients from overall details that aren't listed per-item
+            if (Array.isArray(b.details) && b.details.length && itemListForDistribution.length) {
+                const totalItemQty = itemListForDistribution.reduce((a, x) => a + (Number(x.qty) || 0), 0) || 0;
+                if (totalItemQty > 0) {
+                    for (const d of b.details) {
+                        const did = d?.ingredient_id || d?.ingredient_name;
+                        if (!did) continue;
+                        if (perItemIngredientIds.has(String(did))) continue; // already covered by per-item
+                        const totalQty = Number(d?.consumed_quantity || d?.quantity || 0) || 0;
+                        const unit = d?.unit || '';
+                        if (!totalQty) continue;
+                        for (const it of itemListForDistribution) {
+                            const share = (Number(it.qty) || 0) / totalItemQty;
+                            const alloc = totalQty * share;
+                            if (!alloc) continue;
+                            detailRows.push({ date: dateDisp, order_id: b.order_id, menu: it.menu, ingredient_id: did, ingredient: d?.ingredient_name || String(did), qty: alloc, unit });
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+
+        // Fallback: if no per-item breakdown, try recipe-based from kitchen order + globalFlavorMap (legacy behavior)
+        if (kitchenOrder && Array.isArray(kitchenOrder.items)) {
+            for (const it of kitchenOrder.items) {
+                const menuName = cleanMenuName(it.menu_name || 'Unknown Menu');
+                const qty = Number(it.quantity || 0) || 0; if (!qty) continue;
+                itemListForDistribution.push({ menu: menuName, qty });
+                const flavorRaw = (it.preference || it.flavor || '-');
+                const flavorKey = String(flavorRaw || '-').toLowerCase();
+                const recipes = menuRecipes && menuRecipes[menuName] ? menuRecipes[menuName] : [];
+                for (const r of recipes) {
+                    const ingId = r.ingredient_id; const perServing = Number(r.quantity || 0) || 0; const used = perServing * qty; if (!ingId || !used) continue;
+                    detailRows.push({ date: dateDisp, order_id: b.order_id, menu: menuName, ingredient_id: ingId, ingredient: (ingredientData?.[ingId]?.name || r.ingredient_name || String(ingId)), qty: used, unit: r.unit || (ingredientData?.[ingId]?.unit) || '' });
+                    perItemIngredientIds.add(String(ingId));
+                }
+                const mappings = globalFlavorMap && globalFlavorMap[flavorKey] ? globalFlavorMap[flavorKey] : [];
+                for (const fm of mappings) {
+                    const ingId = fm.ingredient_id; const perServing = Number(fm.quantity_per_serving || fm.quantity || 0) || 0; const used = perServing * qty; if (!ingId || !used) continue;
+                    detailRows.push({ date: dateDisp, order_id: b.order_id, menu: menuName, ingredient_id: ingId, ingredient: (ingredientData?.[ingId]?.name || String(ingId)), qty: used, unit: fm.unit || (ingredientData?.[ingId]?.unit) || '' });
+                    perItemIngredientIds.add(String(ingId));
+                }
+            }
+            // Distribute remaining ingredients from overall details
+            if (Array.isArray(b.details) && b.details.length && itemListForDistribution.length) {
+                const totalItemQty = itemListForDistribution.reduce((a, x) => a + (Number(x.qty) || 0), 0) || 0;
+                if (totalItemQty > 0) {
+                    for (const d of b.details) {
+                        const did = d?.ingredient_id || d?.ingredient_name;
+                        if (!did) continue;
+                        if (perItemIngredientIds.has(String(did))) continue;
+                        const totalQty = Number(d?.consumed_quantity || d?.quantity || 0) || 0;
+                        const unit = d?.unit || '';
+                        if (!totalQty) continue;
+                        for (const it of itemListForDistribution) {
+                            const share = (Number(it.qty) || 0) / totalItemQty;
+                            const alloc = totalQty * share;
+                            if (!alloc) continue;
+                            detailRows.push({ date: dateDisp, order_id: b.order_id, menu: it.menu, ingredient_id: did, ingredient: d?.ingredient_name || String(did), qty: alloc, unit });
+                        }
+                    }
+                }
+            }
+        } else if (Array.isArray(b.details) && b.details.length) {
+            // Last resort: include overall order ingredient details without per-item menu association
+            for (const d of b.details) {
+                const name = d?.ingredient_name || '-';
+                const id = d?.ingredient_id || name;
+                const qty = Number(d?.consumed_quantity || d?.quantity || 0) || 0;
+                const unit = d?.unit || '';
+                if (!qty) continue;
+                detailRows.push({ date: dateDisp, order_id: b.order_id, menu: '-', ingredient_id: id, ingredient: name, qty, unit });
             }
         }
     }
 
-    // Aggregate cumulative totals per ingredient across the period
+    // 4) Aggregate cumulative totals per ingredient
     const totalsMap = {};
     for (const r of detailRows) {
         const key = r.ingredient_id || r.ingredient;
@@ -1567,26 +2072,22 @@ function exportIngredientExcel() {
     }
     const cumulativeRows = Object.values(totalsMap).sort((a,b)=> String(a.ingredient).localeCompare(String(b.ingredient)));
 
-    // Build Excel workbook
+    // 5) Build Excel workbook (two sheets)
     const wb = XLSX.utils.book_new();
-
-    // Sheet 1: Per Hari - Item
-    const headersDetail = ['No','Tanggal','Order ID','Menu','Flavor','Bahan','Qty','Unit'];
+    const headersDetail = ['No','Tanggal','Order ID','Menu','Bahan','Qty','Unit'];
     const detailAoA = [headersDetail, ...detailRows.map((r,i)=>[
-        i+1, r.date, r.order_id || '-', r.menu || '-', r.flavor || '-', r.ingredient || '-', Number(r.qty||0), r.unit || ''
+        i+1, r.date, r.order_id || '-', r.menu || '-', r.ingredient || '-', Number(r.qty||0), r.unit || ''
     ])];
     const wsDetail = XLSX.utils.aoa_to_sheet(detailAoA);
-    wsDetail['!cols'] = [ {wch:6},{wch:12},{wch:16},{wch:28},{wch:16},{wch:28},{wch:12},{wch:10} ];
-    XLSX.utils.book_append_sheet(wb, wsDetail, 'Per Hari - Item');
+    wsDetail['!cols'] = [ {wch:6},{wch:12},{wch:16},{wch:28},{wch:28},{wch:12},{wch:10} ];
+    XLSX.utils.book_append_sheet(wb, wsDetail, viewMode === 'logs' ? 'Per Order - Item' : 'Per Hari - Item');
 
-    // Sheet 2: Akumulasi per Bahan
     const headersCum = ['No','Bahan','Total Qty','Unit'];
     const cumAoA = [headersCum, ...cumulativeRows.map((r,i)=>[ i+1, r.ingredient || '-', Number(r.total_qty||0), r.unit || '' ])];
     const wsCum = XLSX.utils.aoa_to_sheet(cumAoA);
     wsCum['!cols'] = [ {wch:6},{wch:36},{wch:18},{wch:10} ];
     XLSX.utils.book_append_sheet(wb, wsCum, 'Akumulasi per Bahan');
 
-    // Optional summary sheet
     const summaryData = [
         ['Ringkasan Analisis Bahan'],
         ['Periode', `${start || '-'} s/d ${end || '-'}`],
@@ -1617,15 +2118,14 @@ function exportIngredientExcel() {
             r.daily_summary?.total_consumption || 0
         ]);
     } else {
-        headers = ['No', 'Menu', 'Flavor', 'Tanggal', 'Total Orders', 'Total Ingredients Used', 'Order IDs'];
+    headers = ['No', 'Menu', 'Date Range', 'Total Orders', 'Ingredients Used'];
         exportData = dataset.map((r, index) => [
             index + 1,
             r.menu_name || '-',
-            r.flavor || '-',
+            // no flavor column in logs export
             r.date || '-',
-            (r.order_count ?? (Array.isArray(r.order_ids) ? r.order_ids.length : 0) ?? 0),
-            (r.ingredients_affected ?? r.total_qty ?? 0),
-            Array.isArray(r.order_ids) ? r.order_ids.join(', ') : (r.order_id || '-')
+            (r.order_count ?? ((r.order_ids || []).length) ?? 0),
+            (r.ingredients_affected ?? r.total_qty ?? 0)
         ]);
     }
 
@@ -1639,44 +2139,185 @@ function exportIngredientExcel() {
     window.URL.revokeObjectURL(url);
 }
 
-function exportIngredientPDF() {
-    // We will generate a two-part PDF: (1) Cumulative totals per ingredient, (2) Per-day per-item details
+async function exportIngredientPDF() {
+    // Export PDF for Ingredient Analysis: branch by view mode
+    const viewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
     const startDate = (document.getElementById('ingredient-start-date')?.value?.trim()) || (document.getElementById('start_date')?.value?.trim()) || '-';
     const endDate = (document.getElementById('ingredient-end-date')?.value?.trim()) || (document.getElementById('end_date')?.value?.trim()) || '-';
 
-    // Build datasets similar to Excel export
-    const toIso = (s) => parseAnyDateToIso(String(s)) || null;
-    const withinRange = (dtIso) => {
-        const s = startDate && /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : null;
-        const e = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : null;
-        if (!dtIso) return false; if (s && dtIso < s) return false; if (e && dtIso > e) return false; return true;
-    };
-    const fmtDisplay = (iso) => (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) ? `${iso.slice(8,10)}/${iso.slice(5,7)}/${iso.slice(0,4)}` : (iso || '-');
-    const getIngName = (id) => { const it = ingredientData && ingredientData[id]; return (it && (it.name || it.ingredient_name || it.base_name)) || String(id); };
-    const getIngUnit = (id, fallback) => { const it = ingredientData && ingredientData[id]; return fallback || (it && (it.unit || it.unit_name)) || ''; };
+    if (viewMode === 'logs') {
+        // For logs mode, generate the same two sections: cumulative and per-item detail across date range
+        // Fall through to the daily-mode implementation below (same data shape)
+    }
 
-    const detailRows = [];
-    const doneOrders = Array.isArray(kitchenOrdersCache) ? kitchenOrdersCache.filter(o => o && o.status === 'done') : [];
-    for (const order of doneOrders) {
-        const iso = toIso(order.time_done || order.time || order.time_done_at);
-        if (!withinRange(iso)) continue;
-        const dateDisp = fmtDisplay(iso);
-        const orderId = order.order_id || order.id || '';
-        const items = Array.isArray(order.items) ? order.items : [];
-        for (const it of items) {
-            const menuName = it.menu_name || 'Unknown Menu';
-            const qty = Number(it.quantity || 0) || 0; if (!qty) continue;
-            const flavorRaw = (it.preference || it.flavor || '-');
-            const flavorKey = String(flavorRaw || '-').toLowerCase();
-            const recipes = menuRecipes && menuRecipes[menuName] ? menuRecipes[menuName] : [];
-            for (const r of recipes) {
-                const ingId = r.ingredient_id; const perServing = Number(r.quantity || 0) || 0; const used = perServing * qty; if (!ingId || !used) continue;
-                detailRows.push({ date: dateDisp, order_id: orderId, menu: menuName, flavor: flavorRaw || '-', ingredient_id: ingId, ingredient: getIngName(ingId), qty: used, unit: getIngUnit(ingId, r.unit) });
+    // Build datasets similar to Excel export but using per-order breakdown
+    const toIso = (s) => parseAnyDateToIso(String(s)) || null;
+    const fmtDisplay = (iso) => (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) ? `${iso.slice(8,10)}/${iso.slice(5,7)}/${iso.slice(0,4)}` : (iso || '-');
+
+    // Collect order IDs from inventory history
+    const orderIdSet = new Set();
+    try {
+        const qp = new URLSearchParams();
+        if (startDate && /^\d{4}-\d{2}-\d{2}$/.test(startDate)) qp.append('start_date', startDate);
+        if (endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate)) qp.append('end_date', endDate);
+        qp.append('limit', '2000');
+        const logsRes = await fetch(`/inventory/history?${qp.toString()}`);
+        const logsJson = await logsRes.json().catch(() => ({}));
+        const logs = Array.isArray(logsJson.history) ? logsJson.history : [];
+        for (const row of logs) {
+            if (!row || !row.order_id) continue;
+            if (row.rolled_back) continue;
+            if (typeof row.consumed === 'boolean' && !row.consumed) continue;
+            orderIdSet.add(String(row.order_id));
+        }
+    } catch (e) {
+        console.warn('Failed to load inventory history for PDF export', e);
+    }
+    if (Array.isArray(kitchenOrdersCache)) {
+        for (const o of kitchenOrdersCache) {
+            if (!o || o.status !== 'done') continue;
+            const iso = toIso(o.time_done || o.time || o.time_done_at);
+            const s = startDate && /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : null;
+            const e = endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : null;
+            if (s && iso && iso < s) continue;
+            if (e && iso && iso > e) continue;
+            if (o.order_id) orderIdSet.add(String(o.order_id));
+        }
+    }
+    const targetOrderIds = Array.from(orderIdSet);
+
+    async function fetchBreakdown(orderId) {
+        try {
+            const res = await fetch(`/report/order/${encodeURIComponent(orderId)}/ingredients`, { cache: 'no-store' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = await res.json();
+            const data = json?.data || json || {};
+            const mb = data.menu_breakdown || json.menu_breakdown || [];
+            const ib = (data.ingredients_breakdown || json.ingredients_breakdown || {});
+            const details = Array.isArray(ib.details) ? ib.details : (Array.isArray(json?.details) ? json.details : []);
+            const orderDate = data.order_date || data.date || json.order_date || json.date || '';
+            return { order_id: orderId, order_date: orderDate, menu_breakdown: Array.isArray(mb) ? mb : [], details };
+        } catch (e) {
+            console.warn('Failed fetching breakdown for order', orderId, e);
+            return { order_id: orderId, order_date: '', menu_breakdown: [], details: [] };
+        }
+    }
+
+    async function fetchAllBreakdowns(ids, concurrency = 5) {
+        const results = [];
+        let index = 0;
+        async function worker() {
+            while (index < ids.length) {
+                const id = ids[index++];
+                const r = await fetchBreakdown(id);
+                results.push(r);
             }
-            const mappings = globalFlavorMap && globalFlavorMap[flavorKey] ? globalFlavorMap[flavorKey] : [];
-            for (const fm of mappings) {
-                const ingId = fm.ingredient_id; const perServing = Number(fm.quantity_per_serving || fm.quantity || 0) || 0; const used = perServing * qty; if (!ingId || !used) continue;
-                detailRows.push({ date: dateDisp, order_id: orderId, menu: menuName, flavor: flavorRaw || '-', ingredient_id: ingId, ingredient: getIngName(ingId), qty: used, unit: getIngUnit(ingId, fm.unit) });
+        }
+        const workers = Array.from({ length: Math.min(concurrency, ids.length || 0) }, () => worker());
+        await Promise.all(workers);
+        return results;
+    }
+
+    const breakdowns = await fetchAllBreakdowns(targetOrderIds);
+    const cleanMenuName = (name) => {
+        const cleaned = String(name || '').trim();
+        const noPrefix = cleaned.replace(/^\s*\d+\s*x?\s*/i, '');
+        return noPrefix.replace(/\s*x\s*\d+\s*$/i, '').trim();
+    };
+    const detailRows = [];
+    for (const b of breakdowns) {
+        const iso = toIso(b.order_date);
+        const kitchenOrder = kitchenOrdersCache.find(o => String(o.order_id) === String(b.order_id));
+        const dateIso = iso || (kitchenOrder ? toIso(kitchenOrder.time_done || kitchenOrder.time_done_at || kitchenOrder.time) : null);
+        const dateDisp = fmtDisplay(dateIso);
+        let perItemIngredientIds = new Set();
+        let itemListForDistribution = [];
+
+        if (Array.isArray(b.menu_breakdown) && b.menu_breakdown.length) {
+            for (const it of b.menu_breakdown) {
+                const menuName = cleanMenuName(it?.menu_name || 'Unknown Menu');
+                const itemQty = Number(it?.quantity || 0) || 0;
+                itemListForDistribution.push({ menu: menuName, qty: itemQty });
+                const ings = Array.isArray(it?.ingredients) ? it.ingredients : [];
+                for (const ing of ings) {
+                    const name = ing?.ingredient_name || '-';
+                    const id = ing?.ingredient_id || name;
+                    const qty = Number(ing?.required_quantity ?? ing?.quantity ?? ing?.consumed_quantity ?? 0) || 0;
+                    const unit = ing?.unit || '';
+                    if (!qty) continue;
+                    detailRows.push({ date: dateDisp, order_id: b.order_id, menu: menuName, ingredient_id: id, ingredient: name, qty, unit });
+                    perItemIngredientIds.add(String(id));
+                }
+            }
+            if (Array.isArray(b.details) && b.details.length && itemListForDistribution.length) {
+                const totalItemQty = itemListForDistribution.reduce((a, x) => a + (Number(x.qty) || 0), 0) || 0;
+                if (totalItemQty > 0) {
+                    for (const d of b.details) {
+                        const did = d?.ingredient_id || d?.ingredient_name;
+                        if (!did) continue;
+                        if (perItemIngredientIds.has(String(did))) continue;
+                        const totalQty = Number(d?.consumed_quantity || d?.quantity || 0) || 0;
+                        const unit = d?.unit || '';
+                        if (!totalQty) continue;
+                        for (const it of itemListForDistribution) {
+                            const share = (Number(it.qty) || 0) / totalItemQty;
+                            const alloc = totalQty * share;
+                            if (!alloc) continue;
+                            detailRows.push({ date: dateDisp, order_id: b.order_id, menu: it.menu, ingredient_id: did, ingredient: d?.ingredient_name || String(did), qty: alloc, unit });
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+
+        if (kitchenOrder && Array.isArray(kitchenOrder.items)) {
+            for (const it of kitchenOrder.items) {
+                const menuName = cleanMenuName(it.menu_name || 'Unknown Menu');
+                const qty = Number(it.quantity || 0) || 0; if (!qty) continue;
+                itemListForDistribution.push({ menu: menuName, qty });
+                const flavorRaw = (it.preference || it.flavor || '-');
+                const flavorKey = String(flavorRaw || '-').toLowerCase();
+                const recipes = menuRecipes && menuRecipes[menuName] ? menuRecipes[menuName] : [];
+                for (const r of recipes) {
+                    const ingId = r.ingredient_id; const perServing = Number(r.quantity || 0) || 0; const used = perServing * qty; if (!ingId || !used) continue;
+                    detailRows.push({ date: dateDisp, order_id: b.order_id, menu: menuName, ingredient_id: ingId, ingredient: (ingredientData?.[ingId]?.name || r.ingredient_name || String(ingId)), qty: used, unit: r.unit || (ingredientData?.[ingId]?.unit) || '' });
+                    perItemIngredientIds.add(String(ingId));
+                }
+                const mappings = globalFlavorMap && globalFlavorMap[flavorKey] ? globalFlavorMap[flavorKey] : [];
+                for (const fm of mappings) {
+                    const ingId = fm.ingredient_id; const perServing = Number(fm.quantity_per_serving || fm.quantity || 0) || 0; const used = perServing * qty; if (!ingId || !used) continue;
+                    detailRows.push({ date: dateDisp, order_id: b.order_id, menu: menuName, ingredient_id: ingId, ingredient: (ingredientData?.[ingId]?.name || String(ingId)), qty: used, unit: fm.unit || (ingredientData?.[ingId]?.unit) || '' });
+                    perItemIngredientIds.add(String(ingId));
+                }
+            }
+            if (Array.isArray(b.details) && b.details.length && itemListForDistribution.length) {
+                const totalItemQty = itemListForDistribution.reduce((a, x) => a + (Number(x.qty) || 0), 0) || 0;
+                if (totalItemQty > 0) {
+                    for (const d of b.details) {
+                        const did = d?.ingredient_id || d?.ingredient_name;
+                        if (!did) continue;
+                        if (perItemIngredientIds.has(String(did))) continue;
+                        const totalQty = Number(d?.consumed_quantity || d?.quantity || 0) || 0;
+                        const unit = d?.unit || '';
+                        if (!totalQty) continue;
+                        for (const it of itemListForDistribution) {
+                            const share = (Number(it.qty) || 0) / totalItemQty;
+                            const alloc = totalQty * share;
+                            if (!alloc) continue;
+                            detailRows.push({ date: dateDisp, order_id: b.order_id, menu: it.menu, ingredient_id: did, ingredient: d?.ingredient_name || String(did), qty: alloc, unit });
+                        }
+                    }
+                }
+            }
+        } else if (Array.isArray(b.details) && b.details.length) {
+            for (const d of b.details) {
+                const name = d?.ingredient_name || '-';
+                const id = d?.ingredient_id || name;
+                const qty = Number(d?.consumed_quantity || d?.quantity || 0) || 0;
+                const unit = d?.unit || '';
+                if (!qty) continue;
+                detailRows.push({ date: dateDisp, order_id: b.order_id, menu: '-', ingredient_id: id, ingredient: name, qty, unit });
             }
         }
     }
@@ -1713,8 +2354,8 @@ function exportIngredientPDF() {
     doc.setFont('helvetica','bold'); doc.text('Detail Harian per Item', 14, 14);
     doc.autoTable({
         startY: 18,
-        head: [[ 'No','Tanggal','Order ID','Menu','Flavor','Bahan','Qty','Unit' ]],
-        body: detailRows.map((r,i)=>[ i+1, r.date, r.order_id || '-', r.menu || '-', r.flavor || '-', r.ingredient || '-', Number(r.qty||0), r.unit || '' ]),
+    head: [[ 'No','Tanggal','Order ID','Menu','Bahan','Qty','Unit' ]],
+    body: detailRows.map((r,i)=>[ i+1, r.date, r.order_id || '-', r.menu || '-', r.ingredient || '-', Number(r.qty||0), r.unit || '' ]),
         theme: 'grid', styles: { font: 'helvetica', fontSize: 8.5, textColor: [68,45,45] }, headStyles: { fillColor: colorAccent, textColor: [68,45,45], halign: 'left' }, alternateRowStyles: { fillColor: [250,247,240] }, tableLineColor: colorAccent, tableLineWidth: 0.2, margin: { left: 10, right: 10 }
     });
 
@@ -2575,7 +3216,7 @@ function updateSummaryWithFinancialData(data, type = 'sales') {
     if (summaryIncome) {
         const summary = data.summary;
         if (summary) {
-            summaryIncome.textContent = `Rp ${(summary.total_omzet || 0).toLocaleString()}`;
+            summaryIncome.textContent = `Rp ${(summary.total_profit || 0).toLocaleString('id-ID')}`;
         } else {
             summaryIncome.textContent = 'Rp 0';
         }
@@ -2619,9 +3260,12 @@ function showEmptyState(message, type = 'info') {
     if (currentDataType === 'ingredient') {
       const viewSelect = document.getElementById('ingredient-view-select');
       const viewMode = viewSelect ? viewSelect.value : 'daily';
-      colspan = viewMode === 'daily' ? 6 : 7;
+    // Ingredient tables: daily has 6 columns, logs now has 6 columns as well
+    colspan = 6;
     } else if (currentDataType === 'best') {
       colspan = 5;
+    } else if (currentDataType === 'sales') {
+      colspan = 8; // Updated untuk 7 kolom (termasuk Total Modal)
     }
 
     const icon = type === 'error' ? '❌' : type === 'warning' ? '⚠️' : '📊';
@@ -2655,11 +3299,11 @@ function updateSummaryWithData(data, type = 'sales') {
     
     if (summaryIncome) {
         if (type === 'sales') {
-            summaryIncome.textContent = `Rp ${(data.total_income || 0).toLocaleString()}`;
+            summaryIncome.textContent = `Rp ${(data.total_income || 0).toLocaleString('id-ID')}`;
         } else if (type === 'best') {
             const totalRevenue = data.best_sellers ? 
-                data.best_sellers.reduce((sum, item) => sum + (item.total_revenue || 0), 0) : 0;
-            summaryIncome.textContent = `Rp ${totalRevenue.toLocaleString()}`;
+                data.best_sellers.reduce((sum, item) => sum + (item.profit || 0), 0) : 0;
+            summaryIncome.textContent = `Rp ${totalRevenue.toLocaleString('id-ID')}`;
         }
     }
     
@@ -2849,10 +3493,10 @@ function generateInsight(data, topMenu, loyalCustomer) {
     const box = document.getElementById("insight-box");
     const content = document.getElementById("insight-content");
     const percent = topMenu && data.total_income ? ((topMenu.total || 0) / (data.total_income || 1) * 100).toFixed(1) : '0.0';
-    
-    const rangkuman = `📅 Periode ${data.start_date || 'N/A'} s/d ${data.end_date || 'N/A'} terjadi <strong>${data.total_order || 0}</strong> transaksi dengan total pendapatan <strong>Rp ${(data.total_income || 0).toLocaleString()}</strong>.`;
+
+    const rangkuman = `📅 Periode ${data.start_date || 'N/A'} s/d ${data.end_date || 'N/A'} terjadi <strong>${data.total_order || 0}</strong> transaksi dengan total pendapatan <strong>Rp ${(data.total_income || 0).toLocaleString('id-ID')}</strong>.`;
     const menuTerlaris = topMenu ? `📌 Menu paling laris: <strong>${topMenu.menu_name || 'N/A'}</strong> (${topMenu.quantity || 0} terjual), menyumbang ${percent}% pendapatan.` : "📌 Tidak ada data menu terlaris.";
-    const loyal = loyalCustomer ? `🏆 Pelanggan loyal: <strong>${loyalCustomer.customer_name || 'N/A'}</strong>, ${loyalCustomer.total_orders || 0}x order, Rp ${(loyalCustomer.total_spent || 0).toLocaleString()}.` : "";
+    const loyal = loyalCustomer ? `🏆 Pelanggan loyal: <strong>${loyalCustomer.customer_name || 'N/A'}</strong>, ${loyalCustomer.total_orders || 0}x order, Rp ${(loyalCustomer.total_spent || 0).toLocaleString('id-ID')}.` : "";
     
     content.innerHTML = [rangkuman, menuTerlaris, loyal].filter(Boolean).join('<br><br>');
     box.classList.remove("hidden");
@@ -2863,7 +3507,7 @@ function computeDataHash(arr) {
     try {
         if (!Array.isArray(arr)) return '0';
         // lightweight hash: join key fields to avoid heavy stringify
-        const key = arr.map(i => `${i.menu_name}|${i.quantity ?? i.total_quantity ?? 0}|${i.total ?? i.total_revenue ?? 0}`).join('#');
+        const key = arr.map(i => `${i.menu_name}|${i.quantity ?? i.total_quantity ?? 0}|${i.total ?? i.profit ?? 0}`).join('#');
         let hash = 0;
         for (let i = 0; i < key.length; i++) hash = ((hash << 5) - hash) + key.charCodeAt(i) | 0;
         return String(hash);
@@ -2915,24 +3559,24 @@ async function loadReport(rangeOverride = null, maybeEnd = null) {
             }
             
             const data = await res.json();
-        console.log('Report data received:', data);
+            console.log('Report data received:', data);
             currentReportData = data;
-        // Set current type as early as possible to avoid stale state
-        const previousType = currentDataType;
+            // Set current type as early as possible to avoid stale state
+            const previousType = currentDataType;
             currentDataType = 'sales';
 
             // Update summary with new structure
-        updateSummaryWithFinancialData(data, 'sales');
+            updateSummaryWithFinancialData(data, 'sales');
             applyModeLayout('sales');
 
             // Use transactions array for detailed data with flavor information
-            const rawDetails = Array.isArray(data.transactions) ? data.transactions : [];
-        console.log('Report transactions:', rawDetails);
+            const rawTransactions = Array.isArray(data.transactions) ? data.transactions : [];
+        console.log('Report transactions:', rawTransactions);
         console.log('Data structure:', data);
-        console.log('Transactions length:', rawDetails.length);
-        
+        console.log('Transactions length:', rawTransactions.length);
+
             // Aggregate sales data by menu + flavor combination
-            const details = aggregateSalesData(rawDetails);
+            const details = aggregateSalesData(rawTransactions);
         console.log('Aggregated sales data:', details);
         
             const newHash = computeDataHash(details);
@@ -2950,8 +3594,8 @@ async function loadReport(rangeOverride = null, maybeEnd = null) {
         const chartData = details.map(item => ({
             menu_name: item.menu_name || 'N/A',
             quantity: item.quantity || 0,
-            unit_price: item.base_price || 0,
-            total: item.total_price || 0
+            unit_price: item.unit_price || 0,
+            total: item.total_revenue || 0
         }));
         renderCharts(chartData);
 
@@ -3017,7 +3661,7 @@ async function loadBestSellerData(rangeOverride = null, maybeEnd = null) {
             
             // Calculate total revenue from best sellers
             const totalRevenue = data.best_sellers.reduce((sum, item) => sum + (item.total_revenue || 0), 0);
-            
+
             // Update summary with best seller data
             updateSummaryWithData(data, 'best');
             applyModeLayout('best');
@@ -3083,7 +3727,7 @@ async function loadTopCustomers(start, end, salesData, topMenu) {
         data.forEach((cust, i) => {
                 ul.innerHTML += `
                     <li style="padding: 8px 0; border-bottom: 1px solid #F3F4F6; color: #312929;">
-                        <strong>${cust.customer_name || 'N/A'}</strong> — ${cust.total_orders || 0}x | Rp ${(cust.total_spent || 0).toLocaleString()}
+                        <strong>${cust.customer_name || 'N/A'}</strong> — ${cust.total_orders || 0}x | Rp ${(cust.total_spent || 0).toLocaleString('id-ID')}
                     </li>`;
         });
         generateInsight(salesData, topMenu, data[0]);
@@ -3119,7 +3763,7 @@ async function fetchSuggestedMenu() {
             ul.innerHTML = "<li style='padding: 8px 0; color: #6B7280; font-style: italic;'>Tidak ada usulan pada periode ini.</li>";
         } else {
             data.forEach((item) => {
-                const date = new Date(item.last_suggested || new Date()).toLocaleString("id-ID");
+                const date = new Date(item.last_suggested || new Date()).toLocaleString('id-ID');
                 ul.innerHTML += `
                     <li style="padding: 8px 0; border-bottom: 1px solid #F3F4F6; color: #312929;">
                         <strong>${item.menu_name || 'N/A'}</strong> — ${item.usulan_count || 0}x (terakhir: ${date})
@@ -3166,48 +3810,58 @@ function exportSalesExcelEnhanced() {
     
     // Determine data type and structure
     const dataType = currentDataType || 'sales';
-    let totalQty = 0, totalRevenue = 0;
+    let totalQty = 0, totalRevenue = 0, totalModal = 0, totalProfit = 0;
     const itemMap = {};
     
     // Process data based on current data type
     data.forEach(r => {
-        let qty, price, total, menu, flavor;
+        let qty, price, revenue, modal, profit, menu, flavor;
         
         if (dataType === 'sales') {
             // Sales data structure (aggregated by menu + flavor)
             qty = Number(r.quantity || 0);
-            price = Number(r.base_price || 0);
-            total = Number(r.total_price || 0);
+            price = Number(r.unit_price || 0);
+            revenue = Number(r.total_revenue || r.profit || (qty * price) || 0);
+            modal = Number(r.total_ingredient_cost || 0);
+            profit = Number(r.profit || 0);
             menu = r.menu_name || 'Unknown';
             flavor = r.flavor || '-';
         } else if (dataType === 'best') {
             // Best seller data structure
             qty = Number(r.total_quantity || r.quantity || 0);
             price = Number(r.unit_price || 0);
-            total = Number(r.total_revenue || r.total || 0);
+            revenue = Number(r.total_revenue || r.total || 0);
+            modal = 0; // Best seller doesn't have modal data
+            profit = 0; // Best seller doesn't have profit data
             menu = r.menu_name || 'Unknown';
             flavor = '-'; // Best seller doesn't have flavor
         } else {
             // Fallback for other data types
             qty = Number(r.qty || r.quantity || r.amount || 0);
             price = Number(r.price || r.price_per_unit || r.unit_price || 0);
-            total = Number(r.total || r.revenue || (qty * price));
+            revenue = Number(r.total_revenue || r.total || (qty * price));
+            modal = Number(r.total_ingredient_cost || 0);
+            profit = Number(r.profit || 0);
             menu = r.menu_name || r.name || r.menu || 'Unknown';
             flavor = r.flavor || '-';
         }
         
         totalQty += qty; 
-        totalRevenue += total;
+        totalRevenue += revenue;
+        totalModal += modal;
+        totalProfit += profit;
         
         // Create unique key for aggregation (include flavor for sales)
         const key = dataType === 'sales' ? `${menu}|${flavor}` : menu;
-        if (!itemMap[key]) itemMap[key] = { qty: 0, revenue: 0, menu, flavor };
-        itemMap[key].qty += qty; 
-        itemMap[key].revenue += total;
+        if (!itemMap[key]) itemMap[key] = { qty: 0, revenue: 0, modal: 0, profit: 0, menu, flavor };
+        itemMap[key].qty += qty;
+        itemMap[key].revenue += revenue;
+        itemMap[key].modal += modal;
+        itemMap[key].profit += profit;
     });
     
     const topItems = Object.entries(itemMap)
-        .map(([key, v]) => ({ name: v.menu, flavor: v.flavor, qty: v.qty, revenue: v.revenue }))
+        .map(([key, v]) => ({ name: v.menu, flavor: v.flavor, qty: v.qty, revenue: v.revenue, modal: v.modal, profit: v.profit }))
         .sort((a,b) => b.qty - a.qty)
         .slice(0, 10);
     const allItems = Object.entries(itemMap)
@@ -3222,10 +3876,12 @@ function exportSalesExcelEnhanced() {
         ['Total Records', data.length],
         ['Total Qty', totalQty],
         ['Total Revenue', totalRevenue],
+        ['Total Modal', totalModal],
+        ['Total Profit', totalProfit],
         [''],
         ['Top 10 Items (by Qty)'],
-        dataType === 'sales' ? ['Item','Flavor','Qty','Revenue'] : ['Item','Qty','Revenue'],
-        ...topItems.map(i => dataType === 'sales' ? [i.name, i.flavor, i.qty, i.revenue] : [i.name, i.qty, i.revenue]),
+        dataType === 'sales' ? ['No', 'Menu', 'Flavor', 'Qty', 'Unit Price', 'Total Modal', 'Total Revenue', 'Total Profit'] : ['No', 'Menu', 'Qty', 'Revenue'],
+        ...topItems.map((i,idx) => dataType === 'sales' ? [idx+1, i.name, i.flavor, i.qty, 0, i.modal, i.revenue, i.profit] : [idx+1, i.name, i.qty, i.revenue]),
         [''],
         ['All Items Summary'],
         dataType === 'sales' ? ['Item','Flavor','Qty','Revenue'] : ['Item','Qty','Revenue'],
@@ -3236,38 +3892,40 @@ function exportSalesExcelEnhanced() {
     
     // Data Summary (raw rows)
     const dataAoA = dataType === 'sales' ? 
-        [['No','Item','Flavor','Qty','Price','Total']] : 
-        [['No','Item','Qty','Price','Total']];
+        [['No','Item','Flavor','Qty','Unit Price','Total Modal', 'Total Revenue', 'Total Profit']] : 
+        [['No','Item','Qty','Price','TotalRevenue']];
     
     data.forEach((r, i) => {
-        let name, flavor, qty, price, total;
+        let name, flavor, qty, price, totalRevenue, totalModal, totalProfit;
         
         if (dataType === 'sales') {
             name = r.menu_name || '-';
             flavor = r.flavor || '-';
             qty = Number(r.quantity || 0);
-            price = Number(r.base_price || 0);
-            total = Number(r.total_price || 0);
-            dataAoA.push([i+1, name, flavor, qty, price, total]);
+            price = Number(r.unit_price || 0);
+            totalModal = Number(r.total_ingredient_cost || 0);
+            totalRevenue = Number(r.total_revenue || r.total || 0);
+            totalProfit = Number(r.profit || 0);
+            dataAoA.push([i+1, name, flavor, qty, price, totalModal, totalRevenue, totalProfit]);
         } else if (dataType === 'best') {
             name = r.menu_name || '-';
             qty = Number(r.total_quantity || r.quantity || 0);
             price = Number(r.unit_price || 0);
-            total = Number(r.total_revenue || r.total || 0);
-            dataAoA.push([i+1, name, qty, price, total]);
+            totalRevenue = Number(r.total_revenue || r.total || 0);
+            dataAoA.push([i+1, name, qty, price, totalRevenue]);
         } else {
             name = r.menu_name || r.name || r.menu || '-';
             flavor = r.flavor || '-';
             qty = Number(r.qty || r.quantity || r.amount || 0);
             price = Number(r.price || r.price_per_unit || r.unit_price || 0);
-            total = Number(r.total || r.revenue || (qty * price));
-            dataAoA.push([i+1, name, flavor, qty, price, total]);
+            totalRevenue = Number(r.total || r.revenue || (qty * price));
+            dataAoA.push([i+1, name, flavor, qty, price, totalRevenue]);
         }
     });
     
     const wsData = XLSX.utils.aoa_to_sheet(dataAoA);
     wsData['!cols'] = dataType === 'sales' ? 
-        [{wch:6},{wch:30},{wch:18},{wch:10},{wch:12},{wch:14}] :
+        [{wch:6},{wch:30},{wch:18},{wch:10},{wch:12},{wch:14}, {wch:14}] :
         [{wch:6},{wch:30},{wch:10},{wch:12},{wch:14}];
     XLSX.utils.book_append_sheet(wb, wsData, dataType === 'sales' ? 'Sales Data' : dataType === 'best' ? 'Best Seller Data' : 'Data');
     
@@ -3289,7 +3947,7 @@ function exportSalesCSVEnhanced() {
         if (dataType === 'sales') {
             qty = Number(r.quantity || 0);
             price = Number(r.base_price || 0);
-            total = Number(r.total_price || 0);
+            total = Number(r.profit || 0);
             menu = r.menu_name || 'Unknown';
             flavor = r.flavor || '-';
         } else if (dataType === 'best') {
@@ -3423,43 +4081,53 @@ function exportSalesPDFEnhanced() {
     doc.setFontSize(10);
 
     const data = Array.isArray(baseData) ? baseData : [];
-    let totalQty = 0, totalAmount = 0;
+    let totalQty = 0, totalRevenue = 0, totalModal = 0, totalProfit = 0;
     const itemMap = {};
     
     data.forEach(r => {
-        let qty, price, total, menu, flavor;
+        let qty, price, revenue, modal, profit, menu, flavor;
         
         if (dataType === 'sales') {
             qty = Number(r.quantity || 0);
-            price = Number(r.base_price || 0);
-            total = Number(r.total_price || 0);
+            price = Number(r.unit_price || 0);
+            revenue = Number(r.total_revenue || 0);
+            modal = Number(r.total_ingredient_cost || 0);
+            profit = Number(r.profit || 0);
             menu = r.menu_name || 'Unknown';
             flavor = r.flavor || '-';
         } else if (dataType === 'best') {
             qty = Number(r.total_quantity || r.quantity || 0);
             price = Number(r.unit_price || 0);
-            total = Number(r.total_revenue || r.total || 0);
+            revenue = Number(r.total_revenue || r.total || 0);
+            modal = 0;
+            profit = 0;
             menu = r.menu_name || 'Unknown';
             flavor = '-';
         } else {
             qty = Number(r.qty || r.quantity || 0);
             price = Number(r.price || 0);
-            total = Number(r.total || (qty * price));
+            revenue = Number(r.total_revenue || (qty * price));
+            modal = Number(r.total_ingredient_cost || 0);
+            profit = Number(r.profit || 0);
             menu = r.menu_name || r.name || 'Unknown';
             flavor = r.flavor || '-';
         }
         
         totalQty += qty; 
-        totalAmount += total;
-        
+        totalRevenue += revenue;
+        totalModal += modal;
+        totalProfit += profit;
+
         const key = dataType === 'sales' ? `${menu}|${flavor}` : menu;
-        if (!itemMap[key]) itemMap[key] = { qty: 0, total: 0, menu, flavor };
+        if (!itemMap[key]) itemMap[key] = { qty: 0, revenue: 0, modal: 0, profit: 0, menu, flavor };
         itemMap[key].qty += qty; 
-        itemMap[key].total += total;
+        itemMap[key].revenue += revenue;
+        itemMap[key].modal += modal;
+        itemMap[key].profit += profit;
     });
     
     const topItems = Object.entries(itemMap)
-        .map(([key, v]) => ({ name: v.menu, flavor: v.flavor, qty: v.qty, total: v.total }))
+        .map(([key, v]) => ({ name: v.menu, flavor: v.flavor, qty: v.qty, revenue: v.revenue, modal: v.modal, profit: v.profit }))
         .sort((a,b) => b.qty - a.qty)
         .slice(0, 10);
 
@@ -3473,15 +4141,17 @@ function exportSalesPDFEnhanced() {
     doc.text(`Generated: ${new Date().toLocaleString('id-ID')}`, 60, y+7);
     doc.text(`Total Records: ${data.length}`, 120, y+7);
     doc.text(`Total Qty: ${totalQty}`, 60, y+14);
-    doc.text(`Total Revenue: ${totalAmount}`, 120, y+14);
+    doc.text(`Total Revenue: Rp ${totalRevenue.toLocaleString('id-ID')}`, 120, y+14);
+    doc.text(`Total Modal: Rp ${totalModal.toLocaleString('id-ID')}`, 60, y+21);
+    doc.text(`Total Profit: Rp ${totalProfit.toLocaleString('id-ID')}`, 120, y+21);
     y += 26;
 
     doc.setFont('helvetica','bold'); doc.text('Top 10 Items (by Qty):', 14, y); y+=6; doc.setFont('helvetica','normal');
     topItems.forEach((it, idx) => { 
         if (y>270){doc.addPage(); y=20;} 
         const itemText = dataType === 'sales' ? 
-            `${idx+1}. ${it.name} (${it.flavor}) - Qty: ${it.qty} | Total: ${it.total}` :
-            `${idx+1}. ${it.name} - Qty: ${it.qty} | Total: ${it.total}`;
+            `${idx+1}. ${it.name} (${it.flavor}) - Qty: ${it.qty} | Total: ${it.revenue}` :
+            `${idx+1}. ${it.name} - Qty: ${it.qty} | Total: ${it.revenue}`;
         doc.text(itemText, 14, y); y+=6; 
     });
 
@@ -3490,28 +4160,30 @@ function exportSalesPDFEnhanced() {
     doc.setFont('helvetica','bold'); doc.text(summaryTitle, 14, y); y+=4; doc.setFont('helvetica','normal');
 
     // Build table data (content unchanged)
-    const tableHead = dataType === 'sales' ? ['No', 'Item', 'Flavor', 'Qty', 'Price', 'Total'] : ['No', 'Item', 'Qty', 'Price', 'Total'];
+    const tableHead = dataType === 'sales' ? ['No', 'Menu', 'Flavor', 'Qty', 'Price', 'Modal', 'Revenue', 'Profit'] : ['No', 'Menu', 'Qty', 'Price', 'Total'];
     const tableBody = data.slice(0, 25).map((r, i) => {
         if (dataType === 'sales') {
             const name = r.menu_name || '-';
             const flavor = r.flavor || '-';
             const qty = Number(r.quantity || 0);
-            const price = Number(r.base_price || 0);
-            const total = Number(r.total_price || 0);
-            return [i+1, name, flavor, qty, price, total];
+            const price = Number(r.unit_price || 0);
+            const modal = Number(r.total_ingredient_cost || 0);
+            const revenue = Number(r.total_revenue || 0);
+            const profit = Number(r.profit || 0);
+            return [i+1, name, flavor, qty, price, modal, revenue, profit];
         } else if (dataType === 'best') {
             const name = r.menu_name || '-';
             const qty = Number(r.total_quantity || r.quantity || 0);
             const price = Number(r.unit_price || 0);
-            const total = Number(r.total_revenue || r.total || 0);
-            return [i+1, name, qty, price, total];
+            const revenue = Number(r.total_revenue || r.total || 0);
+            return [i+1, name, qty, price, revenue];
         } else {
             const name = r.menu_name || r.name || '-';
             const flavor = r.flavor || '-';
             const qty = Number(r.qty || r.quantity || 0);
             const price = Number(r.price || 0);
-            const total = Number(r.total || (qty * price));
-            return [i+1, name, flavor, qty, price, total];
+            const revenue = Number(r.total_revenue || r.total || (qty * price));
+            return [i+1, name, flavor, qty, price, revenue];
         }
     });
 
@@ -3547,20 +4219,24 @@ function aggregateSalesData(rawTransactions) {
                 menu_name: menuName,
                 flavor: flavor,
                 quantity: 0,
-                base_price: transaction.base_price || 0,
-                total_price: 0,
+                unit_price: transaction.base_price || 0,
+                total_ingredient_cost: 0,
+                total_revenue: 0,
+                profit: 0,
                 transaction_count: 0
             };
         }
         
         // Aggregate quantities and totals
         groupedData[key].quantity += (transaction.quantity || 0);
-        groupedData[key].total_price += (transaction.total_price || 0);
+        groupedData[key].total_ingredient_cost += (transaction.total_ingredient_cost || 0);
+        groupedData[key].total_revenue += (transaction.total_price || 0);
+        groupedData[key].profit += (transaction.profit || 0);
         groupedData[key].transaction_count += 1;
     });
     
     // Convert grouped data to array and sort by total_price descending
-    return Object.values(groupedData).sort((a, b) => b.total_price - a.total_price);
+    return Object.values(groupedData).sort((a, b) => b.profit - a.profit);
 }
 
 // ========== PAGINATION FUNCTIONS ==========
@@ -3723,18 +4399,18 @@ function renderReportTable() {
             if (currentDataType === 'ingredient') {
                 const viewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
                 if (viewMode === 'logs') {
-                    // Render as logs row regardless of field presence to keep layout consistent
-                    const totalOrdersCol = (item.order_count ?? (Array.isArray(item.order_ids) ? item.order_ids.length : 0) ?? 0);
+                    // Aggregated per menu + flavor across the selected range
+                    const used = (item.ingredients_affected ?? item.total_qty ?? 0);
+                    const orderIdsCsv = (item.order_ids || []).join(',');
                     tbody.innerHTML += `
-                        <tr onclick="openGroupedConsumptionModal('${(item.order_ids || []).join(',')}', '${item.date || ''}', '${item.status_text || ''}', '${item.menu_name || ''}', '${item.flavor || ''}')" style="cursor: pointer;">
+                        <tr onclick="openGroupedConsumptionModal('${orderIdsCsv}', '${item.date || ''}', '${item.status_text || ''}', '${item.menu_name || ''}', '')" style="cursor: pointer;">
                             <td>${actualIndex + 1}</td>
                             <td>${item.menu_name || '-'}</td>
-                            <td>${item.flavor || 'Default'}</td>
                             <td>${item.date || '-'}</td>
-                            <td>${Number(totalOrdersCol).toLocaleString()}</td>
-                            <td>${(item.ingredients_affected ?? item.total_qty ?? 0).toLocaleString()}</td>
+                            <td>${Number((item.order_count ?? (((item.order_ids || []).length) || 0))).toLocaleString('id-ID')}</td>
+                            <td>${Number(used).toLocaleString('id-ID')}</td>
                             <td>
-                                <button class="table-action-btn" onclick="event.stopPropagation(); openGroupedConsumptionModal('${(item.order_ids || []).join(',')}', '${item.date || ''}', '${item.status_text || ''}', '${item.menu_name || ''}', '${item.flavor || ''}')" title="Lihat Detail">
+                                <button class="table-action-btn" onclick="event.stopPropagation(); openGroupedConsumptionModal('${orderIdsCsv}', '${item.date || ''}', '${item.status_text || ''}', '${item.menu_name || ''}', '')" title="Lihat Pesanan">
                                     <i class="fas fa-eye"></i>
                                 </button>
                             </td>
@@ -3756,8 +4432,8 @@ function renderReportTable() {
                                    <span style="background:#F5F3FF; color:#4C1D95; border:1px solid #DDD6FE; padding:.2rem .5rem; border-radius:9999px; font-weight:600;">${uniqueMenus} unique menus</span>
                                 </div>
                             </td>
-                            <td style="text-align: center; font-weight: 600; color: #059669;">${totalOrders.toLocaleString()}</td>
-                            <td style="text-align: center; font-weight: 600; color: #DC2626;">${totalConsumption.toLocaleString()}</td>
+                            <td style="text-align: center; font-weight: 600; color: #059669;">${totalOrders.toLocaleString('id-ID')}</td>
+                            <td style="text-align: center; font-weight: 600; color: #DC2626;">${totalConsumption.toLocaleString('id-ID')}</td>
                             <td>
                                           <button class="table-action-btn" onclick="event.stopPropagation(); viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}'); setTimeout(()=>{ const p=document.getElementById('ingredient-details-panel'); if(p && !p.classList.contains('hidden')) p.scrollIntoView({behavior:'smooth', block:'start', inline:'nearest'}); }, 150);" style="white-space: nowrap; min-width: 80px;">
                                    <i class="fas fa-eye"></i>
@@ -3768,20 +4444,25 @@ function renderReportTable() {
             } else if (currentDataType === 'sales') {
                 // Sales data - show aggregated flavor information
                 console.log('Rendering sales item:', item);
+                const menuName = item.menu_name || 'N/A';
                 const flavor = item.flavor || '-';
-                const totalPrice = item.total_price || 0;
-                const unitPrice = item.base_price || 0;
                 const quantity = item.quantity || 0;
-                const transactionCount = item.transaction_count || 1;
+                const unitPrice = item.unit_price || 0;
+                const totalIngredientCost = item.total_ingredient_cost || 0;
+                const totalRevenue = item.total_revenue || 0;
+                const profit = item.profit || 0;
+                // const transactionCount = item.transaction_count || 1;
                 
                 tbody.innerHTML += `
                     <tr>
                         <td>${actualIndex + 1}</td>
-                        <td>${item.menu_name || 'N/A'}</td>
+                        <td>${menuName}</td>
                         <td>${flavor}</td>
-                        <td>${quantity.toLocaleString()}</td>
-                        <td>Rp ${unitPrice.toLocaleString()}</td>
-                        <td>Rp ${totalPrice.toLocaleString()}</td>
+                        <td>${quantity.toLocaleString('id-ID')}</td>
+                        <td>Rp ${unitPrice.toLocaleString('id-ID')}</td>
+                        <td>Rp ${totalIngredientCost.toLocaleString('id-ID')}</td>
+                        <td>Rp ${totalRevenue.toLocaleString('id-ID')}</td>
+                        <td>Rp ${profit.toLocaleString('id-ID')}</td>
                     </tr>`;
             } else {
                 // Best Seller data - aggregated view
@@ -3791,13 +4472,15 @@ function renderReportTable() {
                     <td>${actualIndex + 1}</td>
                     <td>${item.menu_name || 'N/A'}</td>
                     <td>${item.quantity || item.total_quantity || 0}</td>
-                    <td>Rp ${(item.unit_price || 0).toLocaleString()}</td>
-                    <td>Rp ${(item.total || item.total_revenue || 0).toLocaleString()}</td>
+                    <td>Rp ${(item.unit_price || 0).toLocaleString('id-ID')}</td>
+                    <td>Rp ${(item.total || item.total_revenue || 0).toLocaleString('id-ID')}</td>
                 </tr>`;
             }
         });
         // Totals row for daily view (UX clarity)
-        if (currentDataType === 'ingredient' && currentPageData[0] && !currentPageData[0].menu_name) {
+        if (currentDataType === 'ingredient') {
+            const viewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
+            if (viewMode === 'daily' && currentPageData[0] && !currentPageData[0].menu_name) {
             const totals = currentPageData.reduce((acc, it) => {
                 const s = it.daily_summary || {};
                 acc.orders += (s.total_orders || 0);
@@ -3807,10 +4490,11 @@ function renderReportTable() {
             tbody.innerHTML += `
                 <tr style="background:#F9FAFB; font-weight:600;">
                     <td colspan="3" style="text-align:right; padding-right:8px;">Daily Total</td>
-                    <td style="text-align:center; color:#059669;">${totals.orders.toLocaleString()}</td>
-                    <td style="text-align:center; color:#DC2626; border-top-right-radius: 0.5rem; border-bottom-right-radius: 0.5rem;">${totals.ingredients.toLocaleString()}</td>
+                    <td style="text-align:center; color:#059669;">${totals.orders.toLocaleString('id-ID')}</td>
+                    <td style="text-align:center; color:#DC2626; border-top-right-radius: 0.5rem; border-bottom-right-radius: 0.5rem;">${totals.ingredients.toLocaleString('id-ID')}</td>
                     <td></td>
              </tr>`;
+            }
         }
     } else {
         // No data to display
@@ -3941,8 +4625,9 @@ function initializeElements() {
                     item.menu_name,
                     item.flavor,
                     item.quantity,
-                    item.base_price,
-                    item.total_price
+                    item.unit_price,
+                    item.total_ingredient_cost,
+                    item.profit
                 ];
                 return fields.some(f => S(f).includes(term));
             });
@@ -4064,7 +4749,6 @@ async function applyReportFilter() {
             const term = document.getElementById('table-search-input')?.value.toLowerCase() || '';
             filteredData = term ? dataToSort.filter(i => 
                 (i.menu_name || '').toLowerCase().includes(term) || 
-                (i.flavor || '').toLowerCase().includes(term) || 
                 (i.order_id || '').toLowerCase().includes(term) || 
                 (i.date || '').toLowerCase().includes(term) || 
                 (i.status_text || '').toLowerCase().includes(term)
@@ -4082,8 +4766,8 @@ async function applyReportFilter() {
                 return qb - qa; // desc
             }
             if (val === 'total') {
-                const ta = a.total ?? a.total_revenue ?? 0;
-                const tb = b.total ?? b.total_revenue ?? 0;
+                const ta = a.total ?? a.profit ?? 0;
+                const tb = b.total ?? b.profit ?? 0;
                 return tb - ta; // desc
             }
             return 0;
@@ -4159,7 +4843,7 @@ function resetToNormalMode() {
         tableHeader.innerHTML = `
             <th>No</th>
             <th>Menu</th>
-            <th>Flavor</th>
+            
             <th>Qty</th>
             <th>Price</th>
             <th>Total</th>
@@ -4256,10 +4940,11 @@ function applyModeLayout(mode) {
             tableHeader.innerHTML = `
             <th>No</th>
             <th>Menu</th>
-                <th>Flavor</th>
-                <th>Qty</th>
-                <th>Price</th>
-                <th>Total</th>
+            <th>Flavor</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th>Total Modal</th>
+            <th>Total Revenue</th>
             `;
         } else if (isBest) {
             // Best Seller mode: no flavor column
@@ -4267,7 +4952,7 @@ function applyModeLayout(mode) {
             <th>No</th>
             <th>Menu</th>
             <th>Qty</th>
-            <th>Price</th>
+            <th>Unit Price</th>
             <th>Total</th>
         `;
         }
