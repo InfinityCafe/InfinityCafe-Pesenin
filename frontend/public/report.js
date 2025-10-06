@@ -1171,11 +1171,11 @@ function updateIngredientSummary(dataset = null) {
     }
 
     if (summaryIncome) {
-        summaryIncome.textContent = `${totalIngredients.toLocaleString()} bahan`;
+        summaryIncome.textContent = `${totalIngredients.toLocaleString('id-ID')} bahan`;
     }
 
     if (summaryOrders) {
-        summaryOrders.textContent = `${totalOrders.toLocaleString()} pesanan`;
+        summaryOrders.textContent = `${totalOrders.toLocaleString('id-ID')} pesanan`;
     }
 
     let uniqueMenuCount = uniqueMenus.size;
@@ -1187,7 +1187,7 @@ function updateIngredientSummary(dataset = null) {
     if (totalMenuEl) totalMenuEl.textContent = uniqueMenuCount ? uniqueMenuCount : '-';
 
     const totalIngredientsEl = document.getElementById('ingredient-total-ingredients');
-    if (totalIngredientsEl) totalIngredientsEl.textContent = totalIngredients.toLocaleString();
+    if (totalIngredientsEl) totalIngredientsEl.textContent = totalIngredients.toLocaleString('id-ID');
 
     const mostIngredientsEl = document.getElementById('ingredient-most-ingredients');
     if (mostIngredientsEl) {
@@ -1198,7 +1198,7 @@ function updateIngredientSummary(dataset = null) {
             }
             return acc;
         }, null);
-        mostIngredientsEl.textContent = topMenu && topMenu.name ? `${topMenu.name} (${topMenu.qty.toLocaleString()} bahan)` : '-';
+        mostIngredientsEl.textContent = topMenu && topMenu.name ? `${topMenu.name} (${topMenu.qty.toLocaleString('id-ID')} bahan)` : '-';
     }
 
     const mostUsedEl = document.getElementById('ingredient-most-used');
@@ -1316,10 +1316,10 @@ function hideIngredientDetailsPanel() {
                 <tr style="border-bottom: 1px solid #F3F4F6;">
                     <td>${idx + 1}</td>
                     <td>${ingredientName}</td>
-                    <td>${Number(quantityConsumed).toLocaleString()}</td>
+                    <td>${Number(quantityConsumed).toLocaleString('id-ID')}</td>
                     <td>${unit}</td>
-                    <td>${Number(stockBefore).toLocaleString()}</td>
-                    <td>${Number(stockAfter).toLocaleString()}</td>
+                    <td>${Number(stockBefore).toLocaleString('id-ID')}</td>
+                    <td>${Number(stockAfter).toLocaleString('id-ID')}</td>
                 </tr>
             `;
         }).join('');
@@ -1367,14 +1367,14 @@ function hideIngredientDetailsPanel() {
                         const name = ing?.ingredient_name || '-';
                         const rq = Number(ing?.required_quantity || 0) || 0;
                         const unit = ing?.unit || '';
-                        return `${name} (${rq.toLocaleString()} ${unit})`;
+                        return `${name} (${rq.toLocaleString('id-ID')} ${unit})`;
                     }).join(', ');
                     return `
                         <tr style="border-bottom: 1px solid #F3F4F6;">
                             <td>${i + 1}</td>
                             <td>${menuName}</td>
                             <td>${pref || '-'}</td>
-                            <td>${qty.toLocaleString()}</td>
+                            <td>${qty.toLocaleString('id-ID')}</td>
                             <td style="white-space: normal; line-height: 1.4;">${ingStr || '-'}</td>
                         </tr>`;
                 }).join('');
@@ -1569,7 +1569,7 @@ function hideIngredientDetailsPanel() {
                              <div style="font-size: 0.9rem; color: #6B7280;">Jenis Bahan</div>
                          </div>
                          <div style="text-align: center;">
-                             <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${(summary.total_quantity_consumed || 0).toLocaleString()}</div>
+                             <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${(summary.total_quantity_consumed || 0).toLocaleString('id-ID')}</div>
                              <div style="font-size: 0.9rem; color: #6B7280;">Total Konsumsi</div>
                          </div>
                      </div>
@@ -3216,7 +3216,7 @@ function updateSummaryWithFinancialData(data, type = 'sales') {
     if (summaryIncome) {
         const summary = data.summary;
         if (summary) {
-            summaryIncome.textContent = `Rp ${(summary.total_profit || 0).toLocaleString()}`;
+            summaryIncome.textContent = `Rp ${(summary.total_profit || 0).toLocaleString('id-ID')}`;
         } else {
             summaryIncome.textContent = 'Rp 0';
         }
@@ -3265,7 +3265,7 @@ function showEmptyState(message, type = 'info') {
     } else if (currentDataType === 'best') {
       colspan = 5;
     } else if (currentDataType === 'sales') {
-      colspan = 7; // Updated untuk 7 kolom (termasuk Total Modal)
+      colspan = 8; // Updated untuk 7 kolom (termasuk Total Modal)
     }
 
     const icon = type === 'error' ? '❌' : type === 'warning' ? '⚠️' : '📊';
@@ -3299,11 +3299,11 @@ function updateSummaryWithData(data, type = 'sales') {
     
     if (summaryIncome) {
         if (type === 'sales') {
-            summaryIncome.textContent = `Rp ${(data.total_income || 0).toLocaleString()}`;
+            summaryIncome.textContent = `Rp ${(data.total_income || 0).toLocaleString('id-ID')}`;
         } else if (type === 'best') {
             const totalRevenue = data.best_sellers ? 
                 data.best_sellers.reduce((sum, item) => sum + (item.profit || 0), 0) : 0;
-            summaryIncome.textContent = `Rp ${totalRevenue.toLocaleString()}`;
+            summaryIncome.textContent = `Rp ${totalRevenue.toLocaleString('id-ID')}`;
         }
     }
     
@@ -3493,10 +3493,10 @@ function generateInsight(data, topMenu, loyalCustomer) {
     const box = document.getElementById("insight-box");
     const content = document.getElementById("insight-content");
     const percent = topMenu && data.total_income ? ((topMenu.total || 0) / (data.total_income || 1) * 100).toFixed(1) : '0.0';
-    
-    const rangkuman = `📅 Periode ${data.start_date || 'N/A'} s/d ${data.end_date || 'N/A'} terjadi <strong>${data.total_order || 0}</strong> transaksi dengan total pendapatan <strong>Rp ${(data.total_income || 0).toLocaleString()}</strong>.`;
+
+    const rangkuman = `📅 Periode ${data.start_date || 'N/A'} s/d ${data.end_date || 'N/A'} terjadi <strong>${data.total_order || 0}</strong> transaksi dengan total pendapatan <strong>Rp ${(data.total_income || 0).toLocaleString('id-ID')}</strong>.`;
     const menuTerlaris = topMenu ? `📌 Menu paling laris: <strong>${topMenu.menu_name || 'N/A'}</strong> (${topMenu.quantity || 0} terjual), menyumbang ${percent}% pendapatan.` : "📌 Tidak ada data menu terlaris.";
-    const loyal = loyalCustomer ? `🏆 Pelanggan loyal: <strong>${loyalCustomer.customer_name || 'N/A'}</strong>, ${loyalCustomer.total_orders || 0}x order, Rp ${(loyalCustomer.total_spent || 0).toLocaleString()}.` : "";
+    const loyal = loyalCustomer ? `🏆 Pelanggan loyal: <strong>${loyalCustomer.customer_name || 'N/A'}</strong>, ${loyalCustomer.total_orders || 0}x order, Rp ${(loyalCustomer.total_spent || 0).toLocaleString('id-ID')}.` : "";
     
     content.innerHTML = [rangkuman, menuTerlaris, loyal].filter(Boolean).join('<br><br>');
     box.classList.remove("hidden");
@@ -3727,7 +3727,7 @@ async function loadTopCustomers(start, end, salesData, topMenu) {
         data.forEach((cust, i) => {
                 ul.innerHTML += `
                     <li style="padding: 8px 0; border-bottom: 1px solid #F3F4F6; color: #312929;">
-                        <strong>${cust.customer_name || 'N/A'}</strong> — ${cust.total_orders || 0}x | Rp ${(cust.total_spent || 0).toLocaleString()}
+                        <strong>${cust.customer_name || 'N/A'}</strong> — ${cust.total_orders || 0}x | Rp ${(cust.total_spent || 0).toLocaleString('id-ID')}
                     </li>`;
         });
         generateInsight(salesData, topMenu, data[0]);
@@ -3763,7 +3763,7 @@ async function fetchSuggestedMenu() {
             ul.innerHTML = "<li style='padding: 8px 0; color: #6B7280; font-style: italic;'>Tidak ada usulan pada periode ini.</li>";
         } else {
             data.forEach((item) => {
-                const date = new Date(item.last_suggested || new Date()).toLocaleString("id-ID");
+                const date = new Date(item.last_suggested || new Date()).toLocaleString('id-ID');
                 ul.innerHTML += `
                     <li style="padding: 8px 0; border-bottom: 1px solid #F3F4F6; color: #312929;">
                         <strong>${item.menu_name || 'N/A'}</strong> — ${item.usulan_count || 0}x (terakhir: ${date})
@@ -4141,9 +4141,9 @@ function exportSalesPDFEnhanced() {
     doc.text(`Generated: ${new Date().toLocaleString('id-ID')}`, 60, y+7);
     doc.text(`Total Records: ${data.length}`, 120, y+7);
     doc.text(`Total Qty: ${totalQty}`, 60, y+14);
-    doc.text(`Total Revenue: Rp ${totalRevenue.toLocaleString()}`, 120, y+14);
-    doc.text(`Total Modal: Rp ${totalModal.toLocaleString()}`, 60, y+21);
-    doc.text(`Total Profit: Rp ${totalProfit.toLocaleString()}`, 120, y+21);
+    doc.text(`Total Revenue: Rp ${totalRevenue.toLocaleString('id-ID')}`, 120, y+14);
+    doc.text(`Total Modal: Rp ${totalModal.toLocaleString('id-ID')}`, 60, y+21);
+    doc.text(`Total Profit: Rp ${totalProfit.toLocaleString('id-ID')}`, 120, y+21);
     y += 26;
 
     doc.setFont('helvetica','bold'); doc.text('Top 10 Items (by Qty):', 14, y); y+=6; doc.setFont('helvetica','normal');
@@ -4407,8 +4407,8 @@ function renderReportTable() {
                             <td>${actualIndex + 1}</td>
                             <td>${item.menu_name || '-'}</td>
                             <td>${item.date || '-'}</td>
-                            <td>${Number((item.order_count ?? (((item.order_ids || []).length) || 0))).toLocaleString()}</td>
-                            <td>${Number(used).toLocaleString()}</td>
+                            <td>${Number((item.order_count ?? (((item.order_ids || []).length) || 0))).toLocaleString('id-ID')}</td>
+                            <td>${Number(used).toLocaleString('id-ID')}</td>
                             <td>
                                 <button class="table-action-btn" onclick="event.stopPropagation(); openGroupedConsumptionModal('${orderIdsCsv}', '${item.date || ''}', '${item.status_text || ''}', '${item.menu_name || ''}', '')" title="Lihat Pesanan">
                                     <i class="fas fa-eye"></i>
@@ -4432,8 +4432,8 @@ function renderReportTable() {
                                    <span style="background:#F5F3FF; color:#4C1D95; border:1px solid #DDD6FE; padding:.2rem .5rem; border-radius:9999px; font-weight:600;">${uniqueMenus} unique menus</span>
                                 </div>
                             </td>
-                            <td style="text-align: center; font-weight: 600; color: #059669;">${totalOrders.toLocaleString()}</td>
-                            <td style="text-align: center; font-weight: 600; color: #DC2626;">${totalConsumption.toLocaleString()}</td>
+                            <td style="text-align: center; font-weight: 600; color: #059669;">${totalOrders.toLocaleString('id-ID')}</td>
+                            <td style="text-align: center; font-weight: 600; color: #DC2626;">${totalConsumption.toLocaleString('id-ID')}</td>
                             <td>
                                           <button class="table-action-btn" onclick="event.stopPropagation(); viewConsumptionDetails('Daily-${item.date || ''}', '${item.date || ''}', '${item.status_text || ''}'); setTimeout(()=>{ const p=document.getElementById('ingredient-details-panel'); if(p && !p.classList.contains('hidden')) p.scrollIntoView({behavior:'smooth', block:'start', inline:'nearest'}); }, 150);" style="white-space: nowrap; min-width: 80px;">
                                    <i class="fas fa-eye"></i>
@@ -4458,11 +4458,11 @@ function renderReportTable() {
                         <td>${actualIndex + 1}</td>
                         <td>${menuName}</td>
                         <td>${flavor}</td>
-                        <td>${quantity.toLocaleString()}</td>
-                        <td>Rp ${unitPrice.toLocaleString()}</td>
-                        <td>Rp ${totalIngredientCost.toLocaleString()}</td>
-                        <td>Rp ${totalRevenue.toLocaleString()}</td>
-                        <td>Rp ${profit.toLocaleString()}</td>
+                        <td>${quantity.toLocaleString('id-ID')}</td>
+                        <td>Rp ${unitPrice.toLocaleString('id-ID')}</td>
+                        <td>Rp ${totalIngredientCost.toLocaleString('id-ID')}</td>
+                        <td>Rp ${totalRevenue.toLocaleString('id-ID')}</td>
+                        <td>Rp ${profit.toLocaleString('id-ID')}</td>
                     </tr>`;
             } else {
                 // Best Seller data - aggregated view
@@ -4472,8 +4472,8 @@ function renderReportTable() {
                     <td>${actualIndex + 1}</td>
                     <td>${item.menu_name || 'N/A'}</td>
                     <td>${item.quantity || item.total_quantity || 0}</td>
-                    <td>Rp ${(item.unit_price || 0).toLocaleString()}</td>
-                    <td>Rp ${(item.total || item.total_revenue || 0).toLocaleString()}</td>
+                    <td>Rp ${(item.unit_price || 0).toLocaleString('id-ID')}</td>
+                    <td>Rp ${(item.total || item.total_revenue || 0).toLocaleString('id-ID')}</td>
                 </tr>`;
             }
         });
@@ -4490,8 +4490,8 @@ function renderReportTable() {
             tbody.innerHTML += `
                 <tr style="background:#F9FAFB; font-weight:600;">
                     <td colspan="3" style="text-align:right; padding-right:8px;">Daily Total</td>
-                    <td style="text-align:center; color:#059669;">${totals.orders.toLocaleString()}</td>
-                    <td style="text-align:center; color:#DC2626; border-top-right-radius: 0.5rem; border-bottom-right-radius: 0.5rem;">${totals.ingredients.toLocaleString()}</td>
+                    <td style="text-align:center; color:#059669;">${totals.orders.toLocaleString('id-ID')}</td>
+                    <td style="text-align:center; color:#DC2626; border-top-right-radius: 0.5rem; border-bottom-right-radius: 0.5rem;">${totals.ingredients.toLocaleString('id-ID')}</td>
                     <td></td>
              </tr>`;
             }
