@@ -127,7 +127,7 @@ async function renderMenuTable() {
         row.innerHTML = `
             <td>${startIndex + index + 1}</td>
             <td>${menu.base_name_en}</td>
-            <td>Rp ${menu.base_price.toLocaleString()}</td>
+            <td>Rp ${menu.base_price.toLocaleString('id-ID')}</td>
             <td>
               ${menu.isAvail ? '<span class="status-badge status-available">Available</span>' : '<span class="status-badge status-unavailable">Unavailable</span>'}
             </td>
@@ -298,7 +298,7 @@ function renderFlavorTable() {
             row.innerHTML = `
                 <td>${startIndex + index + 1}</td>
                 <td>${flavor.flavor_name_en}</td>
-                <td>Rp ${flavor.additional_price.toLocaleString()}</td>
+                <td>Rp ${flavor.additional_price.toLocaleString('id-ID')}</td>
                 <td>${flavor.isAvail ? '<span class="status-badge status-available">Available</span>' : '<span class="status-badge status-unavailable">Unavailable</span>'}</td>
                 <td class="action-header">
                     <button class="table-action-btn" onclick="viewFlavor('${flavor.id}')"><i class="fas fa-eye"></i></button>
@@ -998,7 +998,7 @@ async function viewMenu(menuId) {
         }
 
         document.getElementById('view-menu-name').textContent = `${menu.base_name_en || 'Unknown'} / ${menu.base_name_id || 'Unknown'}`;
-        document.getElementById('view-menu-price').textContent = `Rp ${(menu.base_price || 0).toLocaleString()}`;
+        document.getElementById('view-menu-price').textContent = `Rp ${(menu.base_price || 0).toLocaleString('id-ID')}`;
         document.getElementById('view-menu-available').innerHTML =
             `<span class="status-badge ${menu.isAvail ? 'status-available' : 'status-unavailable'}">
                 ${menu.isAvail ? 'Available' : 'Unavailable'}
@@ -1007,7 +1007,7 @@ async function viewMenu(menuId) {
         let flavorsText = 'None';
         if (menu.flavors && menu.flavors.length > 0) {
             const flavorItems = menu.flavors.map(flavor => 
-                `<div class="flavor-item">${flavor.flavor_name_en || 'Unknown' }<span class="flavor-price">(+Rp ${flavor.additional_price.toLocaleString()})</span></div>`
+                `<div class="flavor-item">${flavor.flavor_name_en || 'Unknown' }<span class="flavor-price">(+Rp ${flavor.additional_price.toLocaleString('id-ID')})</span></div>`
             );
             flavorsText = flavorItems.join('');
         }
@@ -1042,7 +1042,7 @@ async function viewFlavor(flavorId) {
         const flavor = await response.json();
         
         document.getElementById('view-flavor-name').textContent = `${flavor.flavor_name_en} / ${flavor.flavor_name_id}`;
-        document.getElementById('view-flavor-price').textContent = `Rp ${flavor.additional_price.toLocaleString()}`;
+        document.getElementById('view-flavor-price').textContent = `Rp ${flavor.additional_price.toLocaleString('id-ID')}`;
         document.getElementById('view-flavor-available').innerHTML =
             `<span class="status-badge ${flavor.isAvail ? 'status-available' : 'status-unavailable'}">
                 ${flavor.isAvail ? 'Available' : 'Unavailable'}
@@ -1391,7 +1391,7 @@ function populateFlavorCheckboxes() {
                    onchange="updateSelectedFlavors()">
             <label for="flavor-${flavor.id}">
                 ${flavor.flavor_name_en} / ${flavor.flavor_name_id}
-                <span class="flavor-price">(+Rp ${flavor.additional_price.toLocaleString()})</span>
+                <span class="flavor-price">(+Rp ${flavor.additional_price.toLocaleString('id-ID')})</span>
             </label>
         `;
         flavorCheckboxes.appendChild(checkboxItem);
@@ -1446,7 +1446,7 @@ function populateEditFlavorCheckboxes() {
                    onchange="updateSelectedEditFlavors()">
             <label for="edit-flavor-${flavor.id}">
                 ${flavor.flavor_name_en} / ${flavor.flavor_name_id}
-                <span class="flavor-price">(+Rp ${flavor.additional_price.toLocaleString()})</span>
+                <span class="flavor-price">(+Rp ${flavor.additional_price.toLocaleString('id-ID')})</span>
             </label>
         `;
         flavorCheckboxes.appendChild(checkboxItem);
