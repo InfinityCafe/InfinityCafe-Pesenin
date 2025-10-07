@@ -1451,21 +1451,79 @@ function hideIngredientDetailsPanel() {
         }
         console.log('Original dateStr:', dateStr);
         console.log('Date ISO override:', dateIsoOverride);
-        console.log('Fetching daily consumption for date:', dateParam);
-         
-         // Fetch daily consumption data from inventory service
-         const response = await fetch(`/inventory/consumption/daily?date=${dateParam}`);
-         if (!response.ok) {
-             throw new Error(`HTTP error! status: ${response.status}`);
-         }
-         
-         const json = await response.json();
-         console.log('Daily consumption response:', json);
-         
-         const dailyData = json?.data?.daily_consumption?.[0];
-         
+        console.log('Fetching daily consumption; computed dateParam:', dateParam);
+
+        // Global range inputs (for correct backend query)
+        const globalStartInput = document.getElementById('start_date')?.value;
+        const globalEndInput = document.getElementById('end_date')?.value;
+        const rangeSelected = globalStartInput && globalEndInput && globalStartInput !== globalEndInput;
+
+        let json;
+        let dailyData; // for single-date path
+
+        // Helper to aggregate multi-day payload
+        const aggregateRangeDays = (allDays, startVal, endVal) => {
+            const ingredientMap = {};
+            const allOrders = [];
+            allDays.forEach(d => {
+                (d.orders || []).forEach(o => allOrders.push(o));
+                (d.ingredients_consumed || []).forEach(ing => {
+                    const key = ing.ingredient_name + '|' + (ing.unit || '');
+                    if (!ingredientMap[key]) {
+                        ingredientMap[key] = {
+                            ingredient_name: ing.ingredient_name,
+                            total_consumed: 0,
+                            unit: ing.unit || '-',
+                            consumption_count: 0
+                        };
+                    }
+                    ingredientMap[key].total_consumed += Number(ing.total_consumed || 0);
+                    ingredientMap[key].consumption_count += Number(ing.consumption_count || 0);
+                });
+            });
+            const aggregated = Object.values(ingredientMap).sort((a,b)=> b.total_consumed - a.total_consumed);
+            body.innerHTML = aggregated.map((ing, idx) => `
+                <tr style="border-bottom:1px solid #F3F4F6;">
+                    <td>${idx + 1}</td>
+                    <td>${ing.ingredient_name}</td>
+                    <td>${Number(ing.total_consumed).toLocaleString()}</td>
+                    <td>${ing.unit}</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+            `).join('');
+            if (!aggregated.length) {
+                body.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:1.25rem; color:#6B7280;">Tidak ada data konsumsi pada rentang ini</td></tr>';
+            }
+            const panelTitle = document.querySelector('#ingredient-details-panel .summary-name');
+            if (panelTitle) panelTitle.textContent = `🥤 Ingredient Consumption (Range ${startVal} s/d ${endVal})`;
+            return { aggregated, allOrders };
+        };
+
+        if (rangeSelected) {
+            // Query backend with start_date & end_date so backend mode = date_range (bukan single_date)
+            const url = `/inventory/consumption/daily?start_date=${encodeURIComponent(globalStartInput)}&end_date=${encodeURIComponent(globalEndInput)}`;
+            console.log('[Range] Fetch URL:', url);
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            json = await resp.json();
+            console.log('[Range] Daily consumption response:', json);
+            const allDays = Array.isArray(json?.data?.daily_consumption) ? json.data.daily_consumption : [];
+            // Aggregate immediately and stop (do not proceed to single-date logic)
+            aggregateRangeDays(allDays, globalStartInput, globalEndInput);
+            return; // Done for range mode
+        } else {
+            // Single date fetch
+            const response = await fetch(`/inventory/consumption/daily?date=${dateParam}`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            json = await response.json();
+            console.log('Daily consumption response:', json);
+            dailyData = json?.data?.daily_consumption?.[0];
+        }
         if (!dailyData) {
-            body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #615a5a; padding: 1.5rem; font-weight: 500;">Tidak ada data detail untuk tanggal ini</td></tr>';
+            body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #615a5a; padding: 1.5rem; font-weight: 500;">Tidak ada data detail untuk tanggal ini</td></tr>';
             return;
         }
          
@@ -5222,9 +5280,93 @@ async function openGroupedConsumptionModal(orderIdsCsv, dateStr, statusText, men
         console.log('openGroupedConsumptionModal called with:', { orderIdsCsv, dateStr, statusText, menuName, flavorName });
         const orderIds = String(orderIdsCsv || '').split(',').map(s => s.trim()).filter(Boolean);
         console.log('Parsed order IDs:', orderIds);
-        const matches = (kitchenOrdersCache || []).filter(o => orderIds.includes(String(o.order_id)));
-        console.log('Found matches:', matches);
+        let matches = (kitchenOrdersCache || []).filter(o => orderIds.includes(String(o.order_id)));
+        console.log('Initial found matches:', matches.length, matches);
         console.log('kitchenOrdersCache length:', kitchenOrdersCache.length);
+
+        // Parse dateStr that may be range "DD/MM/YYYY - DD/MM/YYYY" or single
+        let rangeStart = null, rangeEnd = null;
+        if (dateStr && dateStr.includes(' - ')) {
+            const parts = dateStr.split(' - ').map(p => p.trim());
+            if (parts.length === 2) {
+                const [d1, d2] = parts;
+                const toIso = (d) => /\d{2}\/\d{2}\/\d{4}/.test(d) ? `${d.split('/')[2]}-${d.split('/')[1]}-${d.split('/')[0]}` : d;
+                rangeStart = toIso(d1);
+                rangeEnd = toIso(d2);
+            }
+        } else if (dateStr && /\d{2}\/\d{2}\/\d{4}/.test(dateStr)) {
+            const [dd, mm, yyyy] = dateStr.split('/');
+            rangeStart = `${yyyy}-${mm}-${dd}`;
+            rangeEnd = rangeStart;
+        }
+        console.log('Parsed rangeStart/end:', { rangeStart, rangeEnd });
+
+        // If not all order IDs matched from cache, optionally fetch /inventory/history to fill
+        if (matches.length < orderIds.length) {
+            try {
+                const qs = new URLSearchParams();
+                qs.append('limit', '500');
+                if (rangeStart && rangeEnd) { qs.append('start_date', rangeStart); qs.append('end_date', rangeEnd); }
+                console.log('[Modal] Fetching inventory history to supplement cache with params:', qs.toString());
+                const histResp = await fetch(`/inventory/history?${qs.toString()}`);
+                if (histResp.ok) {
+                    const histJson = await histResp.json();
+                    const history = Array.isArray(histJson.history) ? histJson.history : [];
+                    // Merge unique order entries with existing matches
+                    const existingIds = new Set(matches.map(m => String(m.order_id)));
+                    for (const h of history) {
+                        const oid = String(h.order_id);
+                        if (orderIds.includes(oid) && !existingIds.has(oid)) {
+                            // Attempt to enrich from kitchenOrdersCache for items/time_done
+                            const kitchen = (kitchenOrdersCache || []).find(o => String(o.order_id) === oid);
+                            matches.push({
+                                order_id: oid,
+                                time_done: kitchen?.time_done || h.consumed_at || h.created_at,
+                                time_receive: kitchen?.time_receive || h.created_at,
+                                items: kitchen?.items || [],
+                                status: h.status || h.status_text || (h.consumed ? 'consumed' : '-')
+                            });
+                            existingIds.add(oid);
+                        }
+                    }
+                    console.log('[Modal] Matches after supplement:', matches.length);
+                } else {
+                    console.warn('[Modal] Failed fetching history for supplement:', histResp.status);
+                }
+            } catch (suppErr) {
+                console.warn('[Modal] Supplement fetch error:', suppErr);
+            }
+        }
+
+        // Optional: filter by menuName & flavorName inside items when provided
+        if (menuName) {
+            const before = matches.length;
+            matches = matches.filter(m => (m.items || []).some(it => (it.menu_name || '').toLowerCase() === menuName.toLowerCase()));
+            console.log(`[Modal] Filter by menuName='${menuName}' reduced matches ${before} -> ${matches.length}`);
+        }
+        if (flavorName) {
+            const before = matches.length;
+            matches = matches.filter(m => (m.items || []).some(it => (it.preference || '').toLowerCase() === flavorName.toLowerCase()));
+            console.log(`[Modal] Filter by flavorName='${flavorName}' reduced matches ${before} -> ${matches.length}`);
+        }
+
+        // Range filter on timestamps if range provided (defensive)
+        if (rangeStart && rangeEnd) {
+            const startTs = new Date(rangeStart + 'T00:00:00');
+            const endTs = new Date(rangeEnd + 'T23:59:59');
+            const before = matches.length;
+            matches = matches.filter(m => {
+                const tsRaw = m.time_done || m.time_receive || m.created_at;
+                if (!tsRaw) return false;
+                const dt = new Date(tsRaw);
+                return dt >= startTs && dt <= endTs;
+            });
+            console.log(`[Modal] Applied date range filter ${rangeStart}..${rangeEnd}, ${before} -> ${matches.length}`);
+        }
+
+        if (!matches.length) {
+            console.warn('[Modal] No matches after all filters for IDs:', orderIds);
+        }
 
         const modal = document.getElementById('ingredient-modal');
         const modalBody = document.getElementById('ingredient-modal-body');
@@ -5235,9 +5377,12 @@ async function openGroupedConsumptionModal(orderIdsCsv, dateStr, statusText, men
 
         // Build table rows for orders
         const tableRows = matches.map((o, idx) => {
-            const ts = o.time_done || o.time_receive || '';
+            const ts = o.time_done || o.time_receive || o.consumed_at || o.created_at || '';
+            let displayDate = '-';
+            if (ts) {
+                try { displayDate = new Date(ts).toLocaleString('id-ID'); } catch { displayDate = ts; }
+            }
             const items = (o.items || []).map(it => `${it.menu_name}${it.preference ? ' (' + it.preference + ')' : ''} x${it.quantity}`).join(', ');
-            const displayDate = new Date(ts).toLocaleString('id-ID') || '-';
             
             return `
                 <tr style="border-bottom: 1px solid #F3F4F6;">
@@ -5258,7 +5403,7 @@ async function openGroupedConsumptionModal(orderIdsCsv, dateStr, statusText, men
                 🥤 ${menuName || 'Detail Pesanan'}${flavorName ? ' • ' + flavorName : ''}
             </div>
             <div class="summary-details" style="margin: 1rem 0 1.5rem 0; justify-content: center; flex-wrap: wrap; gap: 0.5rem;">
-                <span class="summary-detail--order">📅 Date: <strong>${dateStr || '-'}</strong></span>
+                <span class="summary-detail--order">📅 Date${rangeStart && rangeEnd ? ' Range' : ''}: <strong>${dateStr || '-'}</strong></span>
                 <span class="summary-detail--order">📊 Status: <strong>${statusText || ''}</strong></span>
             </div>
             <div class="table-container">
