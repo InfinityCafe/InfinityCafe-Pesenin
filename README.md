@@ -49,6 +49,70 @@ infinity/
 │   ├── Dockerfile
 │   └── main.py
 ```
+
+### Infinity microservices — local developer quickstart
+
+If you only want to run the backend microservices and frontend included in this repo (without running the full n8n/Ollama stack), use the repository Docker Compose. The compose file exposes each service on its own port and also provides an `initdb` helper that creates and seeds the Postgres databases.
+
+1) Prepare environment
+
+ - Copy the provided `.env` and edit any values you need (database passwords, NGROK domain, etc.).
+
+2) Start core services (Docker + Docker Compose v2)
+
+PowerShell (recommended for Windows):
+
+```powershell
+# Start everything (detached)
+docker compose up --build -d
+
+# Or start selected services only (example: only backend services)
+docker compose up -d menu_service order_service kitchen_service inventory_service report_service user_service gateway frontend pgvector17
+```
+
+3) Useful service endpoints (defaults from docker-compose.yml)
+
+ - Menu Service:  http://localhost:8001
+ - Order Service: http://localhost:8002
+ - Kitchen Service: http://localhost:8003
+ - Report Service: http://localhost:8004
+ - User Service: http://localhost:8005
+ - Inventory Service: http://localhost:8006
+ - Frontend (static): http://localhost:7777
+ - Gateway: http://localhost:2323
+ - n8n (if running): http://localhost:5678
+ - pgAdmin: http://localhost:5050
+ - Postgres (pgvector): 5555 -> container 5432 (use connection string from `.env`)
+
+4) Run a single Python service for fast iteration (example: inventory)
+
+From a PowerShell shell on your host machine:
+
+```powershell
+cd ./infinity/inventory_service
+python -m venv .venv           # optional: create venv
+.\.venv\Scripts\Activate.ps1
+pip install -r ../requirements.txt
+# run with reload
+uvicorn main:app --host 0.0.0.0 --port 8006 --reload
+```
+
+Notes:
+ - The services expect the Postgres databases created in the compose `initdb` step. If containers cannot connect, run `docker compose up initdb` first or ensure `pgvector17` is healthy.
+ - The `.env` file contains DATABASE_URL_* entries and service URL overrides (MENU_SERVICE_URL, ORDER_SERVICE_URL, etc.). Keep them consistent when running containers vs running locally.
+
+5) Troubleshooting
+
+ - If Postgres containers fail initialization, check `/initdb` seed SQL files in the `initdb/` folder.
+ - If a service healthcheck fails, check its logs: `docker compose logs <service>`.
+ - For cross-service calls (menu -> inventory), the services use internal Docker DNS names (e.g. `inventory_service:8006`). When testing locally (uvicorn), set the corresponding URL env (e.g. `INVENTORY_SERVICE_URL=http://localhost:8006`).
+
+6) Developer tips
+
+ - Use `docker compose up <service>` to speed up iteration for a small subset of services.
+ - To run backend unit tests (if any are added), create a `/tests` folder and run `pytest` from repo root.
+ - When changing DB models, re-run `initdb` or apply migrations (migrations are not included by default in this starter).
+
 ## **Akses:**
    - Menu Service → [http://localhost:8001](http://localhost:8001)
    - Order Service → [http://localhost:8002](http://localhost:8002)
