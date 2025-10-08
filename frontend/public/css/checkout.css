@@ -3003,6 +3003,7 @@ body.qr-page .gradient-bg {
     .cart-checkout-btn {
         width: 100%;
         justify-content: center;
+        font-family: 'Inter', sans-serif;
     }
 }
 
