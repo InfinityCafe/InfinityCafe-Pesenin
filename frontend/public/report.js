@@ -1259,8 +1259,11 @@ function hideIngredientDetailsPanel() {
                     dateParam = displayDate;
                 }
             }
-             // Show aggregated daily consumption data
-             await showDailyAggregatedConsumption(dateStr, statusText, dateParam);
+            // Determine if the user clicked a single-day row or a synthetic aggregated range row.
+            // If original dateStr contains a range pattern (DD/MM/YYYY - DD/MM/YYYY), DO NOT force single date.
+            const isRangePattern = typeof dateStr === 'string' && dateStr.includes(' - ');
+            const forceSingle = !isRangePattern; // only force single when not a range
+            await showDailyAggregatedConsumption(dateStr, statusText, dateParam, forceSingle);
              return;
         } else {
             // Restore header for per-order ingredient details (6 columns)
@@ -1285,12 +1288,48 @@ function hideIngredientDetailsPanel() {
         const json = await res.json();
         
         // Handle different possible response structures
-        const details = json?.ingredients_breakdown?.details ||
+        let details = json?.ingredients_breakdown?.details ||
                         json?.data?.ingredients_breakdown?.details ||
                        json?.details || 
                        [];
         // Extract per-order item breakdown when available
-        const perItem = json?.data?.menu_breakdown || json?.menu_breakdown || [];
+        let perItem = json?.data?.menu_breakdown || json?.menu_breakdown || [];
+
+        // Fallback: If order is not 'done' status, try fetching from inventory consumption log
+        if ((!Array.isArray(details) || details.length === 0) && json?.message?.includes("tidak berstatus 'done'")) {
+            console.warn('[Fallback] Order not done, fetching from inventory consumption log:', orderId);
+            try {
+                const invResp = await fetch(`/inventory/consumption_log/${encodeURIComponent(orderId)}`);
+                if (invResp.ok) {
+                    const invJson = await invResp.json();
+                    if (invJson.status === 'success' && invJson.data) {
+                        const invData = invJson.data;
+                        // Map consumption log structure to expected details format
+                        details = (invData.ingredient_details || []).map(ing => ({
+                            ingredient_name: ing.ingredient_name,
+                            consumed_quantity: ing.quantity_consumed,
+                            unit: ing.unit,
+                            stock_before_consumption: ing.stock_before,
+                            stock_after_consumption: ing.stock_after
+                        }));
+                        // Try to build per-item breakdown from menu_items if available
+                        if (invData.menu_items && Array.isArray(invData.menu_items)) {
+                            perItem = invData.menu_items.map(item => ({
+                                menu_name: item.menu_name,
+                                preference: item.preference || '',
+                                quantity: item.quantity || 1,
+                                ingredients: [] // Inventory log doesn't provide per-menu ingredient breakdown
+                            }));
+                        }
+                        console.log('[Fallback] Successfully loaded from inventory consumption log:', details.length, 'ingredients');
+                    }
+                } else {
+                    console.warn('[Fallback] Inventory consumption log fetch failed:', invResp.status);
+                }
+            } catch (invErr) {
+                console.error('[Fallback] Error fetching inventory consumption log:', invErr);
+            }
+        }
 
         if (!Array.isArray(details)) {
             console.warn('Expected array of details but got:', details);
@@ -1395,7 +1434,7 @@ function hideIngredientDetailsPanel() {
          }
  }
  
- async function showDailyAggregatedConsumption(dateStr, statusText, dateIsoOverride) {
+ async function showDailyAggregatedConsumption(dateStr, statusText, dateIsoOverride, forceSingleDate = false) {
      try {
          const body = document.getElementById('ingredient-details-body');
          
@@ -1434,7 +1473,7 @@ function hideIngredientDetailsPanel() {
              if (dateStr && /^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
                  const parts = dateStr.split('/');
                  dateParam = `${parts[2]}-${parts[1]}-${parts[0]}`; // YYYY-MM-DD
-             } else if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+             } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
                  // Already in YYYY-MM-DD format
                  dateParam = dateStr;
              }
@@ -1451,53 +1490,145 @@ function hideIngredientDetailsPanel() {
         }
         console.log('Original dateStr:', dateStr);
         console.log('Date ISO override:', dateIsoOverride);
+        console.log('Force single date mode:', forceSingleDate);
         console.log('Fetching daily consumption; computed dateParam:', dateParam);
 
         // Global range inputs (for correct backend query)
         const globalStartInput = document.getElementById('start_date')?.value;
         const globalEndInput = document.getElementById('end_date')?.value;
-        const rangeSelected = globalStartInput && globalEndInput && globalStartInput !== globalEndInput;
+        // Override range detection when forceSingleDate is true
+        const rangeSelected = !forceSingleDate && globalStartInput && globalEndInput && globalStartInput !== globalEndInput;
 
         let json;
         let dailyData; // for single-date path
 
-        // Helper to aggregate multi-day payload
+        // Helper to aggregate and render multi-day payload (same style as single date)
         const aggregateRangeDays = (allDays, startVal, endVal) => {
-            const ingredientMap = {};
-            const allOrders = [];
-            allDays.forEach(d => {
-                (d.orders || []).forEach(o => allOrders.push(o));
-                (d.ingredients_consumed || []).forEach(ing => {
-                    const key = ing.ingredient_name + '|' + (ing.unit || '');
-                    if (!ingredientMap[key]) {
-                        ingredientMap[key] = {
-                            ingredient_name: ing.ingredient_name,
-                            total_consumed: 0,
-                            unit: ing.unit || '-',
-                            consumption_count: 0
-                        };
-                    }
-                    ingredientMap[key].total_consumed += Number(ing.total_consumed || 0);
-                    ingredientMap[key].consumption_count += Number(ing.consumption_count || 0);
-                });
-            });
-            const aggregated = Object.values(ingredientMap).sort((a,b)=> b.total_consumed - a.total_consumed);
-            body.innerHTML = aggregated.map((ing, idx) => `
-                <tr style="border-bottom:1px solid #F3F4F6;">
-                    <td>${idx + 1}</td>
-                    <td>${ing.ingredient_name}</td>
-                    <td>${Number(ing.total_consumed).toLocaleString()}</td>
-                    <td>${ing.unit}</td>
-                    <td>-</td>
-                    <td>-</td>
-                </tr>
-            `).join('');
-            if (!aggregated.length) {
-                body.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:1.25rem; color:#6B7280;">Tidak ada data konsumsi pada rentang ini</td></tr>';
+            if (!allDays.length) {
+                body.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:1.25rem; color:#6B7280;">Tidak ada data konsumsi pada rentang ini</td></tr>';
+                return;
             }
+            
             const panelTitle = document.querySelector('#ingredient-details-panel .summary-name');
             if (panelTitle) panelTitle.textContent = `🥤 Ingredient Consumption (Range ${startVal} s/d ${endVal})`;
-            return { aggregated, allOrders };
+            
+            // Aggregate ALL orders across all days into single menu aggregation (like single date)
+            const menuAggregation = {};
+            let totalOrdersAllDays = 0;
+            let totalIngredientsAllDays = new Set();
+            let grandTotalConsumption = 0;
+            const allOrderIds = [];
+            
+            allDays.forEach(dailyData => {
+                totalOrdersAllDays += Number(dailyData.total_orders || 0);
+                const orders = dailyData.orders || [];
+                
+                orders.forEach(order => {
+                    allOrderIds.push(order.order_id);
+                    const menuSummary = order.menu_summary || '';
+                    const orderIngsUsed = order.ingredients_used || [];
+                    const menuItems = menuSummary.split(',').map(item => item.trim());
+                    
+                    menuItems.forEach(menuItem => {
+                        const cleaned = (menuItem || '').trim();
+                        const withoutPrefixQty = cleaned.replace(/^\s*\d+\s*x?\s*/i, '');
+                        const menuName = (withoutPrefixQty.replace(/\s*x\s*\d+\s*$/i, '').trim()) || 'Unknown Menu';
+                        
+                        if (!menuAggregation[menuName]) {
+                            menuAggregation[menuName] = {
+                                menu_name: menuName,
+                                total_orders: 0,
+                                ingredients_map: {},
+                                order_ids: []
+                            };
+                        }
+                        
+                        let qty = 1;
+                        let qtyMatch = cleaned.match(/x\s*(\d+)\s*$/i) || cleaned.match(/^\s*(\d+)\s*x/i);
+                        if (qtyMatch) qty = parseInt(qtyMatch[1]);
+                        
+                        menuAggregation[menuName].total_orders += qty;
+                        menuAggregation[menuName].order_ids.push(order.order_id);
+                        
+                        orderIngsUsed.forEach(ing => {
+                            totalIngredientsAllDays.add(ing.ingredient_name);
+                            const ingKey = ing.ingredient_name;
+                            if (!menuAggregation[menuName].ingredients_map[ingKey]) {
+                                menuAggregation[menuName].ingredients_map[ingKey] = {
+                                    ingredient_name: ing.ingredient_name,
+                                    total_consumed: 0,
+                                    unit: ing.unit
+                                };
+                            }
+                            const totalQtyInOrder = menuItems.reduce((sum, item) => {
+                                const it = (item || '').trim();
+                                let q = 1;
+                                let m = it.match(/x\s*(\d+)\s*$/i) || it.match(/^\s*(\d+)\s*x/i);
+                                if (m) q = parseInt(m[1]);
+                                return sum + q;
+                            }, 0);
+                            const proportion = qty / totalQtyInOrder;
+                            menuAggregation[menuName].ingredients_map[ingKey].total_consumed += 
+                                (ing.total_consumed || 0) * proportion;
+                        });
+                    });
+                });
+            });
+            
+            // Calculate total ingredients used per menu
+            Object.values(menuAggregation).forEach(menu => {
+                menu.total_ingredients_used = Object.keys(menu.ingredients_map).length;
+                menu.ingredients_list = Object.values(menu.ingredients_map);
+            });
+            
+            const totalUniqueMenus = Object.keys(menuAggregation).length;
+            
+            // Render summary header (same style as single date)
+            const summaryRow = `
+                <tr style="background-color: #F9FAFB; border-bottom: 2px solid #E5E7EB;">
+                    <td colspan="5" style="padding: 1rem; text-align: center;">
+                        <div style="font-size: 1.1rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;">
+                            📅 Ringkasan Konsumsi Range - ${startVal} s/d ${endVal}
+                        </div>
+                        <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
+                            <div style="text-align: center;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: #059669;">${totalOrdersAllDays}</div>
+                                <div style="font-size: 0.9rem; color: #6B7280;">Total Pesanan</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">${totalUniqueMenus}</div>
+                                <div style="font-size: 0.9rem; color: #6B7280;">Menu Unik</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${totalIngredientsAllDays.size}</div>
+                                <div style="font-size: 0.9rem; color: #6B7280;">Jenis Bahan</div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            
+            // Render menu rows (same style as single date)
+            const menuRows = Object.values(menuAggregation).map((menu, idx) => {
+                const orderIdsCsv = menu.order_ids.join(',');
+                
+                return `
+                    <tr onclick="openGroupedConsumptionModal('${orderIdsCsv}', '${startVal} - ${endVal}', '${menu.total_orders} order', '${menu.menu_name}', '')" style="cursor: pointer;">
+                        <td style="padding: 0.75rem; text-align: center; color: #1F2937; font-weight: 500;">${idx + 1}</td>
+                        <td style="padding: 0.75rem; color: #1F2937; font-weight: 600;">${menu.menu_name}</td>
+                        <td style="padding: 0.75rem; text-align: center; color: #059669; font-weight: 600;">${menu.total_orders}</td>
+                        <td style="padding: 0.75rem; text-align: center; color: #DC2626; font-weight: 600;">${menu.total_ingredients_used}</td>
+                        <td style="padding: 0.75rem; text-align: center;">
+                            <button class="table-action-btn" onclick="event.stopPropagation(); openGroupedConsumptionModal('${orderIdsCsv}', '${startVal} - ${endVal}', '${menu.total_orders} order', '${menu.menu_name}', '')" title="Lihat Pesanan">
+                                <i class="fas fa-eye"></i> Detail
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            body.innerHTML = summaryRow + (menuRows || `<tr><td colspan="5" style="text-align:center; padding:1.5rem; color:#6B7280; font-weight: 500;">Tidak ada menu yang ditemukan.</td></tr>`);
+            return { menuAggregation };
         };
 
         if (rangeSelected) {
@@ -5322,11 +5453,30 @@ async function openGroupedConsumptionModal(orderIdsCsv, dateStr, statusText, men
                         if (orderIds.includes(oid) && !existingIds.has(oid)) {
                             // Attempt to enrich from kitchenOrdersCache for items/time_done
                             const kitchen = (kitchenOrdersCache || []).find(o => String(o.order_id) === oid);
+                            
+                            // Try to fetch order items from kitchen service if not in cache
+                            let items = kitchen?.items || [];
+                            if (!items.length && h.per_menu_payload) {
+                                // Parse per_menu_payload if available from history
+                                try {
+                                    const payload = typeof h.per_menu_payload === 'string' ? JSON.parse(h.per_menu_payload) : h.per_menu_payload;
+                                    if (Array.isArray(payload)) {
+                                        items = payload.map(p => ({
+                                            menu_name: p.name || p.menu_name,
+                                            quantity: p.quantity || 1,
+                                            preference: p.preference || p.flavor || ''
+                                        }));
+                                    }
+                                } catch (parseErr) {
+                                    console.warn('[Modal] Failed parsing per_menu_payload for', oid, parseErr);
+                                }
+                            }
+                            
                             matches.push({
                                 order_id: oid,
                                 time_done: kitchen?.time_done || h.consumed_at || h.created_at,
                                 time_receive: kitchen?.time_receive || h.created_at,
-                                items: kitchen?.items || [],
+                                items: items,
                                 status: h.status || h.status_text || (h.consumed ? 'consumed' : '-')
                             });
                             existingIds.add(oid);
@@ -5342,14 +5492,33 @@ async function openGroupedConsumptionModal(orderIdsCsv, dateStr, statusText, men
         }
 
         // Optional: filter by menuName & flavorName inside items when provided
+        // IMPORTANT: Only filter if items array exists and has data (some entries from history may not have items)
         if (menuName) {
             const before = matches.length;
-            matches = matches.filter(m => (m.items || []).some(it => (it.menu_name || '').toLowerCase() === menuName.toLowerCase()));
+            matches = matches.filter(m => {
+                const items = m.items || [];
+                // If no items available (e.g., from history supplement), keep it (don't filter out)
+                if (!items.length) return true;
+                // Otherwise, check if any item matches the menu name (case-insensitive, trimmed)
+                return items.some(it => {
+                    const itemMenuName = (it.menu_name || '').trim().toLowerCase();
+                    const targetMenuName = (menuName || '').trim().toLowerCase();
+                    return itemMenuName === targetMenuName || itemMenuName.includes(targetMenuName) || targetMenuName.includes(itemMenuName);
+                });
+            });
             console.log(`[Modal] Filter by menuName='${menuName}' reduced matches ${before} -> ${matches.length}`);
         }
         if (flavorName) {
             const before = matches.length;
-            matches = matches.filter(m => (m.items || []).some(it => (it.preference || '').toLowerCase() === flavorName.toLowerCase()));
+            matches = matches.filter(m => {
+                const items = m.items || [];
+                if (!items.length) return true; // Keep if no items data
+                return items.some(it => {
+                    const itemPref = (it.preference || '').trim().toLowerCase();
+                    const targetPref = (flavorName || '').trim().toLowerCase();
+                    return itemPref === targetPref || itemPref.includes(targetPref) || targetPref.includes(itemPref);
+                });
+            });
             console.log(`[Modal] Filter by flavorName='${flavorName}' reduced matches ${before} -> ${matches.length}`);
         }
 
