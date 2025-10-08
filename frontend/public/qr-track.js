@@ -242,6 +242,7 @@ class QRTrackManager {
         this.updateProgressBar(this.currentOrder.status);
         
         // Update order items
+        this.syncStatusSteps(this.currentOrder.status);
         this.updateOrderItems();
         
         // Toggle cancel button (only in receive)
@@ -254,6 +255,55 @@ class QRTrackManager {
 
         // Update estimated time
         this.updateEstimatedTime();
+    }
+
+    syncStatusSteps(status) {
+        const steps = document.querySelectorAll('.status-step');
+        if (!steps.length) return;
+
+        const lines = document.querySelectorAll('.status-line');
+        const statuses = ['receive', 'making', 'deliver', 'done'];
+        const lower = String(status || '').toLowerCase();
+        const isCancelled = lower === 'cancelled' || lower === 'cancel';
+        const matched = statuses.includes(lower) ? lower : 'receive';
+        let activeIndex = statuses.indexOf(matched);
+        if (activeIndex < 0) activeIndex = 0;
+
+        steps.forEach(step => {
+            step.classList.remove('completed', 'active');
+            const icon = step.querySelector('.status-icon');
+            if (icon) icon.classList.remove('loading');
+        });
+
+        lines.forEach(line => line.classList.remove('completed'));
+
+        if (isCancelled) return;
+
+        if (matched === 'done') {
+            steps.forEach(step => step.classList.add('completed'));
+            lines.forEach(line => line.classList.add('completed'));
+            return;
+        }
+
+        steps.forEach((step, index) => {
+            const icon = step.querySelector('.status-icon');
+            if (index < activeIndex) {
+                step.classList.add('completed');
+            } else if (index === activeIndex) {
+                if (matched === 'receive') {
+                    step.classList.add('completed');
+                } else {
+                    step.classList.add('active');
+                    if (icon) icon.classList.add('loading');
+                }
+            }
+        });
+
+        lines.forEach((line, index) => {
+            if (index < activeIndex) {
+                line.classList.add('completed');
+            }
+        });
     }
 
     updateStatusDisplay(status) {
@@ -311,6 +361,8 @@ class QRTrackManager {
             document.getElementById(labels[activeIndex]).classList.add('active');
         }
     }
+
+    
 
     updateOrderItems() {
         if (!this.currentOrder || !this.currentOrder.items) return;

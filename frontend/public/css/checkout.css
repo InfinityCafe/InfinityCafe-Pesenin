@@ -1070,6 +1070,7 @@ body.qr-page .gradient-bg {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
+    justify-content: center;
 }
 
 .category-tab-modern {
@@ -1174,12 +1175,13 @@ body.qr-page .gradient-bg {
     color: #207156;
 }
 
-.cart-checkout-btn {
+.cart-checkout-btn, body.qr-page .action-btn, body.qr-page .action-btn-green {
+    font-family: 'Inter', sans-serif;
     background: linear-gradient(135deg, #207156, #60B7A6);
     border: none;
     border-radius: 12px;
     color: white;
-    padding: 0.75rem 1.25rem;
+    padding: 0.75rem 1.25rem !important;
     font-size: 0.875rem;
     font-weight: 600;
     cursor: pointer;
@@ -1193,6 +1195,11 @@ body.qr-page .gradient-bg {
 .cart-checkout-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(32, 113, 86, 0.4);
+}
+
+body.qr-page .summary-name {
+  font-size: 16px;
+  margin-bottom: 0.5rem;
 }
 
 /* FAB Modern */
@@ -1612,7 +1619,7 @@ body.qr-page .gradient-bg {
     background: white;
     border: 2px solid var(--warning-orange);
     border-radius: 8px;
-    padding: 0.75rem;
+    padding: 5px 5px 0.75rem;
     margin-bottom: 0.75rem;
 }
 
@@ -1674,6 +1681,9 @@ body.qr-page .gradient-bg {
     display: flex;
     align-items: center;
     gap: 0.25rem;
+    width: 100px;
+    height: 36px;
+    justify-content: center;
 }
 
 .btn-save-inline {
@@ -2848,18 +2858,13 @@ body.qr-page .gradient-bg {
     .notes-inline-input {
         min-height: 60px;
         padding: 0.5rem;
-        font-size: 0.75rem;
+        font-size: 0.85rem;
     }
     
     .keyboard-hint {
         font-size: 0.65rem;
     }
     
-    .btn-save-inline,
-    .btn-cancel-inline {
-        padding: 0.35rem 0.7rem;
-        font-size: 0.7rem;
-    }
 }
 
 /* Mobile Small (up to 360px) - Enhanced for Cart Items */
@@ -3003,6 +3008,7 @@ body.qr-page .gradient-bg {
     .cart-checkout-btn {
         width: 100%;
         justify-content: center;
+        font-family: 'Inter', sans-serif;
     }
 }
 
@@ -3029,9 +3035,20 @@ body.qr-page .gradient-bg {
     .search-input-wrapper {
         max-width: 100%;
     }
+
+    .tab-btn {
+      font-size: 13.2px !important;
+    }
     
     .category-tabs-modern {
-        justify-content: center;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.5rem;
+        justify-content: stretch;
+    }
+    .category-tab-modern {
+        width: 100%;
+        text-align: center;
     }
 }
 
