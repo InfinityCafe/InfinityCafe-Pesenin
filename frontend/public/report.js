@@ -3540,9 +3540,29 @@ function showPieModal(label, value, percent) {
 }
 
 function renderCharts(details) {
-    const labels = details.map(d => d.menu_name);
-    const quantities = details.map(d => d.quantity);
-    
+    const menuAggregation = {};
+
+    details.forEach(d => {
+        const menuName = d.menu_name || 'Unknown';
+
+        if (!menuAggregation[menuName]) {
+            menuAggregation[menuName] = {
+                menu_name: menuName,
+                quantity: 0,
+                total_revenue: 0
+            };
+        }
+
+        menuAggregation[menuName].quantity += d.quantity || 0;
+        menuAggregation[menuName].total_revenue += d.total_revenue || 0;
+    });
+
+    const aggregatedData = Object.values(menuAggregation)
+        .sort((a, b) => b.quantity - a.quantity);
+
+    const labels = aggregatedData.map(d => d.menu_name);
+    const quantities = aggregatedData.map(d => d.quantity);
+
     if (barChart) barChart.destroy();
     if (pieChart) pieChart.destroy();
 
@@ -3571,6 +3591,11 @@ function renderCharts(details) {
                             size: 14
                         }
                     }
+                },
+                title: {
+                    display: true,
+                    text: 'Sales by Menu',
+                    color: '#312929',
                 }
             },
             scales: {
@@ -3578,11 +3603,16 @@ function renderCharts(details) {
                     beginAtZero: true,
                     ticks: {
                         color: '#312929'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Quantity Sold',
+                        color: '#312929'
                     }
                 },
                 x: {
                     ticks: {
-                        color: '#312929'
+                        color: '#312929',
                     }
                 }
             }
@@ -3609,7 +3639,8 @@ function renderCharts(details) {
                 data: quantities, 
                 backgroundColor: [
                     '#8D7272', '#DCD0A8', '#207156', '#B3261E', '#E09B20',
-                    '#503A3A', '#CAB99D', '#685454', '#60B7A6', '#F5EFE6'
+                    '#503A3A', '#CAB99D', '#685454', '#60B7A6', '#F5EFE6',
+                    '#9B59B6', '#3498DB', '#E74C3C', '#F39C12', '#2ECC71'
                 ],
                 borderColor: '#FFFFFF',
                 borderWidth: 2
@@ -3625,6 +3656,11 @@ function renderCharts(details) {
                 easing: "easeOutBounce" 
             },
             plugins: {
+                title: {
+                    display: true,
+                    text: 'Menu Distribution',
+                    color: '#312929'
+                },
                 tooltip: {
                     callbacks: {
                         label: function (context) {
@@ -3643,6 +3679,30 @@ function renderCharts(details) {
                         font: {
                             family: 'Inter',
                             size: 12
+                        },
+                        generateLabels: function(chart) {
+                            const data = chart.data;
+                            if (data.labels.length && data.datasets.length) {
+                                return data.labels.map((label, i) => {
+                                    const meta = chart.getDatasetMeta(0);
+                                    const style = meta.controller.getStyle(i);
+
+                                    let displayLabel = label;
+                                    if (label.length > 25) {
+                                        displayLabel = label.substring(0, 25) + '...';
+                                    }
+
+                                    return {
+                                        text: displayLabel,
+                                        fillStyle: style.backgroundColor,
+                                        strokeStyle: style.borderColor,
+                                        lineWidth: style.borderWidth,
+                                        hidden: isNaN(data.datasets[0].data[i]) || meta.data[i].hidden,
+                                        index: i
+                                    };
+                                });
+                            }
+                            return [];
                         }
                     },
                     onClick: (e, legendItem, legend) => {
@@ -3780,13 +3840,16 @@ async function loadReport(rangeOverride = null, maybeEnd = null) {
                 renderReportTable();
                 updateReportPagination();
                 // Re-render charts only when data changed (using aggregated data)
-        const chartData = details.map(item => ({
-            menu_name: item.menu_name || 'N/A',
-            quantity: item.quantity || 0,
-            unit_price: item.unit_price || 0,
-            total: item.total_revenue || 0
-        }));
+        const chartData = aggregateChartDataByMenu(details);
         renderCharts(chartData);
+        // .map(item => ({
+        //     menu_name: item.menu_name || 'N/A',
+        //     flavor: item.flavor || 'Default',
+        //     quantity: item.quantity || 0,
+        //     unit_price: item.unit_price || 0,
+        //     total: item.total_revenue || 0
+        // }));
+        // renderCharts(chartData);
 
         if (details.length === 0) {
             console.log('No sales data found');
@@ -3805,6 +3868,29 @@ async function loadReport(rangeOverride = null, maybeEnd = null) {
         clearTimeout(timeout);
         hideLoading();
     }
+}
+
+function aggregateChartDataByMenu(salesData) {
+    const menuAggregation = {};
+
+    salesData.forEach(item => {
+        const menuName = item.menu_name || 'Unknown';
+
+        if (!menuAggregation[menuName]) {
+            menuAggregation[menuName] = {
+                menu_name: menuName,
+                quantity: 0,
+                total_revenue: 0,
+                unit_price: item.unit_price || 0
+            };
+        }
+
+        menuAggregation[menuName].quantity += item.quantity || 0;
+        menuAggregation[menuName].total_revenue += item.total_revenue || 0;
+    });
+
+    return Object.values(menuAggregation)
+        .sort((a, b) => b.quantity - a.quantity);
 }
 
 async function loadBestSellerData(rangeOverride = null, maybeEnd = null) {
@@ -4345,12 +4431,12 @@ function exportSalesPDFEnhanced() {
     });
 
     y+=6; if (y>270){doc.addPage(); y=20;}
-    const summaryTitle = dataType === 'sales' ? 'Sales Summary (first 25 rows):' : dataType === 'best' ? 'Best Seller Summary (first 25 rows):' : 'Data Summary (first 25 rows):';
+    const summaryTitle = dataType === 'sales' ? 'Sales Summary :' : dataType === 'best' ? 'Best Seller Summary :' : 'Data Summary :';
     doc.setFont('helvetica','bold'); doc.text(summaryTitle, 14, y); y+=4; doc.setFont('helvetica','normal');
 
     // Build table data (content unchanged)
     const tableHead = dataType === 'sales' ? ['No', 'Menu', 'Flavor', 'Qty', 'Price', 'Modal', 'Revenue', 'Profit'] : ['No', 'Menu', 'Qty', 'Price', 'Total'];
-    const tableBody = data.slice(0, 25).map((r, i) => {
+    const tableBody = data.map((r, i) => {
         if (dataType === 'sales') {
             const name = r.menu_name || '-';
             const flavor = r.flavor || '-';
@@ -5115,6 +5201,7 @@ function applyModeLayout(mode) {
     const statusEl = document.getElementById('summary-status-badge');
     const dataTypeSelect = document.getElementById('data-type-select');
     const barTitle = document.querySelector('#chart-bar-card .column-title');
+    const pieTitle = document.querySelector('#chart-pie-card .column-title');
 
     // Summary badge
     if (statusEl) {
@@ -5134,6 +5221,7 @@ function applyModeLayout(mode) {
             <th>Unit Price</th>
             <th>Total Modal</th>
             <th>Total Revenue</th>
+            <th>Total Profit</th>
             `;
         } else if (isBest) {
             // Best Seller mode: no flavor column
@@ -5166,6 +5254,10 @@ function applyModeLayout(mode) {
     // Bar chart title per mode
     if (barTitle) {
         barTitle.textContent = isBest ? '🏆 Top Bestselling Menu' : '📊 Top Bestselling Menu';
+    }
+
+    if (pieTitle) {
+        pieTitle.textContent = isBest ? '🥧 Menu Distribution' : '🥧 Sales Composition';
     }
 
     // Ensure charts resize correctly after visibility changes

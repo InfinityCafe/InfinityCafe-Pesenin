@@ -148,14 +148,10 @@ class QRMenuManager {
 
       const includesAny = (arr) => arr.some(k => text.includes(k));
 
-      if (includesAny(['coffee', 'kopi', 'espresso', 'americano', 'latte', 'cappuccino', 'capuccino', 'mocha'])) return 'Coffee';
-      if (includesAny(['susu', 'milk'])) return 'Susu';
-      if (includesAny(['tea', 'teh', 'chai'])) return 'Tea';
-      if (includesAny(['juice', 'jus', 'lemon', 'jeruk'])) return 'Juice';
-      if (includesAny(['non coffee', 'matcha', 'chocolate', 'coklat', 'red velvet', 'taro'])) return 'Non Coffee';
-      if (includesAny(['snack', 'cake', 'cookie', 'donut', 'pastry', 'dessert'])) return 'Snack';
-      if (includesAny(['food', 'makanan', 'rice', 'nasi', 'noodle', 'mie', 'bread', 'roti', 'pasta'])) return 'Food';
-      return 'Lainnya';
+      if (includesAny(['coffee', 'kopi', 'espresso', 'americano', 'latte', 'cappuccino', 'capuccino', 'mocha'])) {
+        return 'Coffee';
+      }
+      return 'Non Coffee';
     };
 
     const categoryMap = {};
@@ -172,7 +168,7 @@ class QRMenuManager {
   renderCategoryTabs() {
     const tabs = document.getElementById('category-tabs');
     if (!tabs) return;
-    const order = ['Coffee', 'Non Coffee', 'Susu', 'Tea', 'Juice', 'Food', 'Snack', 'Lainnya'];
+    const order = ['Coffee', 'Non Coffee'];
     const existing = Object.keys(this.categoryToMenus);
     const categories = order.filter(o => existing.includes(o));
     tabs.innerHTML = '';

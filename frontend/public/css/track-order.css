@@ -256,12 +256,13 @@ body {
   align-items: center;
   justify-content: space-between;
   position: relative;
-  flex-wrap: wrap; /* supaya step bisa wrap ke bawah jika ruang sempit */
-  gap: 1rem; /* spasi antar steps */
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 .status-line {
-  flex-grow: 1;
+  flex: 1 1 0;
+  min-width: 32px;
   height: 4px;
   background-color: #94a3b8;
   border-radius: 10px;
@@ -279,24 +280,30 @@ body {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  /* width: 60px; */
   width: 45px;
   font-size: 0.75rem;
   color: #94a3b8;
   position: relative;
+  flex: 0 0 auto;
 }
 
 .status-icon {
-  width: 1rem;
-  height: 1rem;
+  width: 1.1rem;
+  height: 1.1rem;
   border-radius: 50%;
   background-color: #94a3b8;
-  color: #94a3b8;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 0.5rem;
   transition: all 0.3s ease;
+  position: relative;
+  color: transparent;
+  box-sizing: border-box;
+}
+
+.status-icon::after {
+  content: '';
 }
 
 .status-label {
@@ -306,16 +313,42 @@ body {
 
 /* Step States */
 .status-step.active .status-icon {
-  background: linear-gradient(to right, #8D7272, #B5A4A4);
-  transform: scale(1.1);
+  background: transparent;
+  border: none;
+  color: #8D7272;
 }
 .status-step.active .status-label {
   color: #212529;
 }
+.status-icon.loading {
+  background: transparent;
+  border: none;
+  color: #8D7272;
+}
+.status-icon.loading::after {
+  content: '\f110';
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  font-size: 1rem;
+  color: #207156;
+  display: inline-block;
+  animation: statusSpinner 0.9s linear infinite;
+}
+
+@keyframes statusSpinner {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 
 .status-step.completed .status-icon {
   background: linear-gradient(to right, #207156, #60B7A6);
-  color: white;
+}
+.status-step.completed .status-icon::after {
+  content: '\f00c';
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  font-size: 0.6rem;
+  color: #ffffff;
 }
 .status-step.completed .status-label {
   color: #212529;
@@ -472,7 +505,7 @@ body {
         padding: 1rem;
     }
     .status-tracker {
-        align-items: center;
+    gap: 0.5rem;
     }
     .status-step {
         width: 25px;
@@ -485,7 +518,11 @@ body {
         font-size: 0.65rem;
     }
     .status-line {
-        margin: 1rem 0;
+      min-width: 20px;
+      margin: 0.9rem 0;
+    }
+    .status-icon.loading::after {
+      font-size: 1.25rem;
     }
 }
 
