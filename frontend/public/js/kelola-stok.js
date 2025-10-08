@@ -390,12 +390,15 @@ class InventoryManager {
 
   updateOverviewCards(data = {}) {
     console.log('Updating overview cards with inventory:', this.inventory);
-    
-    const totalItems = data.total_items || this.inventory.length;
-    const outOfStockCount = data.critical_count || this.inventory.filter(item => item.current_quantity <= 0).length;
-    const lowStockCount = data.low_stock_count || this.inventory.filter(
-      item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity
-    ).length;
+
+    const totalItems = typeof data.total_items === 'number' ? data.total_items : this.inventory.length;
+
+    const outOfStockCount = typeof data.critical_count === 'number'
+      ? data.critical_count
+      : this.inventory.filter(item => item.is_available && item.current_quantity <= 0).length;
+    const lowStockCount = typeof data.low_stock_count === 'number'
+      ? data.low_stock_count
+      : this.inventory.filter(item => item.is_available && item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length;
 
     const totalItemsElement = document.getElementById('total-items');
     const lowStockElement = document.getElementById('low-stock-items');
@@ -747,6 +750,9 @@ class InventoryManager {
     document.getElementById('view-item-current').textContent = `${item.current_quantity.toFixed(2)} ${item.unit}`;
     document.getElementById('view-item-unit').textContent = this.capitalizeFirst(item.unit);
     document.getElementById('view-item-minimum').textContent = `${item.minimum_quantity.toFixed(2)} ${item.unit}`;
+    document.getElementById('view-item-purchase-price-total').textContent = `Rp. ${item.purchase_price_total.toLocaleString('id-ID')}`;
+    document.getElementById('view-item-purchase-quantity').textContent = `${item.purchase_quantity.toLocaleString('id-ID')}`;
+    document.getElementById('view-item-unit-price').textContent = `Rp. ${item.unit_price.toLocaleString('id-ID', { minimumFractionDigits: 2 })}`;
     document.getElementById('view-item-availability').textContent = item.is_available ? 'Available' : 'Unavailable';
 
     const status = this.getStockStatus(item);
@@ -796,13 +802,18 @@ class InventoryManager {
       'item-category': item.category,
       'item-unit': item.unit,
       'item-current': item.current_quantity,
-      'item-minimum': item.minimum_quantity
+      'item-minimum': item.minimum_quantity,
+      'item-purchase-price-total': item.purchase_price_total ?? '',
+      'item-purchase-quantity': item.purchase_quantity ?? '',
     };
 
     Object.keys(fields).forEach(id => {
       const element = document.getElementById(id);
       if (element) element.value = fields[id];
     });
+
+    const notesField = document.getElementById('item-notes');
+    if (notesField) notesField.value = '';
 
     const itemForm = document.getElementById('item-form');
     if (itemForm) {
@@ -883,6 +894,8 @@ class InventoryManager {
     const unitRaw = (formData.get('unit') || '').toString().trim().toLowerCase();
     const currentQtyRaw = formData.get('current_quantity');
     const minimumQtyRaw = formData.get('minimum_quantity');
+    const purchasePriceTotal = formData.get('purchase_price_total');
+    const purchaseQuantity = formData.get('purchase_quantity');
 
     // Basic required validations
     if (!nameRaw) { showErrorModal('Nama item wajib diisi.'); return; }
@@ -893,6 +906,8 @@ class InventoryManager {
     const minimumQty = Number(parseFloat(minimumQtyRaw));
     const safeCurrent = isNaN(currentQty) ? 0 : currentQty;
     const safeMinimum = isNaN(minimumQty) ? 0 : minimumQty;
+    const safePurchasePriceTotal = isNaN(purchasePriceTotal) ? 0 : purchasePriceTotal;
+    const safePurchaseQuantity = isNaN(purchaseQuantity) ? 0 : purchaseQuantity;
 
     const itemData = {
       name: nameRaw,
@@ -900,6 +915,8 @@ class InventoryManager {
       unit: unitRaw,
       current_quantity: safeCurrent,
       minimum_quantity: safeMinimum,
+      purchase_price_total: safePurchasePriceTotal,
+      purchase_quantity: safePurchaseQuantity,
       notes: (formData.get('notes') || 'Stock opname update').toString()
     };
 
@@ -1058,8 +1075,11 @@ class InventoryManager {
     if (modalId === 'item-modal') {
       const itemForm = document.getElementById('item-form');
       if (itemForm) {
+        itemForm.reset();
         itemForm.removeAttribute('data-item-id');
       }
+      const notesField = document.getElementById('item-notes');
+      if (notesField) notesField.value = '';
     }
   }
 
@@ -1206,14 +1226,24 @@ class InventoryManager {
 
           const hasChanged = JSON.stringify(newAuditHistory) !== JSON.stringify(this.auditHistory);
 
+          const prevPage = this.currentAuditPage;
           this.auditHistory = newAuditHistory;
           this.filteredAuditHistory = [...this.auditHistory];
 
           if (hasChanged || forceReload) {
             this.populateAuditFilters();
-            this.applyAuditFiltersAndSearch(true);
+          }
+          if (this.totalAuditPages === 0) {
+            this.currentAuditPage = 1;
+          } else if (prevPage > this.totalAuditPages) {
+            this.currentAuditPage = this.totalAuditPages;
+          } else if (prevPage < 1) {
+            this.currentAuditPage = 1;
+          } else {
+            this.currentAuditPage = prevPage;
           }
         
+          this.applyAuditFiltersAndSearch(false);
           this.auditLoaded = true;
         } else {
           showErrorModal(data.message || 'Failed to load audit history');
@@ -1316,6 +1346,8 @@ class InventoryManager {
       this.currentAuditPage = 1;
     } else if (this.currentAuditPage > this.totalAuditPages) {
       this.currentAuditPage = this.totalAuditPages;
+    } else if (this.currentAuditPage < 1) {
+      this.currentAuditPage = 1;
     }
 
     this.renderAuditHistoryTable();
@@ -1415,7 +1447,11 @@ class InventoryManager {
       'rollback': 'warning',
       'restock': 'success',
       'make_available': 'success',
-      'make_unavailable': 'danger'
+      'make_unavailable': 'danger',
+      // new granular edits for audit history
+      'edit_item_name': 'success',
+      'edit_category': 'success',
+      'edit_unit': 'success'
     };
     return actionMap[actionType.toLowerCase()] || 'default';
   }

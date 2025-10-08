@@ -261,8 +261,11 @@
                         <option value="restock">Restock</option>
                         <option value="edit_stock">Edit Stock</option>
                         <option value="edit_minimum">Edit Minimum</option>
-                        <option value="make_availabe">Make Available</option>
+                        <option value="make_available">Make Available</option>
                         <option value="make_unavailable">Make Unavailable</option>
+                        <option value="edit_item_name">Edit Item Name</option>
+                        <option value="edit_category">Edit Category</option>
+                        <option value="edit_unit">Edit Unit</option>
                       </select>
                     </div>
                     
@@ -379,6 +382,18 @@
           <span id="view-item-minimum"></span>
         </div>
         <div class="view-item">
+          <label>Purchase Price (Total):</label>
+          <span id="view-item-purchase-price-total"></span>
+        </div>
+        <div class="view-item">
+          <label>Purchase Quantity:</label>
+          <span id="view-item-purchase-quantity"></span>
+        </div>
+        <div class="view-item">
+          <label>Unit Price:</label>
+          <span id="view-item-unit-price"></span>
+        </div>
+        <div class="view-item">
           <label>Status:</label>
           <span id="view-item-status"></span>
         </div>
@@ -484,6 +499,14 @@
         <div class="form-group">
           <label for="item-minimum">Minimum Quantity</label>
           <input type="number" id="item-minimum" name="minimum_quantity" min="0" step="0.01" required placeholder="0">
+        </div>
+        <div class="form-group">
+          <label for="item-purchase-price-total">Purchase Price Item (Total)</label>
+          <input type="number" id="item-purchase-price-total" name="purchase_price_total" min="0" step="0.01" required placeholder="0">
+        </div>
+        <div class="form-group">
+          <label for="item-purchase-quantity">Purchase Quantity</label>
+          <input type="number" id="item-purchase-quantity" name="purchase_quantity" min="0" step="0.01" required placeholder="0">
         </div>
         <div class="form-group">
           <label for="item-notes">Notes (Reason)</label>

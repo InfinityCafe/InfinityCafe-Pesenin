@@ -570,9 +570,31 @@ def create_menu_item(item: MenuItemCreate, db: Session = Depends(get_db)):
 
 @app.get("/menu", summary="Daftar Menu Tersedia", tags=["Menu"], response_model=List[MenuItemOut], operation_id="list menu")
 def get_menu(db: Session = Depends(get_db)):
-    """Mengambil semua menu yang tersedia beserta varian rasanya."""
+    """Mengambil semua menu yang tersedia beserta varian rasanya (hanya flavor yang available)."""
     menus = db.query(MenuItem).options(joinedload(MenuItem.flavors)).filter(MenuItem.isAvail == True).all()
-    return menus
+    result = []
+    for m in menus:
+        # Filter hanya flavor yang tersedia
+        available_flavors = [
+            {
+                "id": f.id,
+                "flavor_name_en": f.flavor_name_en,
+                "flavor_name_id": f.flavor_name_id,
+                "additional_price": f.additional_price,
+                "isAvail": f.isAvail,
+            }
+            for f in (m.flavors or []) if getattr(f, "isAvail", False)
+        ]
+        result.append({
+            "id": m.id,
+            "base_name_en": m.base_name_en,
+            "base_name_id": m.base_name_id,
+            "base_price": m.base_price,
+            "isAvail": m.isAvail,
+            "making_time_minutes": m.making_time_minutes,
+            "flavors": available_flavors
+        })
+    return result
 
 @app.get("/menu/all", summary="Daftar Semua Menu (Untuk Admin)", tags=["Menu"], response_model=List[MenuItemOut])
 def get_all_menus_admin(db: Session = Depends(get_db)):
@@ -582,23 +604,52 @@ def get_all_menus_admin(db: Session = Depends(get_db)):
 
 @app.get("/menu/{menu_id}", summary="Lihat Detail Menu", tags=["Menu"], response_model=MenuItemOut, operation_id="get menu by id")
 def get_menu_item(menu_id: str, db: Session = Depends(get_db)):
-    """Mengambil informasi detail dari sebuah menu berdasarkan ID."""
+    """Mengambil informasi detail dari sebuah menu berdasarkan ID. Hanya mengembalikan flavor yang available."""
     item = db.query(MenuItem).options(joinedload(MenuItem.flavors)).filter(MenuItem.id == menu_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Menu item tidak ditemukan")
-    return item
+    available_flavors = [
+        {
+            "id": f.id,
+            "flavor_name_en": f.flavor_name_en,
+            "flavor_name_id": f.flavor_name_id,
+            "additional_price": f.additional_price,
+            "isAvail": f.isAvail,
+        }
+        for f in (item.flavors or []) if getattr(f, "isAvail", False)
+    ]
+    return {
+        "id": item.id,
+        "base_name_en": item.base_name_en,
+        "base_name_id": item.base_name_id,
+        "base_price": item.base_price,
+        "isAvail": item.isAvail,
+        "making_time_minutes": item.making_time_minutes,
+        "flavors": available_flavors
+    }
 
 @app.get("/menu/by_name/{base_name}/flavors", summary="Dapatkan rasa untuk menu tertentu by Name", tags=["Menu"], response_model=List[FlavorOut])
-def get_flavors_for_menu_by_name(base_name: str, db: Session = Depends(get_db)):
-    """Mengembalikan daftar rasa yang tersedia untuk menu tertentu berdasarkan namanya (English atau Indonesian)."""
+def get_flavors_for_menu_by_name(
+    base_name: str,
+    include_unavailable: bool = Query(False, description="Set true untuk menyertakan flavor yang sedang tidak tersedia"),
+    db: Session = Depends(get_db)
+):
+    """Mengembalikan daftar varian rasa untuk menu tertentu berdasarkan nama (EN/ID).
+
+    Default hanya mengembalikan flavor yang tersedia (isAvail=True). Gunakan include_unavailable=true untuk admin.
+    """
     menu_item = db.query(MenuItem).options(joinedload(MenuItem.flavors)).filter(
         (MenuItem.base_name_en == base_name) | (MenuItem.base_name_id == base_name)
     ).first()
-    
+
     if not menu_item:
         raise HTTPException(status_code=404, detail=f"Menu dengan nama '{base_name}' tidak ditemukan.")
-    
-    return menu_item.flavors
+
+    if include_unavailable:
+        return menu_item.flavors
+
+    # Hanya kembalikan flavor yang tersedia
+    return [f for f in (menu_item.flavors or []) if getattr(f, "isAvail", False)]
 
 @app.put("/menu/{menu_id}", summary="Update Menu", tags=["Menu"], response_model=MenuItemOut, operation_id="update menu")
 def update_menu_item(menu_id: str, item: MenuItemCreate, db: Session = Depends(get_db)):
@@ -642,37 +693,24 @@ def suggest_menu(item: SuggestionItem, db: Session = Depends(get_db)):
                 "message": "Nama menu usulan tidak boleh kosong",
                 "data": None
             }
-        
         if not item.customer_name or item.customer_name.strip() == "":
             return {
                 "status": "error",
                 "message": "Nama customer tidak boleh kosong", 
                 "data": None
             }
-        
-        exist_main = db.query(MenuItem).filter(
-            (MenuItem.base_name_en == item.menu_name.strip()) | (MenuItem.base_name_id == item.menu_name.strip())
-        ).first()
-        exist_suggested = db.query(MenuSuggestion).filter(MenuSuggestion.menu_name == item.menu_name.strip()).first()
-        if exist_main or exist_suggested:
-            return {
-                "status": "duplicate",
-                "message": "Pantun: Ke pasar beli ketela, menu ini sudah ada ternyata 😅",
-                "data": None
-            }
-        
+        # Tidak ada pengecekan duplikat menu
         suggestion = MenuSuggestion(
-            usulan_id=generate_id("USL", 12), 
+            usulan_id=generate_id("USL", 12),
             menu_name=item.menu_name.strip(),
             customer_name=item.customer_name.strip(),
             description=(item.description.strip() if isinstance(item.description, str) and item.description.strip() != "" else None)
         )
         db.add(suggestion)
         db.commit()
-        
         return {
             "status": "success",
-            "message": "Langit cerah, hati lega — usulan kamu bisa jadi tren menu selanjutnya 🌟",
+            "message": "Usulan kamu berhasil disimpan 🌟",
             "data": {
                 "usulan_id": suggestion.usulan_id,
                 "menu_name": suggestion.menu_name,

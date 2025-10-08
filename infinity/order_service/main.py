@@ -268,6 +268,27 @@ def validate_room_name(room_name: str, db: Session) -> Optional[str]:
     
     return None
 
+def check_stock_combined(order_items: List["OrderItemSchema"], order_id: str) -> dict:
+    """Cek stok untuk seluruh pesanan sekaligus agar memperhitungkan bahan yang sama.
+    Mengembalikan dict response dari inventory_service /stock/check_availability
+    """
+    try:
+        payload = {
+            "order_id": order_id,
+            "items": [
+                {
+                    "menu_name": it.menu_name,
+                    "quantity": it.quantity,
+                    "preference": (it.preference or "")
+                } for it in order_items
+            ]
+        }
+        resp = requests.post(f"{INVENTORY_SERVICE_URL}/stock/check_availability", json=payload, timeout=7)
+        return resp.json() if resp is not None else {"success": False, "can_fulfill": False, "message": "No response"}
+    except Exception as e:
+        logging.error(f"Error combined stock check: {e}")
+        return {"success": False, "can_fulfill": False, "message": str(e)}
+
 def cancel_order_item_by_stock(order_id: str, menu_name: str, reason: str, db: Session) -> dict:
     """
     Membatalkan item order tertentu karena stok habis.
@@ -501,7 +522,8 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         # Jika item memiliki preference, validasi apakah menu tersebut boleh memiliki flavor
         if item.preference and item.preference.strip():
             try:
-                flavor_url = f"{MENU_SERVICE_URL}/menu/by_name/{item.menu_name}/flavors"
+                # Ambil hanya flavor yang available (isAvail=True) untuk validasi
+                flavor_url = f"{MENU_SERVICE_URL}/menu/by_name/{item.menu_name}/flavors?include_unavailable=false"
                 logging.info(f"🔍 DEBUG: Validating flavor for menu '{item.menu_name}', preference: '{item.preference}'")
                 logging.info(f"🔍 DEBUG: Calling flavor endpoint: {flavor_url}")
                 flavor_response = requests.get(flavor_url, timeout=3)
@@ -511,9 +533,30 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
                     return JSONResponse(status_code=200, content={"status": "error", "message": f"Gagal mendapatkan data rasa untuk {item.menu_name}", "data": None})
                 
                 available_flavors = flavor_response.json()
-                
-                # Jika menu tidak memiliki pasangan flavor sama sekali
+
+                # Jika tidak ada flavor available, cek apakah sebenarnya menu punya flavor tapi sedang tidak tersedia
                 if not available_flavors or len(available_flavors) == 0:
+                    try:
+                        all_flavors_resp = requests.get(
+                            f"{MENU_SERVICE_URL}/menu/by_name/{item.menu_name}/flavors?include_unavailable=true",
+                            timeout=3
+                        )
+                        if all_flavors_resp.status_code == 200 and len(all_flavors_resp.json() or []) > 0:
+                            return JSONResponse(
+                                status_code=200,
+                                content={
+                                    "status": "error",
+                                    "message": f"Semua varian rasa untuk '{item.menu_name}' sedang tidak tersedia. Silakan pilih menu lain atau coba lagi nanti.",
+                                    "data": {
+                                        "menu_item": item.menu_name,
+                                        "invalid_preference": item.preference,
+                                        "reason": "Semua flavor sedang tidak tersedia"
+                                    }
+                                }
+                            )
+                    except Exception:
+                        pass
+                    # Default: menu memang tidak punya flavor standar
                     logging.info(f"🚫 DEBUG: Menu '{item.menu_name}' tidak memiliki pasangan flavor, tapi preference diberikan: '{item.preference}'")
                     return JSONResponse(
                         status_code=200,
@@ -593,7 +636,8 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         # Menu yang wajib memiliki flavor tapi tidak ada preference
         elif item.menu_name in flavor_required_menus and not item.preference:
             try:
-                flavor_url = f"{MENU_SERVICE_URL}/menu/by_name/{item.menu_name}/flavors"
+                # Ambil hanya flavor yang available (isAvail=True) untuk validasi
+                flavor_url = f"{MENU_SERVICE_URL}/menu/by_name/{item.menu_name}/flavors?include_unavailable=false"
                 flavor_response = requests.get(flavor_url, timeout=3)
                 
                 if flavor_response.status_code == 200:
@@ -665,6 +709,29 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
         return JSONResponse(status_code=200, content={"status": "error", "message": f"Pesanan dengan ID {order_id} sudah dalam proses.", "data": None})
     
     try:
+        # Guard: pastikan kombinasi item bisa dipenuhi (cek agregat sekali)
+        combined_check = check_stock_combined(req.orders, temp_order_id)
+        if not combined_check.get("can_fulfill", False):
+            shortages = combined_check.get("shortages") or []
+            # Format pesan ringkas berdasarkan bahan yang kurang
+            if shortages:
+                detail = "; ".join([
+                    f"{s.get('ingredient_name','?')}: perlu {s.get('required',0)} tersedia {s.get('available',0)}"
+                    for s in shortages[:5]
+                ])
+                extra = f" dan {max(0, len(shortages)-5)} item lainnya" if len(shortages) > 5 else ""
+                msg = f"Stok tidak mencukupi untuk kombinasi menu ini. Detail: {detail}{extra}"
+            else:
+                msg = combined_check.get("message", "Stok tidak mencukupi untuk kombinasi menu ini")
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": msg,
+                "data": {
+                    "order_id": temp_order_id,
+                    "shortages": shortages
+                }
+            })
+
         # Cek stok per item untuk partial cancellation
         can_fulfill_all, available_items, unavailable_items = check_stock_per_item(req.orders, temp_order_id)
         
@@ -765,12 +832,21 @@ def create_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
 
     try:
         print(f"🔥 ORDER SERVICE: Mengkonsumsi stok untuk order {order_id}")
-        # Hanya konsumsi stok untuk item yang tersedia
+        # Hanya konsumsi stok untuk item yang tersedia (status active)
+        active_items = db.query(OrderItem).filter(
+            OrderItem.order_id == order_id,
+            OrderItem.status == "active"
+        ).all()
         consume_payload = {
             "order_id": order_id,
             "items": [
-                {"menu_name": item.menu_name, "quantity": item.quantity, "preference": item.preference}
-                for item in order_items_to_create
+                {
+                    "menu_name": item.menu_name,
+                    "quantity": item.quantity,
+                    "preference": item.preference,
+                    "item_id": item.id
+                }
+                for item in active_items
             ]
         }
         consume_resp = requests.post(
@@ -964,6 +1040,28 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
     
     
     try:
+        # Guard: pastikan kombinasi item bisa dipenuhi (cek agregat sekali)
+        combined_check = check_stock_combined(req.orders, temp_order_id)
+        if not combined_check.get("can_fulfill", False):
+            shortages = combined_check.get("shortages") or []
+            if shortages:
+                detail = "; ".join([
+                    f"{s.get('ingredient_name','?')}: perlu {s.get('required',0)} tersedia {s.get('available',0)}"
+                    for s in shortages[:5]
+                ])
+                extra = f" dan {max(0, len(shortages)-5)} item lainnya" if len(shortages) > 5 else ""
+                msg = f"Stok tidak mencukupi untuk kombinasi menu ini. Detail: {detail}{extra}"
+            else:
+                msg = combined_check.get("message", "Stok tidak mencukupi untuk kombinasi menu ini")
+            return JSONResponse(status_code=200, content={
+                "status": "error",
+                "message": msg,
+                "data": {
+                    "order_id": temp_order_id,
+                    "shortages": shortages
+                }
+            })
+
         # Cek stok per item untuk partial cancellation (sama seperti create_order)
         can_fulfill_all, available_items, unavailable_items = check_stock_per_item(req.orders, temp_order_id)
         
@@ -1065,12 +1163,21 @@ def create_custom_order(req: CreateOrderRequest, db: Session = Depends(get_db)):
 
     try:
         print(f"🔥 ORDER SERVICE: Mengkonsumsi stok untuk custom order {order_id}")
-        # Hanya konsumsi stok untuk item yang tersedia
+        # Hanya konsumsi stok untuk item yang tersedia (status active)
+        active_items = db.query(OrderItem).filter(
+            OrderItem.order_id == order_id,
+            OrderItem.status == "active"
+        ).all()
         consume_payload = {
             "order_id": order_id,
             "items": [
-                {"menu_name": item.menu_name, "quantity": item.quantity, "preference": item.preference}
-                for item in order_items_to_create
+                {
+                    "menu_name": item.menu_name,
+                    "quantity": item.quantity,
+                    "preference": item.preference,
+                    "item_id": item.id
+                }
+                for item in active_items
             ]
         }
         consume_resp = requests.post(
@@ -1453,7 +1560,8 @@ async def cancel_order_item_endpoint(request: Request, db: Session = Depends(get
                 {
                     "menu_name": order_item.menu_name,
                     "quantity": order_item.quantity,
-                    "preference": order_item.preference
+                    "preference": order_item.preference,
+                    "item_id": order_item.id
                 }
             ]
         }
@@ -1623,10 +1731,18 @@ def get_order_status(order_id: str, db: Session = Depends(get_db)):
         "created_at": order.created_at.isoformat(),
         "cancel_reason": order.cancel_reason,
         "is_custom": order.is_custom,
-        # items = active only for UI; also provide cancelled_orders and time_cancelled
-        "orders": active_items_list,
-        "cancelled_orders": cancelled_items_list,
-        "time_cancelled": time_cancelled_val
+        "orders": [
+            {
+                "item_id": item.id,
+                "menu_name": item.menu_name,
+                "quantity": item.quantity,
+                "preference": item.preference if item.preference else "",
+                "notes": item.notes,
+                "orders": active_items_list,
+                "cancelled_orders": cancelled_items_list,
+                "time_cancelled": time_cancelled_val
+            } for item in order_items
+        ]
     }
     
     return JSONResponse(status_code=200, content={

@@ -38,7 +38,10 @@ CREATE TABLE inventories (
     minimum_quantity FLOAT DEFAULT 0,
     category stockcategory NOT NULL,
     unit unittype NOT NULL,
-    is_available BOOLEAN NOT NULL DEFAULT TRUE
+    is_available BOOLEAN NOT NULL DEFAULT TRUE,
+    purchase_price_total FLOAT DEFAULT 0,
+    purchase_quantity FLOAT DEFAULT 0,
+    unit_price FLOAT DEFAULT 0
 );
 
 -- Buat index untuk performa query is_available
@@ -110,54 +113,54 @@ BEGIN
 END $$;
 
 -- DATA INVENTORY BERDASARKAN KATEGORI DETAIL YANG DIMINTA
-INSERT INTO inventories (id, name, current_quantity, minimum_quantity, category, unit) 
+INSERT INTO inventories (id, name, current_quantity, minimum_quantity, category, unit, is_available, purchase_price_total, purchase_quantity, unit_price) 
 VALUES
 -- 1. PACKAGING
-(1,  'Cup',                   700,   100,  'packaging'::stockcategory, 'piece'::unittype),
-(2,  'Cup Hot',               550,   100,  'packaging'::stockcategory, 'piece'::unittype),
-(3,  'Sedotan',               173,    50,  'packaging'::stockcategory, 'piece'::unittype),
+(1,  'Cup',                   700,   100,  'packaging'::stockcategory, 'piece'::unittype, TRUE, 220810, 1000, 220.81),
+(2,  'Cup Hot',               550,   100,  'packaging'::stockcategory, 'piece'::unittype, TRUE, 226471, 1000, 226.471),
+(3,  'Sedotan',               173,    50,  'packaging'::stockcategory, 'piece'::unittype, TRUE, 10000, 200, 50.0),
 
 -- 2. INGREDIENTS (Bahan Dasar)
-(4,  'Kopi Robusta',         1800,   500,  'ingredients'::stockcategory, 'gram'::unittype),
-(5,  'Creamer',              1200,   500,  'ingredients'::stockcategory, 'gram'::unittype),
-(6,  'Susu Kental Manis',    1605,   540,  'ingredients'::stockcategory, 'milliliter'::unittype),
-(7,  'Susu Diamond',         6000,  3000,  'ingredients'::stockcategory, 'milliliter'::unittype),
-(36, 'Sprite',               5000,  1250,  'ingredients'::stockcategory, 'milliliter'::unittype),
-(35, 'Es Batu',             10000,  2500,  'ingredients'::stockcategory, 'gram'::unittype),
-(37, 'Biji Selasih',          100,    20,  'ingredients'::stockcategory, 'gram'::unittype),
-(34, 'Nescafe',                76,    20,  'ingredients'::stockcategory, 'gram'::unittype),
-(33, 'Teh Celup',              22,    10,  'ingredients'::stockcategory, 'piece'::unittype),
-(32, 'Sanquik Lemon',          50,   100,  'ingredients'::stockcategory, 'milliliter'::unittype),
-(23, 'Gula Pasir Cair',       300,   200,  'ingredients'::stockcategory, 'milliliter'::unittype),
-(24, 'Gula Aren Cair',        337,   200,  'ingredients'::stockcategory, 'milliliter'::unittype),
+(4,  'Kopi Robusta',         1800,   500,  'ingredients'::stockcategory, 'gram'::unittype, TRUE, 155000, 1000, 155.0),
+(5,  'Creamer',              1200,   500,  'ingredients'::stockcategory, 'gram'::unittype, TRUE, 46000, 1000, 46.0),
+(6,  'Susu Kental Manis',    1605,   540,  'ingredients'::stockcategory, 'milliliter'::unittype, TRUE, 17000, 1605, 10.59316773),
+(7,  'Susu Diamond',         6000,  3000,  'ingredients'::stockcategory, 'milliliter'::unittype, TRUE, 77000, 12000, 6.41666667),
+(36, 'Sprite',               5000,  1250,  'ingredients'::stockcategory, 'milliliter'::unittype, TRUE, 10000, 5000, 2.0),
+(35, 'Es Batu',             10000,  2500,  'ingredients'::stockcategory, 'gram'::unittype, TRUE, 20000, 10000, 2.0),
+(37, 'Biji Selasih',          100,    20,  'ingredients'::stockcategory, 'gram'::unittype, TRUE, 0, 0, 0),
+(34, 'Nescafe',                76,    20,  'ingredients'::stockcategory, 'gram'::unittype, TRUE, 60000, 90, 666.66666667),
+(33, 'Teh Celup',              22,    10,  'ingredients'::stockcategory, 'piece'::unittype, TRUE, 24000, 25, 960.0),
+(32, 'Sanquik Lemon',          50,   100,  'ingredients'::stockcategory, 'milliliter'::unittype, TRUE, 40000, 300, 133.33333333),
+(23, 'Gula Pasir Cair',       300,   200,  'ingredients'::stockcategory, 'milliliter'::unittype, TRUE, 12000, 1000, 12.0),
+(24, 'Gula Aren Cair',        337,   200,  'ingredients'::stockcategory, 'milliliter'::unittype, TRUE, 44000, 600, 73.33333333),
 
 -- 3. COFFEE FLAVORS
-(8,  'Caramel',               435,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype),
-(9,  'Peach',                 600,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype),
-(10, 'Macadamia Nut',         460,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype),
-(11, 'French Moca',           400,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype),
-(12, 'Java Brown Sugar',      400,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype),
-(13, 'Chocolate',             470,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype),
-(15, 'Roasted Almond',        585,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype),
-(16, 'Creme Brulee',          280,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype),
-(17, 'Butter Scotch',         500,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype),
+(8,  'Caramel',               435,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype, TRUE, 77000, 650, 118.46153846),
+(9,  'Peach',                 600,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype, TRUE, 77000, 650, 118.46153846),
+(10, 'Macadamia Nut',         460,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype, TRUE, 77000, 650, 118.46153846),
+(11, 'French Moca',           400,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype, TRUE, 77000, 650, 118.46153846),
+(12, 'Java Brown Sugar',      400,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype, TRUE, 77000, 650, 118.46153846),
+(13, 'Chocolate',             470,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype, TRUE, 77000, 650, 118.46153846),
+(15, 'Roasted Almond',        585,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype, TRUE, 77000, 650, 118.46153846),
+(16, 'Creme Brulee',          280,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype, TRUE, 77000, 650, 118.46153846),
+(17, 'Butter Scotch',         500,   150,  'coffee_flavors'::stockcategory, 'milliliter'::unittype, TRUE, 77000, 650, 118.46153846),
 
 -- 4. SQUASH FLAVORS
-(14, 'Passion Fruit',         530,   150,  'squash_flavors'::stockcategory, 'milliliter'::unittype),
-(18, 'Marjan Vanilla',        230,   100,  'squash_flavors'::stockcategory, 'milliliter'::unittype),
-(19, 'Marjan Grenadine',      367,   100,  'squash_flavors'::stockcategory, 'milliliter'::unittype),
-(20, 'Marjan Markisa',        294,   100,  'squash_flavors'::stockcategory, 'milliliter'::unittype),
-(21, 'Marjan Melon',          215,   100,  'squash_flavors'::stockcategory, 'milliliter'::unittype),
-(22, 'Marjan Nanas',          460,   100,  'squash_flavors'::stockcategory, 'milliliter'::unittype),
+(14, 'Passion Fruit',         530,   150,  'squash_flavors'::stockcategory, 'milliliter'::unittype, TRUE, 77000, 650, 118.46153846),
+(18, 'Marjan Vanilla',        230,   100,  'squash_flavors'::stockcategory, 'milliliter'::unittype, TRUE, 27000, 460, 58.69565217),
+(19, 'Marjan Grenadine',      367,   100,  'squash_flavors'::stockcategory, 'milliliter'::unittype, TRUE, 27000, 460, 58.69565217),
+(20, 'Marjan Markisa',        294,   100,  'squash_flavors'::stockcategory, 'milliliter'::unittype, TRUE, 27000, 460, 58.69565217),
+(21, 'Marjan Melon',          215,   100,  'squash_flavors'::stockcategory, 'milliliter'::unittype, TRUE, 27000, 460, 58.69565217),
+(22, 'Marjan Nanas',          460,   100,  'squash_flavors'::stockcategory, 'milliliter'::unittype, TRUE, 27000, 460, 58.69565217),
 
 -- 5. MILK SHAKE FLAVORS
-(25, 'Powder Keju Vanilla',   197,   300,  'milk_shake_flavors'::stockcategory, 'gram'::unittype),
-(26, 'Powder Taro',           187,   300,  'milk_shake_flavors'::stockcategory, 'gram'::unittype),
-(27, 'Powder Banana',         377,   300,  'milk_shake_flavors'::stockcategory, 'gram'::unittype),
-(28, 'Powder Dark Chocolate', 882,   300,  'milk_shake_flavors'::stockcategory, 'gram'::unittype),
-(29, 'Powder Chocolate Hazelnut', 413, 300, 'milk_shake_flavors'::stockcategory, 'gram'::unittype),
-(30, 'Powder Chocolate Malt', 668,   300,  'milk_shake_flavors'::stockcategory, 'gram'::unittype),
-(31, 'Powder Blackcurrant',  1000,   300,  'milk_shake_flavors'::stockcategory, 'gram'::unittype);
+(25, 'Powder Keju Vanilla',   197,   300,  'milk_shake_flavors'::stockcategory, 'gram'::unittype, TRUE, 67000, 1000, 67.0),
+(26, 'Powder Taro',           187,   300,  'milk_shake_flavors'::stockcategory, 'gram'::unittype, TRUE, 67000, 1000, 67.0),
+(27, 'Powder Banana',         377,   300,  'milk_shake_flavors'::stockcategory, 'gram'::unittype, TRUE, 67000, 1000, 67.0),
+(28, 'Powder Dark Chocolate', 882,   300,  'milk_shake_flavors'::stockcategory, 'gram'::unittype, TRUE, 67000, 1000, 67.0),
+(29, 'Powder Chocolate Hazelnut', 413, 300, 'milk_shake_flavors'::stockcategory, 'gram'::unittype, TRUE, 67000, 1000, 67.0),
+(30, 'Powder Chocolate Malt', 668,   300,  'milk_shake_flavors'::stockcategory, 'gram'::unittype, TRUE, 67000, 1000, 67.0),
+(31, 'Powder Blackcurrant',  1000,   300,  'milk_shake_flavors'::stockcategory, 'gram'::unittype, TRUE, 67000, 1000, 67.0);
 
 -- Pastikan sequence lanjut setelah ID max
 SELECT setval(pg_get_serial_sequence('inventories','id'), (SELECT MAX(id) FROM inventories));

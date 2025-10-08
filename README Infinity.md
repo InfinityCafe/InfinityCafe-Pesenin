@@ -26,7 +26,8 @@ infinity/
 
 2. **Jalankan layanan:**
    ```bash
-   docker-compose -f docker-compose.infinitycafe.yml up --build
+   # Jalankan semua service sesuai docker-compose di repo root
+   docker compose up --build -d
    ```
 
 3. **Akses:**
@@ -34,6 +35,33 @@ infinity/
    - Order Service → [http://localhost:8002](http://localhost:8002)
    - Kitchen Service → [http://localhost:8003](http://localhost:8003)
    - QwenAgent Service → [http://localhost:9000](http://localhost:9000)
+
+   ### Developer quickstart (mini)
+
+   Jika Anda ingin mengembangkan atau menjalankan hanya bagian microservices:
+
+   1. Salin `.env` (jika belum ada) dan sesuaikan variabel lingkungan.
+   2. Jalankan database dan service inti:
+
+   ```powershell
+   docker compose up -d pgvector17
+   docker compose up -d menu_service order_service kitchen_service inventory_service
+   ```
+
+   3. Untuk pengembangan cepat pada satu service (contoh: inventory), jalankan langsung di host:
+
+   ```powershell
+   cd ./infinity/inventory_service
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   pip install -r ../requirements.txt
+   uvicorn main:app --reload --port 8006
+   ```
+
+   Catatan:
+   - Jika menjalankan service langsung di host, set environment variable `INVENTORY_SERVICE_URL=http://localhost:8006` (dan sesuaikan untuk service lain) agar service lain yang Anda jalankan lokal dapat diakses.
+   - Periksa seeder di folder `initdb/` jika ada kegagalan inisialisasi DB.
+
 
 ## 📝 Endpoint
 - **QwenAgent Service:**

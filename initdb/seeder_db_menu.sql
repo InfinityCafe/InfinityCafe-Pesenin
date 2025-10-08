@@ -35,18 +35,17 @@ INSERT INTO flavors (id, flavor_name_en, flavor_name_id, additional_price, "isAv
 ('FLAV10', 'Passion Fruit', 'Markisa', 0, TRUE),
 ('FLAV11', 'Vanilla', 'Vanila', 0, TRUE),
 ('FLAV12', 'Grenadine', 'Grenadine', 0, TRUE),
-('FLAV13', 'Passion Fruit', 'Markisa', 0, TRUE),
-('FLAV14', 'Melon', 'Melon', 0, TRUE),
-('FLAV15', 'Pineapple', 'Nanas', 0, TRUE),
+('FLAV13', 'Melon', 'Melon', 0, TRUE),
+('FLAV14', 'Pineapple', 'Nanas', 0, TRUE),
 
 -- Flavors untuk MilkShake
-('FLAV16', 'Vanilla Cheese', 'Keju Vanila', 0, TRUE),
-('FLAV17', 'Taro', 'Talas', 0, TRUE),
-('FLAV18', 'Banana', 'Pisang', 0, TRUE),
-('FLAV19', 'Dark Chocolate', 'Coklat Hitam', 0, TRUE),
-('FLAV20', 'Chocolate Hazelnut', 'Coklat Hazelnut', 0, TRUE),
-('FLAV21', 'Chocolate Malt', 'Coklat Malt', 0, TRUE),
-('FLAV22', 'Blackcurrant', 'Blackcurrant', 0, TRUE);   
+('FLAV15', 'Vanilla Cheese', 'Keju Vanila', 0, TRUE),
+('FLAV16', 'Taro', 'Talas', 0, TRUE),
+('FLAV17', 'Banana', 'Pisang', 0, TRUE),
+('FLAV18', 'Dark Chocolate', 'Coklat Hitam', 0, TRUE),
+('FLAV19', 'Chocolate Hazelnut', 'Coklat Hazelnut', 0, TRUE),
+('FLAV20', 'Chocolate Malt', 'Coklat Malt', 0, TRUE),
+('FLAV21', 'Blackcurrant', 'Blackcurrant', 0, TRUE);   
 
 -- LANGKAH 2: ISI TABEL MASTER 'menu_items'
 INSERT INTO menu_items (id, base_name_en, base_name_id, base_price, making_time_minutes, "isAvail") VALUES
@@ -81,18 +80,17 @@ INSERT INTO menu_item_flavor_association (menu_item_id, flavor_id) VALUES
 ('MENU002', 'FLAV10'), -- Passion Fruit / Markisa
 ('MENU002', 'FLAV11'), -- Vanilla / Vanila
 ('MENU002', 'FLAV12'), -- Grenadine / Grenadine
-('MENU002', 'FLAV13'), -- Passion Fruit / Markisa
-('MENU002', 'FLAV14'), -- Melon / Melon
-('MENU002', 'FLAV15'), -- Pineapple / Nanas
+('MENU002', 'FLAV13'), -- Melon / Melon
+('MENU002', 'FLAV14'), -- Pineapple / Nanas
 
 -- Rasa untuk MilkShake (MENU003)
-('MENU003', 'FLAV16'), -- Vanilla Cheese / Keju Vanila
-('MENU003', 'FLAV17'), -- Taro / Talas
-('MENU003', 'FLAV18'), -- Banana / Pisang
-('MENU003', 'FLAV19'), -- Dark Chocolate / Coklat Hitam
-('MENU003', 'FLAV20'), -- Chocolate Hazelnut / Coklat Hazelnut
-('MENU003', 'FLAV21'), -- Chocolate Malt / Coklat Malt
-('MENU003', 'FLAV22'), -- Blackcurrant / Blackcurrant
+('MENU003', 'FLAV15'), -- Vanilla Cheese / Keju Vanila
+('MENU003', 'FLAV16'), -- Taro / Talas
+('MENU003', 'FLAV17'), -- Banana / Pisang
+('MENU003', 'FLAV18'), -- Dark Chocolate / Coklat Hitam
+('MENU003', 'FLAV19'), -- Chocolate Hazelnut / Coklat Hazelnut
+('MENU003', 'FLAV20'), -- Chocolate Malt / Coklat Malt
+('MENU003', 'FLAV21'), -- Blackcurrant / Blackcurrant
 
 -- Rasa untuk Cappuccino (MENU011) - SAMA seperti Caffe Latte
 ('MENU011', 'FLAV00'), -- Original / Original

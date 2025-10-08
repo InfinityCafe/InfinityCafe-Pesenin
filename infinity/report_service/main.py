@@ -87,12 +87,23 @@ def get_order_ingredients_via_report(order_id: str):
             raise HTTPException(status_code=503, detail="Order service unavailable")
 
         order_status = None
-        if isinstance(status_json, dict) and status_json.get("status") == "success":
-            order_info = status_json.get("data", {})
-            order_status = order_info.get("status")
+        if isinstance(status_json, dict):
+            # Skenario sukses standar
+            if status_json.get("status") == "success":
+                order_info = status_json.get("data") or {}
+                if isinstance(order_info, dict):
+                    order_status = order_info.get("status")
+                else:
+                    order_status = None
+            else:
+                # Skenario error atau struktur berbeda: pastikan aman jika data=None
+                data_field = status_json.get("data")
+                if isinstance(data_field, dict):
+                    order_status = data_field.get("status")
+                else:
+                    order_status = None
         else:
-            # Fallback kalau struktur berbeda
-            order_status = (status_json or {}).get("data", {}).get("status")
+            order_status = None
 
         # Hanya proses jika status done
         if order_status != "done":
@@ -200,7 +211,7 @@ def get_suggested_menu(
     
     return result
 
-@app.get("/report", tags=["Report"])
+@app.get("  ", tags=["Report"])
 def get_report(
     start_date: str = Query(...),
     end_date: str = Query(...),
@@ -269,6 +280,12 @@ def get_report(
             "total_income": 0,
             "details": []
         }
+
+    # Inventory, flavor and recipe lookups removed for this endpoint
+    # (ingredient cost/profit calculation disabled)
+    inventory_lookup = {}
+    flavor_mapping_lookup = {}
+    recipes_cache = {}
     
     # Process orders — align logic with best_seller: use order status/items from order service
     total_income = 0
@@ -333,6 +350,7 @@ def get_report(
             item_total = quantity * unit_price
             total_income += item_total
             
+            # get or init menu summary (no ingredient/profit calculations)
             if display_name not in menu_summary:
                 menu_summary[display_name] = {
                     "menu_name": display_name,
@@ -340,6 +358,8 @@ def get_report(
                     "unit_price": unit_price,
                     "total": 0
                 }
+
+            # aggregate quantity and total revenue only
             menu_summary[display_name]["quantity"] += quantity
             menu_summary[display_name]["total"] += item_total
     
@@ -676,6 +696,51 @@ def get_financial_sales_report(
         
         logging.info(f"Loaded {len(orders)} orders, {len(menus)} menus, {len(flavors)} flavors")
         
+        # --- build inventory lookup, flavor mapping, and recipe cache for cost calculations ---
+        inventory_lookup = {}
+        try:
+            inv_resp = make_request(f"{INVENTORY_SERVICE_URL}/list_ingredients")
+            inv_items = inv_resp.get('data') if isinstance(inv_resp, dict) and 'data' in inv_resp else inv_resp
+            if isinstance(inv_items, dict) and 'all_ingredients' in inv_items:
+                inv_list = inv_items.get('all_ingredients', [])
+            else:
+                inv_list = inv_items if isinstance(inv_items, list) else []
+
+            for inv in inv_list:
+                try:
+                    iid = int(inv.get('id') or inv.get('ingredient_id'))
+                except Exception:
+                    continue
+                try:
+                    unit_price = float(inv.get('unit_price') or 0)
+                except Exception:
+                    unit_price = 0.0
+                inventory_lookup[iid] = {
+                    'unit_price': unit_price,
+                    'name': inv.get('name') or inv.get('ingredient_name') or '',
+                    'unit': inv.get('unit') or inv.get('unit_type') or '',
+                    'category': inv.get('category') or inv.get('category_name') or ''
+                }
+        except Exception:
+            inventory_lookup = {}
+
+        flavor_mapping_lookup = {}
+        try:
+            fm_resp = make_request(f"{INVENTORY_SERVICE_URL}/list_flavor_mappings")
+            fm_items = fm_resp.get('data') if isinstance(fm_resp, dict) and 'data' in fm_resp else fm_resp
+            fm_list = fm_items if isinstance(fm_items, list) else []
+            for m in fm_list:
+                if m.get('flavor_name'):
+                    flavor_mapping_lookup[m.get('flavor_name')] = m
+                if m.get('flavor_name_en'):
+                    flavor_mapping_lookup[m.get('flavor_name_en')] = m
+                if m.get('flavor_name_id'):
+                    flavor_mapping_lookup[m.get('flavor_name_id')] = m
+        except Exception:
+            flavor_mapping_lookup = {}
+
+        recipes_cache = {}
+
         # Process sales data menggunakan pola yang sama seperti best_seller
         sales_transactions = []
         total_omzet = 0
@@ -684,18 +749,20 @@ def get_financial_sales_report(
         total_transactions = 0
         processed_orders = 0
         total_orders_in_range = 0
-        
+        total_ingredient_cost_overall = 0.0
+        total_profit_overall = 0.0
+
         for order in orders:
             # Extract date dari created_at timestamp - sama seperti best_seller
             order_date = extract_date_from_datetime(order['created_at'])
-            
+
             # Filter orders by date range
             if is_date_in_range(order_date, query_start_date, query_end_date):
                 total_orders_in_range += 1
-                
+
                 # Check order status directly from order data
                 order_status = order.get('status')  # Check if status field exists in order
-                
+
                 # If no status in order, get from order_status endpoint
                 if not order_status:
                     try:
@@ -711,12 +778,12 @@ def get_financial_sales_report(
                     except Exception as e:
                         logging.error(f"Error getting order status for {order['order_id']}: {e}")
                         continue
-                
+
                 # Process only orders with 'done' status
                 if order_status == 'done':
                     processed_orders += 1
                     logging.info(f"Processing completed order {order['order_id']}: date={order_date}, status={order_status}")
-                    
+
                     # Get order items detail using order_status endpoint - sama seperti best_seller
                     try:
                         order_detail_response = requests.get(
@@ -727,41 +794,109 @@ def get_financial_sales_report(
                             order_detail = order_detail_response.json()
                             if order_detail.get('status') == 'success':
                                 order_items = order_detail['data'].get('orders', [])
-                                
+
                                 for item in order_items:
                                     menu_name = item['menu_name']
                                     quantity = item['quantity']
                                     preference = item.get('preference', '').strip() if item.get('preference') else ''
                                     notes = item.get('notes', '').strip() if item.get('notes') else ''
-                                    
+
                                     # Map Indonesian menu name to English name if available
                                     display_name = menu_name_mapping.get(menu_name, menu_name)
-                                    
+
                                     # Get menu data untuk base price
                                     menu_data = menu_lookup.get(display_name, {})
                                     base_price = menu_data.get('base_price', 0)
-                                    
+
                                     # Determine flavor dan harga flavor
                                     flavor_name = preference if preference else "-"
                                     flavor_additional_cost = 0
-                                    
+
                                     if preference:
                                         # Try to find flavor by preference (could be Indonesian or English)
                                         flavor_info = flavor_lookup.get(preference)
                                         if flavor_info:
                                             flavor_additional_cost = flavor_info.get('additional_price', 0)
-                                    
+
                                     # Calculate total price for this item
                                     item_base_revenue = base_price * quantity
                                     item_flavor_revenue = flavor_additional_cost * quantity
                                     total_item_price = item_base_revenue + item_flavor_revenue
-                                    
+
                                     total_omzet += total_item_price
                                     total_base_revenue += item_base_revenue
                                     total_flavor_revenue += item_flavor_revenue
                                     total_transactions += 1
-                                    
-                                    # Create transaction record
+
+                                    # --- compute ingredients_used and ingredient costs for this transaction ---
+                                    ingredients_used = []
+                                    ingredient_cost_item = 0.0
+                                    # get recipe from cache or call batch endpoint
+                                    recipe_items = recipes_cache.get(display_name)
+                                    if recipe_items is None:
+                                        try:
+                                            r = requests.post(f"{MENU_SERVICE_URL}/recipes/batch", json={"menu_names": [display_name]}, timeout=6)
+                                            if r.status_code == 200:
+                                                rr = r.json().get('recipes', {}) or {}
+                                                recipe_items = rr.get(display_name, []) or []
+                                            else:
+                                                recipe_items = []
+                                        except Exception:
+                                            recipe_items = []
+                                        recipes_cache[display_name] = recipe_items
+
+                                    for ri in (recipe_items or []):
+                                        try:
+                                            ing_id = int(ri.get('ingredient_id'))
+                                            qty_per_serving = float(ri.get('quantity') or 0)
+                                        except Exception:
+                                            continue
+                                        inv = inventory_lookup.get(ing_id, {})
+                                        unit_price_ing = float(inv.get('unit_price') or 0)
+                                        cost = qty_per_serving * unit_price_ing * quantity
+                                        ingredient_cost_item += cost
+                                        ingredients_used.append({
+                                            'ingredient_id': ing_id,
+                                            'ingredient_name': inv.get('name') or ri.get('ingredient_name') or f"ID-{ing_id}",
+                                            'qty_per_serving': qty_per_serving,
+                                            'total_qty': round(qty_per_serving * quantity, 3),
+                                            'unit': inv.get('unit') or ri.get('unit') or '',
+                                            'unit_price': round(unit_price_ing, 2),
+                                            'cost': round(cost, 2),
+                                            'category': inv.get('category','')
+                                        })
+
+                                    # include flavor mapped ingredient cost if flavor maps to an ingredient (optional)
+                                    if preference:
+                                        fm = flavor_mapping_lookup.get(preference)
+                                        if fm:
+                                            try:
+                                                f_ing_id = int(fm.get('ingredient_id'))
+                                                f_qty_per_serving = float(fm.get('quantity_per_serving') or fm.get('quantity') or 0)
+                                                invf = inventory_lookup.get(f_ing_id, {})
+                                                f_unit_price = float(invf.get('unit_price') or 0)
+                                                f_cost = f_qty_per_serving * f_unit_price * quantity
+                                                ingredient_cost_item += f_cost
+                                                ingredients_used.append({
+                                                    'ingredient_id': f_ing_id,
+                                                    'ingredient_name': invf.get('name') or fm.get('ingredient_name') or f"ID-{f_ing_id}",
+                                                    'qty_per_serving': f_qty_per_serving,
+                                                    'total_qty': round(f_qty_per_serving * quantity, 3),
+                                                    'unit': invf.get('unit') or fm.get('unit') or '',
+                                                    'unit_price': round(f_unit_price, 2),
+                                                    'cost': round(f_cost, 2),
+                                                    'category': invf.get('category','')
+                                                })
+                                            except Exception:
+                                                pass
+
+                                    ingredient_cost_item = round(ingredient_cost_item, 2)
+                                    profit_item = round(total_item_price - ingredient_cost_item, 2)
+                                    total_ingredient_cost_overall += ingredient_cost_item
+                                    total_profit_overall += profit_item
+                                    # --- end ingredient cost calc ---
+
+                                    # Create transaction record (extended)
                                     transaction = {
                                         "order_id": order['order_id'],
                                         "order_date": order_date,
@@ -774,18 +909,21 @@ def get_financial_sales_report(
                                         "base_revenue": item_base_revenue,
                                         "flavor_revenue": item_flavor_revenue,
                                         "total_price": total_item_price,
+                                        "ingredients_used": ingredients_used,
+                                        "total_ingredient_cost": ingredient_cost_item,
+                                        "profit": profit_item,
                                         "notes": notes if notes else "-",
                                         "order_status": order_status
                                     }
-                                    
+
                                     sales_transactions.append(transaction)
-                                    
+
                     except requests.exceptions.RequestException as e:
                         logging.error(f"Error getting order details for {order['order_id']}: {e}")
                         continue
                 else:
                     logging.info(f"Order {order['order_id']} in date range but status is: {order_status}")
-        
+
         # Sort by order_date ASC (ascending)
         sales_transactions.sort(key=lambda x: x["order_date"])
         
@@ -807,13 +945,18 @@ def get_financial_sales_report(
                     "flavor_revenue": 0,
                     "total_revenue": 0,
                     "transactions_count": 0,
-                    "average_price_per_item": 0
+                    "average_price_per_item": 0,
+                    "total_ingredient_cost": 0.0,
+                    "total_profit": 0.0
                 }
             menu_breakdown[menu_key]["total_quantity"] += transaction["quantity"]
             menu_breakdown[menu_key]["base_revenue"] += transaction["base_revenue"]
             menu_breakdown[menu_key]["flavor_revenue"] += transaction["flavor_revenue"]
             menu_breakdown[menu_key]["total_revenue"] += transaction["total_price"]
             menu_breakdown[menu_key]["transactions_count"] += 1
+            # accumulate ingredient cost & profit per menu
+            menu_breakdown[menu_key]["total_ingredient_cost"] += float(transaction.get("total_ingredient_cost", 0) or 0)
+            menu_breakdown[menu_key]["total_profit"] += float(transaction.get("profit", 0) or 0)
         
         # Calculate average price per item for each menu
         for menu_data in menu_breakdown.values():
@@ -883,6 +1026,9 @@ def get_financial_sales_report(
                 "transactions_with_flavor": transactions_with_flavor,
                 "total_orders_in_range": total_orders_in_range,
                 "processed_orders": processed_orders
+                ,
+                "total_ingredient_cost": round(total_ingredient_cost_overall, 2),
+                "total_profit": round(total_profit_overall, 2)
             },
             "transactions": sales_transactions,
             "menu_breakdown": sorted_menu_breakdown,

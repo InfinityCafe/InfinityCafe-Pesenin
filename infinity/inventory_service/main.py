@@ -49,7 +49,7 @@ def get_jakarta_isoformat(dt):
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL_INVENTORY")
-MENU_SERVICE_URL = os.getenv("MENU_SERVICE_URL", "http://menu_service:8003")
+MENU_SERVICE_URL = os.getenv("MENU_SERVICE_URL", "http://menu_service:8001")
 USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://user_service:8001")
 
 if not DATABASE_URL:
@@ -161,6 +161,9 @@ class Inventory(Base):
     category = Column(SQLEnum(StockCategory), index=True)
     unit = Column(SQLEnum(UnitType), index=True)
     is_available = Column(Boolean, default=True, index=True)
+    purchase_price_total = Column(Float, default=0)
+    purchase_quantity = Column(Float, default=0)
+    unit_price = Column(Float, default=0)
 
 class InventoryOutbox(Base):
     __tablename__ = "inventory_outbox"
@@ -198,6 +201,9 @@ class ConsumptionIngredientDetail(Base):
     stock_before = Column(Float, nullable=False)
     stock_after = Column(Float, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(jakarta_tz))
+    order_item_id = Column(Integer, nullable=True)
+    menu_name = Column(String, nullable=True)
+    preference = Column(String, nullable=True)
     
     consumption_log = relationship("ConsumptionLog", backref="ingredient_details")
     ingredient = relationship("Inventory", backref="consumption_details")
@@ -234,6 +240,8 @@ class ValidateIngredientRequest(BaseModel):
     minimum_quantity: float
     category: StockCategory
     unit: UnitType
+    purchase_price_total: Optional[float] = 0.0
+    purchase_quantity: Optional[float] = 0.0
 
     @field_validator('category', 'unit', mode='before')
     @classmethod
@@ -262,6 +270,10 @@ class ValidateIngredientRequest(BaseModel):
             raise ValueError("Jumlah tidak boleh negatif")
         if self.current_quantity < self.minimum_quantity:
             raise ValueError("Current quantity tidak boleh kurang dari minimum")
+        if self.purchase_price_total is not None and self.purchase_price_total < 0:
+            raise ValueError("Harga total pembelian tidak boleh negatif")
+        if self.purchase_quantity is not None and self.purchase_quantity < 0:
+            raise ValueError("Jumlah pembelian (paket) tidak boleh negatif")
         return self
 
 class UpdateIngredientRequest(ValidateIngredientRequest):
@@ -271,6 +283,7 @@ class BatchStockItem(BaseModel):
     menu_name: str
     quantity: int = Field(gt=0)
     preference: Optional[str] = ""
+    item_id: Optional[int] = None
 
 class FlavorMappingRequest(BaseModel):
     flavor_name: str = Field(..., description="Nama flavor (e.g., 'Irish Max')")
@@ -305,6 +318,16 @@ class BatchStockResponse(BaseModel):
     details: list = Field(default_factory=list)
     debug_info: list = Field(default_factory=list)
 
+class PartialRollbackItem(BaseModel):
+    menu_name: str
+    quantity: int = Field(gt=0)
+    preference: Optional[str] = ""
+    item_id: Optional[int] = None
+
+class PartialRollbackRequest(BaseModel):
+    order_id: str
+    items: list[PartialRollbackItem]
+
 class StockAddRequestWithAudit(BaseModel):
     ingredient_id: int = Field(..., description="ID ingredient yang akan ditambah stoknya")
     add_quantity: float = Field(..., gt=0, description="Jumlah stok yang akan ditambahkan (harus positif)")
@@ -317,6 +340,8 @@ class UpdateIngredientRequestWithAudit(BaseModel):
     minimum_quantity: float
     category: StockCategory
     unit: UnitType
+    purchase_price_total: Optional[float] = None
+    purchase_quantity: Optional[float] = None
     notes: Optional[str] = Field("Update data ingredient", description="Alasan/catatan update")
 
     @field_validator('category', 'unit', mode='before')
@@ -339,6 +364,10 @@ class UpdateIngredientRequestWithAudit(BaseModel):
             raise ValueError("Jumlah harus diisi")
         if self.current_quantity < 0 or self.minimum_quantity < 0:
             raise ValueError("Jumlah tidak boleh negatif")
+        if self.purchase_price_total is not None and self.purchase_price_total < 0:
+            raise ValueError("Harga total pembelian tidak boleh negatif")
+        if self.purchase_quantity is not None and self.purchase_quantity < 0:
+            raise ValueError("Jumlah pembelian (paket) tidak boleh negatif")
         return self
 
 class MinimumStockRequestWithAudit(BaseModel):
@@ -416,7 +445,10 @@ def create_consumption_log_simplified(db: Session, order_id: str, menu_items_dat
                     quantity_consumed=ingredient_data.get('deducted', 0),
                     unit=ingredient_data.get('unit', ''),
                     stock_before=ingredient_data.get('before', 0),
-                    stock_after=ingredient_data.get('after', 0)
+                    stock_after=ingredient_data.get('after', 0),
+                    order_item_id=ingredient_data.get('order_item_id'),
+                    menu_name=ingredient_data.get('menu_name'),
+                    preference=ingredient_data.get('preference')
                 )
                 db.add(ingredient_detail)
         
@@ -500,7 +532,10 @@ def update_consumption_status(db: Session, order_id: str, new_status: str, ingre
                     quantity_consumed=ingredient_data.get('deducted', 0),
                     unit=ingredient_data.get('unit', ''),
                     stock_before=ingredient_data.get('before', 0),
-                    stock_after=ingredient_data.get('after', 0)
+                    stock_after=ingredient_data.get('after', 0),
+                    order_item_id=ingredient_data.get('order_item_id'),
+                    menu_name=ingredient_data.get('menu_name'),
+                    preference=ingredient_data.get('preference')
                 )
                 db.add(ingredient_detail)
             
@@ -603,7 +638,10 @@ def list_ingredients(db: Session = Depends(get_db), show_unavailable: bool = Que
                 "minimum_quantity": r.minimum_quantity,
                 "category": r.category.value,
                 "unit": r.unit.value,
-                "is_available": r.is_available
+                "is_available": r.is_available,
+                "purchase_price_total": r.purchase_price_total,
+                "purchase_quantity": r.purchase_quantity,
+                "unit_price": r.unit_price
             } for r in rows
         ]
         
@@ -645,13 +683,23 @@ def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)
                 }
             })
         
+        calc_unit_price = 0.0
+        try:
+            if (req.purchase_price_total or 0) > 0 and (req.purchase_quantity or 0) > 0:
+                calc_unit_price = float(req.purchase_price_total) / float(req.purchase_quantity)
+        except Exception:
+            calc_unit_price = 0.0
+
         ing = Inventory(
             name=req.name,
             current_quantity=req.current_quantity,
             minimum_quantity=req.minimum_quantity,
             category=req.category,
             unit=req.unit,
-            is_available=True
+            is_available=True,
+            purchase_price_total=float(req.purchase_price_total or 0),
+            purchase_quantity=float(req.purchase_quantity or 0),
+            unit_price=calc_unit_price
         )
         print(f"📝 DEBUG: Created inventory object: {ing.name} - {ing.category} - {ing.unit}")
         logging.info(f"📝 DEBUG: Created inventory object: {ing.name} - {ing.category} - {ing.unit}")
@@ -713,7 +761,10 @@ def add_ingredient(req: ValidateIngredientRequest, db: Session = Depends(get_db)
                 "minimum_quantity": ing.minimum_quantity,
                 "category": ing.category.value,
                 "unit": ing.unit.value,
-                "is_available": ing.is_available
+                "is_available": ing.is_available,
+                "purchase_price_total": ing.purchase_price_total,
+                "purchase_quantity": ing.purchase_quantity,
+                "unit_price": ing.unit_price
             }
         }
         
@@ -988,7 +1039,10 @@ def update_ingredient(req: UpdateIngredientRequest, db: Session = Depends(get_db
                 "minimum_quantity": ing.minimum_quantity,
                 "category": ing.category.value,
                 "unit": ing.unit.value,
-                "is_available": ing.is_available
+                "is_available": ing.is_available,
+                "purchase_price_total": ing.purchase_price_total,
+                "purchase_quantity": ing.purchase_quantity,
+                "unit_price": ing.unit_price
             }
         })
         
@@ -1436,7 +1490,7 @@ def update_minimum_stock(
             quantity_before=old_minimum,
             quantity_after=req.new_minimum,
             performed_by=current_username, 
-            notes=f"Update minimum stock: {req.notes}"
+            notes=req.notes
         )
         
         db.commit()
@@ -1483,14 +1537,47 @@ def update_ingredient_with_audit(
         old_quantity = ing.current_quantity
         old_minimum = ing.minimum_quantity
         old_name = ing.name
+        old_category = ing.category
+        old_unit = ing.unit
         
         ing.name = req.name
         ing.current_quantity = req.current_quantity
         ing.minimum_quantity = req.minimum_quantity
         ing.category = req.category
         ing.unit = req.unit
+        old_price_total = float(ing.purchase_price_total or 0.0)
+        old_purchase_qty = float(ing.purchase_quantity or 0.0)
+        old_unit_price = float(ing.unit_price or 0.0)
+
+        price_total_changed = False
+        qty_changed = False
+
+        if req.purchase_price_total is not None:
+            new_total = float(req.purchase_price_total)
+            price_total_changed = (new_total != old_price_total)
+            if price_total_changed:
+                ing.purchase_price_total = new_total
+
+        if req.purchase_quantity is not None:
+            new_qty = float(req.purchase_quantity)
+            qty_changed = (new_qty != old_purchase_qty)
+            if qty_changed:
+                ing.purchase_quantity = new_qty
+
+        price_changed = price_total_changed or qty_changed
+
+        if price_changed:
+            new_total = float(ing.purchase_price_total or 0.0)
+            new_qty = float(ing.purchase_quantity or 0.0)
+            try:
+                ing.unit_price = (new_total / new_qty) if (new_total > 0 and new_qty > 0) else 0.0
+            except Exception:
+                ing.unit_price = 0.0
         
         if old_quantity != req.current_quantity:
+            stock_notes = f"Edit stok: {old_quantity} → {req.current_quantity}"
+            if req.notes:
+                stock_notes += f" | {req.notes}"
             create_stock_history(
                 db=db,
                 ingredient_id=req.id,
@@ -1498,10 +1585,13 @@ def update_ingredient_with_audit(
                 quantity_before=old_quantity,
                 quantity_after=req.current_quantity,
                 performed_by=current_username,  
-                notes=f"Edit stock: {req.notes} (nama: {old_name} → {req.name})"
+                notes=stock_notes
             )
         
         if old_minimum != req.minimum_quantity:
+            min_notes = f"Edit minimum: {old_minimum} → {req.minimum_quantity}"
+            if req.notes:
+                min_notes += f" | {req.notes}"
             create_stock_history(
                 db=db,
                 ingredient_id=req.id,
@@ -1509,9 +1599,90 @@ def update_ingredient_with_audit(
                 quantity_before=old_minimum,
                 quantity_after=req.minimum_quantity,
                 performed_by=current_username,  
-                notes=f"Edit minimum: {req.notes} (nama: {old_name} → {req.name})"
+                notes=min_notes
             )
         
+        try:
+            old_cat_val = old_category.value if hasattr(old_category, "value") else str(old_category)
+        except Exception:
+            old_cat_val = str(old_category)
+        try:
+            new_cat_val = req.category.value if hasattr(req.category, "value") else str(req.category)
+        except Exception:
+            new_cat_val = str(req.category)
+
+        try:
+            old_unit_val = old_unit.value if hasattr(old_unit, "value") else str(old_unit)
+        except Exception:
+            old_unit_val = str(old_unit)
+        try:
+            new_unit_val = req.unit.value if hasattr(req.unit, "value") else str(req.unit)
+        except Exception:
+            new_unit_val = str(req.unit)
+
+        if str(old_name) != str(req.name):
+            name_notes = f"Edit nama: {old_name} → {req.name}"
+            if req.notes:
+                name_notes += f" | {req.notes}"
+            create_stock_history(
+                db=db,
+                ingredient_id=req.id,
+                action_type="edit_item_name",
+                quantity_before=old_quantity,
+                quantity_after=old_quantity,
+                performed_by=current_username,
+                notes=name_notes
+            )
+
+        if str(old_cat_val).lower() != str(new_cat_val).lower():
+            cat_notes = f"Edit kategori: {old_cat_val} → {new_cat_val}"
+            if req.notes:
+                cat_notes += f" | {req.notes}"
+            create_stock_history(
+                db=db,
+                ingredient_id=req.id,
+                action_type="edit_category",
+                quantity_before=old_quantity,
+                quantity_after=old_quantity,
+                performed_by=current_username,
+                notes=cat_notes
+            )
+
+        if str(old_unit_val).lower() != str(new_unit_val).lower():
+            unit_notes = f"Edit unit: {old_unit_val} → {new_unit_val}"
+            if req.notes:
+                unit_notes += f" | {req.notes}"
+            create_stock_history(
+                db=db,
+                ingredient_id=req.id,
+                action_type="edit_unit",
+                quantity_before=old_quantity,
+                quantity_after=old_quantity,
+                performed_by=current_username,
+                notes=unit_notes
+            )
+        
+        if price_changed:
+            try:
+                price_notes = (
+                    f"Edit harga: total {old_price_total} → {float(ing.purchase_price_total or 0.0)}, "
+                    f"qty {old_purchase_qty} → {float(ing.purchase_quantity or 0.0)}, "
+                    f"unit_price {old_unit_price} → {float(ing.unit_price or 0.0)}"
+                )
+                if req.notes:
+                    price_notes += f" | {req.notes}"
+                create_stock_history(
+                    db=db,
+                    ingredient_id=req.id,
+                    action_type="edit_price",
+                    quantity_before=old_unit_price,
+                    quantity_after=float(ing.unit_price or 0.0),
+                    performed_by=current_username,
+                    notes=price_notes,
+                )
+            except Exception:
+                pass
+
         db.commit()
         
         create_outbox_event(db, "ingredient_updated", {
@@ -1535,12 +1706,18 @@ def update_ingredient_with_audit(
                 "category": ing.category.value,
                 "unit": ing.unit.value,
                 "is_available": ing.is_available,
+                "purchase_price_total": ing.purchase_price_total,
+                "purchase_quantity": ing.purchase_quantity,
+                "unit_price": ing.unit_price,
                 "performed_by": current_username,  
                 "notes": req.notes,
                 "changes": {
                     "quantity_changed": old_quantity != req.current_quantity,
                     "minimum_changed": old_minimum != req.minimum_quantity,
-                    "name_changed": old_name != req.name
+                    "name_changed": old_name != req.name,
+                    "category_changed": old_category != req.category,
+                    "unit_changed": old_unit != req.unit,
+                    "price_changed": price_changed
                 }
             }
         })
@@ -1557,7 +1734,7 @@ def update_ingredient_with_audit(
 def get_ingredient_stock_history(
     ingredient_id: int, 
     limit: int = Query(50, description="Jumlah record maksimal"),
-    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable"),
+    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable, edit_item_name, edit_category, edit_unit, edit_price"),
     db: Session = Depends(get_db)
 ):
     """Menampilkan history perubahan stock untuk ingredient tertentu"""
@@ -1618,7 +1795,7 @@ def get_ingredient_stock_history(
 @app.get("/stock/history", summary="History perubahan stock semua ingredient", tags=["Stock Management"])
 def get_all_stock_history(
     limit: int = Query(100, description="Jumlah record maksimal"),
-    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable"),
+    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable, edit_item_name, edit_category, edit_unit, edit_price"),
     performed_by: Optional[str] = Query(None, description="Filter by user name"),
     db: Session = Depends(get_db)
 ):
@@ -1725,6 +1902,7 @@ def check_and_consume(
 
     need_map = {} 
     per_menu_detail = []
+    per_item_contributions = []  
     shortages = []
     
     for it in req.items:
@@ -1742,6 +1920,14 @@ def check_and_consume(
             need_map.setdefault(ing_id, {"needed": 0, "unit": r["unit"], "menus": set()})
             need_map[ing_id]["needed"] += r["quantity"] * it.quantity
             need_map[ing_id]["menus"].add(it.menu_name)
+            per_item_contributions.append({
+                "order_item_id": getattr(it, 'item_id', None),
+                "menu_name": it.menu_name,
+                "preference": (it.preference or "").strip(),
+                "ingredient_id": ing_id,
+                "unit": r["unit"],
+                "deducted": float(r["quantity"]) * it.quantity
+            })
         
         preference = it.preference or ""  
         print(f"🔍 DEBUG: Checking preference for {it.menu_name}: '{preference}'")
@@ -1769,6 +1955,14 @@ def check_and_consume(
                 need_map.setdefault(flavor_id, {"needed": 0, "unit": flavor_unit, "menus": set()})
                 need_map[flavor_id]["needed"] += flavor_qty * it.quantity
                 need_map[flavor_id]["menus"].add(f"{it.menu_name} ({preference})")
+                per_item_contributions.append({
+                    "order_item_id": getattr(it, 'item_id', None),
+                    "menu_name": it.menu_name,
+                    "preference": (it.preference or "").strip(),
+                    "ingredient_id": flavor_id,
+                    "unit": flavor_unit,
+                    "deducted": float(flavor_qty) * it.quantity
+                })
                 
                 print(f"🎯 DEBUG: Added flavor {preference} (ID:{flavor_id}) {flavor_qty}{flavor_unit} for {it.menu_name}")
                 debug_info.append(f"Added flavor {preference} (ID:{flavor_id}) {flavor_qty}{flavor_unit} for {it.menu_name}")
@@ -1897,8 +2091,6 @@ def check_and_consume(
         )
 
     if not consume:
-        if not existing:
-            create_consumption_log_simplified(db, req.order_id, per_menu_detail, status='pending')
         last_debug_info = debug_info
         return BatchStockResponse(can_fulfill=True, shortages=[], partial_suggestions=[], details=per_menu_detail, debug_info=debug_info)
 
@@ -1911,6 +2103,7 @@ def check_and_consume(
             if inv.current_quantity < data["needed"]:
                 raise ValueError(f"❌ GAGAL: {inv.name} stok tidak cukup - perlu {data['needed']}, tersedia {inv.current_quantity}")
         
+        per_ing_before_after = {}
         for ing_id, data in need_map.items():
             inv = inv_map[ing_id]
             before = inv.current_quantity
@@ -1940,10 +2133,27 @@ def check_and_consume(
                 "after": inv.current_quantity,
                 "unit": data["unit"]
             })
+            per_ing_before_after[ing_id] = {"before": before, "after": inv.current_quantity}
+        per_item_details = []
+        for contrib in per_item_contributions:
+            ing_id = contrib["ingredient_id"]
+            inv = inv_map.get(ing_id)
+            before_after = per_ing_before_after.get(ing_id, {"before": 0, "after": 0})
+            per_item_details.append({
+                "ingredient_id": ing_id,
+                "ingredient_name": inv.name if inv else f"ID-{ing_id}",
+                "deducted": contrib["deducted"],
+                "before": before_after["before"],
+                "after": before_after["after"],
+                "unit": contrib["unit"],
+                "order_item_id": contrib.get("order_item_id"),
+                "menu_name": contrib.get("menu_name"),
+                "preference": contrib.get("preference")
+            })
         if existing:
-            update_consumption_status(db, req.order_id, 'consumed', per_ing_detail)
+            update_consumption_status(db, req.order_id, 'consumed', per_item_details)
         else:
-            consumption_log_id = create_consumption_log_simplified(db, req.order_id, per_menu_detail, per_ing_detail, 'consumed')
+            consumption_log_id = create_consumption_log_simplified(db, req.order_id, per_menu_detail, per_item_details, 'consumed')
         
         logging.info(f"✅ Stok berhasil dikonsumsi untuk order {req.order_id}: {len(per_ing_detail)} ingredients")
         last_debug_info = debug_info
@@ -1975,7 +2185,6 @@ def rollback_stock(order_id: str, db: Session = Depends(get_db)):
                 Inventory.id == detail.ingredient_id
             ).first()
             if ingredient:
-                ingredient.current_quantity += detail.quantity_consumed
                 before_rollback = ingredient.current_quantity
                 ingredient.current_quantity += detail.quantity_consumed
                 after_rollback = ingredient.current_quantity
@@ -2003,6 +2212,133 @@ def rollback_stock(order_id: str, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         return {"success": False, "message": f"Error rollback: {str(e)}"}
+
+@app.post("/stock/rollback_partial", summary="Rollback sebagian stok untuk item tertentu", tags=["Stock Management"])
+def rollback_partial(req: PartialRollbackRequest, db: Session = Depends(get_db)):
+    """Mengembalikan stok untuk item tertentu dalam order. Menggunakan per-item detail jika tersedia."""
+    try:
+        log = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == req.order_id).first()
+        if not log:
+            return {"success": False, "message": f"Tidak ada log konsumsi untuk order {req.order_id}"}
+
+        to_restore = {}
+        item_ids = [it.item_id for it in req.items if getattr(it, 'item_id', None)]
+        used_per_item_rows = False
+        if item_ids:
+            rows = db.query(ConsumptionIngredientDetail).filter(
+                ConsumptionIngredientDetail.consumption_log_id == log.id,
+                ConsumptionIngredientDetail.order_item_id.in_(item_ids)
+            ).all()
+            if rows:
+                used_per_item_rows = True
+                for row in rows:
+                    to_restore[row.ingredient_id] = to_restore.get(row.ingredient_id, 0.0) + float(row.quantity_consumed)
+
+        if not used_per_item_rows:
+            try:
+                resp = requests.post(
+                    f"{MENU_SERVICE_URL}/recipes/batch",
+                    json={"menu_names": [i.menu_name for i in req.items]},
+                    timeout=6
+                )
+                resp.raise_for_status()
+                recipes = resp.json().get("recipes", {})
+            except Exception as e:
+                return {"success": False, "message": f"Gagal ambil resep: {e}"}
+
+            for it in req.items:
+                for r in recipes.get(it.menu_name, []) or []:
+                    ing_id = r.get("ingredient_id")
+                    to_restore[ing_id] = to_restore.get(ing_id, 0.0) + float(r.get("quantity") or 0) * it.quantity
+                pref = (it.preference or "").strip()
+                if pref:
+                    mapping = db.query(FlavorMapping).filter(FlavorMapping.flavor_name == pref).first()
+                    if mapping:
+                        qty = mapping.quantity_per_serving
+                        if it.menu_name and "milkshake" in it.menu_name.lower() and (mapping.unit == UnitType.gram):
+                            qty = max(qty, 30)
+                        elif it.menu_name and "squash" in it.menu_name.lower() and (mapping.unit == UnitType.milliliter):
+                            qty = min(qty, 20)
+                        elif it.menu_name and any(k in it.menu_name.lower() for k in ["custom", "special", "premium"]) and (mapping.unit == UnitType.milliliter):
+                            qty = qty * 1.4
+                        to_restore[mapping.ingredient_id] = to_restore.get(mapping.ingredient_id, 0.0) + qty * it.quantity
+
+        ing_rows = db.query(ConsumptionIngredientDetail).filter(
+            ConsumptionIngredientDetail.consumption_log_id == log.id
+        ).all()
+        consumed_map = {}
+        for row in ing_rows:
+            consumed_map[row.ingredient_id] = consumed_map.get(row.ingredient_id, 0.0) + float(row.quantity_consumed)
+
+        restored = []
+        for ing_id, req_qty in to_restore.items():
+            max_available = consumed_map.get(ing_id, 0.0)
+            if max_available <= 0:
+                continue
+            restore_qty = min(req_qty, max_available)
+            ing = db.query(Inventory).filter(Inventory.id == ing_id).first()
+            if not ing:
+                continue
+            before = ing.current_quantity
+            ing.current_quantity = before + restore_qty
+            after = ing.current_quantity
+            create_stock_history(
+                db=db,
+                ingredient_id=ing_id,
+                action_type="rollback",
+                quantity_before=before,
+                quantity_after=after,
+                performed_by="SYSTEM",
+                notes=f"Partial rollback order {req.order_id} +{restore_qty}",
+                order_id=req.order_id
+            )
+
+            remain = restore_qty
+            if item_ids:
+                rows = db.query(ConsumptionIngredientDetail).filter(
+                    ConsumptionIngredientDetail.consumption_log_id == log.id,
+                    ConsumptionIngredientDetail.ingredient_id == ing_id,
+                    ConsumptionIngredientDetail.order_item_id.in_(item_ids)
+                ).order_by(ConsumptionIngredientDetail.id.asc()).all()
+            else:
+                rows = db.query(ConsumptionIngredientDetail).filter(
+                    ConsumptionIngredientDetail.consumption_log_id == log.id,
+                    ConsumptionIngredientDetail.ingredient_id == ing_id
+                ).order_by(ConsumptionIngredientDetail.id.asc()).all()
+
+            for row in rows:
+                if remain <= 0:
+                    break
+                dec = min(float(row.quantity_consumed), remain)
+                row.quantity_consumed = float(row.quantity_consumed) - dec
+                remain -= dec
+                if row.quantity_consumed <= 0.000001:
+                    db.delete(row)
+
+            restored.append({
+                "ingredient_id": ing_id,
+                "ingredient_name": ing.name,
+                "restored": restore_qty,
+                "unit": ing.unit.value
+            })
+
+        remaining = db.query(ConsumptionIngredientDetail).filter(
+            ConsumptionIngredientDetail.consumption_log_id == log.id
+        ).count()
+        if remaining == 0:
+            log.status = 'rolled_back'
+            log.rolled_back_at = datetime.now(jakarta_tz)
+        db.commit()
+
+        return {
+            "success": True,
+            "message": f"Partial rollback berhasil untuk order {req.order_id}",
+            "restored": restored,
+            "remaining_ingredients_entries": remaining
+        }
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "message": f"Error partial rollback: {str(e)}"}
 
 @app.get("/flavors", summary="Daftar flavor yang tersedia", tags=["Utility"])
 def get_available_flavors(db: Session = Depends(get_db)):
@@ -2114,16 +2450,43 @@ def get_flavors_for_ingredient(ingredient_id: int, db: Session = Depends(get_db)
 @app.get("/history", summary="History penggunaan stok", tags=["Stock Management"])
 def get_stock_history(
     order_id: str = Query(None, description="Filter by order ID"),
-    limit: int = Query(20, description="Jumlah record maksimal"),
+    start_date: Optional[str] = Query(None, description="Tanggal mulai (YYYY-MM-DD) untuk filter rentang"),
+    end_date: Optional[str] = Query(None, description="Tanggal akhir (YYYY-MM-DD) untuk filter rentang"),
+    limit: int = Query(500, description="Jumlah record maksimal"),
     db: Session = Depends(get_db)
 ):
-    """History penggunaan stok dengan filter yang berfungsi"""
-    
+    """History penggunaan stok dengan filter order_id dan rentang tanggal (Asia/Jakarta)."""
+
+    from datetime import datetime
+
     query = db.query(ConsumptionLog)
-    
+
     if order_id:
         query = query.filter(ConsumptionLog.order_id == order_id)
-    
+
+    if start_date and end_date:
+        try:
+            sd = datetime.strptime(start_date, "%Y-%m-%d").date()
+            ed = datetime.strptime(end_date, "%Y-%m-%d").date()
+            if sd > ed:
+                return JSONResponse(status_code=400, content={
+                    "success": False,
+                    "message": "start_date tidak boleh lebih besar dari end_date",
+                    "history": []
+                })
+            query = query.filter(
+                and_(
+                    func.date(ConsumptionLog.created_at) >= sd,
+                    func.date(ConsumptionLog.created_at) <= ed
+                )
+            )
+        except ValueError:
+            return JSONResponse(status_code=400, content={
+                "success": False,
+                "message": "Format tanggal tidak valid. Gunakan YYYY-MM-DD",
+                "history": []
+            })
+
     logs = query.order_by(ConsumptionLog.created_at.desc()).limit(limit).all()
     
     result = []
@@ -2131,20 +2494,33 @@ def get_stock_history(
         ingredient_count = db.query(ConsumptionIngredientDetail).filter(
             ConsumptionIngredientDetail.consumption_log_id == log.id
         ).count()
-        
+
         status_text = "PENDING"
         if log.status == 'consumed':
             status_text = "DIKONSUMSI"
         elif log.status == 'rolled_back':
             status_text = "DIBATALKAN"
-        
+
+        try:
+            menu_names = json.loads(log.menu_names) if log.menu_names else []
+        except (json.JSONDecodeError, TypeError):
+            menu_names = []
+        per_menu_payload = None
+        if menu_names:
+            from collections import Counter
+            counts = Counter(menu_names)
+            per_menu_payload = [{"name": name, "quantity": qty} for name, qty in counts.items()]
+
         result.append({
             "order_id": log.order_id,
             "date": format_jakarta_time(log.created_at).replace("/", "/").replace(" ", " ")[:16],
-            "consumed": log.status == 'consumed',  
-            "rolled_back": log.status == 'rolled_back',  
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+            "consumed": log.status == 'consumed',
+            "rolled_back": log.status == 'rolled_back',
             "ingredients_affected": ingredient_count,
-            "status": status_text
+            "status": status_text,
+            "status_text": status_text,
+            "per_menu_payload": per_menu_payload
         })
     
     return {
@@ -2212,6 +2588,106 @@ def get_order_ingredients_detail(order_id: str, db: Session = Depends(get_db)):
             
         ingredients_detail.sort(key=lambda x: x['ingredient_name'])
 
+        menu_breakdown = []
+        try:
+            order_service_url = os.getenv("ORDER_SERVICE_URL", "http://order_service:8002")
+            resp = requests.get(f"{order_service_url}/order_status/{order_id}", timeout=5)
+            if resp.status_code == 200:
+                ord_data = resp.json().get("data") or {}
+                items = ord_data.get("orders") or []
+                try:
+                    menu_names = [it.get("menu_name") for it in items if it]
+                    recipes_resp = requests.post(
+                        f"{MENU_SERVICE_URL}/recipes/batch",
+                        json={"menu_names": menu_names},
+                        timeout=6
+                    )
+                    recipes_resp.raise_for_status()
+                    recipes = recipes_resp.json().get("recipes", {})
+                except Exception as e:
+                    logging.warning(f"Failed to fetch recipes for per-item breakdown: {e}")
+                    recipes = {}
+
+                ing_history_map = {}
+                try:
+                    histories = db.query(StockHistory).filter(
+                        StockHistory.order_id == order_id,
+                        StockHistory.action_type == "consume"
+                    ).all()
+                    for h in histories:
+                        ing_history_map[h.ingredient_id] = {
+                            "before": h.quantity_before,
+                            "after": h.quantity_after
+                        }
+                except Exception:
+                    ing_history_map = {}
+
+                def resolve_flavor(pref: str):
+                    if not pref:
+                        return None
+                    mapping = db.query(FlavorMapping).filter(FlavorMapping.flavor_name == pref).first()
+                    if not mapping:
+                        return None
+                    return {
+                        "ingredient_id": mapping.ingredient_id,
+                        "quantity": mapping.quantity_per_serving,
+                        "unit": mapping.unit.value if mapping.unit else ""
+                    }
+
+                for it in items:
+                    item_id = it.get("item_id")
+                    menu_name = it.get("menu_name")
+                    qty = int(it.get("quantity") or 1)
+                    pref = (it.get("preference") or "").strip()
+
+                    item_ings = []
+                    for r in recipes.get(menu_name, []) or []:
+                        ing_id = r.get("ingredient_id")
+                        req_qty = float(r.get("quantity") or 0) * qty
+                        unit = r.get("unit")
+                        inv = db.query(Inventory).filter(Inventory.id == ing_id).first()
+                        item_ings.append({
+                            "ingredient_id": ing_id,
+                            "ingredient_name": inv.name if inv else r.get("ingredient_name", "Unknown"),
+                            "required_quantity": req_qty,
+                            "unit": unit,
+                            "stock_before_consumption": ing_history_map.get(ing_id, {}).get("before"),
+                            "stock_after_consumption": ing_history_map.get(ing_id, {}).get("after")
+                        })
+
+                    flav = resolve_flavor(pref)
+                    if flav:
+                        adjusted_qty = flav["quantity"]
+                        if menu_name and "milkshake" in menu_name.lower() and (flav["unit"] == "gram"):
+                            adjusted_qty = max(adjusted_qty, 30)
+                        elif menu_name and "squash" in menu_name.lower() and (flav["unit"] == "milliliter"):
+                            adjusted_qty = min(adjusted_qty, 20)
+                        elif menu_name and any(k in menu_name.lower() for k in ["custom", "special", "premium"]) and (flav["unit"] == "milliliter"):
+                            adjusted_qty = adjusted_qty * 1.4
+
+                        inv = db.query(Inventory).filter(Inventory.id == flav["ingredient_id"]).first()
+                        item_ings.append({
+                            "ingredient_id": flav["ingredient_id"],
+                            "ingredient_name": inv.name if inv else "Flavor",
+                            "required_quantity": adjusted_qty * qty,
+                            "unit": flav["unit"],
+                            "stock_before_consumption": ing_history_map.get(flav["ingredient_id"], {}).get("before"),
+                            "stock_after_consumption": ing_history_map.get(flav["ingredient_id"], {}).get("after")
+                        })
+
+                    menu_breakdown.append({
+                        "order_item_id": item_id,
+                        "menu_name": menu_name,
+                        "preference": pref,
+                        "quantity": qty,
+                        "consumed": log.status == 'consumed',
+                        "rolled_back": log.status == 'rolled_back',
+                        "consumed_at": get_jakarta_isoformat(log.consumed_at) if log.consumed_at else None,
+                        "ingredients": item_ings
+                    })
+        except Exception as e:
+            logging.warning(f"Failed building menu_breakdown for {order_id}: {e}")
+
         return JSONResponse(status_code=200, content={
             "status": "success",
             "message": f"Detail konsumsi bahan untuk order {order_id}",
@@ -2229,6 +2705,7 @@ def get_order_ingredients_detail(order_id: str, db: Session = Depends(get_db)):
                     "total_ingredients_used": total_ingredients_used,
                     "details": ingredients_detail
                 },
+                "menu_breakdown": menu_breakdown,
                 "summary": {
                     "total_ingredients": total_ingredients_used,
                     "consumption_date": format_jakarta_time(log.created_at)
@@ -2336,6 +2813,7 @@ def get_daily_consumption_history(
                     "date_formatted": log_date.strftime('%d/%m/%Y'),
                     "day_name": log_date.strftime('%A'),
                     "total_orders": 0,
+                    "orders": [],  
                     "ingredients_consumed": {},
                     "summary": {
                         "total_ingredients_types": 0,
@@ -2344,12 +2822,42 @@ def get_daily_consumption_history(
                 }
             
             daily_consumption[date_str]["total_orders"] += 1
+
+            order_ing_map = {}
+            for od in ingredient_details:
+                key = od.ingredient_id
+                if key not in order_ing_map:
+                    order_ing_map[key] = {
+                        "ingredient_id": od.ingredient_id,
+                        "ingredient_name": od.ingredient_name,
+                        "unit": od.unit,
+                        "total_consumed": 0.0,
+                        # include category from stock management
+                        "category": (str(od.ingredient.category.value) if getattr(od, "ingredient", None) and getattr(od.ingredient, "category", None) else None)
+                    }
+                try:
+                    order_ing_map[key]["total_consumed"] += float(od.quantity_consumed)
+                except Exception:
+                    pass
+
+            daily_consumption[date_str]["orders"].append({
+                "order_id": log.order_id,
+                "created_at": format_jakarta_time(log.created_at),
+                "menu_summary": log.menu_summary,
+                "total_ingredients_used": len(order_ing_map),
+                "ingredients_used": list(order_ing_map.values())
+            })
             
             for item in ingredient_details:
                 ingredient_id = item.ingredient_id
                 ingredient_name = item.ingredient_name
                 quantity_consumed = item.quantity_consumed
                 unit = item.unit
+                # fetch category from related Inventory (stock management category)
+                try:
+                    category_value = str(item.ingredient.category.value) if getattr(item, "ingredient", None) and getattr(item.ingredient, "category", None) else None
+                except Exception:
+                    category_value = None
                 
                 if ingredient_id not in daily_consumption[date_str]["ingredients_consumed"]:
                     daily_consumption[date_str]["ingredients_consumed"][ingredient_id] = {
@@ -2357,11 +2865,15 @@ def get_daily_consumption_history(
                         "ingredient_name": ingredient_name,
                         "unit": unit,
                         "total_consumed": 0,
-                        "consumption_count": 0
+                        "consumption_count": 0,
+                        "category": category_value
                     }
                 
                 daily_consumption[date_str]["ingredients_consumed"][ingredient_id]["total_consumed"] += quantity_consumed
                 daily_consumption[date_str]["ingredients_consumed"][ingredient_id]["consumption_count"] += 1
+                # update/ensure category remains set if previously None
+                if not daily_consumption[date_str]["ingredients_consumed"][ingredient_id].get("category") and category_value:
+                    daily_consumption[date_str]["ingredients_consumed"][ingredient_id]["category"] = category_value
         
         for date_str in daily_consumption:
             ingredients = daily_consumption[date_str]["ingredients_consumed"]
@@ -2376,6 +2888,10 @@ def get_daily_consumption_history(
             
             daily_consumption[date_str]["detailed_consumption"] = detailed_consumption
             daily_consumption[date_str]["ingredients_consumed"] = list(ingredients.values())
+            daily_consumption[date_str]["headline"] = (
+                f"Pada {daily_consumption[date_str]['date_formatted']}, total ada "
+                f"{daily_consumption[date_str]['summary']['total_ingredients_types']} item bahan yang digunakan"
+            )
         
         sorted_daily_consumption = dict(sorted(daily_consumption.items(), reverse=True))
         
@@ -2440,8 +2956,20 @@ def get_daily_consumption_history(
 def init_db():
     try:
         Base.metadata.create_all(bind=engine)
-        with engine.connect() as conn:
+        with engine.begin() as conn:
             conn.exec_driver_sql("SELECT 1")
+            try:
+                conn.exec_driver_sql(
+                    "ALTER TABLE consumption_ingredient_details ADD COLUMN IF NOT EXISTS order_item_id INTEGER"
+                )
+                conn.exec_driver_sql(
+                    "ALTER TABLE consumption_ingredient_details ADD COLUMN IF NOT EXISTS menu_name VARCHAR"
+                )
+                conn.exec_driver_sql(
+                    "ALTER TABLE consumption_ingredient_details ADD COLUMN IF NOT EXISTS preference VARCHAR"
+                )
+            except Exception as mig_e:
+                logging.warning(f"Schema migration warning: {mig_e}")
         logging.info("✅ inventory_service: migrasi selesai. Tables: %s", list(Base.metadata.tables.keys()))
     except Exception as e:
         logging.exception(f"❌ Gagal init_db inventory_service: {e}")
@@ -2468,3 +2996,207 @@ def start_outbox_worker():
                 db.close()
             time.sleep(5)
     threading.Thread(target=worker, daemon=True).start()
+
+def _format_consumption_log_entry(db: Session, log: ConsumptionLog):
+    """Internal helper to format a consumption log entry for UI/compat."""
+    try:
+        menu_names = json.loads(log.menu_names) if log.menu_names else []
+    except (json.JSONDecodeError, TypeError):
+        menu_names = []
+
+    per_menu_payload = []
+    if menu_names:
+        from collections import Counter
+        counts = Counter(menu_names)
+        for name, qty in counts.items():
+            per_menu_payload.append({"name": name, "quantity": qty})
+
+    ingredient_count = db.query(ConsumptionIngredientDetail).filter(
+        ConsumptionIngredientDetail.consumption_log_id == log.id
+    ).count()
+
+    return {
+        "order_id": log.order_id,
+        "per_menu_payload": json.dumps(per_menu_payload) if per_menu_payload else None,
+        "consumed": (log.status == 'consumed'),
+        "rolled_back": (log.status == 'rolled_back'),
+        "ingredients_affected": ingredient_count,
+        "status": log.status,
+        "created_at": log.created_at.isoformat() if log.created_at else None,
+        "consumed_at": log.consumed_at.isoformat() if log.consumed_at else None,
+        "rolled_back_at": log.rolled_back_at.isoformat() if log.rolled_back_at else None,
+        "menu_summary": log.menu_summary,
+    }
+
+@app.get("/consumption_log", summary="Daftar consumption log (kompatibel frontend)", tags=["Stock Management"])
+def list_consumption_logs(limit: int = Query(50, ge=1, le=500), db: Session = Depends(get_db)):
+    """Expose consumption logs for UI. Includes minimal fields and consumed flags."""
+    logs = db.query(ConsumptionLog).order_by(ConsumptionLog.created_at.desc()).limit(limit).all()
+    data = [_format_consumption_log_entry(db, log) for log in logs]
+    return data
+
+
+@app.get("/consumption_log/{order_id}", summary="Detail consumption log per order", tags=["Stock Management"])
+def get_consumption_log(order_id: str, db: Session = Depends(get_db)):
+    log = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
+    if not log:
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "message": f"Consumption log untuk order '{order_id}' tidak ditemukan",
+            "data": None
+        })
+
+    details = db.query(ConsumptionIngredientDetail).filter(
+        ConsumptionIngredientDetail.consumption_log_id == log.id
+    ).order_by(ConsumptionIngredientDetail.id.asc()).all()
+
+    return JSONResponse(status_code=200, content={
+        "status": "success",
+        "message": f"Consumption log untuk order {order_id}",
+        "data": {
+            "log": _format_consumption_log_entry(db, log),
+            "ingredients": [
+                {
+                    "ingredient_id": d.ingredient_id,
+                    "ingredient_name": d.ingredient_name,
+                    "quantity_consumed": d.quantity_consumed,
+                    "unit": d.unit,
+                    "stock_before": d.stock_before,
+                    "stock_after": d.stock_after,
+                    "order_item_id": d.order_item_id,
+                    "menu_name": d.menu_name,
+                    "preference": d.preference,
+                    "created_at": d.created_at.isoformat() if d.created_at else None,
+                }
+                for d in details
+            ]
+        }
+    })
+
+
+@app.post("/admin/fix_pending_consumption_logs", summary="Perbaiki log 'pending' jadi 'consumed' bila sudah ada history consume", tags=["Admin"])
+def fix_pending_consumption_logs(db: Session = Depends(get_db)):
+    """
+    Repair utility: find consumption logs with status 'pending' that already have
+    stock histories with action_type='consume' for the same order_id, then mark them
+    as 'consumed' and set consumed_at. Useful to fix legacy pending logs.
+    """
+    try:
+        pending_logs = db.query(ConsumptionLog).filter(ConsumptionLog.status == 'pending').all()
+        fixed = []
+        for log in pending_logs:
+            histories = db.query(StockHistory).filter(
+                and_(
+                    StockHistory.order_id == log.order_id,
+                    StockHistory.action_type == 'consume'
+                )
+            ).all()
+            if histories:
+                log.status = 'consumed'
+                log.consumed_at = datetime.now(jakarta_tz)
+                fixed.append(log.order_id)
+        if fixed:
+            db.commit()
+        return JSONResponse(status_code=200, content={
+            "status": "success",
+            "message": f"Diperbaiki {len(fixed)} log pending menjadi consumed",
+            "data": {"fixed_order_ids": fixed}
+        })
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=500, content={
+            "status": "error",
+            "message": f"Gagal memperbaiki pending logs: {str(e)}",
+            "data": None
+        })
+
+
+@app.post("/admin/backdate_consumption_log", summary="Backdate created_at/consumed_at consumption log dan record terkait", tags=["Admin"])
+def backdate_consumption_log(
+    order_id: str = Query(..., description="Order ID dari consumption log"),
+    date: str = Query(..., description="Tanggal baru dalam format YYYY-MM-DD"),
+    time: Optional[str] = Query(None, description="Opsional, jam-menit dalam format HH:MM (default 12:00)"),
+    db: Session = Depends(get_db)
+):
+    """Backdate consumption log ke tanggal yang diinginkan (Asia/Jakarta) dan sinkronkan created_at
+    pada detail bahan serta stock_history untuk order tersebut."""
+    try:
+        from datetime import datetime
+        try:
+            base_date = datetime.strptime(date, "%Y-%m-%d")
+        except ValueError:
+            return JSONResponse(status_code=400, content={
+                "status": "error",
+                "message": "Format 'date' tidak valid. Gunakan YYYY-MM-DD",
+                "data": None
+            })
+
+        if time:
+            try:
+                hh, mm = time.split(":")
+                base_date = base_date.replace(hour=int(hh), minute=int(mm))
+            except Exception:
+                return JSONResponse(status_code=400, content={
+                    "status": "error",
+                    "message": "Format 'time' tidak valid. Gunakan HH:MM",
+                    "data": None
+                })
+        else:
+            base_date = base_date.replace(hour=12, minute=0)
+
+        if base_date.tzinfo is None:
+            new_dt = jakarta_tz.localize(base_date)
+        else:
+            new_dt = base_date.astimezone(jakarta_tz)
+
+        log = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
+        if not log:
+            return JSONResponse(status_code=404, content={
+                "status": "error",
+                "message": f"Consumption log untuk order '{order_id}' tidak ditemukan",
+                "data": None
+            })
+
+        log.created_at = new_dt
+        if log.consumed_at:
+            try:
+                from datetime import timedelta
+                if log.consumed_at.astimezone(jakarta_tz) < new_dt:
+                    log.consumed_at = new_dt + timedelta(minutes=5)
+            except Exception:
+                pass
+
+        try:
+            details = db.query(ConsumptionIngredientDetail).filter(
+                ConsumptionIngredientDetail.consumption_log_id == log.id
+            ).all()
+            for d in details:
+                d.created_at = new_dt
+        except Exception as e:
+            logging.warning(f"Gagal update timestamp ingredient_details: {e}")
+
+        try:
+            histories = db.query(StockHistory).filter(StockHistory.order_id == order_id).all()
+            for h in histories:
+                h.created_at = new_dt
+        except Exception as e:
+            logging.warning(f"Gagal update timestamp stock_history: {e}")
+
+        db.commit()
+        return JSONResponse(status_code=200, content={
+            "status": "success",
+            "message": f"Timestamp consumption log '{order_id}' berhasil diubah ke {new_dt.isoformat()}",
+            "data": {
+                "order_id": order_id,
+                "created_at": new_dt.isoformat(),
+                "consumed_at": log.consumed_at.isoformat() if log.consumed_at else None
+            }
+        })
+    except Exception as e:
+        db.rollback()
+        logging.error(f"Error backdate consumption log for {order_id}: {e}")
+        return JSONResponse(status_code=500, content={
+            "status": "error",
+            "message": f"Gagal backdate consumption log: {str(e)}",
+            "data": None
+        })
