@@ -56,6 +56,68 @@ if (window.jspdf && window.jspdf.jsPDF) {
 }
 let reportTotalPages = 1;
 
+// ================== DATE PARSING HELPERS (INGREDIENT ANALYSIS) ==================
+// Semua fungsi ini dipakai untuk memastikan parsing tanggal konsisten tanpa efek timezone.
+function _toIsoDateLocal(dateObj) {
+    if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) return null;
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+function parseAnyDateToIso(raw) {
+    if (!raw || typeof raw !== 'string') return null;
+    const s = raw.trim();
+    // yyyy-mm-dd
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    // dd/mm/yyyy
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+        const [dd, mm, yyyy] = s.split('/');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+    // Ambil bagian tanggal sebelum spasi (misal dd/mm/yyyy HH:MM)
+    const head = s.split(/\s+/)[0];
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(head)) {
+        const [dd, mm, yyyy] = head.split('/');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+    const dt = new Date(s);
+    return _toIsoDateLocal(dt);
+}
+
+function getLogIsoDate(row) {
+    if (!row || typeof row !== 'object') return null;
+    const candidates = [row.date, row.created_at, row.updated_at, row.timestamp, row.time, row.time_done, row.time_receive];
+    for (const c of candidates) {
+        if (!c) continue;
+        const iso = parseAnyDateToIso(String(c));
+        if (iso) return iso;
+    }
+    return null;
+}
+
+// Validasi khusus rentang tanggal analisis bahan.
+// Menghasilkan { valid: boolean, message?: string, fields: {start:boolean,end:boolean} }
+function validateIngredientDateRange(startVal, endVal) {
+    const res = { valid: true, message: '', fields: { start: false, end: false } };
+    if (!startVal && !endVal) return res; // keduanya kosong: dianggap bebas
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (startVal && !dateRegex.test(startVal)) {
+        res.valid = false; res.fields.start = true; res.message = 'Format tanggal awal tidak valid (harus yyyy-mm-dd).';
+        return res;
+    }
+    if (endVal && !dateRegex.test(endVal)) {
+        res.valid = false; res.fields.end = true; res.message = 'Format tanggal akhir tidak valid (harus yyyy-mm-dd).';
+        return res;
+    }
+    if (startVal && endVal && startVal > endVal) {
+        res.valid = false; res.fields.start = true; res.fields.end = true; res.message = 'Tanggal awal tidak boleh melebihi tanggal akhir.';
+        return res;
+    }
+    return res;
+}
+
 // ========== MODAL FUNCTIONS ==========
 function closePieModal() {
     document.getElementById("pie-modal").classList.add("hidden");
@@ -172,33 +234,47 @@ function hideIngredientAnalysis() {
 }
 
 async function loadIngredientAnalysisData() {
+    // Helper lokal untuk empty/error agar bisa dipakai di try & catch
+    const handleEmptyOrError = (message) => {
+        menuRecipes = {};
+        menuConsumption = {};
+        ingredientMenuFlavorGroups = {};
+        const details = document.getElementById('ingredient-details');
+        if (details) details.innerHTML = `<div class="ingredient-menu-item">${message}</div>`;
+        baseData = { daily: [], logs: [] };
+        const currentViewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
+        filteredData = baseData[currentViewMode] || [];
+        reportCurrentPage = 1;
+        renderReportTable();
+        updateReportPagination();
+        updateIngredientSummary();
+    };
+
     try {
         showLoading();
         currentDataType = 'ingredient';
 
-        // Fungsi internal untuk menangani state kosong/error
-        const handleEmptyOrError = (message) => {
-            menuRecipes = {};
-            menuConsumption = {};
-            ingredientMenuFlavorGroups = {};
-            const details = document.getElementById('ingredient-details');
-            if (details) details.innerHTML = `<div class="ingredient-menu-item">${message}</div>`;
-            
-            baseData = { daily: [], logs: [] };
-            const currentViewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
-            filteredData = baseData[currentViewMode] || [];
-            
-            reportCurrentPage = 1;
-            renderReportTable();
-            updateReportPagination();
-            updateIngredientSummary();
-        };
+        // (handleEmptyOrError sudah didefinisikan di atas scope try)
         
-        // Dates for filtering done orders
+        // ========== Ambil & Validasi Rentang Tanggal (Analisis Bahan) ==========
         const startEl = document.getElementById('ingredient-start-date');
         const endEl = document.getElementById('ingredient-end-date');
-        const startDate = startEl && startEl.value ? new Date(startEl.value + 'T00:00:00') : null;
-        const endDate = endEl && endEl.value ? new Date(endEl.value + 'T23:59:59') : null;
+        const globalStartEl = document.getElementById('start_date');
+        const globalEndEl = document.getElementById('end_date');
+        const startVal = (startEl && startEl.value) ? startEl.value : (globalStartEl && globalStartEl.value ? globalStartEl.value : '');
+        const endVal = (endEl && endEl.value) ? endEl.value : (globalEndEl && globalEndEl.value ? globalEndEl.value : '');
+
+        const validation = validateIngredientDateRange(startVal, endVal);
+        [startEl, endEl].forEach(el => { if (el) el.classList.remove('input-error'); });
+        if (!validation.valid) {
+            if (validation.fields.start && startEl) startEl.classList.add('input-error');
+            if (validation.fields.end && endEl) endEl.classList.add('input-error');
+            handleEmptyOrError(validation.message || 'Rentang tanggal tidak valid');
+            hideLoading();
+            return;
+        }
+        const startDate = startVal ? new Date(startVal + 'T00:00:00') : null;
+        const endDate = endVal ? new Date(endVal + 'T23:59:59') : null;
         
         // Load all menu data (optional) and inventory and kitchen orders and flavor mappings
         const [menuResponse, inventoryResponse, kitchenResponse, flavorMapResp] = await Promise.all([
@@ -357,52 +433,57 @@ async function loadIngredientAnalysisData() {
                 // Determine ingredient view mode: daily vs logs
                 const viewSelect = document.getElementById('ingredient-view-select');
                 const viewMode = viewSelect ? viewSelect.value : 'daily';
-                const startParam = startDate ? startDate.toISOString().slice(0,10) : null;
-                const endParam = endDate ? endDate.toISOString().slice(0,10) : null;
+                // Ambil tanggal dari input khusus ingredient, fallback ke global range jika kosong
+                const globalStartEl = document.getElementById('start_date');
+                const globalEndEl = document.getElementById('end_date');
+                const startParam = (startEl && startEl.value) ? startEl.value : (globalStartEl && globalStartEl.value ? globalStartEl.value : null);
+                const endParam = (endEl && endEl.value) ? endEl.value : (globalEndEl && globalEndEl.value ? globalEndEl.value : null);
+                if (startParam && endParam && startParam > endParam) {
+                    console.warn('[Ingredient] Rentang tanggal tidak valid: start > end');
+                }
                 let ingredientRows = [];
                 let menuFlavorGroups = {}; // Initialize menuFlavorGroups for both view modes
                 
                 if (viewMode === 'daily') {
                     // Build from logs: group by date with better daily aggregation
-                    const logsRes = await fetch('/inventory/history?limit=500');
+                    // Sertakan start_date & end_date jika tersedia (backend boleh abaikan jika tidak didukung)
+                    const qsDaily = new URLSearchParams({ limit: '500' });
+                    if (startParam) qsDaily.append('start_date', startParam);
+                    if (endParam) qsDaily.append('end_date', endParam);
+                    const logsRes = await fetch(`/inventory/history?${qsDaily.toString()}`);
                     const logsJson = await logsRes.json().catch(() => ({ history: [] }));
                     const logs = Array.isArray(logsJson.history) ? logsJson.history : [];
                     
                     // Group logs by date with more comprehensive data
                     const byDate = {};
-                    logs.forEach(l => {
-                        // Normalize date for range filtering: backend returns dd/mm/yyyy HH:MM
-                        const rawDisplay = (l.date || '').slice(0,10); // dd/mm/yyyy
-                        let iso = rawDisplay;
-                        if (/^\d{2}\/\d{2}\/\d{4}$/.test(rawDisplay)) {
-                            const [dd, mm, yyyy] = rawDisplay.split('/');
-                            iso = `${yyyy}-${mm}-${dd}`; // yyyy-mm-dd
-                        }
-                        if (!rawDisplay) return;
-                        if (startParam && endParam) {
-                            if (iso < startParam || iso > endParam) return;
-                        }
-                        if (!byDate[rawDisplay]) {
-                            byDate[rawDisplay] = { 
-                                total_orders: 0, 
+                    const addDailyAggregate = (map, displayDate, logRow) => {
+                        if (!map[displayDate]) {
+                            map[displayDate] = {
+                                total_orders: 0,
                                 ingredients_affected: 0,
                                 unique_menus: new Set(),
                                 total_consumption: 0,
                                 order_ids: new Set()
                             };
                         }
-                        byDate[rawDisplay].total_orders += 1;
-                        byDate[rawDisplay].ingredients_affected += (l.ingredients_affected || 0);
-                        byDate[rawDisplay].total_consumption += (l.ingredients_affected || 0);
-                        byDate[rawDisplay].order_ids.add(l.order_id);
-                        
-                        // Try to get menu details from kitchen orders for menu count
+                        map[displayDate].total_orders += 1;
+                        map[displayDate].ingredients_affected += (logRow.ingredients_affected || 0);
+                        map[displayDate].total_consumption += (logRow.ingredients_affected || 0);
+                        map[displayDate].order_ids.add(logRow.order_id);
+                    };
+
+                    logs.forEach(l => {
+                        const iso = getLogIsoDate(l);
+                        if (!iso) { console.warn('[Ingredient-Daily] Gagal parse tanggal log', l); return; }
+                        if (startParam && iso < startParam) return;
+                        if (endParam && iso > endParam) return;
+                        const displayDate = `${iso.split('-')[2]}/${iso.split('-')[1]}/${iso.split('-')[0]}`;
+                        addDailyAggregate(byDate, displayDate, l);
+                        // Try to get menu details from kitchen orders
                         const kitchenOrder = kitchenOrdersCache.find(o => o.order_id === l.order_id);
-                        if (kitchenOrder && kitchenOrder.items && kitchenOrder.items.length > 0) {
+                        if (kitchenOrder && kitchenOrder.items) {
                             kitchenOrder.items.forEach(item => {
-                                if (item.menu_name) {
-                                    byDate[rawDisplay].unique_menus.add(item.menu_name);
-                                }
+                                if (item.menu_name) byDate[displayDate].unique_menus.add(item.menu_name);
                             });
                         }
                     });
@@ -430,8 +511,9 @@ async function loadIngredientAnalysisData() {
                     // For daily view, also create menuFlavorGroups from the same logs data
                     // This allows us to show detailed breakdown when clicking detail button
                     for (const log of logs) {
-                        const rawDisplay = (log.date || '').slice(0,10); // dd/mm/yyyy
-                        if (!rawDisplay) continue;
+                        const iso = getLogIsoDate(log);
+                        if (!iso) continue;
+                        const rawDisplay = `${iso.split('-')[2]}/${iso.split('-')[1]}/${iso.split('-')[0]}`;
                         // Try to get menu details from kitchen orders
                         const kitchenOrder = kitchenOrdersCache.find(o => o.order_id === log.order_id);
                         if (kitchenOrder && kitchenOrder.items && kitchenOrder.items.length > 0) {
@@ -463,12 +545,23 @@ async function loadIngredientAnalysisData() {
                 } else {
                     // Logs view: fetch recent consumption logs and group by menu/flavor
                     let logsUrl = '/inventory/history?limit=100';
+                    // Tambah query start/end jika ada
+                    const qsLogs = new URLSearchParams({ limit: '100' });
+                    if (startParam) qsLogs.set('start_date', startParam);
+                    if (endParam) qsLogs.set('end_date', endParam);
+                    logsUrl = `/inventory/history?${qsLogs.toString()}`;
                     const logsRes = await fetch(logsUrl);
                     const logsJson = await logsRes.json().catch(() => ({ history: [] }));
                     const logs = Array.isArray(logsJson.history) ? logsJson.history : [];
+                    // Terapkan filter tanggal pada mode per-order (logs)
+                    // Catatan: Backend mengembalikan format dd/mm/yyyy HH:MM, sehingga perlu konversi manual
+                    // ke yyyy-mm-dd untuk perbandingan string konsisten tanpa efek timezone.
+                    // Kita menghindari penggunaan Date+toISOString agar tidak terjadi pergeseran hari.
                     const filteredLogs = logs.filter(row => {
-                        if (!startParam || !endParam) return true;
-                        // date format already formatted, cannot reliably filter; keep all when not exact
+                        const iso = getLogIsoDate(row);
+                        if (!iso) return false;
+                        if (startParam && iso < startParam) return false;
+                        if (endParam && iso > endParam) return false;
                         return true;
                     });
                     

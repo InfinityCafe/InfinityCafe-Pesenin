@@ -1,6 +1,10 @@
 // script.js
 // file js yang berisi function yang akan digunakan di seluruh file
 
+// Global variable untuk modal
+let selectedOrderId = null;
+let selectedOrderStatus = 'cancelled';
+
 // Fungsi untuk menampilkan tanggal
 function updateGreetingDate(format = 'en') {
     const dateElement = document.getElementById('greeting-date');
@@ -467,9 +471,23 @@ function showDeleteConfirmModal(message, onConfirm) {
   };
 }
 
-function openConfirmModal(orderId) {
-  selectedOrderId = orderId;
-  document.getElementById("confirm-modal").classList.remove("hidden");
+function openConfirmModal(orderId, status) {
+    selectedOrderId = orderId;
+    selectedOrderStatus = status || 'cancelled';
+    // Reset confirm modal state
+    const customReasonContainer = document.getElementById('custom-reason-container-cancel');
+    const customReasonInput = document.getElementById('custom-cancel-reason-cancel');
+    const btnAlasanLain = document.getElementById('btn-alasan-lain-cancel');
+    const btnConfirmAlasanLain = document.getElementById('btn-confirm-alasan-lain-cancel');
+    const btnHabis = document.getElementById('btn-habis-cancel');
+    if (customReasonContainer && customReasonInput && btnAlasanLain && btnConfirmAlasanLain && btnHabis) {
+        customReasonContainer.classList.add('hidden');
+        customReasonInput.value = '';
+        btnAlasanLain.classList.remove('hidden');
+        btnConfirmAlasanLain.classList.add('hidden');
+        btnHabis.classList.remove('hidden');
+    }
+    document.getElementById("confirm-modal").classList.remove("hidden");
 }
 
 function showErrorModal(message) {
@@ -486,6 +504,15 @@ function closeModal(modalId) {
     if (modal) {
         modal.classList.add('hidden');
     }
+}
+
+function showSuccessModal(message) {
+  const modal = document.getElementById('success-modal');
+  const messageElement = document.getElementById('success-message');
+  if (modal && messageElement) {
+    messageElement.textContent = message;
+    modal.classList.remove('hidden');
+  }
 }
 
 document.addEventListener('DOMContentLoaded', async function() {
