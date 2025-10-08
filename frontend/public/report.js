@@ -4214,12 +4214,12 @@ function exportSalesPDFEnhanced() {
     });
 
     y+=6; if (y>270){doc.addPage(); y=20;}
-    const summaryTitle = dataType === 'sales' ? 'Sales Summary (first 25 rows):' : dataType === 'best' ? 'Best Seller Summary (first 25 rows):' : 'Data Summary (first 25 rows):';
+    const summaryTitle = dataType === 'sales' ? 'Sales Summary :' : dataType === 'best' ? 'Best Seller Summary :' : 'Data Summary :';
     doc.setFont('helvetica','bold'); doc.text(summaryTitle, 14, y); y+=4; doc.setFont('helvetica','normal');
 
     // Build table data (content unchanged)
     const tableHead = dataType === 'sales' ? ['No', 'Menu', 'Flavor', 'Qty', 'Price', 'Modal', 'Revenue', 'Profit'] : ['No', 'Menu', 'Qty', 'Price', 'Total'];
-    const tableBody = data.slice(0, 25).map((r, i) => {
+    const tableBody = data.map((r, i) => {
         if (dataType === 'sales') {
             const name = r.menu_name || '-';
             const flavor = r.flavor || '-';
