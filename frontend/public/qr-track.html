@@ -346,27 +346,57 @@
         // Update status tracker UI
     function updateStatusTracker(currentStatus) {
             const statuses = ["receive", "making", "deliver", "done"];
-            const currentStatusIndex = statuses.indexOf(currentStatus.toLowerCase());
+            const normalizedStatus = String(currentStatus || '').toLowerCase();
+            const isCancelled = normalizedStatus === 'cancelled' || normalizedStatus === 'cancel';
+            const matchedStatus = statuses.includes(normalizedStatus) ? normalizedStatus : 'receive';
+            let currentStatusIndex = statuses.indexOf(matchedStatus);
+            if (currentStatusIndex < 0) currentStatusIndex = 0;
+
             const steps = document.querySelectorAll('.status-step');
             const lines = document.querySelectorAll('.status-line');
 
-            steps.forEach((step, index) => {
+            steps.forEach(step => {
                 step.classList.remove('completed', 'active');
+                const icon = step.querySelector('.status-icon');
+                if (icon) {
+                    icon.classList.remove('loading');
+                }
+            });
+
+            lines.forEach(line => line.classList.remove('completed'));
+
+            if (isCancelled) {
+                updateActionButtons(currentStatus);
+                return;
+            }
+
+            if (matchedStatus === 'done') {
+                steps.forEach(step => step.classList.add('completed'));
+                lines.forEach(line => line.classList.add('completed'));
+                updateActionButtons(currentStatus);
+                return;
+            }
+
+            steps.forEach((step, index) => {
+                const icon = step.querySelector('.status-icon');
                 if (index < currentStatusIndex) {
                     step.classList.add('completed');
                 } else if (index === currentStatusIndex) {
-                    step.classList.add('active');
+                    if (matchedStatus === 'receive') {
+                        step.classList.add('completed');
+                    } else {
+                        step.classList.add('active');
+                        if (icon) icon.classList.add('loading');
+                    }
                 }
             });
 
             lines.forEach((line, index) => {
-                line.classList.remove('completed');
                 if (index < currentStatusIndex) {
                     line.classList.add('completed');
                 }
             });
 
-            // Update action buttons based on status
             updateActionButtons(currentStatus);
         }
 
