@@ -1502,7 +1502,7 @@ function hideIngredientDetailsPanel() {
         let json;
         let dailyData; // for single-date path
 
-        // Helper to aggregate and render multi-day payload (same style as single date)
+        // Helper to render multi-day payload - one row per date
         const aggregateRangeDays = (allDays, startVal, endVal) => {
             if (!allDays.length) {
                 body.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:1.25rem; color:#6B7280;">Tidak ada data konsumsi pada rentang ini</td></tr>';
@@ -1512,18 +1512,80 @@ function hideIngredientDetailsPanel() {
             const panelTitle = document.querySelector('#ingredient-details-panel .summary-name');
             if (panelTitle) panelTitle.textContent = `🥤 Ingredient Consumption (Range ${startVal} s/d ${endVal})`;
             
-            // Aggregate ALL orders across all days into single menu aggregation (like single date)
-            const menuAggregation = {};
+            // Calculate overall summary across all days
             let totalOrdersAllDays = 0;
             let totalIngredientsAllDays = new Set();
-            const allOrderIds = [];
+            let totalUniqueMenusAllDays = new Set();
             
             allDays.forEach(dailyData => {
                 totalOrdersAllDays += Number(dailyData.total_orders || 0);
                 const orders = dailyData.orders || [];
                 
                 orders.forEach(order => {
-                    allOrderIds.push(order.order_id);
+                    const menuSummary = order.menu_summary || '';
+                    const orderIngsUsed = order.ingredients_used || [];
+                    const menuItems = menuSummary.split(',').map(item => item.trim());
+                    
+                    menuItems.forEach(menuItem => {
+                        const cleaned = (menuItem || '').trim();
+                        const withoutPrefixQty = cleaned.replace(/^\s*\d+\s*x?\s*/i, '');
+                        const menuName = (withoutPrefixQty.replace(/\s*x\s*\d+\s*$/i, '').trim()) || 'Unknown Menu';
+                        totalUniqueMenusAllDays.add(menuName);
+                    });
+                    
+                    orderIngsUsed.forEach(ing => {
+                        totalIngredientsAllDays.add(ing.ingredient_name);
+                    });
+                });
+            });
+            
+            // Render summary header showing range overview
+            const summaryRow = `
+                <tr style="background-color: #F9FAFB; border-bottom: 2px solid #E5E7EB;">
+                    <td colspan="5" style="padding: 1rem; text-align: center;">
+                        <div style="font-size: 1.1rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;">
+                            📅 Ringkasan Konsumsi Harian - ${startVal} s/d ${endVal}
+                        </div>
+                        <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
+                            <div style="text-align: center;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: #059669;">${totalOrdersAllDays}</div>
+                                <div style="font-size: 0.9rem; color: #6B7280;">Total Pesanan</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">${totalUniqueMenusAllDays.size}</div>
+                                <div style="font-size: 0.9rem; color: #6B7280;">Menu Unik</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${totalIngredientsAllDays.size}</div>
+                                <div style="font-size: 0.9rem; color: #6B7280;">Jenis Bahan</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: #3B82F6;">${allDays.length}</div>
+                                <div style="font-size: 0.9rem; color: #6B7280;">Hari</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 1rem;">
+                            <button class="btn-primary" onclick="showDailyIngredientAccumulationRange('${startVal}', '${endVal}')" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 0.6rem 1.5rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 500; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)';">
+                                <i class="fas fa-layer-group"></i> Lihat Akumulasi Semua Bahan
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            
+            // Render each day as separate row(s)
+            let allRows = summaryRow;
+            
+            allDays.forEach((dailyData, dayIndex) => {
+                const dateStr = dailyData.date || `Day ${dayIndex + 1}`;
+                const totalOrders = Number(dailyData.total_orders || 0);
+                const orders = dailyData.orders || [];
+                
+                // Aggregate menu data for this specific day
+                const menuAggregation = {};
+                const dayIngredients = new Set();
+                
+                orders.forEach(order => {
                     const menuSummary = order.menu_summary || '';
                     const orderIngsUsed = order.ingredients_used || [];
                     const menuItems = menuSummary.split(',').map(item => item.trim());
@@ -1550,7 +1612,7 @@ function hideIngredientDetailsPanel() {
                         menuAggregation[menuName].order_ids.push(order.order_id);
                         
                         orderIngsUsed.forEach(ing => {
-                            totalIngredientsAllDays.add(ing.ingredient_name);
+                            dayIngredients.add(ing.ingredient_name);
                             const ingKey = ing.ingredient_name;
                             if (!menuAggregation[menuName].ingredients_map[ingKey]) {
                                 menuAggregation[menuName].ingredients_map[ingKey] = {
@@ -1572,97 +1634,79 @@ function hideIngredientDetailsPanel() {
                         });
                     });
                 });
-            });
-            
-            // Calculate total ingredients used per menu and total consumption
-            let totalConsumptionOverall = 0;
-            Object.values(menuAggregation).forEach(menu => {
-                menu.total_ingredients_used = Object.keys(menu.ingredients_map).length;
-                menu.ingredients_list = Object.values(menu.ingredients_map);
-                menu.ingredients_list.forEach(ing => {
-                    totalConsumptionOverall += ing.total_consumed || 0;
+                
+                // Calculate stats for this day
+                Object.values(menuAggregation).forEach(menu => {
+                    menu.total_ingredients_used = Object.keys(menu.ingredients_map).length;
+                    menu.ingredients_list = Object.values(menu.ingredients_map);
                 });
+                
+                const uniqueMenus = Object.keys(menuAggregation).length;
+                
+                // Convert dateStr (YYYY-MM-DD) to DD/MM/YYYY for display
+                let displayDate = dateStr;
+                if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    const [y, m, d] = dateStr.split('-');
+                    displayDate = `${d}/${m}/${y}`;
+                }
+                
+                // Date header row for this day
+                const dateHeaderRow = `
+                    <tr style="background-color: #EFF6FF; border-top: 2px solid #BFDBFE; border-bottom: 1px solid #BFDBFE;">
+                        <td colspan="5" style="padding: 0.75rem 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="font-size: 1rem; font-weight: 600; color: #1E40AF;">
+                                    📆 ${displayDate}
+                                </div>
+                                <div style="display: flex; gap: 1.5rem; font-size: 0.85rem; color: #4B5563;">
+                                    <span><strong>${totalOrders}</strong> Pesanan</span>
+                                    <span><strong>${uniqueMenus}</strong> Menu</span>
+                                    <span><strong>${dayIngredients.size}</strong> Bahan</span>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                
+                allRows += dateHeaderRow;
+                
+                // If no orders for this day
+                if (uniqueMenus === 0) {
+                    allRows += `
+                        <tr style="border-bottom: 1px solid #F3F4F6;">
+                            <td colspan="5" style="text-align: center; color: #9CA3AF; padding: 1rem; font-style: italic;">
+                                Tidak ada pesanan pada tanggal ini
+                            </td>
+                        </tr>
+                    `;
+                } else {
+                    // Sort menus by total_orders descending
+                    const sortedMenus = Object.values(menuAggregation).sort((a, b) => b.total_orders - a.total_orders);
+                    
+                    // Render menu rows for this day
+                    sortedMenus.forEach((menu, idx) => {
+                        const ingredientsList = menu.ingredients_list || [];
+                        const menuDataJson = JSON.stringify(menu).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                        
+                        const menuRow = `
+                            <tr style="border-bottom: 1px solid #F3F4F6;">
+                                <td style="padding-left: 2rem; color: #6B7280;">${idx + 1}</td>
+                                <td style="font-weight: 600; color: #1F2937;">${menu.menu_name}</td>
+                                <td style="text-align: center; font-weight: 600; color: #059669;">${menu.total_orders}</td>
+                                <td style="text-align: center; font-weight: 600; color: #DC2626;">${menu.total_ingredients_used}</td>
+                                <td style="text-align: center;">
+                                    <button class="table-action-btn" onclick="event.stopPropagation(); showMenuIngredientDetails('${menu.menu_name.replace(/'/g, "\\'").replace(/"/g, '&quot;')}', '${displayDate}', ${menuDataJson});" title="Lihat Detail Bahan Menu">
+                                        <i class="fas fa-eye"></i> Detail
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                        allRows += menuRow;
+                    });
+                }
             });
             
-            const totalUniqueMenus = Object.keys(menuAggregation).length;
-            
-            // Render summary header (IDENTICAL to single date style)
-            const summaryRow = `
-                <tr style="background-color: #F9FAFB; border-bottom: 2px solid #E5E7EB;">
-                    <td colspan="5" style="padding: 1rem; text-align: center;">
-                        <div style="font-size: 1.1rem; font-weight: 700; color: #1F2937; margin-bottom: 0.5rem;">
-                            📅 Ringkasan Konsumsi Harian - ${startVal} s/d ${endVal}
-                        </div>
-                        <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
-                            <div style="text-align: center;">
-                                <div style="font-size: 1.5rem; font-weight: 700; color: #059669;">${totalOrdersAllDays}</div>
-                                <div style="font-size: 0.9rem; color: #6B7280;">Total Pesanan</div>
-                            </div>
-                            <div style="text-align: center;">
-                                <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">${totalUniqueMenus}</div>
-                                <div style="font-size: 0.9rem; color: #6B7280;">Menu Unik</div>
-                            </div>
-                            <div style="text-align: center;">
-                                <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${totalIngredientsAllDays.size}</div>
-                                <div style="font-size: 0.9rem; color: #6B7280;">Jenis Bahan</div>
-                            </div>
-                            <div style="text-align: center;">
-                                <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${totalConsumptionOverall.toLocaleString('id-ID')}</div>
-                                <div style="font-size: 0.9rem; color: #6B7280;">Total Konsumsi</div>
-                            </div>
-                        </div>
-                        <div style="margin-top: 1rem;">
-                            <button class="btn-primary" onclick="showDailyIngredientAccumulationRange('${startVal}', '${endVal}')" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 0.6rem 1.5rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 500; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)';">
-                                <i class="fas fa-layer-group"></i> Lihat Akumulasi Semua Bahan
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            `;
-            
-            // Check if no menus
-            if (Object.keys(menuAggregation).length === 0) {
-                body.innerHTML = summaryRow + `
-                    <tr>
-                        <td colspan="5" style="text-align: center; color: #6B7280; padding: 1.5rem; font-weight: 500;">
-                            Tidak ada detail menu untuk rentang tanggal ini
-                        </td>
-                    </tr>
-                `;
-                return;
-            }
-            
-            // Sort menus by total_orders descending (IDENTICAL to single date)
-            const sortedMenus = Object.values(menuAggregation).sort((a, b) => b.total_orders - a.total_orders);
-            
-            // Render menu rows (IDENTICAL to single date style with same button handler)
-            const menuRows = sortedMenus.map((menu, idx) => {
-                const ingredientsList = menu.ingredients_list || [];
-                const ingredientSummary = ingredientsList.slice(0, 3).map(ing => 
-                    `${ing.ingredient_name}: ${Number(ing.total_consumed || 0).toFixed(1)} ${ing.unit || ''}`
-                ).join(', ');
-                const moreCount = ingredientsList.length > 3 ? ` (+${ingredientsList.length - 3} lainnya)` : '';
-                
-                // Store menu data globally for the detail view
-                const menuDataJson = JSON.stringify(menu).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-                
-                return `
-                    <tr style="border-bottom: 1px solid #F3F4F6;">
-                        <td>${idx + 1}</td>
-                        <td style="font-weight: 600; color: #1F2937;">${menu.menu_name}</td>
-                        <td style="text-align: center; font-weight: 600; color: #059669;">${menu.total_orders}</td>
-                        <td style="text-align: center; font-weight: 600; color: #DC2626;">${menu.total_ingredients_used}</td>
-                        <td style="text-align: center;">
-                            <button class="table-action-btn" onclick="event.stopPropagation(); showMenuIngredientDetails('${menu.menu_name.replace(/'/g, "\\'").replace(/"/g, '&quot;')}', '${startVal} s/d ${endVal}', ${menuDataJson});" title="Lihat Detail Bahan Menu">
-                                <i class="fas fa-eye"></i> Detail
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-            
-            body.innerHTML = summaryRow + menuRows;
-            return { menuAggregation };
+            body.innerHTML = allRows;
         };
 
         if (rangeSelected) {
