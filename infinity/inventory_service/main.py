@@ -3022,7 +3022,11 @@ def _format_consumption_log_entry(db: Session, log: ConsumptionLog):
         "created_at": log.created_at.isoformat() if log.created_at else None,
         "consumed_at": log.consumed_at.isoformat() if log.consumed_at else None,
         "rolled_back_at": log.rolled_back_at.isoformat() if log.rolled_back_at else None,
-        "menu_summary": _build_menu_summary_from_order(db, log.order_id) if log.order_id else log.menu_summary,
+        "menu_summary": (
+            _build_menu_summary_from_consumption(db, log.order_id)
+            or _build_menu_summary_from_order(db, log.order_id)
+            if log.order_id else log.menu_summary
+        ),
     }
 
 
@@ -3037,24 +3041,77 @@ def _build_menu_summary_from_order(db: Session, order_id: str) -> str:
         if resp.status_code != 200:
             return (db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first() or {}).menu_summary if isinstance(order_id, str) else ""
 
+
         ord_data = resp.json().get("data") or {}
         items = ord_data.get("orders") or []
 
-        def is_cancelled(item: dict) -> bool:
-            if not item:
-                return True
-            st = (item.get("status") or item.get("state") or item.get("order_item_status") or "").strip().lower()
-            if not st:
-                return False
-            return st in ("cancel", "canceled", "cancelled", "void", "returned")
+        def try_int(v):
+            try:
+                return int(v)
+            except Exception:
+                return None
 
-        parts = []
+        cancelled_set = {"cancel", "canceled", "cancelled", "void", "returned", "rejected", "cancelled"}
+        active_map: dict = {}
+        cancelled_ids: set = set()
+        seen_sub_ids: set = set()
+
         for it in items:
-            if is_cancelled(it):
-                continue
-            name = it.get("menu_name") or it.get("name") or "Unknown"
-            qty = int(it.get("quantity") or it.get("qty") or 1)
-            parts.append(f"{qty}x {name}")
+            for c in it.get("cancelled_orders", []) or []:
+                cid = try_int(c.get("item_id") or c.get("id"))
+                if cid is not None:
+                    cancelled_ids.add(cid)
+
+            for sub in it.get("orders", []) or []:
+                sid = try_int(sub.get("item_id") or sub.get("id"))
+                if sid is None:
+                    continue
+                if sid in seen_sub_ids:
+                    continue
+                seen_sub_ids.add(sid)
+                sname = sub.get("menu_name") or sub.get("name") or f"Item-{sid}"
+                try:
+                    sqty = int(sub.get("quantity") or sub.get("qty") or 1)
+                except Exception:
+                    sqty = 1
+                sstatus = (sub.get("status") or "").strip().lower()
+                if sstatus in cancelled_set:
+                    cancelled_ids.add(sid)
+                    if sid in active_map:
+                        del active_map[sid]
+                    continue
+                if sid in cancelled_ids:
+                    continue
+                if sid not in active_map:
+                    active_map[sid] = {"name": sname, "qty": 0}
+                active_map[sid]["qty"] += sqty
+
+            if not it.get("orders") and not it.get("cancelled_orders"):
+                iid = try_int(it.get("item_id") or it.get("id"))
+                if iid is None:
+                    continue
+                name = it.get("menu_name") or it.get("name") or f"Item-{iid}"
+                try:
+                    qty = int(it.get("quantity") or it.get("qty") or 1)
+                except Exception:
+                    qty = 1
+                st = (it.get("status") or "").strip().lower()
+                if st in cancelled_set:
+                    cancelled_ids.add(iid)
+                    if iid in active_map:
+                        del active_map[iid]
+                    continue
+                if iid in cancelled_ids:
+                    continue
+                if iid not in active_map:
+                    active_map[iid] = {"name": name, "qty": 0}
+                active_map[iid]["qty"] += qty
+
+        for cid in list(cancelled_ids):
+            if cid in active_map:
+                del active_map[cid]
+
+        parts = [f"{v['qty']}x {v['name']}" for k, v in sorted(active_map.items())]
 
         if not parts:
             stored = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
@@ -3067,6 +3124,84 @@ def _build_menu_summary_from_order(db: Session, order_id: str) -> str:
     except Exception:
         stored = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
         return stored.menu_summary if stored and stored.menu_summary else ""
+
+
+def _build_menu_summary_from_consumption(db: Session, order_id: str) -> str:
+    """Build menu_summary by checking which order items were actually consumed
+    according to ConsumptionIngredientDetail.order_item_id (per-item granularity).
+    This ensures only items marked/deducted as consumed (done) appear in the summary.
+    Returns empty string on failure or when no consumed items found.
+    """
+    try:
+        log = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
+        if not log:
+            return ""
+
+        rows = db.query(ConsumptionIngredientDetail).filter(
+            ConsumptionIngredientDetail.consumption_log_id == log.id
+        ).all()
+
+        if not rows:
+            return ""
+
+        order_items_map = {}
+        order_items_name = {}
+        try:
+            order_service_url = os.getenv("ORDER_SERVICE_URL", "http://order_service:8002")
+            resp = requests.get(f"{order_service_url}/order_status/{order_id}", timeout=5)
+            if resp.status_code == 200:
+                ord_data = resp.json().get("data") or {}
+                items = ord_data.get("orders") or []
+                for it in items:
+                    iid = it.get("item_id") or it.get("id")
+                    if iid is None:
+                        continue
+                    try:
+                        order_items_map[int(iid)] = int(it.get("quantity") or it.get("qty") or 1)
+                    except Exception:
+                        order_items_map[int(iid)] = 1
+                    order_items_name[int(iid)] = it.get("menu_name") or it.get("name")
+        except Exception:
+            pass
+
+        consumed_item_ids = set()
+        consumed_menu_names = {}
+
+        for r in rows:
+            if getattr(r, 'order_item_id', None):
+                try:
+                    consumed_item_ids.add(int(r.order_item_id))
+                except Exception:
+                    consumed_item_ids.add(r.order_item_id)
+            else:
+                name = (r.menu_name or '').strip()
+                if name:
+                    consumed_menu_names[name] = consumed_menu_names.get(name, 0) + 1
+
+        parts = []
+        for iid in sorted(consumed_item_ids):
+            qty = order_items_map.get(iid, 1)
+            name = order_items_name.get(iid)
+            if not name:
+                row_name = db.query(ConsumptionIngredientDetail.menu_name).filter(
+                    ConsumptionIngredientDetail.consumption_log_id == log.id,
+                    ConsumptionIngredientDetail.order_item_id == iid
+                ).first()
+                name = (row_name[0] if row_name and row_name[0] else None) or f"Item-{iid}"
+            parts.append(f"{qty}x {name}")
+
+        for name, cnt in consumed_menu_names.items():
+            parts.append(f"{cnt}x {name}")
+
+        if not parts:
+            return ""
+
+        menu_summary = ", ".join(parts[:5])
+        if len(parts) > 5:
+            menu_summary += f" dan {len(parts) - 5} item lainnya"
+        return menu_summary
+    except Exception:
+        return ""
 
 @app.get("/consumption_log", summary="Daftar consumption log (kompatibel frontend)", tags=["Stock Management"])
 def list_consumption_logs(limit: int = Query(50, ge=1, le=500), db: Session = Depends(get_db)):
