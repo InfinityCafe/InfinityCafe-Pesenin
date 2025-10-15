@@ -15,8 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 INSERT INTO users (username, hashed_password, role, is_active)
 VALUES
-    ('admin', crypt('admin123', gen_salt('bf')), 'admin', TRUE),
-    ('operator', crypt('operator123', gen_salt('bf')), 'user', TRUE)
+    ('admin', crypt('admin123', gen_salt('bf')), 'admin', TRUE)
 ON CONFLICT (username) DO UPDATE
     SET role = EXCLUDED.role,
         is_active = EXCLUDED.is_active;

@@ -211,7 +211,6 @@ def login_for_access_token(form_data: UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is disabled")
         
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    # Include role in token payload so services can enforce admin checks if needed
     access_token = create_access_token(
         data={"sub": user.username, "role": getattr(user, "role", "user")},
         expires_delta=access_token_expires,
@@ -253,23 +252,26 @@ def admin_change_password(req: ChangePasswordRequest, admin: User = Depends(requ
 
 class DisableUserRequest(BaseModel):
     username: str
-    disable: bool = True
+    disable: Optional[bool] = None
 
 
-@app.post("/admin/disable_user", summary="Admin: enable/disable user", tags=["Admin"])
+@app.post("/admin/status_user", summary="Admin: enable/disable user", tags=["Admin"])
 def admin_disable_user(req: DisableUserRequest, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == req.username).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    user.is_active = False if req.disable else True
+    if req.disable is None:
+        user.is_active = not bool(getattr(user, "is_active", True))
+    else:
+        user.is_active = False if req.disable else True
+
     db.add(user)
     db.commit()
-    state = "disabled" if req.disable else "enabled"
+    state = "disabled" if not bool(getattr(user, "is_active", True)) else "enabled"
     return {"status": "success", "message": f"User '{req.username}' {state}."}
 
 Base.metadata.create_all(bind=engine)
 
-# Bootstrap initial admin if env vars provided and users table empty
 def create_initial_admin():
     admin_user = os.getenv("ADMIN_USERNAME")
     admin_pass = os.getenv("ADMIN_PASSWORD")
