@@ -2736,8 +2736,45 @@ def get_order_ingredients_detail(order_id: str, db: Session = Depends(get_db)):
                         "unit": mapping.unit.value if mapping.unit else ""
                     }
 
+                cancelled_set = {"cancel", "canceled", "cancelled", "void", "returned", "rejected"}
+
+                cancelled_ids = set()
                 for it in items:
-                    item_id = it.get("item_id")
+                    try:
+                        iid = it.get("item_id") or it.get("id")
+                        st = (it.get("status") or "").strip().lower()
+                        if iid is not None and st in cancelled_set:
+                            try:
+                                cancelled_ids.add(int(iid))
+                            except Exception:
+                                cancelled_ids.add(iid)
+
+                        for c in it.get("cancelled_orders", []) or []:
+                            cid = c.get("item_id") or c.get("id")
+                            if cid is not None:
+                                try:
+                                    cancelled_ids.add(int(cid))
+                                except Exception:
+                                    cancelled_ids.add(cid)
+
+                        for sub in it.get("orders", []) or []:
+                            sid = sub.get("item_id") or sub.get("id")
+                            sst = (sub.get("status") or "").strip().lower()
+                            if sid is not None and sst in cancelled_set:
+                                try:
+                                    cancelled_ids.add(int(sid))
+                                except Exception:
+                                    cancelled_ids.add(sid)
+                    except Exception:
+                        continue
+
+                for it in items:
+                    item_id = it.get("item_id") or it.get("id")
+                    top_status = (it.get("status") or "").strip().lower()
+                    if (item_id is not None and (int(item_id) if isinstance(item_id, int) or (isinstance(item_id, str) and item_id.isdigit()) else item_id) in cancelled_ids) or top_status in cancelled_set:
+                        logging.info(f"Skipping cancelled order item: {item_id} status={top_status}")
+                        continue
+
                     menu_name = it.get("menu_name")
                     qty = int(it.get("quantity") or 1)
                     pref = (it.get("preference") or "").strip()
