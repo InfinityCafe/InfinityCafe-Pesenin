@@ -4052,10 +4052,12 @@ async function loadReport(rangeOverride = null, maybeEnd = null) {
 
             // Aggregate sales data by menu + flavor combination
             const details = aggregateSalesData(rawTransactions);
-        console.log('Aggregated sales data:', details);
+            console.log('Aggregated sales data:', details);
+
+            details.sort((a, b) => (a.menu_name || '').localeCompare(b.menu_name || ''));
         
             const newHash = computeDataHash(details);
-        // Always update data and render, regardless of hash
+            // Always update data and render, regardless of hash
                 lastReportHash = newHash;
                 baseData = details;
                 // preserve current search if any
@@ -4168,6 +4170,7 @@ async function loadBestSellerData(rangeOverride = null, maybeEnd = null) {
             applyModeLayout('best');
 
             const best = data.best_sellers;
+            best.sort((a, b) => (b.total_quantity || 0) - (a.total_quantity || 0));
             const newHash = computeDataHash(best);
             // Force refresh when switching from a different type
             if (newHash !== lastBestHash || previousType !== 'best') {
@@ -5213,22 +5216,34 @@ async function applyReportFilter() {
             await loadIngredientAnalysisData();
             applyIngredientModeLayout();
             return;
-        } else if (dataType === 'best') {
-            // Load best seller data
-            resetToNormalMode();
-            const range = getValidatedGlobalRange(true, true);
-            if (!range) return;
+        } 
+        
+        const range = getValidatedGlobalRange(true, true);
+        if (!range) return;
+        resetToNormalMode();
+
+        if (dataType === 'best') {
             await loadBestSellerData(range);
-      // Ensure header is updated after best seller data load
-      updateReportTableHeader();
+            if (sortSelect) {
+                sortSelect.value = 'qty';
+            }
+            // Load best seller data
+            // resetToNormalMode();
+            // const range = getValidatedGlobalRange(true, true);
+            // if (!range) return;
+            // Ensure header is updated after best seller data load
+            updateReportTableHeader();
         } else {
-            // Load sales data
-            resetToNormalMode();
-            const range = getValidatedGlobalRange(true, true);
-            if (!range) return;
             await loadReport(range);
-      // Ensure header is updated after sales data load
-      updateReportTableHeader();
+            if (sortSelect) {
+                sortSelect.value = 'name';
+            }
+            // Load sales data
+            // resetToNormalMode();
+            // const range = getValidatedGlobalRange(true, true);
+            // if (!range) return;
+            // Ensure header is updated after sales data load
+            updateReportTableHeader();
         }
     }
     
@@ -5257,22 +5272,22 @@ async function applyReportFilter() {
 
         } else {
             // Penyortiran untuk sales dan best seller
-        filteredData.sort((a, b) => {
-            if (val === 'name') {
-                return (a.menu_name || '').localeCompare(b.menu_name || '');
-            }
-            if (val === 'qty') {
-                const qa = a.quantity ?? a.total_quantity ?? 0;
-                const qb = b.quantity ?? b.total_quantity ?? 0;
-                return qb - qa; // desc
-            }
-            if (val === 'total') {
-                const ta = a.total ?? a.profit ?? 0;
-                const tb = b.total ?? b.profit ?? 0;
-                return tb - ta; // desc
-            }
-            return 0;
-        });
+            filteredData.sort((a, b) => {
+                if (val === 'name') {
+                    return (a.menu_name || '').localeCompare(b.menu_name || '');
+                }
+                if (val === 'qty') {
+                    const qa = a.quantity ?? a.total_quantity ?? 0;
+                    const qb = b.quantity ?? b.total_quantity ?? 0;
+                    return qb - qa; // desc
+                }
+                if (val === 'total') {
+                    const ta = a.total ?? a.profit ?? 0;
+                    const tb = b.total ?? b.profit ?? 0;
+                    return tb - ta; // desc
+                }
+                return 0;
+            });
         }
         reportCurrentPage = 1;
         renderReportTable();
