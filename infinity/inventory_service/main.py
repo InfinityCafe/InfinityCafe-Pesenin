@@ -272,6 +272,19 @@ def _format_stock_history_entry(history: StockHistory) -> dict:
             "purchase_price_after": history.quantity_after,
             "purchase_price_changed": history.quantity_changed
         })
+    elif at in ("make_unavailable", "make_available"):
+        try:
+            availability_before = bool(int(history.quantity_before)) if history.quantity_before is not None else None
+        except Exception:
+            availability_before = bool(history.quantity_before)
+        try:
+            availability_after = bool(int(history.quantity_after)) if history.quantity_after is not None else None
+        except Exception:
+            availability_after = bool(history.quantity_after)
+        base.update({
+            "availability_before": availability_before,
+            "availability_after": availability_after
+        })
     elif at == "edit_item_name":
         name_before = None
         name_after = None
@@ -1795,8 +1808,8 @@ def update_ingredient_with_audit(
                     db=db,
                     ingredient_id=req.id,
                     action_type="edit_purchase_price_total",
-                    quantity_before=old_unit_price,
-                    quantity_after=float(ing.unit_price or 0.0),
+                    quantity_before=old_price_total,
+                    quantity_after=float(ing.purchase_price_total or 0.0),
                     performed_by=current_username,
                     notes=price_notes,
                 )
