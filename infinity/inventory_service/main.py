@@ -18,6 +18,7 @@ import enum
 last_debug_info = []
 from datetime import datetime
 import enum, os, json, logging, requests, math, socket, threading, time
+import re
 
 jakarta_tz = pytz_timezone('Asia/Jakarta')
 
@@ -233,6 +234,111 @@ class StockHistory(Base):
     order_id = Column(String, nullable=True)  
     
     ingredient = relationship("Inventory", backref="stock_histories")
+
+
+def _format_stock_history_entry(history: StockHistory) -> dict:
+    """Format a stock history entry depending on action_type.
+
+    For action types that change quantity (restock, consume, rollback, edit_stock)
+    return quantity_before/after. For edit_purchase_price_total return purchase_price_before/after fields.
+    For edit_item_name return name_before/after. For other types return a generic
+    record with notes and created_at.
+    """
+    base = {
+        "id": history.id,
+        "action_type": history.action_type,
+        "performed_by": history.performed_by,
+        "notes": history.notes,
+        "created_at": format_jakarta_time(history.created_at),
+        "order_id": history.order_id
+    }
+
+    at = (history.action_type or "").lower()
+    if at in ("restock", "consume", "rollback", "edit_stock"):
+        base.update({
+            "quantity_before": history.quantity_before,
+            "quantity_after": history.quantity_after,
+            "quantity_changed": history.quantity_changed
+        })
+    elif at == "edit_minimum":
+        base.update({
+            "minimum_before": history.quantity_before,
+            "minimum_after": history.quantity_after,
+            "minimum_changed": history.quantity_changed
+        })
+    elif at == "edit_purchase_price_total":
+        base.update({
+            "purchase_price_before": history.quantity_before,
+            "purchase_price_after": history.quantity_after,
+            "purchase_price_changed": history.quantity_changed
+        })
+    elif at == "edit_item_name":
+        name_before = None
+        name_after = None
+        if history.notes:
+            m = re.search(r"(.+?)\s*(?:→|->|=>)\s*(.+)", history.notes)
+            if m:
+                left = m.group(1).strip()
+                right = m.group(2).strip()
+                left = re.sub(r"(?i)^edit\s+nama:\s*", "", left).strip()
+                right = re.split(r"\s*\|\s*", right)[0].strip()
+                name_before = left
+                name_after = right
+            else:
+                if "→" in history.notes:
+                    parts = history.notes.split("→")
+                    name_before = parts[0].replace("Edit nama:", "").strip()
+                    name_after = parts[-1].split("|")[0].strip()
+        base.update({
+            "name_before": name_before,
+            "name_after": name_after
+        })
+    elif at == "edit_category":
+        cat_before = None
+        cat_after = None
+        if history.notes:
+            m = re.search(r"(.+?)\s*(?:→|->|=>)\s*(.+)", history.notes)
+            if m:
+                left = m.group(1).strip()
+                right = m.group(2).strip()
+                left = re.sub(r"(?i)^edit\s+kategori:\s*", "", left).strip()
+                right = re.split(r"\s*\|\s*", right)[0].strip()
+                cat_before = left
+                cat_after = right
+        base.update({
+            "category_before": cat_before,
+            "category_after": cat_after
+        })
+    elif at == "edit_unit":
+        unit_before = None
+        unit_after = None
+        if history.notes:
+            m = re.search(r"(.+?)\s*(?:→|->|=>)\s*(.+)", history.notes)
+            if m:
+                left = m.group(1).strip()
+                right = m.group(2).strip()
+                left = re.sub(r"(?i)^edit\s+unit:\s*", "", left).strip()
+                right = re.split(r"\s*\|\s*", right)[0].strip()
+                unit_before = left
+                unit_after = right
+        base.update({
+            "unit_before": unit_before,
+            "unit_after": unit_after
+        })
+    elif at == "edit_purchase_quantity":
+        base.update({
+            "purchase_quantity_before": history.quantity_before,
+            "purchase_quantity_after": history.quantity_after,
+            "purchase_quantity_changed": history.quantity_changed
+        })
+    else:
+        base.update({
+            "quantity_before": history.quantity_before,
+            "quantity_after": history.quantity_after,
+            "quantity_changed": history.quantity_changed
+        })
+
+    return base
 
 class ValidateIngredientRequest(BaseModel):
     name: str
@@ -1549,24 +1655,38 @@ def update_ingredient_with_audit(
         old_purchase_qty = float(ing.purchase_quantity or 0.0)
         old_unit_price = float(ing.unit_price or 0.0)
 
-        price_total_changed = False
         qty_changed = False
-
-        if req.purchase_price_total is not None:
-            new_total = float(req.purchase_price_total)
-            price_total_changed = (new_total != old_price_total)
-            if price_total_changed:
-                ing.purchase_price_total = new_total
+        purchase_price_changed = False
 
         if req.purchase_quantity is not None:
             new_qty = float(req.purchase_quantity)
             qty_changed = (new_qty != old_purchase_qty)
             if qty_changed:
                 ing.purchase_quantity = new_qty
+                try:
+                    pq_notes = f"Edit purchase quantity: {old_purchase_qty} → {new_qty}"
+                    if req.notes:
+                        pq_notes += f" | {req.notes}"
+                    create_stock_history(
+                        db=db,
+                        ingredient_id=req.id,
+                        action_type="edit_purchase_quantity",
+                        quantity_before=old_purchase_qty,
+                        quantity_after=new_qty,
+                        performed_by=current_username,
+                        notes=pq_notes
+                    )
+                except Exception:
+                    pass
 
-        price_changed = price_total_changed or qty_changed
+        if req.purchase_price_total is not None:
+            new_total = float(req.purchase_price_total)
+            purchase_price_changed = (new_total != old_price_total)
+            if purchase_price_changed:
+                ing.purchase_price_total = new_total
 
-        if price_changed:
+        purchase_price_or_qty_changed = purchase_price_changed or qty_changed
+        if purchase_price_or_qty_changed:
             new_total = float(ing.purchase_price_total or 0.0)
             new_qty = float(ing.purchase_quantity or 0.0)
             try:
@@ -1661,8 +1781,8 @@ def update_ingredient_with_audit(
                 performed_by=current_username,
                 notes=unit_notes
             )
-        
-        if price_changed:
+
+        if purchase_price_changed:
             try:
                 price_notes = (
                     f"Edit harga: total {old_price_total} → {float(ing.purchase_price_total or 0.0)}, "
@@ -1674,7 +1794,7 @@ def update_ingredient_with_audit(
                 create_stock_history(
                     db=db,
                     ingredient_id=req.id,
-                    action_type="edit_price",
+                    action_type="edit_purchase_price_total",
                     quantity_before=old_unit_price,
                     quantity_after=float(ing.unit_price or 0.0),
                     performed_by=current_username,
@@ -1717,7 +1837,8 @@ def update_ingredient_with_audit(
                     "name_changed": old_name != req.name,
                     "category_changed": old_category != req.category,
                     "unit_changed": old_unit != req.unit,
-                    "price_changed": price_changed
+                    "purchase_price_changed": purchase_price_changed,
+                    "purchase_quantity_changed": qty_changed
                 }
             }
         })
@@ -1734,7 +1855,7 @@ def update_ingredient_with_audit(
 def get_ingredient_stock_history(
     ingredient_id: int, 
     limit: int = Query(50, description="Jumlah record maksimal"),
-    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable, edit_item_name, edit_category, edit_unit, edit_price"),
+    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable, edit_item_name, edit_category, edit_unit, edit_purchase_price_total"),
     db: Session = Depends(get_db)
 ):
     """Menampilkan history perubahan stock untuk ingredient tertentu"""
@@ -1756,17 +1877,7 @@ def get_ingredient_stock_history(
         
         history_data = []
         for history in histories:
-            history_data.append({
-                "id": history.id,
-                "action_type": history.action_type,
-                "quantity_before": history.quantity_before,
-                "quantity_after": history.quantity_after,
-                "quantity_changed": history.quantity_changed,
-                "performed_by": history.performed_by,
-                "notes": history.notes,
-                "created_at": format_jakarta_time(history.created_at),
-                "order_id": history.order_id
-            })
+            history_data.append(_format_stock_history_entry(history))
         
         return JSONResponse(status_code=200, content={
             "status": "success",
@@ -1795,7 +1906,7 @@ def get_ingredient_stock_history(
 @app.get("/stock/history", summary="History perubahan stock semua ingredient", tags=["Stock Management"])
 def get_all_stock_history(
     limit: int = Query(100, description="Jumlah record maksimal"),
-    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable, edit_item_name, edit_category, edit_unit, edit_price"),
+    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable, edit_item_name, edit_category, edit_unit, edit_purchase_price_total"),
     performed_by: Optional[str] = Query(None, description="Filter by user name"),
     db: Session = Depends(get_db)
 ):
@@ -1815,19 +1926,10 @@ def get_all_stock_history(
         
         history_data = []
         for history, ingredient_name in results:
-            history_data.append({
-                "id": history.id,
-                "ingredient_id": history.ingredient_id,
-                "ingredient_name": ingredient_name,
-                "action_type": history.action_type,
-                "quantity_before": history.quantity_before,
-                "quantity_after": history.quantity_after,
-                "quantity_changed": history.quantity_changed,
-                "performed_by": history.performed_by,
-                "notes": history.notes,
-                "created_at": format_jakarta_time(history.created_at),
-                "order_id": history.order_id
-            })
+            entry = _format_stock_history_entry(history)
+            entry["ingredient_name"] = ingredient_name
+            entry["ingredient_id"] = history.ingredient_id
+            history_data.append(entry)
         
         return JSONResponse(status_code=200, content={
             "status": "success",
