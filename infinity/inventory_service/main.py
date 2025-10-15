@@ -2832,7 +2832,6 @@ def get_daily_consumption_history(
                         "ingredient_name": od.ingredient_name,
                         "unit": od.unit,
                         "total_consumed": 0.0,
-                        # include category from stock management
                         "category": (str(od.ingredient.category.value) if getattr(od, "ingredient", None) and getattr(od.ingredient, "category", None) else None)
                     }
                 try:
@@ -2843,7 +2842,7 @@ def get_daily_consumption_history(
             daily_consumption[date_str]["orders"].append({
                 "order_id": log.order_id,
                 "created_at": format_jakarta_time(log.created_at),
-                "menu_summary": log.menu_summary,
+                "menu_summary": _build_menu_summary_from_order(db, log.order_id) if log.order_id else log.menu_summary,
                 "total_ingredients_used": len(order_ing_map),
                 "ingredients_used": list(order_ing_map.values())
             })
@@ -2853,7 +2852,6 @@ def get_daily_consumption_history(
                 ingredient_name = item.ingredient_name
                 quantity_consumed = item.quantity_consumed
                 unit = item.unit
-                # fetch category from related Inventory (stock management category)
                 try:
                     category_value = str(item.ingredient.category.value) if getattr(item, "ingredient", None) and getattr(item.ingredient, "category", None) else None
                 except Exception:
@@ -2871,7 +2869,6 @@ def get_daily_consumption_history(
                 
                 daily_consumption[date_str]["ingredients_consumed"][ingredient_id]["total_consumed"] += quantity_consumed
                 daily_consumption[date_str]["ingredients_consumed"][ingredient_id]["consumption_count"] += 1
-                # update/ensure category remains set if previously None
                 if not daily_consumption[date_str]["ingredients_consumed"][ingredient_id].get("category") and category_value:
                     daily_consumption[date_str]["ingredients_consumed"][ingredient_id]["category"] = category_value
         
@@ -3025,8 +3022,51 @@ def _format_consumption_log_entry(db: Session, log: ConsumptionLog):
         "created_at": log.created_at.isoformat() if log.created_at else None,
         "consumed_at": log.consumed_at.isoformat() if log.consumed_at else None,
         "rolled_back_at": log.rolled_back_at.isoformat() if log.rolled_back_at else None,
-        "menu_summary": log.menu_summary,
+        "menu_summary": _build_menu_summary_from_order(db, log.order_id) if log.order_id else log.menu_summary,
     }
+
+
+def _build_menu_summary_from_order(db: Session, order_id: str) -> str:
+    """Try to fetch order details from order_service and build a menu_summary
+    that includes only items which are not cancelled. Fallback to stored
+    ConsumptionLog.menu_summary on error.
+    """
+    try:
+        order_service_url = os.getenv("ORDER_SERVICE_URL", "http://order_service:8002")
+        resp = requests.get(f"{order_service_url}/order_status/{order_id}", timeout=5)
+        if resp.status_code != 200:
+            return (db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first() or {}).menu_summary if isinstance(order_id, str) else ""
+
+        ord_data = resp.json().get("data") or {}
+        items = ord_data.get("orders") or []
+
+        def is_cancelled(item: dict) -> bool:
+            if not item:
+                return True
+            st = (item.get("status") or item.get("state") or item.get("order_item_status") or "").strip().lower()
+            if not st:
+                return False
+            return st in ("cancel", "canceled", "cancelled", "void", "returned")
+
+        parts = []
+        for it in items:
+            if is_cancelled(it):
+                continue
+            name = it.get("menu_name") or it.get("name") or "Unknown"
+            qty = int(it.get("quantity") or it.get("qty") or 1)
+            parts.append(f"{qty}x {name}")
+
+        if not parts:
+            stored = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
+            return stored.menu_summary if stored and stored.menu_summary else ""
+
+        menu_summary = ", ".join(parts[:5])
+        if len(parts) > 5:
+            menu_summary += f" dan {len(parts) - 5} item lainnya"
+        return menu_summary
+    except Exception:
+        stored = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
+        return stored.menu_summary if stored and stored.menu_summary else ""
 
 @app.get("/consumption_log", summary="Daftar consumption log (kompatibel frontend)", tags=["Stock Management"])
 def list_consumption_logs(limit: int = Query(50, ge=1, le=500), db: Session = Depends(get_db)):

@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import FastAPI, Depends, HTTPException, status, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy import create_engine, Column, Integer, String, Boolean
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
 from dotenv import load_dotenv
@@ -54,10 +54,13 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
+    role = Column(String, nullable=False, default="user")  # possible values: admin, user
+    is_active = Column(Boolean, nullable=False, default=True)
 
 class UserCreate(BaseModel):
     username: str
     password: str
+    role: Optional[str] = "user"
 
 class UserLogin(BaseModel):
     username: str
@@ -120,6 +123,17 @@ def get_current_user(token: str, db: Session):
         raise credentials_exception
     return user
 
+
+def require_admin(authorization: str = Header(None), db: Session = Depends(get_db)):
+    """Dependency to ensure the caller is an admin. Expects standard Authorization: Bearer <token> header."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid Authorization header")
+    raw = authorization.split(" ")[1]
+    current = get_current_user(raw, db)
+    if getattr(current, "role", "") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    return current
+
 @app.get("/health", tags=["Utility"])
 def health_check():
     """Endpoint untuk cek status service."""
@@ -149,7 +163,9 @@ def verify_token(authorization: str = Header(None), db: Session = Depends(get_db
         "message": "Token valid",
         "data": {
             "id": user.id,
-            "username": user.username
+            "username": user.username,
+            "role": getattr(user, "role", "user"),
+            "is_active": bool(getattr(user, "is_active", 1))
         }
     }
 
@@ -161,7 +177,8 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Username sudah terdaftar")
     
     hashed_password = get_password_hash(user.password)
-    new_user = User(username=user.username, hashed_password=hashed_password)
+    role = getattr(user, "role", "user") or "user"
+    new_user = User(username=user.username, hashed_password=hashed_password, role=role, is_active=1)
     
     db.add(new_user)
     db.commit()
@@ -190,15 +207,89 @@ def login_for_access_token(form_data: UserLogin, db: Session = Depends(get_db)):
             detail="Username atau password salah",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    if not bool(getattr(user, "is_active", True)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is disabled")
         
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+        data={"sub": user.username, "role": getattr(user, "role", "user")},
+        expires_delta=access_token_expires,
     )
     
     return {"access_token": access_token, "token_type": "bearer"}
 
+
+@app.post("/admin/create_user", summary="Admin: create user", tags=["Admin"])
+def admin_create_user(new_user: UserCreate, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Admin endpoint to create a user with optional role."""
+    db_user = db.query(User).filter(User.username == new_user.username).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Username sudah terdaftar")
+    hashed_password = get_password_hash(new_user.password)
+    role = getattr(new_user, "role", "user") or "user"
+    created = User(username=new_user.username, hashed_password=hashed_password, role=role, is_active=1)
+    db.add(created)
+    db.commit()
+    db.refresh(created)
+    return {"status": "success", "message": f"User '{new_user.username}' dibuat dengan role '{role}'"}
+
+
+class ChangePasswordRequest(BaseModel):
+    username: str
+    new_password: str
+
+
+@app.post("/admin/change_password", summary="Admin: change user password", tags=["Admin"])
+def admin_change_password(req: ChangePasswordRequest, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == req.username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.hashed_password = get_password_hash(req.new_password)
+    db.add(user)
+    db.commit()
+    return {"status": "success", "message": f"Password untuk '{req.username}' telah diubah."}
+
+
+class DisableUserRequest(BaseModel):
+    username: str
+    disable: Optional[bool] = None
+
+
+@app.post("/admin/status_user", summary="Admin: enable/disable user", tags=["Admin"])
+def admin_disable_user(req: DisableUserRequest, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == req.username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if req.disable is None:
+        user.is_active = not bool(getattr(user, "is_active", True))
+    else:
+        user.is_active = False if req.disable else True
+
+    db.add(user)
+    db.commit()
+    state = "disabled" if not bool(getattr(user, "is_active", True)) else "enabled"
+    return {"status": "success", "message": f"User '{req.username}' {state}."}
+
 Base.metadata.create_all(bind=engine)
+
+def create_initial_admin():
+    admin_user = os.getenv("ADMIN_USERNAME")
+    admin_pass = os.getenv("ADMIN_PASSWORD")
+    if not admin_user or not admin_pass:
+        return
+    db = SessionLocal()
+    try:
+        existing = db.query(User).first()
+        if existing:
+            return
+        hashed = get_password_hash(admin_pass)
+        u = User(username=admin_user, hashed_password=hashed, role="admin", is_active=1)
+        db.add(u)
+        db.commit()
+    finally:
+        db.close()
+
+create_initial_admin()
 
 hostname = socket.gethostname()
 try:
