@@ -3640,7 +3640,8 @@ function updateSummaryWithFinancialData(data, type = 'sales') {
     if (summaryOrders) {
         const summary = data.summary;
         if (summary) {
-            summaryOrders.textContent = `${summary.total_transactions || 0}`;
+            // Show number of completed (done) orders, not line-item transactions
+            summaryOrders.textContent = `${summary.processed_orders || 0}`;
         } else {
             summaryOrders.textContent = '0';
         }
@@ -4050,8 +4051,11 @@ async function loadReport(rangeOverride = null, maybeEnd = null) {
         console.log('Data structure:', data);
         console.log('Transactions length:', rawTransactions.length);
 
-            // Aggregate sales data by menu + flavor combination
-            const details = aggregateSalesData(rawTransactions);
+            // Enforce frontend-side filter: only include transactions from orders with status 'done'
+            const doneTransactions = rawTransactions.filter(tx => String(tx.order_status || '').toLowerCase() === 'done');
+
+            // Aggregate sales data by menu + flavor combination (done-only)
+            const details = aggregateSalesData(doneTransactions);
         console.log('Aggregated sales data:', details);
         
             const newHash = computeDataHash(details);
@@ -4066,7 +4070,7 @@ async function loadReport(rangeOverride = null, maybeEnd = null) {
                 renderReportTable();
                 updateReportPagination();
                 // Re-render charts only when data changed (using aggregated data)
-        const chartData = aggregateChartDataByMenu(details);
+    const chartData = aggregateChartDataByMenu(details);
         renderCharts(chartData);
         // .map(item => ({
         //     menu_name: item.menu_name || 'N/A',
