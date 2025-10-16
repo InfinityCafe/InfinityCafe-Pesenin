@@ -3375,7 +3375,6 @@ def _build_menu_breakdown_for_log(db: Session, log: ConsumptionLog) -> list:
         ord_data = resp.json().get("data") or {}
         items = ord_data.get("orders") or []
 
-        # Try to fetch recipes for all menu names in one batch
         try:
             menu_names = [it.get("menu_name") for it in items if it]
             recipes_resp = requests.post(f"{MENU_SERVICE_URL}/recipes/batch", json={"menu_names": menu_names}, timeout=6)
@@ -3384,7 +3383,6 @@ def _build_menu_breakdown_for_log(db: Session, log: ConsumptionLog) -> list:
         except Exception:
             recipes = {}
 
-        # map stock history for this order (consume records)
         ing_history_map = {}
         try:
             histories = db.query(StockHistory).filter(StockHistory.order_id == order_id, StockHistory.action_type == "consume").all()
