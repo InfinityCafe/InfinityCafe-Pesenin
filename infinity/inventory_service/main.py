@@ -2994,9 +2994,10 @@ def get_daily_consumption_history(
             daily_consumption[date_str]["orders"].append({
                 "order_id": log.order_id,
                 "created_at": format_jakarta_time(log.created_at),
-                "menu_summary": _build_menu_summary_from_order(db, log.order_id) if log.order_id else log.menu_summary,
+                "menu_summary": (_build_menu_summary_from_consumption(db, log.order_id) or _build_menu_summary_from_order(db, log.order_id)) if log.order_id else log.menu_summary,
                 "total_ingredients_used": len(order_ing_map),
-                "ingredients_used": list(order_ing_map.values())
+                "ingredients_used": list(order_ing_map.values()),
+                "menu_breakdown": _build_menu_breakdown_for_log(db, log)
             })
             
             for item in ingredient_details:
@@ -3354,6 +3355,149 @@ def _build_menu_summary_from_consumption(db: Session, order_id: str) -> str:
         return menu_summary
     except Exception:
         return ""
+def _build_menu_breakdown_for_log(db: Session, log: ConsumptionLog) -> list:
+    """Build per-item menu breakdown for a consumption log (returns list of items with ingredients).
+
+    This mirrors the structure returned by /order/{order_id}/ingredients so the daily
+    history endpoints can show per-item ingredient lists.
+    """
+    menu_breakdown = []
+    if not log or not log.order_id:
+        return menu_breakdown
+
+    order_id = log.order_id
+    try:
+        order_service_url = os.getenv("ORDER_SERVICE_URL", "http://order_service:8002")
+        resp = requests.get(f"{order_service_url}/order_status/{order_id}", timeout=5)
+        if resp.status_code != 200:
+            return menu_breakdown
+
+        ord_data = resp.json().get("data") or {}
+        items = ord_data.get("orders") or []
+
+        # Try to fetch recipes for all menu names in one batch
+        try:
+            menu_names = [it.get("menu_name") for it in items if it]
+            recipes_resp = requests.post(f"{MENU_SERVICE_URL}/recipes/batch", json={"menu_names": menu_names}, timeout=6)
+            recipes_resp.raise_for_status()
+            recipes = recipes_resp.json().get("recipes", {})
+        except Exception:
+            recipes = {}
+
+        # map stock history for this order (consume records)
+        ing_history_map = {}
+        try:
+            histories = db.query(StockHistory).filter(StockHistory.order_id == order_id, StockHistory.action_type == "consume").all()
+            for h in histories:
+                ing_history_map[h.ingredient_id] = {"before": h.quantity_before, "after": h.quantity_after}
+        except Exception:
+            ing_history_map = {}
+
+        def resolve_flavor(pref: str):
+            if not pref:
+                return None
+            mapping = db.query(FlavorMapping).filter(FlavorMapping.flavor_name == pref).first()
+            if not mapping:
+                return None
+            return {"ingredient_id": mapping.ingredient_id, "quantity": mapping.quantity_per_serving, "unit": mapping.unit.value if mapping.unit else ""}
+
+        cancelled_set = {"cancel", "canceled", "cancelled", "void", "returned", "rejected"}
+
+        cancelled_ids = set()
+        for it in items:
+            try:
+                iid = it.get("item_id") or it.get("id")
+                st = (it.get("status") or "").strip().lower()
+                if iid is not None and st in cancelled_set:
+                    try:
+                        cancelled_ids.add(int(iid))
+                    except Exception:
+                        cancelled_ids.add(iid)
+
+                for c in it.get("cancelled_orders", []) or []:
+                    cid = c.get("item_id") or c.get("id")
+                    if cid is not None:
+                        try:
+                            cancelled_ids.add(int(cid))
+                        except Exception:
+                            cancelled_ids.add(cid)
+
+                for sub in it.get("orders", []) or []:
+                    sid = sub.get("item_id") or sub.get("id")
+                    sst = (sub.get("status") or "").strip().lower()
+                    if sid is not None and sst in cancelled_set:
+                        try:
+                            cancelled_ids.add(int(sid))
+                        except Exception:
+                            cancelled_ids.add(sid)
+            except Exception:
+                continue
+
+        for it in items:
+            try:
+                item_id = it.get("item_id") or it.get("id")
+                top_status = (it.get("status") or "").strip().lower()
+                if (item_id is not None and (int(item_id) if isinstance(item_id, int) or (isinstance(item_id, str) and item_id.isdigit()) else item_id) in cancelled_ids) or top_status in cancelled_set:
+                    continue
+
+                menu_name = it.get("menu_name") or it.get("name")
+                qty = int(it.get("quantity") or it.get("qty") or 1)
+                pref = (it.get("preference") or "").strip()
+
+                item_ings = []
+                for r in recipes.get(menu_name, []) or []:
+                    ing_id = r.get("ingredient_id")
+                    req_qty = float(r.get("quantity") or 0) * qty
+                    unit = r.get("unit")
+                    inv = db.query(Inventory).filter(Inventory.id == ing_id).first()
+                    item_ings.append({
+                        "ingredient_id": ing_id,
+                        "ingredient_name": inv.name if inv else r.get("ingredient_name", "Unknown"),
+                        "required_quantity": req_qty,
+                        "unit": unit,
+                        "stock_before_consumption": ing_history_map.get(ing_id, {}).get("before"),
+                        "stock_after_consumption": ing_history_map.get(ing_id, {}).get("after")
+                    })
+
+                flav = resolve_flavor(pref)
+                if flav:
+                    adjusted_qty = flav["quantity"]
+                    if menu_name and "milkshake" in menu_name.lower() and (flav["unit"] == "gram"):
+                        adjusted_qty = max(adjusted_qty, 30)
+                    elif menu_name and "squash" in menu_name.lower() and (flav["unit"] == "milliliter"):
+                        adjusted_qty = min(adjusted_qty, 20)
+                    elif menu_name and any(k in menu_name.lower() for k in ["custom", "special", "premium"]) and (flav["unit"] == "milliliter"):
+                        adjusted_qty = adjusted_qty * 1.4
+
+                    inv = db.query(Inventory).filter(Inventory.id == flav["ingredient_id"]).first()
+                    item_ings.append({
+                        "ingredient_id": flav["ingredient_id"],
+                        "ingredient_name": inv.name if inv else "Flavor",
+                        "required_quantity": adjusted_qty * qty,
+                        "unit": flav["unit"],
+                        "stock_before_consumption": ing_history_map.get(flav["ingredient_id"], {}).get("before"),
+                        "stock_after_consumption": ing_history_map.get(flav["ingredient_id"], {}).get("after")
+                    })
+
+                menu_breakdown.append({
+                    "order_item_id": item_id,
+                    "menu_name": menu_name,
+                    "preference": pref,
+                    "quantity": qty,
+                    "consumed": log.status == 'consumed',
+                    "rolled_back": log.status == 'rolled_back',
+                    "consumed_at": get_jakarta_isoformat(log.consumed_at) if log.consumed_at else None,
+                    "ingredients": item_ings
+                })
+            except Exception:
+                continue
+
+    except Exception as e:
+        logging.warning(f"Failed building menu_breakdown for {order_id}: {e}")
+
+    return menu_breakdown
+
+
 
 @app.get("/consumption_log", summary="Daftar consumption log (kompatibel frontend)", tags=["Stock Management"])
 def list_consumption_logs(limit: int = Query(50, ge=1, le=500), db: Session = Depends(get_db)):
