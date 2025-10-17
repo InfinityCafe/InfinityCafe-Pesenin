@@ -1651,7 +1651,6 @@ function hideIngredientDetailsPanel() {
                 
                 orders.forEach(order => {
                     const menuSummary = order.menu_summary || '';
-                    const orderIngsUsed = order.ingredients_used || [];
                     const menuItems = menuSummary.split(',').map(item => item.trim());
                     
                     menuItems.forEach(menuItem => {
@@ -1661,9 +1660,20 @@ function hideIngredientDetailsPanel() {
                         totalUniqueMenusAllDays.add(menuName);
                     });
                     
-                    orderIngsUsed.forEach(ing => {
-                        totalIngredientsAllDays.add(ing.ingredient_name);
-                    });
+                    // Use per-item breakdown if available, otherwise fallback to order total
+                    if (order.menu_breakdown && Array.isArray(order.menu_breakdown)) {
+                        order.menu_breakdown.forEach(item => {
+                            const itemIngredients = item.ingredients || [];
+                            itemIngredients.forEach(ing => {
+                                totalIngredientsAllDays.add(ing.ingredient_name || ing.name);
+                            });
+                        });
+                    } else {
+                        const orderIngsUsed = order.ingredients_used || [];
+                        orderIngsUsed.forEach(ing => {
+                            totalIngredientsAllDays.add(ing.ingredient_name);
+                        });
+                    }
                 });
             });
             
@@ -1717,8 +1727,9 @@ function hideIngredientDetailsPanel() {
                     const menuSummary = order.menu_summary || '';
                     const orderIngsUsed = order.ingredients_used || [];
                     const menuItems = menuSummary.split(',').map(item => item.trim());
+                    const perItemIngredients = order.menu_breakdown || null;
                     
-                    menuItems.forEach(menuItem => {
+                    menuItems.forEach((menuItem, itemIndex) => {
                         const cleaned = (menuItem || '').trim();
                         const withoutPrefixQty = cleaned.replace(/^\s*\d+\s*x?\s*/i, '');
                         const menuName = (withoutPrefixQty.replace(/\s*x\s*\d+\s*$/i, '').trim()) || 'Unknown Menu';
@@ -1739,16 +1750,26 @@ function hideIngredientDetailsPanel() {
                         menuAggregation[menuName].total_orders += qty;
                         menuAggregation[menuName].order_ids.push(order.order_id);
                         
-                        orderIngsUsed.forEach(ing => {
-                            dayIngredients.add(ing.ingredient_name);
-                            const ingKey = ing.ingredient_name;
-                            if (!menuAggregation[menuName].ingredients_map[ingKey]) {
-                                menuAggregation[menuName].ingredients_map[ingKey] = {
-                                    ingredient_name: ing.ingredient_name,
-                                    total_consumed: 0,
-                                    unit: ing.unit
-                                };
-                            }
+                        // Use per-item breakdown if available
+                        if (perItemIngredients && perItemIngredients[itemIndex]) {
+                            const itemData = perItemIngredients[itemIndex];
+                            const itemIngredients = itemData.ingredients || [];
+                            
+                            itemIngredients.forEach(ing => {
+                                dayIngredients.add(ing.ingredient_name || ing.name);
+                                const ingKey = ing.ingredient_name || ing.name;
+                                if (!menuAggregation[menuName].ingredients_map[ingKey]) {
+                                    menuAggregation[menuName].ingredients_map[ingKey] = {
+                                        ingredient_name: ingKey,
+                                        total_consumed: 0,
+                                        unit: ing.unit || ing.unit_name || '-'
+                                    };
+                                }
+                                const consumed = Number(ing.consumed_quantity || ing.quantity || 0);
+                                menuAggregation[menuName].ingredients_map[ingKey].total_consumed += consumed;
+                            });
+                        } else {
+                            // Fallback to proportional distribution
                             const totalQtyInOrder = menuItems.reduce((sum, item) => {
                                 const it = (item || '').trim();
                                 let q = 1;
@@ -1756,10 +1777,22 @@ function hideIngredientDetailsPanel() {
                                 if (m) q = parseInt(m[1]);
                                 return sum + q;
                             }, 0);
-                            const proportion = qty / totalQtyInOrder;
-                            menuAggregation[menuName].ingredients_map[ingKey].total_consumed += 
-                                (ing.total_consumed || 0) * proportion;
-                        });
+                            const proportion = qty / (totalQtyInOrder || 1);
+                            
+                            orderIngsUsed.forEach(ing => {
+                                dayIngredients.add(ing.ingredient_name);
+                                const ingKey = ing.ingredient_name;
+                                if (!menuAggregation[menuName].ingredients_map[ingKey]) {
+                                    menuAggregation[menuName].ingredients_map[ingKey] = {
+                                        ingredient_name: ing.ingredient_name,
+                                        total_consumed: 0,
+                                        unit: ing.unit
+                                    };
+                                }
+                                menuAggregation[menuName].ingredients_map[ingKey].total_consumed += 
+                                    (ing.total_consumed || 0) * proportion;
+                            });
+                        }
                     });
                 });
                 
@@ -1867,74 +1900,93 @@ function hideIngredientDetailsPanel() {
          const summary = dailyData.summary || {};
          const orders = dailyData.orders || [];
          
-        // Aggregate orders by menu name (combine same menu regardless of flavor)
+        // Aggregate orders by menu name with proper per-item ingredient tracking
          const menuAggregation = {};
-         orders.forEach(order => {
-             // Extract menu names from menu_summary
+         
+         // Process each order and match ingredients to specific menu items
+         for (const order of orders) {
              const menuSummary = order.menu_summary || '';
              const orderIngsUsed = order.ingredients_used || [];
-             
-             // Parse menu_summary to extract individual menu items
-             // Format: "Menu1 x2, Menu2 x1" or similar
              const menuItems = menuSummary.split(',').map(item => item.trim());
              
-             menuItems.forEach(menuItem => {
-                // Clean menu name: remove quantity at prefix like "2x " and suffix like " x2"
-                const cleaned = (menuItem || '').trim();
-                const withoutPrefixQty = cleaned.replace(/^\s*\d+\s*x?\s*/i, '');
-                const menuName = (withoutPrefixQty.replace(/\s*x\s*\d+\s*$/i, '').trim()) || 'Unknown Menu';
+             // Try to get per-item breakdown from backend
+             const orderId = order.order_id;
+             let perItemIngredients = null;
+             
+             // If we have menu_breakdown from backend response, use it for accurate per-item tracking
+             if (order.menu_breakdown && Array.isArray(order.menu_breakdown)) {
+                 perItemIngredients = order.menu_breakdown;
+             }
+             
+             menuItems.forEach((menuItem, itemIndex) => {
+                 const cleaned = (menuItem || '').trim();
+                 const withoutPrefixQty = cleaned.replace(/^\s*\d+\s*x?\s*/i, '');
+                 const menuName = (withoutPrefixQty.replace(/\s*x\s*\d+\s*$/i, '').trim()) || 'Unknown Menu';
                  
                  if (!menuAggregation[menuName]) {
                      menuAggregation[menuName] = {
                          menu_name: menuName,
                          total_orders: 0,
                          total_ingredients_used: 0,
-                         ingredients_map: {}, // To aggregate ingredient consumption
+                         ingredients_map: {},
                          order_ids: []
                      };
                  }
                  
-                // Extract quantity from menu item, supporting both suffix "x2" and prefix "2x"
-                let qty = 1;
-                let qtyMatch = cleaned.match(/x\s*(\d+)\s*$/i);
-                if (qtyMatch) {
-                    qty = parseInt(qtyMatch[1]);
-                } else {
-                    qtyMatch = cleaned.match(/^\s*(\d+)\s*x/i);
-                    if (qtyMatch) qty = parseInt(qtyMatch[1]);
-                }
+                 // Extract quantity
+                 let qty = 1;
+                 let qtyMatch = cleaned.match(/x\s*(\d+)\s*$/i) || cleaned.match(/^\s*(\d+)\s*x/i);
+                 if (qtyMatch) qty = parseInt(qtyMatch[1]);
                  
                  menuAggregation[menuName].total_orders += qty;
-                 menuAggregation[menuName].order_ids.push(order.order_id);
+                 menuAggregation[menuName].order_ids.push(orderId);
                  
-                 // Aggregate ingredients proportionally
-                 orderIngsUsed.forEach(ing => {
-                     const ingKey = ing.ingredient_name;
-                     if (!menuAggregation[menuName].ingredients_map[ingKey]) {
-                         menuAggregation[menuName].ingredients_map[ingKey] = {
-                             ingredient_name: ing.ingredient_name,
-                             total_consumed: 0,
-                             unit: ing.unit
-                         };
-                     }
-                     // Distribute ingredient consumption proportionally based on menu quantity
-                    const totalQtyInOrder = menuItems.reduce((sum, item) => {
-                        const it = (item || '').trim();
-                        let q = 1;
-                        let m = it.match(/x\s*(\d+)\s*$/i);
-                        if (m) q = parseInt(m[1]);
-                        else {
-                            m = it.match(/^\s*(\d+)\s*x/i);
-                            if (m) q = parseInt(m[1]);
-                        }
-                        return sum + q;
-                    }, 0);
-                     const proportion = qty / totalQtyInOrder;
-                     menuAggregation[menuName].ingredients_map[ingKey].total_consumed += 
-                         (ing.total_consumed || 0) * proportion;
-                 });
+                 // Match ingredients to this specific item
+                 if (perItemIngredients && perItemIngredients[itemIndex]) {
+                     // Use per-item breakdown from backend
+                     const itemData = perItemIngredients[itemIndex];
+                     const itemIngredients = itemData.ingredients || [];
+                     
+                     itemIngredients.forEach(ing => {
+                         const ingKey = ing.ingredient_name || ing.name;
+                         if (!menuAggregation[menuName].ingredients_map[ingKey]) {
+                             menuAggregation[menuName].ingredients_map[ingKey] = {
+                                 ingredient_name: ingKey,
+                                 total_consumed: 0,
+                                 unit: ing.unit || ing.unit_name || '-'
+                             };
+                         }
+                         // Use consumed_quantity directly from per-item data
+                         const consumed = Number(ing.consumed_quantity || ing.quantity || 0);
+                         menuAggregation[menuName].ingredients_map[ingKey].total_consumed += consumed;
+                     });
+                 } else {
+                     // Fallback: distribute total order ingredients proportionally
+                     const totalQtyInOrder = menuItems.reduce((sum, item) => {
+                         const it = (item || '').trim();
+                         let q = 1;
+                         let m = it.match(/x\s*(\d+)\s*$/i) || it.match(/^\s*(\d+)\s*x/i);
+                         if (m) q = parseInt(m[1]);
+                         return sum + q;
+                     }, 0);
+                     
+                     const proportion = qty / (totalQtyInOrder || 1);
+                     
+                     orderIngsUsed.forEach(ing => {
+                         const ingKey = ing.ingredient_name;
+                         if (!menuAggregation[menuName].ingredients_map[ingKey]) {
+                             menuAggregation[menuName].ingredients_map[ingKey] = {
+                                 ingredient_name: ing.ingredient_name,
+                                 total_consumed: 0,
+                                 unit: ing.unit
+                             };
+                         }
+                         menuAggregation[menuName].ingredients_map[ingKey].total_consumed += 
+                             (ing.total_consumed || 0) * proportion;
+                     });
+                 }
              });
-         });
+         }
          
          // Calculate total ingredients used per menu
          Object.values(menuAggregation).forEach(menu => {
@@ -2035,26 +2087,26 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
         const body = document.getElementById('ingredient-details-body');
         const headRow = document.querySelector('#ingredient-details-table thead tr');
         
-        // Update panel header
+        // Update panel header - show menu name only
         document.getElementById('detail-order-id').textContent = menuName;
         document.getElementById('detail-order-date').textContent = dateStr;
         document.getElementById('detail-order-status').textContent = `${menuData.total_orders} pesanan`;
         
-        // Update table header for ingredient details (6 columns)
+        // Update table header for per-item breakdown (5 columns - removed Total Konsumsi)
         if (headRow) {
             headRow.innerHTML = `
                 <th>No</th>
                 <th>Nama Bahan</th>
-                <th>Total Konsumsi</th>
                 <th>Unit</th>
-                <th>Avg per Pesanan</th>
-                <th>Kontribusi</th>`;
+                <th>Stok Sebelum</th>
+                <th>Stok Akhir</th>`;
         }
         
-        const ingredientsList = menuData.ingredients_list || [];
+        // Get order IDs for this menu to fetch per-item details
+        const orderIds = menuData.order_ids || [];
         
-        if (ingredientsList.length === 0) {
-            body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada data bahan untuk menu ini</td></tr>';
+        if (orderIds.length === 0) {
+            body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada data order untuk menu ini</td></tr>';
             if (panel) panel.classList.remove('hidden');
             setTimeout(() => {
                 panel.scrollIntoView({behavior: 'smooth', block: 'start'});
@@ -2062,44 +2114,173 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
             return;
         }
         
-        // Calculate total consumption for percentage
-        const totalConsumption = ingredientsList.reduce((sum, ing) => sum + (ing.total_consumed || 0), 0);
-        
-        // Sort ingredients by total_consumed descending
-        const sortedIngredients = ingredientsList.sort((a, b) => b.total_consumed - a.total_consumed);
-        
-        const rows = sortedIngredients.map((ing, idx) => {
-            const avgPerOrder = menuData.total_orders > 0 ? 
-                (ing.total_consumed / menuData.total_orders).toFixed(2) : 0;
-            const contribution = totalConsumption > 0 ? 
-                ((ing.total_consumed / totalConsumption) * 100).toFixed(1) : 0;
-            
-            return `
-                <tr style="border-bottom: 1px solid #F3F4F6;">
-                    <td>${idx + 1}</td>
-                    <td style="font-weight: 500; color: #1F2937;">${ing.ingredient_name}</td>
-                    <td style="text-align: center; font-weight: 600; color: #DC2626;">${Number(ing.total_consumed || 0).toFixed(2)}</td>
-                    <td style="text-align: center; color: #6B7280;">${ing.unit || '-'}</td>
-                    <td style="text-align: center; color: #059669;">${avgPerOrder}</td>
-                    <td style="text-align: center;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
-                            <div style="width: 60px; height: 8px; background: #E5E7EB; border-radius: 4px; overflow: hidden;">
-                                <div style="width: ${contribution}%; height: 100%; background: linear-gradient(90deg, #DC2626, #F59E0B); transition: width 0.3s;"></div>
-                            </div>
-                            <span style="font-size: 0.85rem; font-weight: 600; color: #6B7280;">${contribution}%</span>
-                        </div>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-        
-        body.innerHTML = rows;
-        
-        // Show panel and scroll to it
+        // Show loading state
+        body.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 1.5rem;"><i class="fas fa-spinner fa-spin"></i> Memuat detail per item...</td></tr>';
         if (panel) panel.classList.remove('hidden');
-        setTimeout(() => {
-            panel.scrollIntoView({behavior: 'smooth', block: 'start'});
-        }, 150);
+        
+        // Fetch per-item details for each order
+        const fetchPromises = orderIds.map(orderId => 
+            fetch(`/order/${encodeURIComponent(orderId)}/ingredients`, { cache: 'no-store' })
+                .then(res => res.ok ? res.json() : null)
+                .catch(() => null)
+        );
+        
+        Promise.all(fetchPromises).then(results => {
+            const perItemRows = [];
+            let rowNum = 0;
+            
+            results.forEach((json, idx) => {
+                if (!json) return;
+                
+                const orderId = orderIds[idx];
+                const menuBreakdown = json?.data?.menu_breakdown || json?.menu_breakdown || [];
+                
+                // Filter items that match the current menu name
+                menuBreakdown.forEach((item, itemIndex) => {
+                    const itemMenuName = (item.menu_name || item.name || '').trim();
+                    // Match menu name (case-insensitive, ignore extra spaces)
+                    if (itemMenuName.toLowerCase().replace(/\s+/g, ' ') !== menuName.toLowerCase().replace(/\s+/g, ' ')) {
+                        return; // Skip items that don't match this menu
+                    }
+                    
+                    const itemQty = Number(item.quantity || item.qty || 1);
+                    const ingredients = item.ingredients || [];
+                    
+                    if (ingredients.length === 0) {
+                        // Show row even if no ingredients (for visibility)
+                        rowNum++;
+                        perItemRows.push(`
+                            <tr style="border-bottom: 1px solid #F3F4F6;">
+                                <td style="padding: 0.75rem 1rem; text-align: center;">${rowNum}</td>
+                                <td colspan="4" style="padding: 0.75rem 1rem; text-align: center; color: #6B7280; font-style: italic;">
+                                    Tidak ada detail ingredient untuk item ini
+                                </td>
+                            </tr>
+                        `);
+                        return;
+                    }
+                    
+                    // Render each ingredient for this item
+                    ingredients.forEach((ing, ingIdx) => {
+                        rowNum++;
+                        const ingName = ing.ingredient_name || ing.name || '-';
+                        const unit = ing.unit || ing.unit_name || '-';
+                        
+                        // Calculate qty used
+                        const c = Number(ing.consumed_quantity);
+                        const rq = Number(ing.required_quantity);
+                        const qq = Number(ing.quantity);
+                        let qtyUsed = 0;
+                        
+                        if (Number.isFinite(c) && c > 0) {
+                            qtyUsed = c;
+                        } else if (Number.isFinite(rq) && rq > 0 && itemQty > 0) {
+                            qtyUsed = rq * itemQty;
+                        } else if (Number.isFinite(qq) && qq > 0) {
+                            qtyUsed = itemQty > 0 ? (qq * itemQty) : qq;
+                        }
+                        
+                        const stockBefore = (ing.stock_before_consumption ?? ing.stock_before ?? null);
+                        const stockAfter = (ing.stock_after_consumption ?? ing.stock_after ?? null);
+                        const stockBeforeDisplay = (stockBefore !== null && stockBefore !== undefined) 
+                            ? Number(stockBefore).toLocaleString('id-ID') : '-';
+                        const stockAfterDisplay = (stockAfter !== null && stockAfter !== undefined) 
+                            ? Number(stockAfter).toLocaleString('id-ID') : '-';
+                        
+                        // Group ingredients with visual grouping - 5 columns (removed Total Konsumsi)
+                        const isFirstIngredient = ingIdx === 0;
+                        const rowStyle = isFirstIngredient ? 'border-top: 2px solid #E5E7EB;' : '';
+                        
+                        perItemRows.push(`
+                            <tr style="border-bottom: 1px solid #F3F4F6; ${rowStyle} transition: background-color 0.2s ease;" 
+                                onmouseover="this.style.backgroundColor='#F9FAFB'" 
+                                onmouseout="this.style.backgroundColor='transparent'">
+                                <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280;">${rowNum}</td>
+                                <td style="padding: 0.75rem 1rem; font-weight: 500; color: #1F2937;">${ingName}</td>
+                                <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280;">${unit}</td>
+                                <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280;">${stockBeforeDisplay}</td>
+                                <td style="padding: 0.75rem 1rem; text-align: center;">
+                                    <span style="font-weight: 600; color: #DC2626;">${stockAfterDisplay}</span>
+                                </td>
+                            </tr>
+                        `);
+                    });
+                });
+            });
+            
+            if (perItemRows.length === 0) {
+                body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada detail ingredient per item untuk menu ini</td></tr>';
+            } else {
+                // Calculate summary statistics
+                let totalIngredients = 0;
+                let totalQtyUsed = 0;
+                const ingredientSet = new Set();
+                
+                results.forEach((json) => {
+                    if (!json) return;
+                    const menuBreakdown = json?.data?.menu_breakdown || json?.menu_breakdown || [];
+                    
+                    menuBreakdown.forEach((item) => {
+                        const itemMenuName = (item.menu_name || item.name || '').trim();
+                        if (itemMenuName.toLowerCase().replace(/\s+/g, ' ') !== menuName.toLowerCase().replace(/\s+/g, ' ')) {
+                            return;
+                        }
+                        
+                        const itemQty = Number(item.quantity || item.qty || 1);
+                        const ingredients = item.ingredients || [];
+                        
+                        ingredients.forEach((ing) => {
+                            ingredientSet.add(ing.ingredient_name || ing.name);
+                            
+                            const c = Number(ing.consumed_quantity);
+                            const rq = Number(ing.required_quantity);
+                            const qq = Number(ing.quantity);
+                            let qtyUsed = 0;
+                            
+                            if (Number.isFinite(c) && c > 0) {
+                                qtyUsed = c;
+                            } else if (Number.isFinite(rq) && rq > 0 && itemQty > 0) {
+                                qtyUsed = rq * itemQty;
+                            } else if (Number.isFinite(qq) && qq > 0) {
+                                qtyUsed = itemQty > 0 ? (qq * itemQty) : qq;
+                            }
+                            
+                            totalQtyUsed += qtyUsed;
+                        });
+                    });
+                });
+                
+                totalIngredients = ingredientSet.size;
+                
+                // Add summary row at top
+                const summaryRow = `
+                    <tr style="background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%); border-bottom: 2px solid #E5E7EB; font-weight: 600;">
+                        <td colspan="5" style="padding: 1rem; text-align: center;">
+                            <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
+                                <div>
+                                    <span style="color: #6B7280; font-size: 0.9rem;">Total Items:</span>
+                                    <span style="color: #059669; font-size: 1.1rem; margin-left: 0.5rem; font-weight: 700;">${menuData.total_orders || 0}</span>
+                                </div>
+                                <div>
+                                    <span style="color: #6B7280; font-size: 0.9rem;">Jenis Bahan:</span>
+                                    <span style="color: #1F2937; font-size: 1.1rem; margin-left: 0.5rem;">${totalIngredients}</span>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                
+                body.innerHTML = summaryRow + perItemRows.join('');
+            }
+            
+            // Scroll to panel after data loaded
+            setTimeout(() => {
+                panel.scrollIntoView({behavior: 'smooth', block: 'start'});
+            }, 150);
+        }).catch(e => {
+            console.error('Failed to fetch per-item details:', e);
+            body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #ef4444; padding: 1.5rem;">Gagal memuat detail per item</td></tr>';
+        });
         
     } catch (e) {
         console.error('Failed to show menu ingredient details:', e);
