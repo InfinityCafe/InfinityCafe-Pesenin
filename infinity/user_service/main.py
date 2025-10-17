@@ -21,8 +21,6 @@ SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-that-is-long-and-ran
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
 
-# Use bcrypt_sha256 to avoid the 72-byte truncation issue and ensure compatibility
-# with different bcrypt backends. Keep bcrypt as fallback for verifying existing hashes.
 pwd_context = CryptContext(schemes=["bcrypt_sha256", "bcrypt"], deprecated="auto")
 
 DATABASE_URL = os.getenv("DATABASE_URL_USER")
@@ -54,7 +52,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    role = Column(String, nullable=False, default="user")  # possible values: admin, user
+    role = Column(String, nullable=False, default="user") 
     is_active = Column(Boolean, nullable=False, default=True)
 
 class UserCreate(BaseModel):
@@ -172,7 +170,6 @@ def verify_token(authorization: str = Header(None), db: Session = Depends(get_db
 @app.post("/register", summary="Registrasi Pengguna Baru", tags=["Authentication"])
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
     """Endpoint untuk membuat pengguna baru."""
-    # Validasi input
     if not user.username or not str(user.username).strip():
         raise HTTPException(status_code=400, detail="Field 'username' harus diisi")
     if not user.password or not str(user.password).strip():
@@ -232,7 +229,6 @@ def login_for_access_token(form_data: UserLogin, db: Session = Depends(get_db)):
 @app.post("/admin/create_user", summary="Admin: create user", tags=["Admin"])
 def admin_create_user(new_user: UserCreate, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Admin endpoint to create a user with optional role."""
-    # Validasi input
     if not new_user.username or not str(new_user.username).strip():
         raise HTTPException(status_code=400, detail="Field 'username' harus diisi")
     if not new_user.password or not str(new_user.password).strip():
@@ -259,24 +255,56 @@ def admin_create_user(new_user: UserCreate, admin: User = Depends(require_admin)
 def admin_list_users(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Return list of all users (username and role only). Admin-only."""
     users = db.query(User).all()
-    data = [{"username": u.username, "role": getattr(u, "role", "user")} for u in users]
+    data = [{
+        "username": u.username,
+        "role": getattr(u, "role", "user"),
+        "is_active": bool(getattr(u, "is_active", True))
+    } for u in users]
     return {"status": "success", "total": len(data), "data": data}
 
 
 class ChangePasswordRequest(BaseModel):
     username: str
-    new_password: str
+    new_password: Optional[str] = None
+    new_username: Optional[str] = None
 
 
-@app.post("/admin/change_password", summary="Admin: change user password", tags=["Admin"])
+@app.post("/admin/change_password", summary="Admin: change user password / username", tags=["Admin"])
 def admin_change_password(req: ChangePasswordRequest, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Admin can change username and/or password for a given user.
+
+    At least one of new_username or new_password must be provided.
+    """
     user = db.query(User).filter(User.username == req.username).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    user.hashed_password = get_password_hash(req.new_password)
+
+    if not req.new_password and not req.new_username:
+        raise HTTPException(status_code=400, detail="Provide new_username and/or new_password")
+
+    updated = []
+
+    if req.new_username:
+        new_un = str(req.new_username).strip()
+        if not new_un:
+            raise HTTPException(status_code=400, detail="new_username must not be empty")
+        existing = db.query(User).filter(User.username == new_un).first()
+        if existing and existing.id != user.id:
+            raise HTTPException(status_code=400, detail="new_username already in use")
+        user.username = new_un
+        updated.append("username")
+
+    if req.new_password:
+        new_pw = str(req.new_password).strip()
+        if not new_pw:
+            raise HTTPException(status_code=400, detail="new_password must not be empty")
+        user.hashed_password = get_password_hash(new_pw)
+        updated.append("password")
+
     db.add(user)
     db.commit()
-    return {"status": "success", "message": f"Password untuk '{req.username}' telah diubah."}
+
+    return {"status": "success", "message": f"User '{req.username}' updated.", "updated": updated}
 
 
 class DisableUserRequest(BaseModel):
