@@ -172,18 +172,28 @@ def verify_token(authorization: str = Header(None), db: Session = Depends(get_db
 @app.post("/register", summary="Registrasi Pengguna Baru", tags=["Authentication"])
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
     """Endpoint untuk membuat pengguna baru."""
+    # Validasi input
+    if not user.username or not str(user.username).strip():
+        raise HTTPException(status_code=400, detail="Field 'username' harus diisi")
+    if not user.password or not str(user.password).strip():
+        raise HTTPException(status_code=400, detail="Field 'password' harus diisi")
+
+    role = getattr(user, "role", None) or "user"
+    role = str(role).strip().lower()
+    if role not in ("user", "admin"):
+        raise HTTPException(status_code=400, detail="Field 'role' hanya boleh 'user' atau 'admin'")
+
     db_user = db.query(User).filter(User.username == user.username).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Username sudah terdaftar")
-    
+
     hashed_password = get_password_hash(user.password)
-    role = getattr(user, "role", "user") or "user"
-    new_user = User(username=user.username, hashed_password=hashed_password, role=role, is_active=1)
-    
+    new_user = User(username=user.username.strip(), hashed_password=hashed_password, role=role, is_active=1)
+
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    
+
     return {"status": "success", "message": f"Pengguna '{user.username}' berhasil dibuat."}
 
 
@@ -222,16 +232,35 @@ def login_for_access_token(form_data: UserLogin, db: Session = Depends(get_db)):
 @app.post("/admin/create_user", summary="Admin: create user", tags=["Admin"])
 def admin_create_user(new_user: UserCreate, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Admin endpoint to create a user with optional role."""
+    # Validasi input
+    if not new_user.username or not str(new_user.username).strip():
+        raise HTTPException(status_code=400, detail="Field 'username' harus diisi")
+    if not new_user.password or not str(new_user.password).strip():
+        raise HTTPException(status_code=400, detail="Field 'password' harus diisi")
+
+    role = getattr(new_user, "role", None) or "user"
+    role = str(role).strip().lower()
+    if role not in ("user", "admin"):
+        raise HTTPException(status_code=400, detail="Field 'role' hanya boleh 'user' atau 'admin'")
+
     db_user = db.query(User).filter(User.username == new_user.username).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Username sudah terdaftar")
+
     hashed_password = get_password_hash(new_user.password)
-    role = getattr(new_user, "role", "user") or "user"
-    created = User(username=new_user.username, hashed_password=hashed_password, role=role, is_active=1)
+    created = User(username=new_user.username.strip(), hashed_password=hashed_password, role=role, is_active=1)
     db.add(created)
     db.commit()
     db.refresh(created)
     return {"status": "success", "message": f"User '{new_user.username}' dibuat dengan role '{role}'"}
+
+
+@app.get("/admin/users", summary="Admin: daftar semua akun (username + role)", tags=["Admin"])
+def admin_list_users(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Return list of all users (username and role only). Admin-only."""
+    users = db.query(User).all()
+    data = [{"username": u.username, "role": getattr(u, "role", "user")} for u in users]
+    return {"status": "success", "total": len(data), "data": data}
 
 
 class ChangePasswordRequest(BaseModel):
