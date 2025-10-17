@@ -1667,10 +1667,17 @@ def update_order_status_from_kitchen(order_id: str, req: StatusUpdateRequest, db
     if not order:
         logging.error(f"Gagal menemukan order {order_id} untuk diupdate dari kitchen.")
         return {"status": "not_found"}
+    # Validate request body and status
+    if not req or not getattr(req, "status", None) or not str(req.status).strip():
+        logging.error(f"Invalid update status request for order {order_id}: empty body or missing 'status'.")
+        # Respond with 400 to indicate bad request instead of writing null to DB
+        raise HTTPException(status_code=400, detail="Request body must include non-empty 'status' field")
 
-    order.status = req.status
+    # Normalize and apply status
+    new_status = str(req.status).strip()
+    order.status = new_status
     db.commit()
-    logging.info(f"Status untuk order {order_id} diupdate menjadi '{req.status}' dari kitchen.")
+    logging.info(f"Status untuk order {order_id} diupdate menjadi '{new_status}' dari kitchen.")
     return {"status": "updated"}
 
 @app.get("/order_status/{order_id}", summary="Status pesanan", tags=["Order"], operation_id="order status")
