@@ -1690,14 +1690,6 @@ function hideIngredientDetailsPanel() {
                                 <div style="font-size: 0.9rem; color: #6B7280;">Total Pesanan</div>
                             </div>
                             <div style="text-align: center;">
-                                <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">${totalUniqueMenusAllDays.size}</div>
-                                <div style="font-size: 0.9rem; color: #6B7280;">Menu Unik</div>
-                            </div>
-                            <div style="text-align: center;">
-                                <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${totalIngredientsAllDays.size}</div>
-                                <div style="font-size: 0.9rem; color: #6B7280;">Jenis Bahan</div>
-                            </div>
-                            <div style="text-align: center;">
                                 <div style="font-size: 1.5rem; font-weight: 700; color: #3B82F6;">${allDays.length}</div>
                                 <div style="font-size: 0.9rem; color: #6B7280;">Hari</div>
                             </div>
@@ -1821,8 +1813,6 @@ function hideIngredientDetailsPanel() {
                                 </div>
                                 <div style="display: flex; gap: 1.5rem; font-size: 0.85rem; color: #4B5563;">
                                     <span><strong>${totalOrders}</strong> Pesanan</span>
-                                    <span><strong>${uniqueMenus}</strong> Menu</span>
-                                    <span><strong>${dayIngredients.size}</strong> Bahan</span>
                                 </div>
                             </div>
                         </td>
@@ -2007,18 +1997,6 @@ function hideIngredientDetailsPanel() {
                              <div style="font-size: 1.5rem; font-weight: 700; color: #059669;">${dailyData.total_orders || 0}</div>
                              <div style="font-size: 0.9rem; color: #6B7280;">Total Pesanan</div>
                          </div>
-                         <div style="text-align: center;">
-                             <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">${totalUniqueMenus}</div>
-                             <div style="font-size: 0.9rem; color: #6B7280;">Menu Unik</div>
-                         </div>
-                         <div style="text-align: center;">
-                             <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${summary.total_ingredients_types || 0}</div>
-                             <div style="font-size: 0.9rem; color: #6B7280;">Jenis Bahan</div>
-                         </div>
-                         <div style="text-align: center;">
-                             <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${(summary.total_quantity_consumed || 0).toLocaleString('id-ID')}</div>
-                             <div style="font-size: 0.9rem; color: #6B7280;">Total Konsumsi</div>
-                         </div>
                      </div>
                      <div style="margin-top: 1rem;">
                          <button class="btn-primary" onclick="showDailyIngredientAccumulation('${dateParam}', '${dailyData.date_formatted || dateStr}')" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 0.6rem 1.5rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 500; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)';">
@@ -2137,27 +2115,44 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
             const perItemRows = [];
             let rowNum = 0;
             
+            // Debug: Log the full response structure
+            console.log('[DEBUG] Full results from /inventory/consumption/daily:', results);
+            
             results.forEach((json, idx) => {
                 if (!json) return;
+                
+                console.log('[DEBUG] Processing result', idx, ':', json);
                 
                 const orderId = orderIds[idx];
                 // Handle response from /inventory/consumption/daily endpoint
                 const dailyConsumption = json?.data?.daily_consumption || [];
                 const dailyData = dailyConsumption[0]; // Get first (and should be only) day data
                 
+                console.log('[DEBUG] Daily data:', dailyData);
+                
                 if (!dailyData) return;
                 
                 const orders = dailyData.orders || [];
                 
+                console.log('[DEBUG] Orders:', orders);
+                
                 // Find the specific order by order_id
                 const orderData = orders.find(o => String(o.order_id) === String(orderId));
+                
+                console.log('[DEBUG] Order data for', orderId, ':', orderData);
+                
                 if (!orderData) return;
                 
                 const menuBreakdown = orderData.menu_breakdown || [];
                 
+                console.log('[DEBUG] Menu breakdown:', menuBreakdown);
+                
                 // Filter items that match the current menu name
                 menuBreakdown.forEach((item, itemIndex) => {
                     const itemMenuName = (item.menu_name || item.name || '').trim();
+                    
+                    console.log('[DEBUG] Processing item:', item);
+                    
                     // Match menu name (case-insensitive, ignore extra spaces)
                     if (itemMenuName.toLowerCase().replace(/\s+/g, ' ') !== menuName.toLowerCase().replace(/\s+/g, ' ')) {
                         return; // Skip items that don't match this menu
@@ -2165,6 +2160,9 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
                     
                     const itemQty = Number(item.quantity || item.qty || 1);
                     const ingredients = item.ingredients || [];
+                    
+                    console.log('[DEBUG] Matched item for menu', menuName, ':', item);
+                    console.log('[DEBUG] Ingredients array:', ingredients);
                     
                     if (ingredients.length === 0) {
                         // Show row even if no ingredients (for visibility)
@@ -2183,22 +2181,34 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
                     // Render each ingredient for this item
                     ingredients.forEach((ing, ingIdx) => {
                         rowNum++;
+                        
+                        console.log('[DEBUG] Processing ingredient', rowNum, ':', ing);
+                        console.log('[DEBUG] Available fields:', Object.keys(ing));
+                        
                         const ingName = ing.ingredient_name || ing.name || '-';
                         const unit = ing.unit || ing.unit_name || '-';
                         
-                        // Calculate qty used
-                        const c = Number(ing.consumed_quantity);
-                        const rq = Number(ing.required_quantity);
-                        const qq = Number(ing.quantity);
-                        let qtyUsed = 0;
+                        // Use data directly from backend without calculation
+                        // Based on actual API response structure, the field is 'required_quantity'
+                        const qtyUsed = Number(
+                            ing.required_quantity ||      // Main field from /inventory/consumption/daily
+                            ing.consumed_quantity || 
+                            ing.quantity_consumed || 
+                            ing.total_consumed ||
+                            ing.quantity ||
+                            ing.qty ||
+                            ing.amount ||
+                            ing.consumed ||
+                            0
+                        );
                         
-                        if (Number.isFinite(c) && c > 0) {
-                            qtyUsed = c;
-                        } else if (Number.isFinite(rq) && rq > 0 && itemQty > 0) {
-                            qtyUsed = rq * itemQty;
-                        } else if (Number.isFinite(qq) && qq > 0) {
-                            qtyUsed = itemQty > 0 ? (qq * itemQty) : qq;
-                        }
+                        console.log('[DEBUG] QTY Used extracted:', qtyUsed);
+                        console.log('[DEBUG] From fields: required_quantity=', ing.required_quantity,
+                                   ', consumed_quantity=', ing.consumed_quantity, 
+                                   ', quantity_consumed=', ing.quantity_consumed,
+                                   ', total_consumed=', ing.total_consumed,
+                                   ', quantity=', ing.quantity,
+                                   ', qty=', ing.qty);
                         
                         const stockBefore = (ing.stock_before_consumption ?? ing.stock_before ?? null);
                         const stockAfter = (ing.stock_after_consumption ?? ing.stock_after ?? null);
@@ -2207,8 +2217,9 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
                         const stockAfterDisplay = (stockAfter !== null && stockAfter !== undefined) 
                             ? Number(stockAfter).toLocaleString('id-ID') : '-';
                         
-                        // Format QTY Terpakai
-                        const qtyUsedDisplay = qtyUsed > 0 
+                        // Format QTY Terpakai directly from backend data
+                        // Show 0 as 0.00 instead of '-' to distinguish from no data
+                        const qtyUsedDisplay = (qtyUsed !== null && qtyUsed !== undefined && !isNaN(qtyUsed))
                             ? qtyUsed.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) 
                             : '-';
                         
@@ -2237,59 +2248,7 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
             if (perItemRows.length === 0) {
                 body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada detail ingredient per item untuk menu ini</td></tr>';
             } else {
-                // Calculate summary statistics
-                let totalIngredients = 0;
-                let totalQtyUsed = 0;
-                const ingredientSet = new Set();
-                
-                results.forEach((json) => {
-                    if (!json) return;
-                    
-                    // Handle response from /inventory/consumption/daily endpoint
-                    const dailyConsumption = json?.data?.daily_consumption || [];
-                    const dailyData = dailyConsumption[0];
-                    
-                    if (!dailyData) return;
-                    
-                    const orders = dailyData.orders || [];
-                    
-                    orders.forEach((order) => {
-                        const menuBreakdown = order.menu_breakdown || [];
-                        
-                        menuBreakdown.forEach((item) => {
-                            const itemMenuName = (item.menu_name || item.name || '').trim();
-                            if (itemMenuName.toLowerCase().replace(/\s+/g, ' ') !== menuName.toLowerCase().replace(/\s+/g, ' ')) {
-                                return;
-                            }
-                            
-                            const itemQty = Number(item.quantity || item.qty || 1);
-                            const ingredients = item.ingredients || [];
-                            
-                            ingredients.forEach((ing) => {
-                                ingredientSet.add(ing.ingredient_name || ing.name);
-                                
-                                const c = Number(ing.consumed_quantity);
-                                const rq = Number(ing.required_quantity);
-                                const qq = Number(ing.quantity);
-                                let qtyUsed = 0;
-                                
-                                if (Number.isFinite(c) && c > 0) {
-                                    qtyUsed = c;
-                                } else if (Number.isFinite(rq) && rq > 0 && itemQty > 0) {
-                                    qtyUsed = rq * itemQty;
-                                } else if (Number.isFinite(qq) && qq > 0) {
-                                    qtyUsed = itemQty > 0 ? (qq * itemQty) : qq;
-                                }
-                                
-                                totalQtyUsed += qtyUsed;
-                            });
-                        });
-                    });
-                });
-                
-                totalIngredients = ingredientSet.size;
-                
-                // Add summary row at top
+                // Add summary row at top (no calculation needed, just display total orders from menuData)
                 const summaryRow = `
                     <tr style="background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%); border-bottom: 2px solid #E5E7EB; font-weight: 600;">
                         <td colspan="6" style="padding: 1rem; text-align: center;">
@@ -2297,14 +2256,6 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
                                 <div>
                                     <span style="color: #6B7280; font-size: 0.9rem;">Total Items:</span>
                                     <span style="color: #059669; font-size: 1.1rem; margin-left: 0.5rem; font-weight: 700;">${menuData.total_orders || 0}</span>
-                                </div>
-                                <div>
-                                    <span style="color: #6B7280; font-size: 0.9rem;">Jenis Bahan:</span>
-                                    <span style="color: #1F2937; font-size: 1.1rem; margin-left: 0.5rem;">${totalIngredients}</span>
-                                </div>
-                                <div>
-                                    <span style="color: #6B7280; font-size: 0.9rem;">Total QTY Terpakai:</span>
-                                    <span style="color: #DC2626; font-size: 1.1rem; margin-left: 0.5rem; font-weight: 700;">${totalQtyUsed.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
                             </div>
                         </td>
