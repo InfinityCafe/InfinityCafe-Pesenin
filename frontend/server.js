@@ -1411,7 +1411,8 @@ function validateJWT(token) {
     if (parts.length !== 3) return false;
     
     // Decode payload (middle part)
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    const payloadJson = Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8');
+    const payload = JSON.parse(payloadJson);
     
     // Check if token is expired
     const currentTime = Math.floor(Date.now() / 1000);
