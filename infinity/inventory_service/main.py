@@ -18,6 +18,7 @@ import enum
 last_debug_info = []
 from datetime import datetime
 import enum, os, json, logging, requests, math, socket, threading, time
+import re
 
 jakarta_tz = pytz_timezone('Asia/Jakarta')
 
@@ -233,6 +234,124 @@ class StockHistory(Base):
     order_id = Column(String, nullable=True)  
     
     ingredient = relationship("Inventory", backref="stock_histories")
+
+
+def _format_stock_history_entry(history: StockHistory) -> dict:
+    """Format a stock history entry depending on action_type.
+
+    For action types that change quantity (restock, consume, rollback, edit_stock)
+    return quantity_before/after. For edit_purchase_price_total return purchase_price_before/after fields.
+    For edit_item_name return name_before/after. For other types return a generic
+    record with notes and created_at.
+    """
+    base = {
+        "id": history.id,
+        "action_type": history.action_type,
+        "performed_by": history.performed_by,
+        "notes": history.notes,
+        "created_at": format_jakarta_time(history.created_at),
+        "order_id": history.order_id
+    }
+
+    at = (history.action_type or "").lower()
+    if at in ("restock", "consume", "rollback", "edit_stock"):
+        base.update({
+            "quantity_before": history.quantity_before,
+            "quantity_after": history.quantity_after,
+            "quantity_changed": history.quantity_changed
+        })
+    elif at == "edit_minimum":
+        base.update({
+            "minimum_before": history.quantity_before,
+            "minimum_after": history.quantity_after,
+            "minimum_changed": history.quantity_changed
+        })
+    elif at == "edit_purchase_price_total":
+        base.update({
+            "purchase_price_before": history.quantity_before,
+            "purchase_price_after": history.quantity_after,
+            "purchase_price_changed": history.quantity_changed
+        })
+    elif at in ("make_unavailable", "make_available"):
+        try:
+            availability_before = bool(int(history.quantity_before)) if history.quantity_before is not None else None
+        except Exception:
+            availability_before = bool(history.quantity_before)
+        try:
+            availability_after = bool(int(history.quantity_after)) if history.quantity_after is not None else None
+        except Exception:
+            availability_after = bool(history.quantity_after)
+        base.update({
+            "availability_before": availability_before,
+            "availability_after": availability_after
+        })
+    elif at == "edit_item_name":
+        name_before = None
+        name_after = None
+        if history.notes:
+            m = re.search(r"(.+?)\s*(?:→|->|=>)\s*(.+)", history.notes)
+            if m:
+                left = m.group(1).strip()
+                right = m.group(2).strip()
+                left = re.sub(r"(?i)^edit\s+nama:\s*", "", left).strip()
+                right = re.split(r"\s*\|\s*", right)[0].strip()
+                name_before = left
+                name_after = right
+            else:
+                if "→" in history.notes:
+                    parts = history.notes.split("→")
+                    name_before = parts[0].replace("Edit nama:", "").strip()
+                    name_after = parts[-1].split("|")[0].strip()
+        base.update({
+            "name_before": name_before,
+            "name_after": name_after
+        })
+    elif at == "edit_category":
+        cat_before = None
+        cat_after = None
+        if history.notes:
+            m = re.search(r"(.+?)\s*(?:→|->|=>)\s*(.+)", history.notes)
+            if m:
+                left = m.group(1).strip()
+                right = m.group(2).strip()
+                left = re.sub(r"(?i)^edit\s+kategori:\s*", "", left).strip()
+                right = re.split(r"\s*\|\s*", right)[0].strip()
+                cat_before = left
+                cat_after = right
+        base.update({
+            "category_before": cat_before,
+            "category_after": cat_after
+        })
+    elif at == "edit_unit":
+        unit_before = None
+        unit_after = None
+        if history.notes:
+            m = re.search(r"(.+?)\s*(?:→|->|=>)\s*(.+)", history.notes)
+            if m:
+                left = m.group(1).strip()
+                right = m.group(2).strip()
+                left = re.sub(r"(?i)^edit\s+unit:\s*", "", left).strip()
+                right = re.split(r"\s*\|\s*", right)[0].strip()
+                unit_before = left
+                unit_after = right
+        base.update({
+            "unit_before": unit_before,
+            "unit_after": unit_after
+        })
+    elif at == "edit_purchase_quantity":
+        base.update({
+            "purchase_quantity_before": history.quantity_before,
+            "purchase_quantity_after": history.quantity_after,
+            "purchase_quantity_changed": history.quantity_changed
+        })
+    else:
+        base.update({
+            "quantity_before": history.quantity_before,
+            "quantity_after": history.quantity_after,
+            "quantity_changed": history.quantity_changed
+        })
+
+    return base
 
 class ValidateIngredientRequest(BaseModel):
     name: str
@@ -1549,24 +1668,38 @@ def update_ingredient_with_audit(
         old_purchase_qty = float(ing.purchase_quantity or 0.0)
         old_unit_price = float(ing.unit_price or 0.0)
 
-        price_total_changed = False
         qty_changed = False
-
-        if req.purchase_price_total is not None:
-            new_total = float(req.purchase_price_total)
-            price_total_changed = (new_total != old_price_total)
-            if price_total_changed:
-                ing.purchase_price_total = new_total
+        purchase_price_changed = False
 
         if req.purchase_quantity is not None:
             new_qty = float(req.purchase_quantity)
             qty_changed = (new_qty != old_purchase_qty)
             if qty_changed:
                 ing.purchase_quantity = new_qty
+                try:
+                    pq_notes = f"Edit purchase quantity: {old_purchase_qty} → {new_qty}"
+                    if req.notes:
+                        pq_notes += f" | {req.notes}"
+                    create_stock_history(
+                        db=db,
+                        ingredient_id=req.id,
+                        action_type="edit_purchase_quantity",
+                        quantity_before=old_purchase_qty,
+                        quantity_after=new_qty,
+                        performed_by=current_username,
+                        notes=pq_notes
+                    )
+                except Exception:
+                    pass
 
-        price_changed = price_total_changed or qty_changed
+        if req.purchase_price_total is not None:
+            new_total = float(req.purchase_price_total)
+            purchase_price_changed = (new_total != old_price_total)
+            if purchase_price_changed:
+                ing.purchase_price_total = new_total
 
-        if price_changed:
+        purchase_price_or_qty_changed = purchase_price_changed or qty_changed
+        if purchase_price_or_qty_changed:
             new_total = float(ing.purchase_price_total or 0.0)
             new_qty = float(ing.purchase_quantity or 0.0)
             try:
@@ -1661,8 +1794,8 @@ def update_ingredient_with_audit(
                 performed_by=current_username,
                 notes=unit_notes
             )
-        
-        if price_changed:
+
+        if purchase_price_changed:
             try:
                 price_notes = (
                     f"Edit harga: total {old_price_total} → {float(ing.purchase_price_total or 0.0)}, "
@@ -1674,9 +1807,9 @@ def update_ingredient_with_audit(
                 create_stock_history(
                     db=db,
                     ingredient_id=req.id,
-                    action_type="edit_price",
-                    quantity_before=old_unit_price,
-                    quantity_after=float(ing.unit_price or 0.0),
+                    action_type="edit_purchase_price_total",
+                    quantity_before=old_price_total,
+                    quantity_after=float(ing.purchase_price_total or 0.0),
                     performed_by=current_username,
                     notes=price_notes,
                 )
@@ -1717,7 +1850,8 @@ def update_ingredient_with_audit(
                     "name_changed": old_name != req.name,
                     "category_changed": old_category != req.category,
                     "unit_changed": old_unit != req.unit,
-                    "price_changed": price_changed
+                    "purchase_price_changed": purchase_price_changed,
+                    "purchase_quantity_changed": qty_changed
                 }
             }
         })
@@ -1734,7 +1868,7 @@ def update_ingredient_with_audit(
 def get_ingredient_stock_history(
     ingredient_id: int, 
     limit: int = Query(50, description="Jumlah record maksimal"),
-    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable, edit_item_name, edit_category, edit_unit, edit_price"),
+    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable, edit_item_name, edit_category, edit_unit, edit_purchase_price_total"),
     db: Session = Depends(get_db)
 ):
     """Menampilkan history perubahan stock untuk ingredient tertentu"""
@@ -1756,17 +1890,7 @@ def get_ingredient_stock_history(
         
         history_data = []
         for history in histories:
-            history_data.append({
-                "id": history.id,
-                "action_type": history.action_type,
-                "quantity_before": history.quantity_before,
-                "quantity_after": history.quantity_after,
-                "quantity_changed": history.quantity_changed,
-                "performed_by": history.performed_by,
-                "notes": history.notes,
-                "created_at": format_jakarta_time(history.created_at),
-                "order_id": history.order_id
-            })
+            history_data.append(_format_stock_history_entry(history))
         
         return JSONResponse(status_code=200, content={
             "status": "success",
@@ -1795,7 +1919,7 @@ def get_ingredient_stock_history(
 @app.get("/stock/history", summary="History perubahan stock semua ingredient", tags=["Stock Management"])
 def get_all_stock_history(
     limit: int = Query(100, description="Jumlah record maksimal"),
-    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable, edit_item_name, edit_category, edit_unit, edit_price"),
+    action_type: Optional[str] = Query(None, description="Filter by action type: restock, edit_stock, edit_minimum, consume, rollback, make_available, make_unavailable, edit_item_name, edit_category, edit_unit, edit_purchase_price_total"),
     performed_by: Optional[str] = Query(None, description="Filter by user name"),
     db: Session = Depends(get_db)
 ):
@@ -1815,19 +1939,10 @@ def get_all_stock_history(
         
         history_data = []
         for history, ingredient_name in results:
-            history_data.append({
-                "id": history.id,
-                "ingredient_id": history.ingredient_id,
-                "ingredient_name": ingredient_name,
-                "action_type": history.action_type,
-                "quantity_before": history.quantity_before,
-                "quantity_after": history.quantity_after,
-                "quantity_changed": history.quantity_changed,
-                "performed_by": history.performed_by,
-                "notes": history.notes,
-                "created_at": format_jakarta_time(history.created_at),
-                "order_id": history.order_id
-            })
+            entry = _format_stock_history_entry(history)
+            entry["ingredient_name"] = ingredient_name
+            entry["ingredient_id"] = history.ingredient_id
+            history_data.append(entry)
         
         return JSONResponse(status_code=200, content={
             "status": "success",
@@ -2634,8 +2749,45 @@ def get_order_ingredients_detail(order_id: str, db: Session = Depends(get_db)):
                         "unit": mapping.unit.value if mapping.unit else ""
                     }
 
+                cancelled_set = {"cancel", "canceled", "cancelled", "void", "returned", "rejected"}
+
+                cancelled_ids = set()
                 for it in items:
-                    item_id = it.get("item_id")
+                    try:
+                        iid = it.get("item_id") or it.get("id")
+                        st = (it.get("status") or "").strip().lower()
+                        if iid is not None and st in cancelled_set:
+                            try:
+                                cancelled_ids.add(int(iid))
+                            except Exception:
+                                cancelled_ids.add(iid)
+
+                        for c in it.get("cancelled_orders", []) or []:
+                            cid = c.get("item_id") or c.get("id")
+                            if cid is not None:
+                                try:
+                                    cancelled_ids.add(int(cid))
+                                except Exception:
+                                    cancelled_ids.add(cid)
+
+                        for sub in it.get("orders", []) or []:
+                            sid = sub.get("item_id") or sub.get("id")
+                            sst = (sub.get("status") or "").strip().lower()
+                            if sid is not None and sst in cancelled_set:
+                                try:
+                                    cancelled_ids.add(int(sid))
+                                except Exception:
+                                    cancelled_ids.add(sid)
+                    except Exception:
+                        continue
+
+                for it in items:
+                    item_id = it.get("item_id") or it.get("id")
+                    top_status = (it.get("status") or "").strip().lower()
+                    if (item_id is not None and (int(item_id) if isinstance(item_id, int) or (isinstance(item_id, str) and item_id.isdigit()) else item_id) in cancelled_ids) or top_status in cancelled_set:
+                        logging.info(f"Skipping cancelled order item: {item_id} status={top_status}")
+                        continue
+
                     menu_name = it.get("menu_name")
                     qty = int(it.get("quantity") or 1)
                     pref = (it.get("preference") or "").strip()
@@ -2832,7 +2984,6 @@ def get_daily_consumption_history(
                         "ingredient_name": od.ingredient_name,
                         "unit": od.unit,
                         "total_consumed": 0.0,
-                        # include category from stock management
                         "category": (str(od.ingredient.category.value) if getattr(od, "ingredient", None) and getattr(od.ingredient, "category", None) else None)
                     }
                 try:
@@ -2843,9 +2994,10 @@ def get_daily_consumption_history(
             daily_consumption[date_str]["orders"].append({
                 "order_id": log.order_id,
                 "created_at": format_jakarta_time(log.created_at),
-                "menu_summary": log.menu_summary,
+                "menu_summary": (_build_menu_summary_from_consumption(db, log.order_id) or _build_menu_summary_from_order(db, log.order_id)) if log.order_id else log.menu_summary,
                 "total_ingredients_used": len(order_ing_map),
-                "ingredients_used": list(order_ing_map.values())
+                "ingredients_used": list(order_ing_map.values()),
+                "menu_breakdown": _build_menu_breakdown_for_log(db, log)
             })
             
             for item in ingredient_details:
@@ -2853,7 +3005,6 @@ def get_daily_consumption_history(
                 ingredient_name = item.ingredient_name
                 quantity_consumed = item.quantity_consumed
                 unit = item.unit
-                # fetch category from related Inventory (stock management category)
                 try:
                     category_value = str(item.ingredient.category.value) if getattr(item, "ingredient", None) and getattr(item.ingredient, "category", None) else None
                 except Exception:
@@ -2871,7 +3022,6 @@ def get_daily_consumption_history(
                 
                 daily_consumption[date_str]["ingredients_consumed"][ingredient_id]["total_consumed"] += quantity_consumed
                 daily_consumption[date_str]["ingredients_consumed"][ingredient_id]["consumption_count"] += 1
-                # update/ensure category remains set if previously None
                 if not daily_consumption[date_str]["ingredients_consumed"][ingredient_id].get("category") and category_value:
                     daily_consumption[date_str]["ingredients_consumed"][ingredient_id]["category"] = category_value
         
@@ -3025,8 +3175,327 @@ def _format_consumption_log_entry(db: Session, log: ConsumptionLog):
         "created_at": log.created_at.isoformat() if log.created_at else None,
         "consumed_at": log.consumed_at.isoformat() if log.consumed_at else None,
         "rolled_back_at": log.rolled_back_at.isoformat() if log.rolled_back_at else None,
-        "menu_summary": log.menu_summary,
+        "menu_summary": (
+            _build_menu_summary_from_consumption(db, log.order_id)
+            or _build_menu_summary_from_order(db, log.order_id)
+            if log.order_id else log.menu_summary
+        ),
     }
+
+
+def _build_menu_summary_from_order(db: Session, order_id: str) -> str:
+    """Try to fetch order details from order_service and build a menu_summary
+    that includes only items which are not cancelled. Fallback to stored
+    ConsumptionLog.menu_summary on error.
+    """
+    try:
+        order_service_url = os.getenv("ORDER_SERVICE_URL", "http://order_service:8002")
+        resp = requests.get(f"{order_service_url}/order_status/{order_id}", timeout=5)
+        if resp.status_code != 200:
+            return (db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first() or {}).menu_summary if isinstance(order_id, str) else ""
+
+
+        ord_data = resp.json().get("data") or {}
+        items = ord_data.get("orders") or []
+
+        def try_int(v):
+            try:
+                return int(v)
+            except Exception:
+                return None
+
+        cancelled_set = {"cancel", "canceled", "cancelled", "void", "returned", "rejected", "cancelled"}
+        active_map: dict = {}
+        cancelled_ids: set = set()
+        seen_sub_ids: set = set()
+
+        for it in items:
+            for c in it.get("cancelled_orders", []) or []:
+                cid = try_int(c.get("item_id") or c.get("id"))
+                if cid is not None:
+                    cancelled_ids.add(cid)
+
+            for sub in it.get("orders", []) or []:
+                sid = try_int(sub.get("item_id") or sub.get("id"))
+                if sid is None:
+                    continue
+                if sid in seen_sub_ids:
+                    continue
+                seen_sub_ids.add(sid)
+                sname = sub.get("menu_name") or sub.get("name") or f"Item-{sid}"
+                try:
+                    sqty = int(sub.get("quantity") or sub.get("qty") or 1)
+                except Exception:
+                    sqty = 1
+                sstatus = (sub.get("status") or "").strip().lower()
+                if sstatus in cancelled_set:
+                    cancelled_ids.add(sid)
+                    if sid in active_map:
+                        del active_map[sid]
+                    continue
+                if sid in cancelled_ids:
+                    continue
+                if sid not in active_map:
+                    active_map[sid] = {"name": sname, "qty": 0}
+                active_map[sid]["qty"] += sqty
+
+            if not it.get("orders") and not it.get("cancelled_orders"):
+                iid = try_int(it.get("item_id") or it.get("id"))
+                if iid is None:
+                    continue
+                name = it.get("menu_name") or it.get("name") or f"Item-{iid}"
+                try:
+                    qty = int(it.get("quantity") or it.get("qty") or 1)
+                except Exception:
+                    qty = 1
+                st = (it.get("status") or "").strip().lower()
+                if st in cancelled_set:
+                    cancelled_ids.add(iid)
+                    if iid in active_map:
+                        del active_map[iid]
+                    continue
+                if iid in cancelled_ids:
+                    continue
+                if iid not in active_map:
+                    active_map[iid] = {"name": name, "qty": 0}
+                active_map[iid]["qty"] += qty
+
+        for cid in list(cancelled_ids):
+            if cid in active_map:
+                del active_map[cid]
+
+        parts = [f"{v['qty']}x {v['name']}" for k, v in sorted(active_map.items())]
+
+        if not parts:
+            stored = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
+            return stored.menu_summary if stored and stored.menu_summary else ""
+
+        menu_summary = ", ".join(parts[:5])
+        if len(parts) > 5:
+            menu_summary += f" dan {len(parts) - 5} item lainnya"
+        return menu_summary
+    except Exception:
+        stored = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
+        return stored.menu_summary if stored and stored.menu_summary else ""
+
+
+def _build_menu_summary_from_consumption(db: Session, order_id: str) -> str:
+    """Build menu_summary by checking which order items were actually consumed
+    according to ConsumptionIngredientDetail.order_item_id (per-item granularity).
+    This ensures only items marked/deducted as consumed (done) appear in the summary.
+    Returns empty string on failure or when no consumed items found.
+    """
+    try:
+        log = db.query(ConsumptionLog).filter(ConsumptionLog.order_id == order_id).first()
+        if not log:
+            return ""
+
+        rows = db.query(ConsumptionIngredientDetail).filter(
+            ConsumptionIngredientDetail.consumption_log_id == log.id
+        ).all()
+
+        if not rows:
+            return ""
+
+        order_items_map = {}
+        order_items_name = {}
+        try:
+            order_service_url = os.getenv("ORDER_SERVICE_URL", "http://order_service:8002")
+            resp = requests.get(f"{order_service_url}/order_status/{order_id}", timeout=5)
+            if resp.status_code == 200:
+                ord_data = resp.json().get("data") or {}
+                items = ord_data.get("orders") or []
+                for it in items:
+                    iid = it.get("item_id") or it.get("id")
+                    if iid is None:
+                        continue
+                    try:
+                        order_items_map[int(iid)] = int(it.get("quantity") or it.get("qty") or 1)
+                    except Exception:
+                        order_items_map[int(iid)] = 1
+                    order_items_name[int(iid)] = it.get("menu_name") or it.get("name")
+        except Exception:
+            pass
+
+        consumed_item_ids = set()
+        consumed_menu_names = {}
+
+        for r in rows:
+            if getattr(r, 'order_item_id', None):
+                try:
+                    consumed_item_ids.add(int(r.order_item_id))
+                except Exception:
+                    consumed_item_ids.add(r.order_item_id)
+            else:
+                name = (r.menu_name or '').strip()
+                if name:
+                    consumed_menu_names[name] = consumed_menu_names.get(name, 0) + 1
+
+        parts = []
+        for iid in sorted(consumed_item_ids):
+            qty = order_items_map.get(iid, 1)
+            name = order_items_name.get(iid)
+            if not name:
+                row_name = db.query(ConsumptionIngredientDetail.menu_name).filter(
+                    ConsumptionIngredientDetail.consumption_log_id == log.id,
+                    ConsumptionIngredientDetail.order_item_id == iid
+                ).first()
+                name = (row_name[0] if row_name and row_name[0] else None) or f"Item-{iid}"
+            parts.append(f"{qty}x {name}")
+
+        for name, cnt in consumed_menu_names.items():
+            parts.append(f"{cnt}x {name}")
+
+        if not parts:
+            return ""
+
+        menu_summary = ", ".join(parts[:5])
+        if len(parts) > 5:
+            menu_summary += f" dan {len(parts) - 5} item lainnya"
+        return menu_summary
+    except Exception:
+        return ""
+def _build_menu_breakdown_for_log(db: Session, log: ConsumptionLog) -> list:
+    """Build per-item menu breakdown for a consumption log (returns list of items with ingredients).
+
+    This mirrors the structure returned by /order/{order_id}/ingredients so the daily
+    history endpoints can show per-item ingredient lists.
+    """
+    menu_breakdown = []
+    if not log or not log.order_id:
+        return menu_breakdown
+
+    order_id = log.order_id
+    try:
+        order_service_url = os.getenv("ORDER_SERVICE_URL", "http://order_service:8002")
+        resp = requests.get(f"{order_service_url}/order_status/{order_id}", timeout=5)
+        if resp.status_code != 200:
+            return menu_breakdown
+
+        ord_data = resp.json().get("data") or {}
+        items = ord_data.get("orders") or []
+
+        try:
+            menu_names = [it.get("menu_name") for it in items if it]
+            recipes_resp = requests.post(f"{MENU_SERVICE_URL}/recipes/batch", json={"menu_names": menu_names}, timeout=6)
+            recipes_resp.raise_for_status()
+            recipes = recipes_resp.json().get("recipes", {})
+        except Exception:
+            recipes = {}
+
+        ing_history_map = {}
+        try:
+            histories = db.query(StockHistory).filter(StockHistory.order_id == order_id, StockHistory.action_type == "consume").all()
+            for h in histories:
+                ing_history_map[h.ingredient_id] = {"before": h.quantity_before, "after": h.quantity_after}
+        except Exception:
+            ing_history_map = {}
+
+        def resolve_flavor(pref: str):
+            if not pref:
+                return None
+            mapping = db.query(FlavorMapping).filter(FlavorMapping.flavor_name == pref).first()
+            if not mapping:
+                return None
+            return {"ingredient_id": mapping.ingredient_id, "quantity": mapping.quantity_per_serving, "unit": mapping.unit.value if mapping.unit else ""}
+
+        cancelled_set = {"cancel", "canceled", "cancelled", "void", "returned", "rejected"}
+
+        cancelled_ids = set()
+        for it in items:
+            try:
+                iid = it.get("item_id") or it.get("id")
+                st = (it.get("status") or "").strip().lower()
+                if iid is not None and st in cancelled_set:
+                    try:
+                        cancelled_ids.add(int(iid))
+                    except Exception:
+                        cancelled_ids.add(iid)
+
+                for c in it.get("cancelled_orders", []) or []:
+                    cid = c.get("item_id") or c.get("id")
+                    if cid is not None:
+                        try:
+                            cancelled_ids.add(int(cid))
+                        except Exception:
+                            cancelled_ids.add(cid)
+
+                for sub in it.get("orders", []) or []:
+                    sid = sub.get("item_id") or sub.get("id")
+                    sst = (sub.get("status") or "").strip().lower()
+                    if sid is not None and sst in cancelled_set:
+                        try:
+                            cancelled_ids.add(int(sid))
+                        except Exception:
+                            cancelled_ids.add(sid)
+            except Exception:
+                continue
+
+        for it in items:
+            try:
+                item_id = it.get("item_id") or it.get("id")
+                top_status = (it.get("status") or "").strip().lower()
+                if (item_id is not None and (int(item_id) if isinstance(item_id, int) or (isinstance(item_id, str) and item_id.isdigit()) else item_id) in cancelled_ids) or top_status in cancelled_set:
+                    continue
+
+                menu_name = it.get("menu_name") or it.get("name")
+                qty = int(it.get("quantity") or it.get("qty") or 1)
+                pref = (it.get("preference") or "").strip()
+
+                item_ings = []
+                for r in recipes.get(menu_name, []) or []:
+                    ing_id = r.get("ingredient_id")
+                    req_qty = float(r.get("quantity") or 0) * qty
+                    unit = r.get("unit")
+                    inv = db.query(Inventory).filter(Inventory.id == ing_id).first()
+                    item_ings.append({
+                        "ingredient_id": ing_id,
+                        "ingredient_name": inv.name if inv else r.get("ingredient_name", "Unknown"),
+                        "required_quantity": req_qty,
+                        "unit": unit,
+                        "stock_before_consumption": ing_history_map.get(ing_id, {}).get("before"),
+                        "stock_after_consumption": ing_history_map.get(ing_id, {}).get("after")
+                    })
+
+                flav = resolve_flavor(pref)
+                if flav:
+                    adjusted_qty = flav["quantity"]
+                    if menu_name and "milkshake" in menu_name.lower() and (flav["unit"] == "gram"):
+                        adjusted_qty = max(adjusted_qty, 30)
+                    elif menu_name and "squash" in menu_name.lower() and (flav["unit"] == "milliliter"):
+                        adjusted_qty = min(adjusted_qty, 20)
+                    elif menu_name and any(k in menu_name.lower() for k in ["custom", "special", "premium"]) and (flav["unit"] == "milliliter"):
+                        adjusted_qty = adjusted_qty * 1.4
+
+                    inv = db.query(Inventory).filter(Inventory.id == flav["ingredient_id"]).first()
+                    item_ings.append({
+                        "ingredient_id": flav["ingredient_id"],
+                        "ingredient_name": inv.name if inv else "Flavor",
+                        "required_quantity": adjusted_qty * qty,
+                        "unit": flav["unit"],
+                        "stock_before_consumption": ing_history_map.get(flav["ingredient_id"], {}).get("before"),
+                        "stock_after_consumption": ing_history_map.get(flav["ingredient_id"], {}).get("after")
+                    })
+
+                menu_breakdown.append({
+                    "order_item_id": item_id,
+                    "menu_name": menu_name,
+                    "preference": pref,
+                    "quantity": qty,
+                    "consumed": log.status == 'consumed',
+                    "rolled_back": log.status == 'rolled_back',
+                    "consumed_at": get_jakarta_isoformat(log.consumed_at) if log.consumed_at else None,
+                    "ingredients": item_ings
+                })
+            except Exception:
+                continue
+
+    except Exception as e:
+        logging.warning(f"Failed building menu_breakdown for {order_id}: {e}")
+
+    return menu_breakdown
+
+
 
 @app.get("/consumption_log", summary="Daftar consumption log (kompatibel frontend)", tags=["Stock Management"])
 def list_consumption_logs(limit: int = Query(50, ge=1, le=500), db: Session = Depends(get_db)):

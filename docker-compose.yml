@@ -323,6 +323,7 @@ services:
           psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_ORDER} -f /initdb/seeder_db_order.sql &&
           psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_KITCHEN} -f /initdb/seeder_db_kitchen.sql &&
           psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_INVENTORY} -f /initdb/seeder_db_inventory.sql &&
+          psql -v ON_ERROR_STOP=1 -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB_USER} -f /initdb/seeder_db_user.sql &&
 
           echo 'Database initialization completed successfully!'
     environment:
