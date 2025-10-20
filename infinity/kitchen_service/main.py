@@ -168,6 +168,50 @@ async def set_kitchen_status(
 
 @app.post("/receive_order", summary="Terima pesanan", tags=["Kitchen"], operation_id="receive order")
 async def receive_order(order: KitchenOrderRequest, db: Session = Depends(get_db)):
+    # Validasi order_id tidak boleh kosong atau hanya whitespace
+    if not order.order_id or not order.order_id.strip():
+        raise HTTPException(
+            status_code=400, 
+            detail="Order ID tidak boleh kosong"
+        )
+    
+    # Normalize order_id (gunakan yang sudah di-strip)
+    order.order_id = order.order_id.strip()
+    
+    # Validasi customer_name tidak boleh kosong
+    if not order.customer_name or not order.customer_name.strip():
+        raise HTTPException(
+            status_code=400, 
+            detail="Nama customer tidak boleh kosong"
+        )
+    
+    # Validasi room_name tidak boleh kosong
+    if not order.room_name or not order.room_name.strip():
+        raise HTTPException(
+            status_code=400, 
+            detail="Room name tidak boleh kosong"
+        )
+    
+    # Validasi orders tidak boleh kosong
+    if not order.orders or len(order.orders) == 0:
+        raise HTTPException(
+            status_code=400, 
+            detail="Order harus berisi minimal 1 item"
+        )
+    
+    # Validasi setiap item dalam order
+    for i, item in enumerate(order.orders):
+        if not item.menu_name or not item.menu_name.strip():
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Menu name pada item ke-{i+1} tidak boleh kosong"
+            )
+        if item.quantity <= 0:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Quantity pada item ke-{i+1} harus lebih dari 0"
+            )
+    
     status = get_kitchen_status(db)
     if not status.is_open:
         # Jika status dapur OFF, tolak pesanan baru
@@ -209,6 +253,24 @@ async def receive_order(order: KitchenOrderRequest, db: Session = Depends(get_db
 
 @app.post("/kitchen/update_status/{order_id}", summary="Update status pesanan", tags=["Kitchen"], operation_id="change status")
 async def update_status(order_id: str, status: str, reason: str = "", db: Session = Depends(get_db)):
+    # Validasi status tidak boleh kosong atau hanya whitespace
+    if not status or not status.strip():
+        raise HTTPException(
+            status_code=400, 
+            detail="Status tidak boleh kosong"
+        )
+    
+    # Validasi status values (daftar status yang diizinkan)
+    allowed_statuses = ["receive", "making", "deliver", "done", "cancelled", "habis"]
+    if status.strip().lower() not in [s.lower() for s in allowed_statuses]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Status tidak valid. Status yang diizinkan: {', '.join(allowed_statuses)}"
+        )
+    
+    # Normalize status (gunakan yang sudah di-strip)
+    status = status.strip()
+    
     timestamp = datetime.now(jakarta_tz)
     order = db.query(KitchenOrder).filter(KitchenOrder.order_id == order_id).first()
     if not order:
