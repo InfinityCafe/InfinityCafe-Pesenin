@@ -2118,9 +2118,16 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
         body.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 1.5rem;"><i class="fas fa-spinner fa-spin"></i> Memuat detail per item...</td></tr>';
         if (panel) panel.classList.remove('hidden');
         
-        // Fetch per-item details for each order
+        // Convert dateStr to ISO format for API call
+        let dateParam = dateStr;
+        if (dateStr && /^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+            const [dd, mm, yyyy] = dateStr.split('/');
+            dateParam = `${yyyy}-${mm}-${dd}`;
+        }
+        
+        // Fetch per-item details using /inventory/consumption/daily endpoint
         const fetchPromises = orderIds.map(orderId => 
-            fetch(`/order/${encodeURIComponent(orderId)}/ingredients`, { cache: 'no-store' })
+            fetch(`/inventory/consumption/daily?date=${encodeURIComponent(dateParam)}&order_id=${encodeURIComponent(orderId)}`, { cache: 'no-store' })
                 .then(res => res.ok ? res.json() : null)
                 .catch(() => null)
         );
@@ -2133,7 +2140,19 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
                 if (!json) return;
                 
                 const orderId = orderIds[idx];
-                const menuBreakdown = json?.data?.menu_breakdown || json?.menu_breakdown || [];
+                // Handle response from /inventory/consumption/daily endpoint
+                const dailyConsumption = json?.data?.daily_consumption || [];
+                const dailyData = dailyConsumption[0]; // Get first (and should be only) day data
+                
+                if (!dailyData) return;
+                
+                const orders = dailyData.orders || [];
+                
+                // Find the specific order by order_id
+                const orderData = orders.find(o => String(o.order_id) === String(orderId));
+                if (!orderData) return;
+                
+                const menuBreakdown = orderData.menu_breakdown || [];
                 
                 // Filter items that match the current menu name
                 menuBreakdown.forEach((item, itemIndex) => {
@@ -2218,34 +2237,45 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
                 
                 results.forEach((json) => {
                     if (!json) return;
-                    const menuBreakdown = json?.data?.menu_breakdown || json?.menu_breakdown || [];
                     
-                    menuBreakdown.forEach((item) => {
-                        const itemMenuName = (item.menu_name || item.name || '').trim();
-                        if (itemMenuName.toLowerCase().replace(/\s+/g, ' ') !== menuName.toLowerCase().replace(/\s+/g, ' ')) {
-                            return;
-                        }
+                    // Handle response from /inventory/consumption/daily endpoint
+                    const dailyConsumption = json?.data?.daily_consumption || [];
+                    const dailyData = dailyConsumption[0];
+                    
+                    if (!dailyData) return;
+                    
+                    const orders = dailyData.orders || [];
+                    
+                    orders.forEach((order) => {
+                        const menuBreakdown = order.menu_breakdown || [];
                         
-                        const itemQty = Number(item.quantity || item.qty || 1);
-                        const ingredients = item.ingredients || [];
-                        
-                        ingredients.forEach((ing) => {
-                            ingredientSet.add(ing.ingredient_name || ing.name);
-                            
-                            const c = Number(ing.consumed_quantity);
-                            const rq = Number(ing.required_quantity);
-                            const qq = Number(ing.quantity);
-                            let qtyUsed = 0;
-                            
-                            if (Number.isFinite(c) && c > 0) {
-                                qtyUsed = c;
-                            } else if (Number.isFinite(rq) && rq > 0 && itemQty > 0) {
-                                qtyUsed = rq * itemQty;
-                            } else if (Number.isFinite(qq) && qq > 0) {
-                                qtyUsed = itemQty > 0 ? (qq * itemQty) : qq;
+                        menuBreakdown.forEach((item) => {
+                            const itemMenuName = (item.menu_name || item.name || '').trim();
+                            if (itemMenuName.toLowerCase().replace(/\s+/g, ' ') !== menuName.toLowerCase().replace(/\s+/g, ' ')) {
+                                return;
                             }
                             
-                            totalQtyUsed += qtyUsed;
+                            const itemQty = Number(item.quantity || item.qty || 1);
+                            const ingredients = item.ingredients || [];
+                            
+                            ingredients.forEach((ing) => {
+                                ingredientSet.add(ing.ingredient_name || ing.name);
+                                
+                                const c = Number(ing.consumed_quantity);
+                                const rq = Number(ing.required_quantity);
+                                const qq = Number(ing.quantity);
+                                let qtyUsed = 0;
+                                
+                                if (Number.isFinite(c) && c > 0) {
+                                    qtyUsed = c;
+                                } else if (Number.isFinite(rq) && rq > 0 && itemQty > 0) {
+                                    qtyUsed = rq * itemQty;
+                                } else if (Number.isFinite(qq) && qq > 0) {
+                                    qtyUsed = itemQty > 0 ? (qq * itemQty) : qq;
+                                }
+                                
+                                totalQtyUsed += qtyUsed;
+                            });
                         });
                     });
                 });
