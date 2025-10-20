@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>User Management - Infinity Cafe</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="../css/responsive-tables.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <link rel="icon" type="image/png" href="img/logo-GIK.png">
+</head>
+<body data-page="admin">
+    <!-- Header -->
+    <nav class="header">
+        <div class="header-brand">
+            <h1 class="header-title" id="navbar-title">User Management</h1>
+            <p class="header-subtitle">Stephany</p>
+        </div>
+        <div class="header-menu">
+          <button class="nav-btn" id="nav-dashboard">Dashboard</button>
+          <button class="nav-btn" id="nav-menu">Menu Management</button>
+          <button class="nav-btn" id="nav-stok">Stock Management</button>
+          <button class="nav-btn" id="nav-report">Reports</button>
+          <button class="nav-btn active" id="nav-admin">User Management</button>
+        </div>
+        <div class="header-right">
+          
+        </div>
+    </nav>
+
+    <!-- Kitchen Off Banner -->
+    <div id="kitchen-off-banner" class="kitchen-off-banner hidden">
+        🚫 Dapur sedang OFF. Tidak dapat menerima/memproses pesanan.
+    </div>
+
+    <!-- Offline Banner -->
+    <div id="offline-banner" class="offline-banner hidden">
+        🔌 Gagal ambil data. Cek koneksi.
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        <div class="content-area">
+            <!-- Greeting Message -->
+            <div class="greeting-message">
+                <h2>Hi, Admin, here's the list of users!</h2>
+                <p class="greeting-date" id="greeting-date">Friday, 17th October 2025</p>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="tab-navigation">
+                <button class="add-order-btn" id="add-new-user-btn" onclick="openAddUserModal()">ADD NEW USER</button>
+            </div>
+
+            <!-- Tab Content -->
+            <div id="tab-content">
+                <div id="tab-user-content" class="tab-panel active">
+                    <div class="table-container">
+                        <!-- Search and Filter Section for Users -->
+                        <div class="search-filter-section">
+                            <div class="search-container">
+                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                <input type="text" id="user-search" placeholder="Search by username..." class="search-input">
+                            </div>
+                            <div class="filter-container">
+                                <button class="filter-btn" onclick="toggleFilterUser()">
+                                    <i class="fas fa-filter"></i>
+                                    Filter
+                                </button>
+                                <div class="filter-dropdown" id="user-filter-dropdown">
+                                    <div class="filter-group">
+                                        <label>Role:</label>
+                                        <select id="user-role-filter">
+                                            <option value="">All</option>
+                                            <option value="admin">Admin</option>
+                                            <option value="user">User</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-group">
+                                        <label>Status:</label>
+                                        <select id="user-status-filter">
+                                            <option value="">All</option>
+                                            <option value="true">Active</option>
+                                            <option value="false">Inactive</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-actions">
+                                        <button class="apply-filter-btn" onclick="applyUserFilter()">Apply</button>
+                                        <button class="clear-filter-btn" onclick="clearUserFilter()">Clear</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Table Info -->
+                        <div class="table-info">
+                            <span id="user-table-info">Showing 0 of 0 entries</span>
+                        </div>
+
+                        <table id="user-table">
+                            <thead>
+                                <tr>
+                                    <th>NO</th>
+                                    <th>USERNAME</th>
+                                    <th>ROLE</th>
+                                    <th>STATUS</th>
+                                    <th class="action-header">ACTION</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Rows will be populated by admin.js -->
+                            </tbody>
+                        </table>
+
+                        <!-- Pagination for Users -->
+                        <div class="pagination-container" id="user-pagination">
+                            <div class="pagination-info">
+                                <span id="user-pagination-info">Page 1 of 1</span>
+                            </div>
+                            <div class="pagination-controls">
+                                <button class="pagination-btn" id="user-prev-btn".onclick="changeUserPage(-1)">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                                <div class="page-numbers" id="user-page-numbers">
+                                    <!-- Page numbers will be generated here -->
+                                </div>
+                                <button class="pagination-btn" id="user-next-btn" onclick="changeUserPage(1)">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+                            <div class="pagination-size">
+                                <label>Show:</label>
+                                <select id="user-page-size" onchange="changeUserPageSize()">
+                                    <option value="5">5</option>
+                                    <option value="10" selected>10</option>
+                                    <option value="25">25</option>
+                                    <option value="50">50</option>
+                                </select>
+                                <span>entries</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add User Modal -->
+    <div id="add-user-modal" class="modal hidden">
+        <div class="modal-content add-user-modal">
+            <button class="modal-close" onclick="closeAddUserModal()">&times;</button>
+            <h3 class="modal-title">Add New User</h3>
+            <form id="add-user-form">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" placeholder="Enter username" required />
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="Enter password" required />
+                </div>
+                <div class="form-group">
+                    <label for="role">Role</label>
+                    <select id="role" name="role" required>
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <button type="submit" class="save-button">
+                    <span class="fa fa-save"></span>
+                    <span>Save User</span>
+                </button>
+            </form>
+            <div id="add-user-form-error" class="error"></div>
+        </div>
+    </div>
+
+    <!-- Edit User Modal -->
+    <div id="edit-user-modal" class="modal hidden">
+        <div class="modal-content edit-user-modal">
+            <button class="modal-close" onclick="closeEditUserModal()">&times;</button>
+            <h3 class="modal-title">Edit User</h3>
+            <form id="edit-user-form">
+                <input type="hidden" id="edit-original-username" name="original_username" />
+                <div class="form-group">
+                    <label>Current Username</label>
+                    <p id="edit-current-username" class="readonly-field"></p>
+                </div>
+                <div class="form-group">
+                    <label for="edit-new-username">New Username</label>
+                    <input type="text" id="edit-new-username" name="new_username" placeholder="Enter new username" required />
+                </div>
+                <button type="submit" class="save-button">
+                    <span class="fa fa-save"></span>
+                    <span>Update Username</span>
+                </button>
+            </form>
+            <div id="edit-user-form-error" class="error"></div>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="change-password-modal" class="modal hidden">
+        <div class="modal-content change-password-modal">
+            <button class="modal-close" onclick="closeChangePasswordModal()">&times;</button>
+            <h3 class="modal-title">Change Password</h3>
+            <form id="change-password-form">
+                <input type="hidden" id="change-password-username" name="username">
+                <div class="form-group">
+                    <label>Username</label>
+                    <p id="display-username" class="readonly-field"></p>
+                </div>
+                <div class="form-group">
+                    <label for="new_password">New Password</label>
+                    <input type="password" id="new_password" name="new_password" placeholder="Enter new password" required />
+                </div>
+                <button type="submit" class="save-button">
+                    <span class="fa fa-key"></span>
+                    <span>Update Password</span>
+                </button>
+            </form>
+            <div id="change-password-form-error" class="error"></div>
+        </div>
+    </div>
+
+    <!-- View User Modal -->
+    <div id="view-user-modal" class="modal hidden">
+        <div class="modal-content view-modal">
+            <button class="modal-close" onclick="closeViewUserModal()">&times;</button>
+            <h3 class="modal-title">User Details</h3>
+            <div class="view-content">
+                <div class="view-item">
+                    <label>Username:</label>
+                    <span id="view-user-username"></span>
+                </div>
+                <div class="view-item">
+                    <label>Role:</label>
+                    <span id="view-user-role"></span>
+                </div>
+                <div class="view-item">
+                    <label>Status:</label>
+                    <span id="view-user-status"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/script.js"></script>
+    <script src="/admin/user-management.js"></script>
+</body>
+</html>

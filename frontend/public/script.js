@@ -4,6 +4,30 @@
 // Global variable untuk modal
 let selectedOrderId = null;
 let selectedOrderStatus = 'cancelled';
+window.currentUserRole = null;
+const ADMIN_LANDING_KEY = 'adminLandingDone';
+const USER_LANDING_KEY = 'userLandingDone';
+
+function updateAdminNavVisibility(role) {
+    const headerMenu = document.querySelector('.header-menu');
+    if (!headerMenu) {
+        return;
+    }
+    let adminBtn = document.getElementById('nav-admin');
+    if (role === 'admin') {
+        if (!adminBtn) {
+            adminBtn = document.createElement('button');
+            adminBtn.id = 'nav-admin';
+            adminBtn.className = 'nav-btn';
+            adminBtn.textContent = 'User Management';
+            headerMenu.appendChild(adminBtn);
+        }
+        adminBtn.style.display = '';
+    } else if (adminBtn) {
+        adminBtn.style.display = 'none';
+        adminBtn.classList.remove('active');
+    }
+}
 
 // Fungsi untuk menampilkan tanggal
 function updateGreetingDate(format = 'en') {
@@ -95,6 +119,7 @@ function setupNavigation() {
         inventory: "Stock Management",
         menu_suggestion: "Menu Suggestion",
         report: "Reports",
+        admin: "User Management",
         // Tambah halaman lain di sini
     };
 
@@ -105,6 +130,7 @@ function setupNavigation() {
         inventory: 'nav-stok',
         menu_suggestion: 'nav-menu',
         report: 'nav-report',
+        admin: 'nav-admin',
     };
     const activeNavId = pageToNavId[currentPage];
     navButtons.forEach(btn => {
@@ -124,6 +150,7 @@ function setupNavigation() {
                 'nav-stok': '/stock-management',
                 'nav-suggestion': '/menu-suggestion',
                 'nav-report': '/reportKitchen',
+                'nav-admin': '/user-management',
                 // Tambahkan mapping khusus di sini jika perlu
             };
 
@@ -232,6 +259,8 @@ function logout() {
         localStorage.removeItem('access_token');
         sessionStorage.removeItem('temp_token');
         sessionStorage.removeItem('temp_token_id');
+        sessionStorage.removeItem(ADMIN_LANDING_KEY);
+        sessionStorage.removeItem(USER_LANDING_KEY);
     } catch (e) {
         console.warn('Error clearing storage on logout:', e);
     }
@@ -310,12 +339,47 @@ function checkAuth() {
             return;
         }
         
+        const payload = parseJwt(token);
+        const role = (payload && payload.role ? String(payload.role) : 'user').toLowerCase();
+        window.currentUserRole = role;
+        updateAdminNavVisibility(role);
+        document.dispatchEvent(new CustomEvent('auth:role', { detail: { role } }));
+
+        if (role === 'admin') {
+            sessionStorage.removeItem(USER_LANDING_KEY);
+            if (!sessionStorage.getItem(ADMIN_LANDING_KEY)) {
+                sessionStorage.setItem(ADMIN_LANDING_KEY, 'true');
+                if (currentPage !== 'admin') {
+                    window.location.replace('/user-management');
+                    return;
+                }
+            }
+        } else {
+            sessionStorage.removeItem(ADMIN_LANDING_KEY);
+            if (!sessionStorage.getItem(USER_LANDING_KEY)) {
+                sessionStorage.setItem(USER_LANDING_KEY, 'true');
+                if (currentPage !== 'dashboard') {
+                    window.location.replace('/dashboard');
+                    return;
+                }
+            }
+        }
+
+        if (currentPage === 'admin' && role !== 'admin') {
+            window.location.replace('/dashboard');
+            return;
+        }
+        
         // If we used a temporary token, move it to localStorage for persistence
         if (tempToken && !regularToken) {
             localStorage.setItem('access_token', tempToken);
             sessionStorage.removeItem('temp_token');
             sessionStorage.removeItem('temp_token_id');
         }
+    } else {
+        window.currentUserRole = null;
+        updateAdminNavVisibility(null);
+        document.dispatchEvent(new CustomEvent('auth:role', { detail: { role: null } }));
     }
     console.log('Auth passed, current page:', currentPage);
 }
@@ -344,6 +408,9 @@ function displayUserInfo() {
         if (token) {
             const userData = parseJwt(token);
             const username = userData.sub || 'User';
+            const role = (userData.role ? String(userData.role) : 'user').toLowerCase();
+            window.currentUserRole = role;
+            updateAdminNavVisibility(role);
             
             // Update header subtitle (nama dan peran)
             const headerSubtitle = document.querySelector('.header-subtitle');
@@ -365,9 +432,21 @@ function displayUserInfo() {
                     greetingMessage.textContent = `Hi, ${username}, here's today's menu suggestions!`;
                 } else if (currentPage === 'report') {
                     greetingMessage.textContent = `Hi, ${username}, here's your sales reports!`;
+                } else if (currentPage === 'admin') {
+                    greetingMessage.textContent = `Hi, ${username}, here's list of users!`;
                 }
                 else {
                     greetingMessage.textContent = `Hi, ${username}!`;
+                }
+            }
+
+            const adminNavBtn = document.getElementById('nav-admin');
+            if (adminNavBtn) {
+                if (role === 'admin') {
+                    adminNavBtn.style.display = '';
+                } else {
+                    adminNavBtn.style.display = 'none';
+                    adminNavBtn.classList.remove('active');
                 }
             }
         }
@@ -469,6 +548,31 @@ function showDeleteConfirmModal(message, onConfirm) {
     closeModal('delete-confirm-modal');
     onConfirm();
   };
+}
+
+function showUserConfirmModal(message, onConfirm, confirmLabel = 'Enable/Disable') {
+  closeModal('error-modal');
+  closeModal('ability-confirm-modal');
+
+  const messageElement = document.getElementById('ability-confirm-message');
+  const modal = document.getElementById('ability-confirm-modal');
+  const confirmBtn = document.getElementById('ability-confirm-btn');
+
+  if (!modal || !messageElement || !confirmBtn) {
+      console.error('Ability confirm modal elements not found.');
+      return;
+  }
+
+  messageElement.textContent = message;
+  confirmBtn.textContent = confirmLabel;
+  confirmBtn.onclick = () => {
+      closeModal('ability-confirm-modal');
+      if (typeof onConfirm === 'function') {
+          onConfirm();
+      }
+  };
+
+  modal.classList.remove('hidden');
 }
 
 function openConfirmModal(orderId, status) {
