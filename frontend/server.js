@@ -1322,6 +1322,85 @@ app.post('/register', async (req, res) => {
   }
 });
 
+const requireAuthForProxy = async (req, res, next) => {
+  const token = req.headers.authorization;
+  if (!token) {
+    return res.status(401).json({ error: 'Authorization header missing' });
+  }
+  next();
+};
+
+app.get('/admin/users', requireAuthForProxy, async (req, res) => {
+  try {
+    const response = await fetch('http://user_service:8005/admin/users', {
+      method: 'GET',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': req.headers.authorization 
+      },
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    console.error("Failed to proxy /admin/users", err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/admin/create_user', requireAuthForProxy, async (req, res) => {
+  try {
+    const response = await fetch('http://user_service:8005/admin/create_user', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': req.headers.authorization 
+      },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    console.error("Failed to proxy /admin/create_user", err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/admin/change_password', requireAuthForProxy, async (req, res) => {
+  try {
+    const response = await fetch('http://user_service:8005/admin/change_password', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': req.headers.authorization 
+      },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    console.error("Failed to proxy /admin/change_password", err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/admin/status_user', requireAuthForProxy, async (req, res) => {
+  try {
+    const response = await fetch('http://user_service:8005/admin/status_user', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': req.headers.authorization 
+      },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    console.error("Failed to proxy /admin/status_user", err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // JWT validation function
 function validateJWT(token) {
   try {
@@ -1332,7 +1411,8 @@ function validateJWT(token) {
     if (parts.length !== 3) return false;
     
     // Decode payload (middle part)
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    const payloadJson = Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8');
+    const payload = JSON.parse(payloadJson);
     
     // Check if token is expired
     const currentTime = Math.floor(Date.now() / 1000);
@@ -1384,6 +1464,10 @@ function requireAuth(req, res, next) {
 // ========== PAGE ROUTES ==========
 app.get("/", (req, res) => {
   res.redirect("/login");
+});
+
+app.get("/user-management", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "admin", "user-management.html"));
 });
 
 app.get("/dashboard", requireAuth, (req, res) => {

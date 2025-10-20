@@ -45,6 +45,9 @@ let globalFlavorMap = {};
 let ingredientMenuFlavorGroups = {}; // global store for menu+flavor groups per date
 let ingredientDataCache = null; // persist last successful ingredient dataset
 let suppressPeriodSync = false; // prevent preset select from flipping to custom during programmatic updates
+// Keep last fetched per-order per-item breakdown for details panel (logs view)
+let currentPerOrderItems = { orderId: null, items: [] };
+let currentPerOrderBreakdown = { orderId: null, menu_breakdown: [], details: [] };
 
 //Pagination Variables
 let reportCurrentPage = 1;
@@ -144,50 +147,40 @@ function validateIngredientDateRange(startVal, endVal) {
 
 // ================== GLOBAL DATE RANGE HELPERS ==================
 function getGlobalDateElements() {
-    const startEl = document.getElementById('start_date');
-    const endEl = document.getElementById('end_date');
     return {
-        startEl,
-        endEl,
-        startVal: startEl ? startEl.value.trim() : '',
-        endVal: endEl ? endEl.value.trim() : ''
+        startEl: document.getElementById('start_date'),
+        endEl: document.getElementById('end_date'),
+        errorEl: document.getElementById('global-date-error')
     };
 }
 
 function clearGlobalDateError() {
-    const { startEl, endEl } = getGlobalDateElements();
+    const { startEl, endEl, errorEl } = getGlobalDateElements();
     if (startEl) startEl.classList.remove('input-error');
     if (endEl) endEl.classList.remove('input-error');
-    const errorEl = document.getElementById('global-date-error');
     if (errorEl) {
         errorEl.textContent = '';
-        errorEl.style.display = 'none';
+        errorEl.classList.add('hidden');
     }
 }
 
-function showGlobalDateError(message, fields = {}) {
-    const { startEl, endEl } = getGlobalDateElements();
-    if (startEl) {
-        if (fields.start) startEl.classList.add('input-error');
-        else startEl.classList.remove('input-error');
-    }
-    if (endEl) {
-        if (fields.end) endEl.classList.add('input-error');
-        else endEl.classList.remove('input-error');
-    }
-    const errorEl = document.getElementById('global-date-error');
+function showGlobalDateError(message, invalidFields = {}) {
+    const { startEl, endEl, errorEl } = getGlobalDateElements();
+    if (startEl && invalidFields.start) startEl.classList.add('input-error');
+    if (endEl && invalidFields.end) endEl.classList.add('input-error');
     if (errorEl) {
-        errorEl.textContent = message || '';
-        errorEl.style.display = message ? 'block' : 'none';
+        errorEl.textContent = message || 'Rentang tanggal tidak valid';
+        errorEl.classList.remove('hidden');
     }
 }
 
-function validateGlobalDateRange(options = {}) {
-    const { requireBoth = true, showMessage = true } = options;
-    const { startEl, endEl, startVal, endVal } = getGlobalDateElements();
-    const invalidFields = { start: false, end: false };
-    let message = '';
+function validateGlobalDateRange({ requireBoth = true, showMessage = true } = {}) {
+    const { startEl, endEl } = getGlobalDateElements();
+    const startVal = (startEl && startEl.value ? startEl.value.trim() : '') || '';
+    const endVal = (endEl && endEl.value ? endEl.value.trim() : '') || '';
     let valid = true;
+    let message = '';
+    const invalidFields = { start: false, end: false };
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
     if (requireBoth && (!startVal || !endVal)) {
@@ -196,7 +189,6 @@ function validateGlobalDateRange(options = {}) {
         invalidFields.start = !startVal;
         invalidFields.end = !endVal;
     }
-
     if (valid && startVal && !dateRegex.test(startVal)) {
         valid = false;
         message = 'Format tanggal awal tidak valid (YYYY-MM-DD).';
@@ -284,6 +276,14 @@ function applyPeriodPreset(preset, options = {}) {
     startEl.value = range.start;
     endEl.value = range.end;
     validateGlobalDateRange({ requireBoth: true, showMessage: false });
+
+    // Keep ingredient date inputs in sync when in ingredient mode or generally to avoid confusion
+    try {
+        const ingStart = document.getElementById('ingredient-start-date');
+        const ingEnd = document.getElementById('ingredient-end-date');
+        if (ingStart) ingStart.value = range.start;
+        if (ingEnd) ingEnd.value = range.end;
+    } catch (_) {}
 
     const periodSelect = document.getElementById('period-select');
     if (periodSelect && updateSelect !== false) {
@@ -548,7 +548,7 @@ async function loadIngredientAnalysisData() {
                 ? flavorMapData
                 : (Array.isArray(flavorMapData.mappings) ? flavorMapData.mappings : (Array.isArray(flavorMapData.data) ? flavorMapData.data : []));
             for (const m of mappingsArr) {
-                const fname = (m.flavor_name || m.flavor || '').toLowerCase();
+                const fname = normalizeFlavorForKey(m.flavor_name || m.flavor || '');
                 const ingId = m.ingredient_id ?? m.inventory_id ?? m.id;
                 const qty = Number(m.quantity_per_serving ?? m.quantity ?? 0) || 0;
                 const unit = m.unit || m.unit_name || '';
@@ -703,12 +703,21 @@ async function loadIngredientAnalysisData() {
                     const logsRes = await fetch(`/inventory/history?${qsLogsForGroups.toString()}`);
                     const logsJson = await logsRes.json().catch(() => ({ history: [] }));
                     const logs = Array.isArray(logsJson.history) ? logsJson.history : [];
+                    // Precompute range label for logs view clarity
+                    const toDisp = (iso) => (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) ? `${iso.slice(8,10)}/${iso.slice(5,7)}/${iso.slice(0,4)}` : (iso || '-');
+                    const dateLabel = (startParam && endParam)
+                        ? `${toDisp(startParam)} - ${toDisp(endParam)}`
+                        : (startParam ? toDisp(startParam) : (endParam ? toDisp(endParam) : '-'));
                     for (const log of logs) {
+                        // Skip rolled back or not yet consumed logs
+                        if (!log || log.rolled_back) continue;
+                        if (typeof log.consumed === 'boolean' && !log.consumed) continue;
                         const iso = getLogIsoDate(log);
                         if (!iso) continue;
-                        const rawDisplay = `${iso.split('-')[2]}/${iso.split('-')[1]}/${iso.split('-')[0]}`;
-                        const kitchenOrder = kitchenOrdersCache.find(o => o.order_id === log.order_id);
-                        if (kitchenOrder && kitchenOrder.status === 'done' && kitchenOrder.items && kitchenOrder.items.length > 0) {
+                        const rawDisplay = dateLabel; // show selected range instead of per-log date
+                        const kitchenOrder = kitchenOrdersCache.find(o => String(o.order_id) === String(log.order_id));
+                        // Strictly allow only orders with DONE status
+                        if (kitchenOrder && String(kitchenOrder.status).toLowerCase() === 'done' && kitchenOrder.items && kitchenOrder.items.length > 0) {
                             // Distribute ingredient usage proportionally by item quantity
                             const totalQty = kitchenOrder.items.reduce((a, it) => a + (Number(it.quantity) || 0), 0) || 1;
                             for (const menuItem of kitchenOrder.items) {
@@ -731,8 +740,8 @@ async function loadIngredientAnalysisData() {
                                 menuFlavorGroups[key].total_ingredients += share;
                                 menuFlavorGroups[key].order_ids.add(log.order_id);
                             }
-                        } else {
-                            // Fallback for historical days: use per_menu_payload when kitchen order not found
+                        } else if (kitchenOrder && String(kitchenOrder.status).toLowerCase() === 'done') {
+                            // Fallback only when order is confirmed DONE but items are unavailable: use per_menu_payload
                             let payload = log.per_menu_payload;
                             if (typeof payload === 'string') {
                                 try { payload = JSON.parse(payload); } catch { payload = null; }
@@ -760,6 +769,9 @@ async function loadIngredientAnalysisData() {
                                     menuFlavorGroups[key].order_ids.add(log.order_id);
                                 }
                             }
+                        } else {
+                            // No kitchen order or not DONE: skip to enforce DONE-only policy
+                            continue;
                         }
                     }
                     logsRowsFinal = Object.values(menuFlavorGroups).map(group => ({
@@ -790,9 +802,12 @@ async function loadIngredientAnalysisData() {
                         : (startParam ? toDisp(startParam) : (endParam ? toDisp(endParam) : '-'));
 
                     for (const log of logs) {
+                        // Skip rolled back or not yet consumed logs
+                        if (!log || log.rolled_back) continue;
+                        if (typeof log.consumed === 'boolean' && !log.consumed) continue;
                         const ingAffected = Number(log.ingredients_affected || 0);
                         const kOrder = kitchenOrdersCache.find(o => String(o.order_id) === String(log.order_id));
-                        if (kOrder && Array.isArray(kOrder.items) && kOrder.items.length) {
+                        if (kOrder && String(kOrder.status).toLowerCase() === 'done' && Array.isArray(kOrder.items) && kOrder.items.length) {
                             const totalQty = kOrder.items.reduce((a, it) => a + (Number(it.quantity) || 0), 0) || 1;
                             for (const it of kOrder.items) {
                                 const menuName = it.menu_name || 'Unknown Menu';
@@ -806,7 +821,7 @@ async function loadIngredientAnalysisData() {
                                 groups[key].total_ingredients += share;
                                 groups[key].order_ids.add(log.order_id);
                             }
-                        } else {
+                        } else if (kOrder && String(kOrder.status).toLowerCase() === 'done') {
                             let payload = log.per_menu_payload; if (typeof payload === 'string') { try { payload = JSON.parse(payload); } catch { payload = null; } }
                             if (Array.isArray(payload) && payload.length) {
                                 const totalQty = payload.reduce((a, p) => a + (Number(p.quantity)||0), 0) || 1;
@@ -823,6 +838,9 @@ async function loadIngredientAnalysisData() {
                                     groups[key].order_ids.add(log.order_id);
                                 }
                             }
+                        } else {
+                            // No DONE kitchen order -> skip to enforce DONE-only
+                            continue;
                         }
                     }
 
@@ -968,10 +986,20 @@ async function loadIngredientAnalysisData() {
                 const logsRes = await fetch(`/inventory/history?${qsLogs.toString()}`);
                 const logsJson = await logsRes.json().catch(() => ({ history: [] }));
                 const logs = Array.isArray(logsJson.history) ? logsJson.history : [];
-                const ingredientRows = logs.map(log => {
+                // Filter only consumed logs and DONE orders
+                const filteredLogs = logs.filter(log => {
+                    if (!log || log.rolled_back) return false;
+                    if (typeof log.consumed === 'boolean' && !log.consumed) return false;
+                    const kOrder = Array.isArray(kitchenOrdersCache)
+                        ? kitchenOrdersCache.find(o => String(o.order_id) === String(log.order_id))
+                        : null;
+                    if (!kOrder || String(kOrder.status).toLowerCase() !== 'done') return false;
+                    return true;
+                });
+                const ingredientRows = filteredLogs.map(log => {
                     const iso = getLogIsoDate(log);
                     const displayDate = iso ? `${iso.split('-')[2]}/${iso.split('-')[1]}/${iso.split('-')[0]}` : (log.date || '-');
-                    const statusText = log.status_text || (log.consumed ? 'DIKONSUMSI' : log.rolled_back ? 'DIBATALKAN' : 'PENDING');
+                    const statusText = 'Selesai';
                     return { order_id: log.order_id, date: displayDate, ingredients_affected: Number(log.ingredients_affected || 0), status_text: statusText };
                 });
 
@@ -1027,6 +1055,16 @@ async function loadIngredientAnalysisData() {
                 const rows = [];
             for (const log of logs) {
                 const orderId = log.order_id; const ingAffected = Number(log.ingredients_affected || 0);
+                // Exclude rolled back or not-yet-consumed logs
+                if (!log || log.rolled_back) continue;
+                if (typeof log.consumed === 'boolean' && !log.consumed) continue;
+                // Only include logs for orders that are confirmed 'done' in kitchen cache
+                const kOrder = Array.isArray(kitchenOrdersCache)
+                  ? kitchenOrdersCache.find(o => String(o.order_id) === String(orderId))
+                  : null;
+                if (!kOrder || String(kOrder.status).toLowerCase() !== 'done') {
+                    continue;
+                }
                 const iso = getLogIsoDate(log);
                 const displayDate = iso ? `${iso.split('-')[2]}/${iso.split('-')[1]}/${iso.split('-')[0]}` : (log.date || '-');
                 let payload = log.per_menu_payload; if (typeof payload === 'string') { try { payload = JSON.parse(payload); } catch { payload = null; } }
@@ -1120,7 +1158,55 @@ function renderIngredientConsumptionDetails() {
 function renderIngredientConsumptionTable() {
     const tbody = document.getElementById('ingredient-table-body');
     if (!tbody) return;
-    tbody.innerHTML = '';
+    // Build per-item entries from DONE kitchen orders within the selected ingredient/global date range
+    const startVal = document.getElementById('ingredient-start-date')?.value || document.getElementById('start_date')?.value || '';
+    const endVal = document.getElementById('ingredient-end-date')?.value || document.getElementById('end_date')?.value || '';
+    const startTs = startVal ? new Date(startVal + 'T00:00:00') : null;
+    const endTs = endVal ? new Date(endVal + 'T23:59:59') : null;
+
+    const orders = Array.isArray(kitchenOrdersCache) ? kitchenOrdersCache : [];
+    const rows = [];
+    for (const o of orders) {
+        if (!o || String(o.status).toLowerCase() !== 'done') continue;
+        const tsRaw = o.time_done || o.time_done_at || o.time || o.created_at || o.updated_at || '';
+        if (!tsRaw) continue;
+        const dt = new Date(tsRaw);
+        if (startTs && dt < startTs) continue;
+        if (endTs && dt > endTs) continue;
+        const dateDisp = (() => { try { return dt.toLocaleString('id-ID'); } catch { return tsRaw; } })();
+        const orderId = o.order_id || o.id || '';
+        const arr = Array.isArray(o.items) ? o.items : [];
+        for (const it of arr) {
+            rows.push({
+                date: dateDisp,
+                order_id: String(orderId),
+                menu: it?.menu_name || '-',
+                flavor: normalizeFlavorForKey(getItemFlavorRaw(it)) || '-',
+                qty: Number(it?.quantity || 0) || 0,
+            });
+        }
+    }
+
+    if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#6B7280; padding: 1rem;">Tidak ada item pada rentang tanggal ini.</td></tr>';
+        return;
+    }
+
+    // Sort by date desc, then order id, then menu
+    rows.sort((a,b) => String(b.date).localeCompare(String(a.date))
+        || String(a.order_id).localeCompare(String(b.order_id))
+        || String(a.menu).localeCompare(String(b.menu)));
+
+    tbody.innerHTML = rows.map((r, idx) => `
+        <tr style="border-bottom: 1px solid #F3F4F6;">
+            <td>${idx + 1}</td>
+            <td style="white-space: nowrap;">${r.date}</td>
+            <td style="font-family: 'Courier New', monospace;">${r.order_id}</td>
+            <td>${r.menu}</td>
+            <td>${r.flavor}</td>
+            <td style="text-align:right;">${r.qty.toLocaleString('id-ID')}</td>
+        </tr>
+    `).join('');
 }
 
 function updateIngredientSummary(dataset = null) {
@@ -1266,34 +1352,54 @@ function hideIngredientDetailsPanel() {
             await showDailyAggregatedConsumption(dateStr, statusText, dateParam, forceSingle);
              return;
         } else {
-            // Restore header for per-order ingredient details (6 columns)
+            // In non-aggregated (per-order) view, switch columns depending on current mode
+            const currentViewMode = document.getElementById('ingredient-view-select')?.value || 'daily';
             if (headRow) {
-                headRow.innerHTML = `
-                    <th>No</th>
-                    <th>Ingredient Name</th>
-                    <th>Qty Terpakai</th>
-                    <th>Unit</th>
-                    <th>Stok Sebelum</th>
-                    <th>Stok Sesudah</th>`;
+                if (currentViewMode === 'logs') {
+                    // Logs mode: show per item menu rows (without Item ID column)
+                    headRow.innerHTML = `
+                        <th>No</th>
+                        <th>Menu</th>
+                        <th>Flavor</th>
+                        <th>Qty</th>
+                        <th>Action</th>`;
+                } else {
+                    // Other modes (safety): keep ingredient detail columns
+                    headRow.innerHTML = `
+                        <th>No</th>
+                        <th>Ingredient Name</th>
+                        <th>Qty Terpakai</th>
+                        <th>Unit</th>
+                        <th>Stok Sebelum</th>
+                        <th>Stok Sesudah</th>`;
+                }
             }
         }
 
-        const res = await fetch(`/report/order/${encodeURIComponent(orderId)}/ingredients`, { cache: 'no-store' });
+    // For per-order logs view, prefer direct inventory proxy
+    const res = await fetch(`/order/${encodeURIComponent(orderId)}/ingredients`, { cache: 'no-store' });
         
         // Check if response is ok
         if (!res.ok) {
             throw new Error(`HTTP error! status: ${res.status}`);
         }
         
-        const json = await res.json();
+    const json = await res.json();
         
-        // Handle different possible response structures
+    // Handle different possible response structures
         let details = json?.ingredients_breakdown?.details ||
                         json?.data?.ingredients_breakdown?.details ||
                        json?.details || 
                        [];
-        // Extract per-order item breakdown when available
+    // Extract per-order item breakdown when available
         let perItem = json?.data?.menu_breakdown || json?.menu_breakdown || [];
+        // Save breakdown for later per-item ingredient lookups
+        const ib = json?.ingredients_breakdown || json?.data?.ingredients_breakdown || {};
+        currentPerOrderBreakdown = {
+            orderId: String(orderId),
+            menu_breakdown: Array.isArray(perItem) ? perItem : [],
+            details: Array.isArray(ib?.details) ? ib.details : (Array.isArray(json?.details) ? json.details : [])
+        };
 
         // Fallback: If order is not 'done' status, try fetching from inventory consumption log
         if ((!Array.isArray(details) || details.length === 0) && json?.message?.includes("tidak berstatus 'done'")) {
@@ -1331,26 +1437,107 @@ function hideIngredientDetailsPanel() {
             }
         }
 
+        // Render table content depending on current mode
+        const currentViewModeAfterFetch = document.getElementById('ingredient-view-select')?.value || 'daily';
+        if (currentViewModeAfterFetch === 'logs') {
+            // Build per-item rows as the main details content
+            let perItemArr = Array.isArray(perItem) ? perItem : [];
+            if (!perItemArr.length) {
+                const kOrder = Array.isArray(kitchenOrdersCache)
+                    ? kitchenOrdersCache.find(o => String(o.order_id) === String(orderId) || String(o.id) === String(orderId))
+                    : null;
+                if (kOrder && Array.isArray(kOrder.items)) {
+                    perItemArr = kOrder.items.map((it, idx) => ({
+                        item_id: it?.id ?? it?.item_id ?? it?._id ?? `${orderId}-${idx}-${(it?.menu_name || 'item')}`,
+                        menu_name: it?.menu_name || '-',
+                        flavor: normalizeFlavorForKey(getItemFlavorRaw(it)) || '-',
+                        quantity: Number(it?.quantity || it?.qty || 0) || 0,
+                    }));
+                }
+            }
+
+            const normalized = (perItemArr || []).map(pi => {
+                const rawFlavor = (getItemFlavorRaw(pi) || pi?.flavor_name || pi?.flavor || pi?.preference || '').toString();
+                const normFlavor = normalizeFlavorForKey(rawFlavor || '-');
+                return {
+                    item_id: (pi?.item_id ?? pi?.id ?? pi?.order_item_id ?? pi?._id ?? '').toString(),
+                    menu_name: pi?.menu_name || pi?.name || '-',
+                    flavor: normFlavor,
+                    flavor_display: rawFlavor || (normFlavor || '-'),
+                    quantity: Number(pi?.quantity ?? pi?.qty ?? pi?.order_quantity ?? 0) || 0,
+                };
+            }).filter(x => x.item_id || x.menu_name || x.quantity);
+
+            // Deduplicate by item_id
+            const unique = [];
+            const seen = new Set();
+            for (const it of normalized) {
+                const key = it.item_id || `${it.menu_name}-${it.flavor}-${it.quantity}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                unique.push(it);
+            }
+
+            // Keep on hand for action handler lookups by item_id
+            currentPerOrderItems = { orderId: String(orderId), items: unique };
+
+            // Set header for per-item view (Logs mode)
+            const headRow = document.querySelector('#ingredient-details-table thead tr');
+            if (headRow) {
+                headRow.innerHTML = `
+                    <th>No</th>
+                    <th>Menu</th>
+                    <th>Flavor</th>
+                    <th>Qty</th>
+                    <th>Action</th>`;
+            }
+
+            if (!unique.length) {
+                body.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#6B7280; padding: 1rem;">Tidak ada item untuk pesanan ini.</td></tr>';
+                return;
+            }
+
+            body.innerHTML = unique.map((it, idx) => {
+                const safeRowId = `per-item-row-${(it.item_id || `${orderId}-${idx}`).replace(/[^a-zA-Z0-9_-]/g, '')}`;
+                // Resolve display flavor: use normalized value, fallback to nearest key in globalFlavorMap by basic comparison
+                let flavorNorm = normalizeFlavorForKey(it.flavor || '');
+                if (!flavorNorm && globalFlavorMap && Object.keys(globalFlavorMap).length) {
+                    const keys = Object.keys(globalFlavorMap);
+                    // try exact ignoring spaces
+                    const noSpace = flavorNorm.replace(/\s+/g,'');
+                    const found = keys.find(k => k.replace(/\s+/g,'') === noSpace) || '';
+                    flavorNorm = found || flavorNorm;
+                }
+                const flavorDisplay = (it.flavor_display || '').toString() || (flavorNorm || '-');
+                const dataAttrs = `data-order-id="${String(orderId).replace(/"/g, '&quot;')}" data-item-id="${(it.item_id||'').toString().replace(/"/g, '&quot;')}" data-menu="${(it.menu_name||'').toString().replace(/"/g, '&quot;')}" data-flavor="${normalizeFlavorForKey((flavorNorm||'').toString()).replace(/"/g, '&quot;')}" data-flavor-display="${flavorDisplay.replace(/"/g, '&quot;')}" data-qty="${Number(it.quantity||0)}"`;
+                return `
+                <tr id="${safeRowId}" style="border-bottom: 1px solid #F3F4F6; transition: background-color 0.2s ease;" onmouseover="this.style.backgroundColor='#F9FAFB'" onmouseout="this.style.backgroundColor='transparent'">
+                    <td style="padding: 0.875rem 1rem; text-align: center; color: #6B7280; font-weight: 500;">${idx + 1}</td>
+                    <td style="padding: 0.875rem 1rem; font-weight: 600; color: #1F2937;">${it.menu_name || '-'}</td>
+                    <td style="padding: 0.875rem 1rem; color: #059669; font-weight: 500;">${flavorDisplay || '-'}</td>
+                    <td style="padding: 0.875rem 1rem; text-align: center; font-weight: 600; color: #6B7280;">${(it.quantity || 0).toLocaleString('id-ID')}</td>
+                    <td style="padding: 0.875rem 1rem; text-align: center;">
+                        <button class="action-btn-blue" ${dataAttrs} onclick="showItemIngredientDetailsFromEvent(this)" style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; border: none; background: linear-gradient(135deg, #2563EB 0%, #1d4ed8 100%); color: white; cursor: pointer; font-weight: 600; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(37, 99, 235, 0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(37, 99, 235, 0.2)'">
+                            <i class="fas fa-flask" style="margin-right: 0.5rem;"></i>Lihat Bahan
+                        </button>
+                    </td>
+                </tr>`;
+            }).join('');
+            return;
+        }
+
+        // Non-logs: render ingredient details as before
         if (!Array.isArray(details)) {
             console.warn('Expected array of details but got:', details);
             body.innerHTML = '<tr><td colspan="6">No ingredient details available</td></tr>';
             return;
         }
-
-        // Debug: Log the actual data structure
-        console.log('Raw API response:', json);
-        console.log('Details array:', details);
-        console.log('First detail item:', details[0]);
-
-        // Generate table rows with correct field mapping
         body.innerHTML = details.map((d, idx) => {
-            // Use correct field names based on API response
             const ingredientName = d?.ingredient_name || '-';
             const quantityConsumed = d?.consumed_quantity || 0;
             const unit = d?.unit || '-';
             const stockBefore = d?.stock_before_consumption || 0;
             const stockAfter = d?.stock_after_consumption || 0;
-            
             return `
                 <tr style="border-bottom: 1px solid #F3F4F6;">
                     <td>${idx + 1}</td>
@@ -1362,66 +1549,6 @@ function hideIngredientDetailsPanel() {
                 </tr>
             `;
         }).join('');
-
-        // If per-order item breakdown is available, render a second table below the first one
-        try {
-            if (Array.isArray(perItem) && perItem.length) {
-                const container = document.createElement('div');
-                container.id = 'order-item-breakdown';
-                container.style.marginTop = '1rem';
-                container.innerHTML = `
-                    <div class="summary-header" style="margin: 0 0 0.5rem 0; align-items: center; gap: 8px;">
-                        <span class="summary-name">🧾 Per-Item Breakdown</span>
-                    </div>
-                    <div class="table-container" style="margin-top: 0;">
-                        <table id="order-item-table" style="margin-top: 0;">
-                            <thead>
-                                <tr>
-                                    <th>No</th>
-                                    <th>Menu</th>
-                                    
-                                    <th>Qty</th>
-                                    <th>Ingredients (Qty • Unit)</th>
-                                </tr>
-                            </thead>
-                            <tbody id="order-item-body"></tbody>
-                        </table>
-                    </div>`;
-
-                // Insert after the primary details table container
-                const tableContainer = document.querySelector('#ingredient-details-panel .table-container');
-                if (tableContainer && tableContainer.parentElement) {
-                    tableContainer.parentElement.appendChild(container);
-                } else if (panel) {
-                    panel.appendChild(container);
-                }
-
-                const tbody2 = container.querySelector('#order-item-body');
-                const rows = perItem.map((it, i) => {
-                    const menuName = it?.menu_name || '-';
-                    const pref = it?.preference || '-';
-                    const qty = Number(it?.quantity || 0) || 0;
-                    const ings = Array.isArray(it?.ingredients) ? it.ingredients : [];
-                    const ingStr = ings.map(ing => {
-                        const name = ing?.ingredient_name || '-';
-                        const rq = Number(ing?.required_quantity || 0) || 0;
-                        const unit = ing?.unit || '';
-                        return `${name} (${rq.toLocaleString('id-ID')} ${unit})`;
-                    }).join(', ');
-                    return `
-                        <tr style="border-bottom: 1px solid #F3F4F6;">
-                            <td>${i + 1}</td>
-                            <td>${menuName}</td>
-                            <td>${pref || '-'}</td>
-                            <td>${qty.toLocaleString('id-ID')}</td>
-                            <td style="white-space: normal; line-height: 1.4;">${ingStr || '-'}</td>
-                        </tr>`;
-                }).join('');
-                if (tbody2) tbody2.innerHTML = rows || '<tr><td colspan="5" style="text-align:center; color:#6B7280; padding: 1rem;">Tidak ada item</td></tr>';
-            }
-        } catch (perItemErr) {
-            console.warn('Failed rendering per-item breakdown:', perItemErr);
-        }
         
     } catch (e) {
         console.error('Failed loading consumption details for orderId:', orderId, 'Error:', e);
@@ -1494,8 +1621,9 @@ function hideIngredientDetailsPanel() {
         console.log('Fetching daily consumption; computed dateParam:', dateParam);
 
         // Global range inputs (for correct backend query)
-        const globalStartInput = document.getElementById('start_date')?.value;
-        const globalEndInput = document.getElementById('end_date')?.value;
+    // Prefer ingredient date inputs; fallback to global inputs
+    const globalStartInput = document.getElementById('ingredient-start-date')?.value || document.getElementById('start_date')?.value;
+    const globalEndInput = document.getElementById('ingredient-end-date')?.value || document.getElementById('end_date')?.value;
         // Override range detection when forceSingleDate is true
         const rangeSelected = !forceSingleDate && globalStartInput && globalEndInput && globalStartInput !== globalEndInput;
 
@@ -1523,7 +1651,6 @@ function hideIngredientDetailsPanel() {
                 
                 orders.forEach(order => {
                     const menuSummary = order.menu_summary || '';
-                    const orderIngsUsed = order.ingredients_used || [];
                     const menuItems = menuSummary.split(',').map(item => item.trim());
                     
                     menuItems.forEach(menuItem => {
@@ -1533,9 +1660,20 @@ function hideIngredientDetailsPanel() {
                         totalUniqueMenusAllDays.add(menuName);
                     });
                     
-                    orderIngsUsed.forEach(ing => {
-                        totalIngredientsAllDays.add(ing.ingredient_name);
-                    });
+                    // Use per-item breakdown if available, otherwise fallback to order total
+                    if (order.menu_breakdown && Array.isArray(order.menu_breakdown)) {
+                        order.menu_breakdown.forEach(item => {
+                            const itemIngredients = item.ingredients || [];
+                            itemIngredients.forEach(ing => {
+                                totalIngredientsAllDays.add(ing.ingredient_name || ing.name);
+                            });
+                        });
+                    } else {
+                        const orderIngsUsed = order.ingredients_used || [];
+                        orderIngsUsed.forEach(ing => {
+                            totalIngredientsAllDays.add(ing.ingredient_name);
+                        });
+                    }
                 });
             });
             
@@ -1589,8 +1727,9 @@ function hideIngredientDetailsPanel() {
                     const menuSummary = order.menu_summary || '';
                     const orderIngsUsed = order.ingredients_used || [];
                     const menuItems = menuSummary.split(',').map(item => item.trim());
+                    const perItemIngredients = order.menu_breakdown || null;
                     
-                    menuItems.forEach(menuItem => {
+                    menuItems.forEach((menuItem, itemIndex) => {
                         const cleaned = (menuItem || '').trim();
                         const withoutPrefixQty = cleaned.replace(/^\s*\d+\s*x?\s*/i, '');
                         const menuName = (withoutPrefixQty.replace(/\s*x\s*\d+\s*$/i, '').trim()) || 'Unknown Menu';
@@ -1611,16 +1750,26 @@ function hideIngredientDetailsPanel() {
                         menuAggregation[menuName].total_orders += qty;
                         menuAggregation[menuName].order_ids.push(order.order_id);
                         
-                        orderIngsUsed.forEach(ing => {
-                            dayIngredients.add(ing.ingredient_name);
-                            const ingKey = ing.ingredient_name;
-                            if (!menuAggregation[menuName].ingredients_map[ingKey]) {
-                                menuAggregation[menuName].ingredients_map[ingKey] = {
-                                    ingredient_name: ing.ingredient_name,
-                                    total_consumed: 0,
-                                    unit: ing.unit
-                                };
-                            }
+                        // Use per-item breakdown if available
+                        if (perItemIngredients && perItemIngredients[itemIndex]) {
+                            const itemData = perItemIngredients[itemIndex];
+                            const itemIngredients = itemData.ingredients || [];
+                            
+                            itemIngredients.forEach(ing => {
+                                dayIngredients.add(ing.ingredient_name || ing.name);
+                                const ingKey = ing.ingredient_name || ing.name;
+                                if (!menuAggregation[menuName].ingredients_map[ingKey]) {
+                                    menuAggregation[menuName].ingredients_map[ingKey] = {
+                                        ingredient_name: ingKey,
+                                        total_consumed: 0,
+                                        unit: ing.unit || ing.unit_name || '-'
+                                    };
+                                }
+                                const consumed = Number(ing.consumed_quantity || ing.quantity || 0);
+                                menuAggregation[menuName].ingredients_map[ingKey].total_consumed += consumed;
+                            });
+                        } else {
+                            // Fallback to proportional distribution
                             const totalQtyInOrder = menuItems.reduce((sum, item) => {
                                 const it = (item || '').trim();
                                 let q = 1;
@@ -1628,10 +1777,22 @@ function hideIngredientDetailsPanel() {
                                 if (m) q = parseInt(m[1]);
                                 return sum + q;
                             }, 0);
-                            const proportion = qty / totalQtyInOrder;
-                            menuAggregation[menuName].ingredients_map[ingKey].total_consumed += 
-                                (ing.total_consumed || 0) * proportion;
-                        });
+                            const proportion = qty / (totalQtyInOrder || 1);
+                            
+                            orderIngsUsed.forEach(ing => {
+                                dayIngredients.add(ing.ingredient_name);
+                                const ingKey = ing.ingredient_name;
+                                if (!menuAggregation[menuName].ingredients_map[ingKey]) {
+                                    menuAggregation[menuName].ingredients_map[ingKey] = {
+                                        ingredient_name: ing.ingredient_name,
+                                        total_consumed: 0,
+                                        unit: ing.unit
+                                    };
+                                }
+                                menuAggregation[menuName].ingredients_map[ingKey].total_consumed += 
+                                    (ing.total_consumed || 0) * proportion;
+                            });
+                        }
                     });
                 });
                 
@@ -1739,74 +1900,93 @@ function hideIngredientDetailsPanel() {
          const summary = dailyData.summary || {};
          const orders = dailyData.orders || [];
          
-        // Aggregate orders by menu name (combine same menu regardless of flavor)
+        // Aggregate orders by menu name with proper per-item ingredient tracking
          const menuAggregation = {};
-         orders.forEach(order => {
-             // Extract menu names from menu_summary
+         
+         // Process each order and match ingredients to specific menu items
+         for (const order of orders) {
              const menuSummary = order.menu_summary || '';
              const orderIngsUsed = order.ingredients_used || [];
-             
-             // Parse menu_summary to extract individual menu items
-             // Format: "Menu1 x2, Menu2 x1" or similar
              const menuItems = menuSummary.split(',').map(item => item.trim());
              
-             menuItems.forEach(menuItem => {
-                // Clean menu name: remove quantity at prefix like "2x " and suffix like " x2"
-                const cleaned = (menuItem || '').trim();
-                const withoutPrefixQty = cleaned.replace(/^\s*\d+\s*x?\s*/i, '');
-                const menuName = (withoutPrefixQty.replace(/\s*x\s*\d+\s*$/i, '').trim()) || 'Unknown Menu';
+             // Try to get per-item breakdown from backend
+             const orderId = order.order_id;
+             let perItemIngredients = null;
+             
+             // If we have menu_breakdown from backend response, use it for accurate per-item tracking
+             if (order.menu_breakdown && Array.isArray(order.menu_breakdown)) {
+                 perItemIngredients = order.menu_breakdown;
+             }
+             
+             menuItems.forEach((menuItem, itemIndex) => {
+                 const cleaned = (menuItem || '').trim();
+                 const withoutPrefixQty = cleaned.replace(/^\s*\d+\s*x?\s*/i, '');
+                 const menuName = (withoutPrefixQty.replace(/\s*x\s*\d+\s*$/i, '').trim()) || 'Unknown Menu';
                  
                  if (!menuAggregation[menuName]) {
                      menuAggregation[menuName] = {
                          menu_name: menuName,
                          total_orders: 0,
                          total_ingredients_used: 0,
-                         ingredients_map: {}, // To aggregate ingredient consumption
+                         ingredients_map: {},
                          order_ids: []
                      };
                  }
                  
-                // Extract quantity from menu item, supporting both suffix "x2" and prefix "2x"
-                let qty = 1;
-                let qtyMatch = cleaned.match(/x\s*(\d+)\s*$/i);
-                if (qtyMatch) {
-                    qty = parseInt(qtyMatch[1]);
-                } else {
-                    qtyMatch = cleaned.match(/^\s*(\d+)\s*x/i);
-                    if (qtyMatch) qty = parseInt(qtyMatch[1]);
-                }
+                 // Extract quantity
+                 let qty = 1;
+                 let qtyMatch = cleaned.match(/x\s*(\d+)\s*$/i) || cleaned.match(/^\s*(\d+)\s*x/i);
+                 if (qtyMatch) qty = parseInt(qtyMatch[1]);
                  
                  menuAggregation[menuName].total_orders += qty;
-                 menuAggregation[menuName].order_ids.push(order.order_id);
+                 menuAggregation[menuName].order_ids.push(orderId);
                  
-                 // Aggregate ingredients proportionally
-                 orderIngsUsed.forEach(ing => {
-                     const ingKey = ing.ingredient_name;
-                     if (!menuAggregation[menuName].ingredients_map[ingKey]) {
-                         menuAggregation[menuName].ingredients_map[ingKey] = {
-                             ingredient_name: ing.ingredient_name,
-                             total_consumed: 0,
-                             unit: ing.unit
-                         };
-                     }
-                     // Distribute ingredient consumption proportionally based on menu quantity
-                    const totalQtyInOrder = menuItems.reduce((sum, item) => {
-                        const it = (item || '').trim();
-                        let q = 1;
-                        let m = it.match(/x\s*(\d+)\s*$/i);
-                        if (m) q = parseInt(m[1]);
-                        else {
-                            m = it.match(/^\s*(\d+)\s*x/i);
-                            if (m) q = parseInt(m[1]);
-                        }
-                        return sum + q;
-                    }, 0);
-                     const proportion = qty / totalQtyInOrder;
-                     menuAggregation[menuName].ingredients_map[ingKey].total_consumed += 
-                         (ing.total_consumed || 0) * proportion;
-                 });
+                 // Match ingredients to this specific item
+                 if (perItemIngredients && perItemIngredients[itemIndex]) {
+                     // Use per-item breakdown from backend
+                     const itemData = perItemIngredients[itemIndex];
+                     const itemIngredients = itemData.ingredients || [];
+                     
+                     itemIngredients.forEach(ing => {
+                         const ingKey = ing.ingredient_name || ing.name;
+                         if (!menuAggregation[menuName].ingredients_map[ingKey]) {
+                             menuAggregation[menuName].ingredients_map[ingKey] = {
+                                 ingredient_name: ingKey,
+                                 total_consumed: 0,
+                                 unit: ing.unit || ing.unit_name || '-'
+                             };
+                         }
+                         // Use consumed_quantity directly from per-item data
+                         const consumed = Number(ing.consumed_quantity || ing.quantity || 0);
+                         menuAggregation[menuName].ingredients_map[ingKey].total_consumed += consumed;
+                     });
+                 } else {
+                     // Fallback: distribute total order ingredients proportionally
+                     const totalQtyInOrder = menuItems.reduce((sum, item) => {
+                         const it = (item || '').trim();
+                         let q = 1;
+                         let m = it.match(/x\s*(\d+)\s*$/i) || it.match(/^\s*(\d+)\s*x/i);
+                         if (m) q = parseInt(m[1]);
+                         return sum + q;
+                     }, 0);
+                     
+                     const proportion = qty / (totalQtyInOrder || 1);
+                     
+                     orderIngsUsed.forEach(ing => {
+                         const ingKey = ing.ingredient_name;
+                         if (!menuAggregation[menuName].ingredients_map[ingKey]) {
+                             menuAggregation[menuName].ingredients_map[ingKey] = {
+                                 ingredient_name: ing.ingredient_name,
+                                 total_consumed: 0,
+                                 unit: ing.unit
+                             };
+                         }
+                         menuAggregation[menuName].ingredients_map[ingKey].total_consumed += 
+                             (ing.total_consumed || 0) * proportion;
+                     });
+                 }
              });
-         });
+         }
          
          // Calculate total ingredients used per menu
          Object.values(menuAggregation).forEach(menu => {
@@ -1907,26 +2087,26 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
         const body = document.getElementById('ingredient-details-body');
         const headRow = document.querySelector('#ingredient-details-table thead tr');
         
-        // Update panel header
+        // Update panel header - show menu name only
         document.getElementById('detail-order-id').textContent = menuName;
         document.getElementById('detail-order-date').textContent = dateStr;
         document.getElementById('detail-order-status').textContent = `${menuData.total_orders} pesanan`;
         
-        // Update table header for ingredient details (6 columns)
+        // Update table header for per-item breakdown (5 columns - removed Total Konsumsi)
         if (headRow) {
             headRow.innerHTML = `
                 <th>No</th>
                 <th>Nama Bahan</th>
-                <th>Total Konsumsi</th>
                 <th>Unit</th>
-                <th>Avg per Pesanan</th>
-                <th>Kontribusi</th>`;
+                <th>Stok Sebelum</th>
+                <th>Stok Akhir</th>`;
         }
         
-        const ingredientsList = menuData.ingredients_list || [];
+        // Get order IDs for this menu to fetch per-item details
+        const orderIds = menuData.order_ids || [];
         
-        if (ingredientsList.length === 0) {
-            body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada data bahan untuk menu ini</td></tr>';
+        if (orderIds.length === 0) {
+            body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada data order untuk menu ini</td></tr>';
             if (panel) panel.classList.remove('hidden');
             setTimeout(() => {
                 panel.scrollIntoView({behavior: 'smooth', block: 'start'});
@@ -1934,44 +2114,173 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
             return;
         }
         
-        // Calculate total consumption for percentage
-        const totalConsumption = ingredientsList.reduce((sum, ing) => sum + (ing.total_consumed || 0), 0);
-        
-        // Sort ingredients by total_consumed descending
-        const sortedIngredients = ingredientsList.sort((a, b) => b.total_consumed - a.total_consumed);
-        
-        const rows = sortedIngredients.map((ing, idx) => {
-            const avgPerOrder = menuData.total_orders > 0 ? 
-                (ing.total_consumed / menuData.total_orders).toFixed(2) : 0;
-            const contribution = totalConsumption > 0 ? 
-                ((ing.total_consumed / totalConsumption) * 100).toFixed(1) : 0;
-            
-            return `
-                <tr style="border-bottom: 1px solid #F3F4F6;">
-                    <td>${idx + 1}</td>
-                    <td style="font-weight: 500; color: #1F2937;">${ing.ingredient_name}</td>
-                    <td style="text-align: center; font-weight: 600; color: #DC2626;">${Number(ing.total_consumed || 0).toFixed(2)}</td>
-                    <td style="text-align: center; color: #6B7280;">${ing.unit || '-'}</td>
-                    <td style="text-align: center; color: #059669;">${avgPerOrder}</td>
-                    <td style="text-align: center;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
-                            <div style="width: 60px; height: 8px; background: #E5E7EB; border-radius: 4px; overflow: hidden;">
-                                <div style="width: ${contribution}%; height: 100%; background: linear-gradient(90deg, #DC2626, #F59E0B); transition: width 0.3s;"></div>
-                            </div>
-                            <span style="font-size: 0.85rem; font-weight: 600; color: #6B7280;">${contribution}%</span>
-                        </div>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-        
-        body.innerHTML = rows;
-        
-        // Show panel and scroll to it
+        // Show loading state
+        body.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 1.5rem;"><i class="fas fa-spinner fa-spin"></i> Memuat detail per item...</td></tr>';
         if (panel) panel.classList.remove('hidden');
-        setTimeout(() => {
-            panel.scrollIntoView({behavior: 'smooth', block: 'start'});
-        }, 150);
+        
+        // Fetch per-item details for each order
+        const fetchPromises = orderIds.map(orderId => 
+            fetch(`/order/${encodeURIComponent(orderId)}/ingredients`, { cache: 'no-store' })
+                .then(res => res.ok ? res.json() : null)
+                .catch(() => null)
+        );
+        
+        Promise.all(fetchPromises).then(results => {
+            const perItemRows = [];
+            let rowNum = 0;
+            
+            results.forEach((json, idx) => {
+                if (!json) return;
+                
+                const orderId = orderIds[idx];
+                const menuBreakdown = json?.data?.menu_breakdown || json?.menu_breakdown || [];
+                
+                // Filter items that match the current menu name
+                menuBreakdown.forEach((item, itemIndex) => {
+                    const itemMenuName = (item.menu_name || item.name || '').trim();
+                    // Match menu name (case-insensitive, ignore extra spaces)
+                    if (itemMenuName.toLowerCase().replace(/\s+/g, ' ') !== menuName.toLowerCase().replace(/\s+/g, ' ')) {
+                        return; // Skip items that don't match this menu
+                    }
+                    
+                    const itemQty = Number(item.quantity || item.qty || 1);
+                    const ingredients = item.ingredients || [];
+                    
+                    if (ingredients.length === 0) {
+                        // Show row even if no ingredients (for visibility)
+                        rowNum++;
+                        perItemRows.push(`
+                            <tr style="border-bottom: 1px solid #F3F4F6;">
+                                <td style="padding: 0.75rem 1rem; text-align: center;">${rowNum}</td>
+                                <td colspan="4" style="padding: 0.75rem 1rem; text-align: center; color: #6B7280; font-style: italic;">
+                                    Tidak ada detail ingredient untuk item ini
+                                </td>
+                            </tr>
+                        `);
+                        return;
+                    }
+                    
+                    // Render each ingredient for this item
+                    ingredients.forEach((ing, ingIdx) => {
+                        rowNum++;
+                        const ingName = ing.ingredient_name || ing.name || '-';
+                        const unit = ing.unit || ing.unit_name || '-';
+                        
+                        // Calculate qty used
+                        const c = Number(ing.consumed_quantity);
+                        const rq = Number(ing.required_quantity);
+                        const qq = Number(ing.quantity);
+                        let qtyUsed = 0;
+                        
+                        if (Number.isFinite(c) && c > 0) {
+                            qtyUsed = c;
+                        } else if (Number.isFinite(rq) && rq > 0 && itemQty > 0) {
+                            qtyUsed = rq * itemQty;
+                        } else if (Number.isFinite(qq) && qq > 0) {
+                            qtyUsed = itemQty > 0 ? (qq * itemQty) : qq;
+                        }
+                        
+                        const stockBefore = (ing.stock_before_consumption ?? ing.stock_before ?? null);
+                        const stockAfter = (ing.stock_after_consumption ?? ing.stock_after ?? null);
+                        const stockBeforeDisplay = (stockBefore !== null && stockBefore !== undefined) 
+                            ? Number(stockBefore).toLocaleString('id-ID') : '-';
+                        const stockAfterDisplay = (stockAfter !== null && stockAfter !== undefined) 
+                            ? Number(stockAfter).toLocaleString('id-ID') : '-';
+                        
+                        // Group ingredients with visual grouping - 5 columns (removed Total Konsumsi)
+                        const isFirstIngredient = ingIdx === 0;
+                        const rowStyle = isFirstIngredient ? 'border-top: 2px solid #E5E7EB;' : '';
+                        
+                        perItemRows.push(`
+                            <tr style="border-bottom: 1px solid #F3F4F6; ${rowStyle} transition: background-color 0.2s ease;" 
+                                onmouseover="this.style.backgroundColor='#F9FAFB'" 
+                                onmouseout="this.style.backgroundColor='transparent'">
+                                <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280;">${rowNum}</td>
+                                <td style="padding: 0.75rem 1rem; font-weight: 500; color: #1F2937;">${ingName}</td>
+                                <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280;">${unit}</td>
+                                <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280;">${stockBeforeDisplay}</td>
+                                <td style="padding: 0.75rem 1rem; text-align: center;">
+                                    <span style="font-weight: 600; color: #DC2626;">${stockAfterDisplay}</span>
+                                </td>
+                            </tr>
+                        `);
+                    });
+                });
+            });
+            
+            if (perItemRows.length === 0) {
+                body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada detail ingredient per item untuk menu ini</td></tr>';
+            } else {
+                // Calculate summary statistics
+                let totalIngredients = 0;
+                let totalQtyUsed = 0;
+                const ingredientSet = new Set();
+                
+                results.forEach((json) => {
+                    if (!json) return;
+                    const menuBreakdown = json?.data?.menu_breakdown || json?.menu_breakdown || [];
+                    
+                    menuBreakdown.forEach((item) => {
+                        const itemMenuName = (item.menu_name || item.name || '').trim();
+                        if (itemMenuName.toLowerCase().replace(/\s+/g, ' ') !== menuName.toLowerCase().replace(/\s+/g, ' ')) {
+                            return;
+                        }
+                        
+                        const itemQty = Number(item.quantity || item.qty || 1);
+                        const ingredients = item.ingredients || [];
+                        
+                        ingredients.forEach((ing) => {
+                            ingredientSet.add(ing.ingredient_name || ing.name);
+                            
+                            const c = Number(ing.consumed_quantity);
+                            const rq = Number(ing.required_quantity);
+                            const qq = Number(ing.quantity);
+                            let qtyUsed = 0;
+                            
+                            if (Number.isFinite(c) && c > 0) {
+                                qtyUsed = c;
+                            } else if (Number.isFinite(rq) && rq > 0 && itemQty > 0) {
+                                qtyUsed = rq * itemQty;
+                            } else if (Number.isFinite(qq) && qq > 0) {
+                                qtyUsed = itemQty > 0 ? (qq * itemQty) : qq;
+                            }
+                            
+                            totalQtyUsed += qtyUsed;
+                        });
+                    });
+                });
+                
+                totalIngredients = ingredientSet.size;
+                
+                // Add summary row at top
+                const summaryRow = `
+                    <tr style="background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%); border-bottom: 2px solid #E5E7EB; font-weight: 600;">
+                        <td colspan="5" style="padding: 1rem; text-align: center;">
+                            <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
+                                <div>
+                                    <span style="color: #6B7280; font-size: 0.9rem;">Total Items:</span>
+                                    <span style="color: #059669; font-size: 1.1rem; margin-left: 0.5rem; font-weight: 700;">${menuData.total_orders || 0}</span>
+                                </div>
+                                <div>
+                                    <span style="color: #6B7280; font-size: 0.9rem;">Jenis Bahan:</span>
+                                    <span style="color: #1F2937; font-size: 1.1rem; margin-left: 0.5rem;">${totalIngredients}</span>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                
+                body.innerHTML = summaryRow + perItemRows.join('');
+            }
+            
+            // Scroll to panel after data loaded
+            setTimeout(() => {
+                panel.scrollIntoView({behavior: 'smooth', block: 'start'});
+            }, 150);
+        }).catch(e => {
+            console.error('Failed to fetch per-item details:', e);
+            body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #ef4444; padding: 1.5rem;">Gagal memuat detail per item</td></tr>';
+        });
         
     } catch (e) {
         console.error('Failed to show menu ingredient details:', e);
@@ -1979,6 +2288,211 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
     }
 }
 
+// ========== PER-ITEM INGREDIENT ESTIMATE (LOGS MODE) ==========
+function showItemIngredientDetailsFromEvent(buttonEl) {
+    try {
+        if (!buttonEl) return;
+        const orderId = buttonEl.getAttribute('data-order-id') || '';
+        const itemId = buttonEl.getAttribute('data-item-id') || '';
+        let menuName = buttonEl.getAttribute('data-menu') || '-';
+        // Prefer display flavor; keep normalized for mapping
+        let flavorDisplay = buttonEl.getAttribute('data-flavor-display') || '';
+        let flavorNorm = buttonEl.getAttribute('data-flavor') || '';
+        const qty = Number(buttonEl.getAttribute('data-qty') || 0) || 0;
+
+        // Fallback: if flavor not provided, try lookup from cached per-order items by item_id
+        if ((!flavorDisplay || flavorDisplay === '-') && currentPerOrderItems && currentPerOrderItems.orderId === String(orderId)) {
+            const found = (currentPerOrderItems.items || []).find(x => String(x.item_id || x.id || x.order_item_id || '') === String(itemId));
+            if (found) {
+                menuName = found.menu_name || menuName;
+                const raw = found.flavor_display || getItemFlavorRaw(found) || '';
+                flavorDisplay = raw || flavorDisplay;
+                flavorNorm = normalizeFlavorForKey(found.flavor || raw || '') || flavorNorm;
+            }
+        }
+
+        // Pass both: display for UI, normalized for mapping lookup inside details
+        showItemIngredientDetails(orderId, itemId, menuName, flavorDisplay || flavorNorm, qty);
+    } catch (err) {
+        console.warn('Failed handling per-item click:', err);
+    }
+}
+
+function showItemIngredientDetails(orderId, itemId, menuName, flavorName, qty) {
+    try {
+        const tbody = document.getElementById('ingredient-details-body');
+        if (!tbody) return;
+        const safeRowId = `per-item-row-${(itemId || `${orderId}`).replace(/[^a-zA-Z0-9_-]/g, '')}`;
+        const row = document.getElementById(safeRowId);
+        if (!row) return;
+
+        // Toggle existing details row
+        const existing = document.getElementById(`${safeRowId}-details`);
+        if (existing) {
+            existing.parentElement.removeChild(existing);
+            return;
+        }
+
+        // Prefer backend per-item breakdown
+        let list = [];
+        let usedSource = 'mapping';
+        if (currentPerOrderBreakdown && currentPerOrderBreakdown.orderId === String(orderId) && Array.isArray(currentPerOrderBreakdown.menu_breakdown)) {
+            const foundItem = currentPerOrderBreakdown.menu_breakdown.find(it => String(it.item_id || it.id || it.order_item_id || '') === String(itemId));
+            if (foundItem && Array.isArray(foundItem.ingredients) && foundItem.ingredients.length) {
+                // Preserve raw fields; compute display values later
+                list = foundItem.ingredients.map(x => ({
+                    ingredient_id: x.ingredient_id || x.id,
+                    ingredient_name: x.ingredient_name || x.name,
+                    unit: x.unit || x.unit_name || '-',
+                    required_quantity: Number(x.required_quantity ?? 0) || 0,
+                    consumed_quantity: Number(x.consumed_quantity ?? 0) || 0,
+                    quantity: Number(x.quantity ?? 0) || 0,
+                    stock_before: (x.stock_before_consumption ?? x.stock_before ?? null),
+                    stock_after: (x.stock_after_consumption ?? x.stock_after ?? null)
+                }));
+                usedSource = 'backend:item';
+            }
+        }
+
+        // Fallback to flavor mapping
+        let flavorKey = '';
+        if (!Array.isArray(list) || !list.length) {
+            const raw = (flavorName || '-').toString();
+            flavorKey = normalizeFlavorForKey(raw);
+            const tryKeys = [flavorKey];
+            const alt = flavorKey.replace(/\s+/g, ' ').trim();
+            if (!tryKeys.includes(alt)) tryKeys.push(alt);
+            const noSpaces = flavorKey.replace(/\s+/g, '');
+            if (!tryKeys.includes(noSpaces)) tryKeys.push(noSpaces);
+            for (const k of tryKeys) {
+                if (globalFlavorMap && globalFlavorMap[k]) { list = globalFlavorMap[k]; break; }
+            }
+        }
+
+        let content = '';
+        if (Array.isArray(list) && list.length) {
+            const q = Number(qty || 0) || 0;
+            const rows = list.map((m, idx) => {
+                const ingName = m?.ingredient_name || m?.name || m?.ingredient_id || '-';
+                const unit = m?.unit || '-';
+                // Compute Qty Terpakai, Stok Sebelum, Stok Sesudah
+                let qtyUsed = 0;
+                let stockBefore = '-';
+                let stockAfter = '-';
+                if (usedSource === 'backend:item') {
+                    const c = Number(m.consumed_quantity);
+                    const rq = Number(m.required_quantity);
+                    const qq = Number(m.quantity);
+                    if (Number.isFinite(c) && c > 0) {
+                        qtyUsed = c;
+                    } else if (Number.isFinite(rq) && rq > 0 && q > 0) {
+                        qtyUsed = rq * q;
+                    } else if (Number.isFinite(qq) && qq > 0) {
+                        qtyUsed = q > 0 ? (qq * q) : qq;
+                    } else {
+                        qtyUsed = 0;
+                    }
+                    if (m.stock_before !== null && m.stock_before !== undefined) stockBefore = Number(m.stock_before).toLocaleString('id-ID');
+                    if (m.stock_after !== null && m.stock_after !== undefined) stockAfter = Number(m.stock_after).toLocaleString('id-ID');
+                } else {
+                    const perServing = Number(m?.quantity_per_serving || m?.qty_per_serving || m?.quantity || 0) || 0;
+                    qtyUsed = perServing * q;
+                    stockBefore = '-';
+                    stockAfter = '-';
+                }
+                return `
+                    <tr style="border-bottom: 1px solid #F3F4F6;">
+                        <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280; font-weight: 500;">${idx + 1}</td>
+                        <td style="padding: 0.75rem 1rem; font-weight: 600; color: #1F2937;">${ingName}</td>
+                        <td style="padding: 0.75rem 1rem; text-align: center; color: #059669; font-weight: 600;">${qtyUsed.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280;">${unit}</td>
+                        <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280; font-weight: 500;">${stockBefore}</td>
+                        <td style="padding: 0.75rem 1rem; text-align: center; font-weight: 700; color: #DC2626;">${stockAfter}</td>
+                    </tr>`;
+            }).join('');
+            content = `
+                <div style="background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 12px; padding: 1.25rem; margin: 0.75rem 0; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 2px solid #E5E7EB;">
+                        <div>
+                            <div style="font-weight: 700; font-size: 1.05rem; color: #111827; margin-bottom: 0.25rem;">
+                                <i class="fas fa-flask" style="color: #2563EB; margin-right: 0.5rem;"></i>Detail Bahan
+                            </div>
+                            <div style="font-size: 0.9rem; color: #6B7280; margin-left: 1.75rem;">
+                                ${menuName || '-'} • <span style="color: #059669; font-weight: 600;">${flavorName || '-'}</span> • Qty: <span style="font-weight: 600;">${qty}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; border-spacing: 0;">
+                            <thead>
+                                <tr style="background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%); color: white;">
+                                    <th style="text-align: center; padding: 0.875rem 1rem; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; border-top-left-radius: 8px;">No</th>
+                                    <th style="text-align: left; padding: 0.875rem 1rem; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Nama Bahan</th>
+                                    <th style="text-align: center; padding: 0.875rem 1rem; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Qty Terpakai</th>
+                                    <th style="text-align: center; padding: 0.875rem 1rem; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Unit</th>
+                                    <th style="text-align: center; padding: 0.875rem 1rem; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Stok Sebelum</th>
+                                    <th style="text-align: center; padding: 0.875rem 1rem; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; border-top-right-radius: 8px;">Stok Sesudah</th>
+                                </tr>
+                            </thead>
+                            <tbody style="background: #FFFFFF;">
+                                ${rows}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #E5E7EB; font-size: 0.8rem; color: #6B7280; display: flex; justify-content: space-between; align-items: center;">
+                        <span>
+                            <i class="fas fa-info-circle" style="color: #3B82F6; margin-right: 0.25rem;"></i>
+                            Total bahan yang digunakan untuk item ini
+                        </span>
+                        <span style="font-weight: 600; color: #1F2937;">
+                            ${list.length} bahan
+                        </span>
+                    </div>
+                </div>`;
+        } else {
+            content = `
+                <div style="background: linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%); border: 2px solid #FECACA; border-radius: 12px; padding: 1.5rem; margin: 0.75rem 0; box-shadow: 0 2px 4px rgba(220, 38, 38, 0.1);">
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem;">
+                        <div style="flex-shrink: 0; width: 48px; height: 48px; background: #FEE2E2; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid #FCA5A5;">
+                            <i class="fas fa-exclamation-triangle" style="color: #DC2626; font-size: 1.25rem;"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 700; font-size: 1rem; color: #991B1B; margin-bottom: 0.25rem;">
+                                Data Mapping Tidak Ditemukan
+                            </div>
+                            <div style="font-size: 0.875rem; color: #B91C1C;">
+                                Mapping untuk flavor "<span style="font-weight: 600; background: #FEE2E2; padding: 0.125rem 0.5rem; border-radius: 4px;">${flavorKey || (flavorName||'-')}</span>" tidak tersedia
+                            </div>
+                        </div>
+                    </div>
+                    <div style="background: #FFFFFF; border: 1px solid #FECACA; border-radius: 8px; padding: 1rem; margin-top: 1rem;">
+                        <div style="font-size: 0.8rem; color: #6B7280; margin-bottom: 0.5rem; font-weight: 600;">
+                            <i class="fas fa-list-ul" style="color: #3B82F6; margin-right: 0.5rem;"></i>Flavor yang Tersedia:
+                        </div>
+                        <div style="font-size: 0.8rem; color: #374151; line-height: 1.6; max-height: 120px; overflow-y: auto; padding: 0.5rem; background: #F9FAFB; border-radius: 6px;">
+                            ${Object.keys(globalFlavorMap || {}).length > 0 
+                                ? Object.keys(globalFlavorMap).map(k => `<span style="display: inline-block; background: #EEF2FF; color: #4F46E5; padding: 0.25rem 0.75rem; border-radius: 12px; margin: 0.25rem; font-weight: 500; border: 1px solid #C7D2FE;">${k}</span>`).join('')
+                                : '<span style="color: #9CA3AF; font-style: italic;">Tidak ada flavor mapping yang tersedia</span>'
+                            }
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        const detailsRow = document.createElement('tr');
+        detailsRow.id = `${safeRowId}-details`;
+        const colSpan = 5; // match header columns in logs mode (No, Menu, Flavor, Qty, Action)
+        detailsRow.innerHTML = `<td colspan="${colSpan}" style="padding: 0; background: transparent;">${content}</td>`;
+        // Insert after the clicked row
+        if (row.nextSibling) {
+            row.parentNode.insertBefore(detailsRow, row.nextSibling);
+        } else {
+            row.parentNode.appendChild(detailsRow);
+        }
+    } catch (e) {
+        console.warn('Failed rendering per-item ingredient details:', e);
+    }
+}
 async function showDailyIngredientAccumulation(dateParam, dateFormatted) {
     try {
         const panel = document.getElementById('ingredient-details-panel');
@@ -2340,7 +2854,8 @@ async function exportIngredientExcel() {
     // 2) Fetch per-order ingredient breakdowns (menu_breakdown preferred)
     async function fetchBreakdown(orderId) {
         try {
-            const res = await fetch(`/report/order/${encodeURIComponent(orderId)}/ingredients`, { cache: 'no-store' });
+            // Use inventory proxy endpoint for per-order ingredient breakdown in logs view
+            const res = await fetch(`/order/${encodeURIComponent(orderId)}/ingredients`, { cache: 'no-store' });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const json = await res.json();
             const data = json?.data || json || {};
@@ -2603,7 +3118,8 @@ async function exportIngredientPDF() {
 
     async function fetchBreakdown(orderId) {
         try {
-            const res = await fetch(`/report/order/${encodeURIComponent(orderId)}/ingredients`, { cache: 'no-store' });
+            // Use inventory proxy endpoint for per-order ingredient breakdown in export as well
+            const res = await fetch(`/order/${encodeURIComponent(orderId)}/ingredients`, { cache: 'no-store' });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const json = await res.json();
             const data = json?.data || json || {};
@@ -3640,7 +4156,8 @@ function updateSummaryWithFinancialData(data, type = 'sales') {
     if (summaryOrders) {
         const summary = data.summary;
         if (summary) {
-            summaryOrders.textContent = `${summary.total_transactions || 0}`;
+            // Show number of completed (done) orders, not line-item transactions
+            summaryOrders.textContent = `${summary.processed_orders || 0}`;
         } else {
             summaryOrders.textContent = '0';
         }
@@ -4052,10 +4569,12 @@ async function loadReport(rangeOverride = null, maybeEnd = null) {
 
             // Aggregate sales data by menu + flavor combination
             const details = aggregateSalesData(rawTransactions);
-        console.log('Aggregated sales data:', details);
+            console.log('Aggregated sales data:', details);
+
+            details.sort((a, b) => (a.menu_name || '').localeCompare(b.menu_name || ''));
         
             const newHash = computeDataHash(details);
-        // Always update data and render, regardless of hash
+            // Always update data and render, regardless of hash
                 lastReportHash = newHash;
                 baseData = details;
                 // preserve current search if any
@@ -4066,7 +4585,7 @@ async function loadReport(rangeOverride = null, maybeEnd = null) {
                 renderReportTable();
                 updateReportPagination();
                 // Re-render charts only when data changed (using aggregated data)
-        const chartData = aggregateChartDataByMenu(details);
+    const chartData = aggregateChartDataByMenu(details);
         renderCharts(chartData);
         // .map(item => ({
         //     menu_name: item.menu_name || 'N/A',
@@ -4168,6 +4687,7 @@ async function loadBestSellerData(rangeOverride = null, maybeEnd = null) {
             applyModeLayout('best');
 
             const best = data.best_sellers;
+            best.sort((a, b) => (b.total_quantity || 0) - (a.total_quantity || 0));
             const newHash = computeDataHash(best);
             // Force refresh when switching from a different type
             if (newHash !== lastBestHash || previousType !== 'best') {
@@ -5213,22 +5733,34 @@ async function applyReportFilter() {
             await loadIngredientAnalysisData();
             applyIngredientModeLayout();
             return;
-        } else if (dataType === 'best') {
-            // Load best seller data
-            resetToNormalMode();
-            const range = getValidatedGlobalRange(true, true);
-            if (!range) return;
+        } 
+        
+        const range = getValidatedGlobalRange(true, true);
+        if (!range) return;
+        resetToNormalMode();
+
+        if (dataType === 'best') {
             await loadBestSellerData(range);
-      // Ensure header is updated after best seller data load
-      updateReportTableHeader();
+            if (sortSelect) {
+                sortSelect.value = 'qty';
+            }
+            // Load best seller data
+            // resetToNormalMode();
+            // const range = getValidatedGlobalRange(true, true);
+            // if (!range) return;
+            // Ensure header is updated after best seller data load
+            updateReportTableHeader();
         } else {
-            // Load sales data
-            resetToNormalMode();
-            const range = getValidatedGlobalRange(true, true);
-            if (!range) return;
             await loadReport(range);
-      // Ensure header is updated after sales data load
-      updateReportTableHeader();
+            if (sortSelect) {
+                sortSelect.value = 'name';
+            }
+            // Load sales data
+            // resetToNormalMode();
+            // const range = getValidatedGlobalRange(true, true);
+            // if (!range) return;
+            // Ensure header is updated after sales data load
+            updateReportTableHeader();
         }
     }
     
@@ -5257,22 +5789,22 @@ async function applyReportFilter() {
 
         } else {
             // Penyortiran untuk sales dan best seller
-        filteredData.sort((a, b) => {
-            if (val === 'name') {
-                return (a.menu_name || '').localeCompare(b.menu_name || '');
-            }
-            if (val === 'qty') {
-                const qa = a.quantity ?? a.total_quantity ?? 0;
-                const qb = b.quantity ?? b.total_quantity ?? 0;
-                return qb - qa; // desc
-            }
-            if (val === 'total') {
-                const ta = a.total ?? a.profit ?? 0;
-                const tb = b.total ?? b.profit ?? 0;
-                return tb - ta; // desc
-            }
-            return 0;
-        });
+            filteredData.sort((a, b) => {
+                if (val === 'name') {
+                    return (a.menu_name || '').localeCompare(b.menu_name || '');
+                }
+                if (val === 'qty') {
+                    const qa = a.quantity ?? a.total_quantity ?? 0;
+                    const qb = b.quantity ?? b.total_quantity ?? 0;
+                    return qb - qa; // desc
+                }
+                if (val === 'total') {
+                    const ta = a.total ?? a.profit ?? 0;
+                    const tb = b.total ?? b.profit ?? 0;
+                    return tb - ta; // desc
+                }
+                return 0;
+            });
         }
         reportCurrentPage = 1;
         renderReportTable();
@@ -5673,11 +6205,20 @@ document.addEventListener('visibilitychange', () => {
         const ingredientEndDate = document.getElementById('ingredient-end-date');
         if (ingredientStartDate) {
             ingredientStartDate.addEventListener('change', function() {
+                // Mirror into global start_date to keep one source of truth
+                const gStart = document.getElementById('start_date');
+                if (gStart) gStart.value = this.value || '';
+                const periodEl = document.getElementById('period-select');
+                if (periodEl) periodEl.value = 'custom';
                 loadIngredientAnalysisData();
             });
         }
         if (ingredientEndDate) {
             ingredientEndDate.addEventListener('change', function() {
+                const gEnd = document.getElementById('end_date');
+                if (gEnd) gEnd.value = this.value || '';
+                const periodEl = document.getElementById('period-select');
+                if (periodEl) periodEl.value = 'custom';
                 loadIngredientAnalysisData();
             });
         }
@@ -5710,7 +6251,7 @@ document.addEventListener('visibilitychange', () => {
 function getItemFlavorRaw(item) {
     if (!item || typeof item !== 'object') return '';
     // Preferred explicit fields
-    const direct = item.flavor || item.rasa || item.flavour || item.variant || item.variation || item.taste;
+    const direct = item.flavor || (item.flavor_name) || (item.preference) || item.rasa || item.flavour || item.variant || item.variation || item.taste;
     if (direct) return String(direct);
     // Fallback: scan keys that look like flavor
     for (const k of Object.keys(item)) {
@@ -5724,7 +6265,18 @@ function getItemFlavorRaw(item) {
 }
 
 function normalizeFlavorForKey(raw) {
-    return (raw || '').trim();
+    try {
+        // Lowercase, trim, collapse spaces, remove diacritics
+        const base = String(raw || '')
+            .normalize('NFD')
+            .replace(/\p{Diacritic}+/gu, '')
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, ' ');
+        return base;
+    } catch (_) {
+        return (raw || '').toString().trim().toLowerCase();
+    }
 }
 
 async function openGroupedConsumptionModal(orderIdsCsv, dateStr, statusText, menuName, flavorName) {

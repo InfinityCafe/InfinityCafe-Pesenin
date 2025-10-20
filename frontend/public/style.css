@@ -1285,6 +1285,7 @@ body.tab-audit-history .add-item-btn {
     }
 
     .modal-btn {
+        font-family: 'Inter', sans-serif;
         padding: 0.75rem 1.5rem;
         border: none;
         border-radius: 0.5rem;
@@ -1356,6 +1357,7 @@ body.tab-audit-history .add-item-btn {
     }
 
     .modal-btn-habis,
+    .ability-confirm-modal .modal-btn-danger,
     .delete-confirm-modal .modal-btn-danger {
         font-family: 'Inter', sans-serif;
         background: linear-gradient(90deg, #b3261e 0%, #f26060 100%);
@@ -1363,6 +1365,7 @@ body.tab-audit-history .add-item-btn {
     }
 
     .modal-btn-habis:hover,
+    .ability-confirm-modal .modal-btn-danger:hover,
     .delete-confirm-modal .modal-btn-danger:hover {
         transition: opacity 0.3s ease;
         background: #B3261E;
@@ -1384,6 +1387,7 @@ body.tab-audit-history .add-item-btn {
     }
 
     /* Delete Confirmation Modal */
+    .ability-confirm-modal,
     .delete-confirm-modal {
         max-width: 450px;
         text-align: center;
@@ -1503,6 +1507,7 @@ body.tab-audit-history .add-item-btn {
         gap: 0.5rem;
     }
 
+    .ability-confirm-modal .modal-header,
     .delete-confirm-modal .modal-header {
         display: flex;
         flex-direction: column;
@@ -1510,21 +1515,25 @@ body.tab-audit-history .add-item-btn {
         margin-bottom: 1.5rem;
     }
 
+    .ability-confirm-modal .warning-icon,
     .delete-confirm-modal .warning-icon {
         font-size: 3rem;
         color: #F59E0B;
         margin-bottom: 1rem;
     }
 
+    .ability-confirm-modal .modal-title,
     .delete-confirm-modal .modal-title {
         color: #1F2937;
         margin-bottom: 0;
     }
 
+    .ability-confirm-modal .modal-body,
     .delete-confirm-modal .modal-body {
         margin-bottom: 2rem;
     }
 
+    .ability-confirm-modal .modal-body p,
     .delete-confirm-modal .modal-body p {
         margin-bottom: 0.5rem;
         color: #6B7280;
@@ -1532,12 +1541,14 @@ body.tab-audit-history .add-item-btn {
         line-height: 1.5;
     }
 
+    .ability-confirm-modal .delete-warning,
     .delete-confirm-modal .delete-warning {
         color: #EF4444 !important;
         font-weight: 600;
         font-size: 0.875rem !important;
     }
 
+    .ability-confirm-modal .modal-actions,
     .delete-confirm-modal .modal-actions {
         justify-content: center;
         gap: 1rem;
@@ -1660,6 +1671,7 @@ body.tab-audit-history .add-item-btn {
 
     /* Responsive styles for new modals */
     @media (max-width: 768px) {
+        .ability-confirm-modal,
         .delete-confirm-modal,
         .success-modal,
         .error-modal {
@@ -1667,24 +1679,28 @@ body.tab-audit-history .add-item-btn {
             margin: 1rem;
         }
 
+        .ability-confirm-modal .warning-icon,
         .delete-confirm-modal .warning-icon,
         .success-modal .success-icon,
         .error-modal .error-icon {
             font-size: 2.5rem;
         }
 
+        .ability-confirm-modal .modal-title,
         .delete-confirm-modal .modal-title,
         .success-modal .modal-title,
         .error-modal .modal-title {
             font-size: 1.125rem;
         }
 
+        .ability-confirm-modal .modal-body p,
         .delete-confirm-modal .modal-body p,
         .success-modal .modal-body p,
         .error-modal .modal-body p {
             font-size: 0.875rem;
         }
 
+        .ability-confirm-modal .modal-actions,
         .delete-confirm-modal .modal-actions,
         .success-modal .modal-actions,
         .error-modal .modal-actions {
@@ -1692,6 +1708,7 @@ body.tab-audit-history .add-item-btn {
             gap: 0.75rem;
         }
 
+        .ability-confirm-modal .modal-btn,
         .delete-confirm-modal .modal-btn,
         .success-modal .modal-btn,
         .error-modal .modal-btn {
@@ -1701,6 +1718,7 @@ body.tab-audit-history .add-item-btn {
     }
 
     @media (max-width: 480px) {
+        .ability-confirm-modal,
         .delete-confirm-modal,
         .success-modal,
         .error-modal {
@@ -1708,18 +1726,21 @@ body.tab-audit-history .add-item-btn {
             margin: 0.5rem;
         }
 
+        .ability-confirm-modal .warning-icon,
         .delete-confirm-modal .warning-icon,
         .success-modal .success-icon,
         .error-modal .error-icon {
             font-size: 2rem;
         }
 
+        .ability-confirm-modal .modal-title,
         .delete-confirm-modal .modal-title,
         .success-modal .modal-title,
         .error-modal .modal-title {
             font-size: 1rem;
         }
 
+        .ability-confirm-modal .modal-body p,
         .delete-confirm-modal .modal-body p,
         .success-modal .modal-body p,
         .error-modal .modal-body p {
@@ -2241,6 +2262,9 @@ body.tab-audit-history .add-item-btn {
 
 /* Modal Add Order Figma Style */
 /* .add-menu-modal, */
+#yyedit-user-modal .modal-content,
+#add-user-modal .modal-content,
+#change-password-modal .modal-content,
 #suggestion-modal .modal-content,
 #consumption-log-modal .modal-content,
 #bulk-stock-modal .modal-content,
@@ -2806,7 +2830,7 @@ body.tab-audit-history .add-item-btn {
     overflow: hidden;
 }
 
-#menu-table, #flavors-table, #inventory-table, #suggestions-table, #report-table, #sales-table, #bestseller-table, #ingredient-table, #ingredient-logs-table, #audit-history-table, #ingredient-details-table, #ingredient-analysis-table, #ingredient-detail-log { 
+#menu-table, #flavors-table, #inventory-table, #suggestions-table, #report-table, #sales-table, #bestseller-table, #ingredient-table, #ingredient-logs-table, #audit-history-table, #ingredient-details-table, #ingredient-analysis-table, #ingredient-detail-log, #user-table { 
     width: 100%;
     border-collapse: separate;
     border-spacing: 0.75rem;
@@ -2829,7 +2853,8 @@ body.tab-audit-history .add-item-btn {
 #audit-history-table th, #audit-history-table td,
 #ingredient-details-table th, #ingredient-details-table td,
 #ingredient-analysis-table th, #ingredient-analysis-table td,
-#ingredient-detail-log th, #ingredient-detail-log td {
+#ingredient-detail-log th, #ingredient-detail-log td,
+#user-table th, #user-table td {
     position: relative;
 }
 
@@ -2845,7 +2870,8 @@ body.tab-audit-history .add-item-btn {
 #audit-history-table thead tr,
 #ingredient-details-table thead tr,
 #ingredient-analysis-table thead tr,
-#ingredient-detail-log thead tr {
+#ingredient-detail-log thead tr,
+#user-table thead tr {
     background-color: #CAB99D;
 }
 
@@ -2860,7 +2886,8 @@ body.tab-audit-history .add-item-btn {
 #audit-history-table th,
 #ingredient-details-table th,
 #ingredient-analysis-table th,
-#ingredient-detail-log th {
+#ingredient-detail-log th,
+#user-table th {
     padding: 0.75rem 1rem;
     text-align: center;
     font-weight: bold;
@@ -2883,7 +2910,8 @@ body.tab-audit-history .add-item-btn {
 #audit-history-table th:first-child,
 #ingredient-details-table th:first-child,
 #ingredient-analysis-table th:first-child,
-#ingredient-detail-log th:first-child {
+#ingredient-detail-log th:first-child,
+#user-table th:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
 }
@@ -2904,15 +2932,16 @@ body.tab-audit-history .add-item-btn {
 #sales-table th:nth-child(8),
 #bestseller-table th:nth-child(5),
 #ingredient-table th:nth-child(5),
-#ingredient-logs-table th:nth-child(7),
+#ingredient-logs-table th:nth-child(5),
 #report-table th:nth-child(6),
 #report-table th:last-child,
 #audit-history-table th:nth-child(7),
 #ingredient-details-table th:nth-child(6),
 #ingredient-analysis-table th:nth-child(6),
-#ingredient-logs-table td:nth-child(6),
+#ingredient-logs-table td:nth-child(5),
 #ingredient-logs-table th:nth-child(6),
-#ingredient-detail-log th:nth-child(4) {
+#ingredient-detail-log th:nth-child(4),
+#user-table th:nth-child(4) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
@@ -2935,7 +2964,8 @@ body.tab-audit-history .add-item-btn {
 #audit-history-table th:not(:first-child):not(.action-header)::before,
 #ingredient-details-table th:not(:first-child):not(.action-header)::before,
 #ingredient-analysis-table th:not(:first-child):not(.action-header)::before,
-#ingredient-detail-log th:not(:first-child):not(.action-header)::before {
+#ingredient-detail-log th:not(:first-child):not(.action-header)::before,
+#user-table th:not(:first-child):not(.action-header)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -2953,7 +2983,8 @@ body.tab-audit-history .add-item-btn {
 #ingredient-logs-table th.action-header,
 #audit-history-table th.action-header,
 #ingredient-details-table th.action-header,
-#ingredient-detail-log th.action-header {
+#ingredient-detail-log th.action-header,
+#user-table th.action-header {
     background-color: #CAB99D;
     border-radius: 0.5rem;
     border-top-right-radius: 0.5rem;
@@ -2972,7 +3003,8 @@ body.tab-audit-history .add-item-btn {
 #audit-history-table tbody tr,
 #ingredient-details-table tbody tr,
 #ingredient-analysis-table tbody tr,
-#ingredient-detail-log tbody tr {
+#ingredient-detail-log tbody tr,
+#user-table tbody tr {
     background-color: transparent;
 }
 
@@ -2981,7 +3013,8 @@ body.tab-audit-history .add-item-btn {
 #report-table td, #sales-table td,
 #bestseller-table td, #ingredient-table td,
 #ingredient-logs-table td, #audit-history-table td,
-#ingredient-details-table td, #ingredient-analysis-table td, #ingredient-detail-log td {
+#ingredient-details-table td, #ingredient-analysis-table td, #ingredient-detail-log td,
+#user-table td {
     padding: 1rem;
     vertical-align: middle;
     background-color: #F4F1E8;
@@ -3001,7 +3034,8 @@ body.tab-audit-history .add-item-btn {
 #audit-history-table td:first-child,
 #ingredient-details-table td:first-child,
 #ingredient-analysis-table td:first-child,
-#ingredient-detail-log td:first-child {
+#ingredient-detail-log td:first-child,
+#user-table td:first-child {
     border-top-left-radius: 0.5rem;
     border-bottom-left-radius: 0.5rem;
 }
@@ -3028,7 +3062,8 @@ body.tab-audit-history .add-item-btn {
 #ingredient-details-table td:nth-child(6),
 #ingredient-analysis-table td:nth-child(6),
 #ingredient-details-table td:last-child,
-#ingredient-detail-log td:nth-child(4) {
+#ingredient-detail-log td:nth-child(4),
+#user-table td:nth-child(4) {
     border-top-right-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
 }
@@ -3049,7 +3084,8 @@ body.tab-audit-history .add-item-btn {
 #ingredient-details-table td:last-child:not(:first-child)::before,
 #sales-table td:last-child:not(:first-child)::before,
 #bestseller-table td:last-child:not(:first-child)::before,
-#ingredient-detail-log td:not(:first-child):not(:last-child)::before {
+#ingredient-detail-log td:not(:first-child):not(:last-child)::before,
+#user-table td:not(:first-child):not(:last-child)::before {
     content: '';
     position: absolute;
     top: 0;
@@ -3068,7 +3104,8 @@ body.tab-audit-history .add-item-btn {
 #audit-history-table td:last-child,
 #sales-table td:last-child,
 #bestseller-table td:last-child,
-#ingredient-detail-log td:last-child {
+#ingredient-detail-log td:last-child,
+#user-table td:last-child {
     background-color: #F4F1E8;
     padding: 0;
     border-top-left-radius: 0.5rem;
@@ -3290,6 +3327,7 @@ body.tab-audit-history .add-item-btn {
 .form-group select,
 .order-item-block select,
 .form-group input[type="text"],
+.form-group input[type="password"],
 .form-group input[type="number"] {
     width: 100%;
     height: 48px;

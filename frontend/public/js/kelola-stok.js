@@ -63,6 +63,8 @@ class InventoryManager {
     this.currentAuditSearchTerm = '';
     this.auditLoaded = false;
     this.viewingAuditId = null;
+    this.auditKnownUsers = new Set();
+    this.auditKnownActionTypes = new Set(Object.keys(this.getAuditActionLabelMap()));
 
     this.initializeEventListeners();
     this.initialLoad();
@@ -580,28 +582,28 @@ class InventoryManager {
   }
 
   // Normalize string for duplicate checks
-  normalizeValue(value) {
-    return (value || '')
-      .toString()
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, ' ');
-  }
+  // normalizeValue(value) {
+  //   return (value || '')
+  //     .toString()
+  //     .trim()
+  //     .toLowerCase()
+  //     .replace(/\s+/g, ' ');
+  // }
 
   // Check if an item with same name+category+unit already exists
-  hasDuplicateItem(name, category, unit, excludeId = null) {
-    const n = this.normalizeValue(name);
-    const c = this.normalizeValue(category);
-    const u = this.normalizeValue(unit);
-    return this.inventory.some(item => {
-      const sameTriple = this.normalizeValue(item.name) === n
-        && this.normalizeValue(item.category) === c
-        && this.normalizeValue(item.unit) === u;
-      if (!sameTriple) return false;
-      if (excludeId != null) return item.id !== excludeId;
-      return true;
-    });
-  }
+  // hasDuplicateItem(name, category, unit, excludeId = null) {
+  //   const n = this.normalizeValue(name);
+  //   const c = this.normalizeValue(category);
+  //   const u = this.normalizeValue(unit);
+  //   return this.inventory.some(item => {
+  //     const sameTriple = this.normalizeValue(item.name) === n
+  //       && this.normalizeValue(item.category) === c
+  //       && this.normalizeValue(item.unit) === u;
+  //     if (!sameTriple) return false;
+  //     if (excludeId != null) return item.id !== excludeId;
+  //     return true;
+  //   });
+  // }
 
   updatePagination() {
     this.totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
@@ -1008,29 +1010,29 @@ class InventoryManager {
     }
   }
 
-  handleLocalFormSubmission(itemData, isEditing, itemId) {
-    if (isEditing) {
-      const index = this.inventory.findIndex(item => item.id === parseInt(itemId));
-      if (index !== -1) {
-        this.inventory[index] = { ...this.inventory[index], ...itemData };
-        showSuccessModal('Item updated successfully (local demo)');
-      }
-    } else {
-      // Add new item to local data
-      const newId = Math.max(...this.inventory.map(item => item.id), 0) + 1;
-      const newItem = { ...itemData, id: newId, is_available: true };
-      this.inventory.push(newItem);
-      showSuccessModal('Item added successfully (local demo)');
-    }
+  // handleLocalFormSubmission(itemData, isEditing, itemId) {
+  //   if (isEditing) {
+  //     const index = this.inventory.findIndex(item => item.id === parseInt(itemId));
+  //     if (index !== -1) {
+  //       this.inventory[index] = { ...this.inventory[index], ...itemData };
+  //       showSuccessModal('Item updated successfully (local demo)');
+  //     }
+  //   } else {
+  //     // Add new item to local data
+  //     const newId = Math.max(...this.inventory.map(item => item.id), 0) + 1;
+  //     const newItem = { ...itemData, id: newId, is_available: true };
+  //     this.inventory.push(newItem);
+  //     showSuccessModal('Item added successfully (local demo)');
+  //   }
 
-    this.applyCurrentFiltersAndSearch();
-    this.updateOverviewCards({
-      total_items: this.inventory.length,
-      critical_count: this.inventory.filter(item => item.current_quantity <= 0).length,
-      low_stock_count: this.inventory.filter(item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length,
-    });
-    this.closeModal('item-modal');
-  }
+  //   this.applyCurrentFiltersAndSearch();
+  //   this.updateOverviewCards({
+  //     total_items: this.inventory.length,
+  //     critical_count: this.inventory.filter(item => item.current_quantity <= 0).length,
+  //     low_stock_count: this.inventory.filter(item => item.current_quantity > 0 && item.current_quantity <= item.minimum_quantity).length,
+  //   });
+  //   this.closeModal('item-modal');
+  // }
 
   async confirmDelete() {
     if (!this.editingItem) return;
@@ -1223,6 +1225,8 @@ class InventoryManager {
         const data = await response.json();
         if (data.status === 'success') {
           const newAuditHistory = data.data.history || [];
+          this.updateKnownAuditUsers(newAuditHistory);
+          this.updateKnownAuditActionTypes(newAuditHistory);
 
           const hasChanged = JSON.stringify(newAuditHistory) !== JSON.stringify(this.auditHistory);
 
@@ -1257,19 +1261,93 @@ class InventoryManager {
     }
   }
 
+  updateKnownAuditUsers(history = []) {
+    history
+      .map(item => (typeof item.performed_by === 'string' ? item.performed_by.trim() : ''))
+      .filter(Boolean)
+      .forEach(user => this.auditKnownUsers.add(user));
+    const currentUser = (this.currentAuditFilters.user || '').trim();
+    if (currentUser) {
+      this.auditKnownUsers.add(currentUser);
+    }
+  }
+
+  updateKnownAuditActionTypes(history = []) {
+    Object.keys(this.getAuditActionLabelMap()).forEach(type => this.auditKnownActionTypes.add(type));
+    history
+      .map(item => (typeof item.action_type === 'string' ? item.action_type.trim() : ''))
+      .filter(Boolean)
+      .forEach(type => this.auditKnownActionTypes.add(type));
+    const currentAction = (this.currentAuditFilters.actionType || '').trim();
+    if (currentAction) {
+      this.auditKnownActionTypes.add(currentAction);
+    }
+  }
+
   populateAuditFilters() {
     // Populate user filter
+    const dropdown = document.getElementById('audit-history-filter-dropdown');
+    const isDropdownOpen = !!(dropdown && dropdown.classList.contains('show'));
+
+    const actionFilter = document.getElementById('audit-action-filter');
     const userFilter = document.getElementById('audit-user-filter');
-    if (userFilter) {
-      const uniqueUsers = [...new Set(this.auditHistory.map(item => item.performed_by).filter(Boolean))];
-      userFilter.innerHTML = '<option value="">All Users</option>';
-      uniqueUsers.sort().forEach(user => {
-        const option = document.createElement('option');
-        option.value = user;
-        option.textContent = user;
-        userFilter.appendChild(option);
-      });
+
+    const pendingAction = isDropdownOpen && actionFilter ? actionFilter.value.trim() : null;
+    const pendingUser = isDropdownOpen && userFilter ? userFilter.value.trim() : null;
+
+    // Populate user filter
+    if (actionFilter) {
+      const selectedAction = (pendingAction ?? this.currentAuditFilters.actionType ?? '').trim();
+      const knownActionTypes = new Set(this.getKnownActionTypes());
+      if (selectedAction) knownActionTypes.add(selectedAction);
+
+      actionFilter.innerHTML = '<option value="">All Type</option>';
+      Array.from(knownActionTypes)
+        .sort((a, b) => a.localeCompare(b))
+        .forEach(type => {
+          const option = document.createElement('option');
+          option.value = type;
+          option.textContent = this.formatActionTypeLabel(type);
+          actionFilter.appendChild(option);
+        });
+      actionFilter.value = selectedAction || '';
     }
+
+    if (userFilter) {
+      const selectedUser = (pendingUser ?? this.currentAuditFilters.user ?? '').trim();
+      const updatedUsers = new Set(this.auditKnownUsers);
+
+      this.auditHistory
+        .map(item => (typeof item.performed_by === 'string' ? item.performed_by.trim() : ''))
+        .filter(Boolean)
+        .forEach(user => updatedUsers.add(user));
+      if (selectedUser) {
+        updatedUsers.add(selectedUser);
+      }
+
+      this.auditKnownUsers = updatedUsers;
+
+      userFilter.innerHTML = '<option value="">All Users</option>';
+      Array.from(updatedUsers)
+        .sort((a, b) => a.localeCompare(b))
+        .forEach(user => {
+          const option = document.createElement('option');
+          option.value = user;
+          option.textContent = user;
+          userFilter.appendChild(option);
+        });
+      userFilter.value = selectedUser || '';
+    }
+  }
+
+  formatActionTypeLabel(actionType) {
+    if (!actionType) return '';
+    return actionType
+      .toString()
+      .replace(/_/g, ' ')
+      .split(' ')
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
   }
 
   applyAuditFiltersAndSearch(resetPage = false) {
@@ -1286,8 +1364,16 @@ class InventoryManager {
 
     // Action type filter
     if (this.currentAuditFilters.actionType) {
+      const targetAction = this.currentAuditFilters.actionType.toLowerCase();
       temp = temp.filter(item => 
-        item.action_type && item.action_type.toLowerCase() === this.currentAuditFilters.actionType.toLowerCase()
+        (item.action_type || '').toLowerCase() === targetAction
+      );
+    }
+
+    if (this.currentAuditFilters.user) {
+      const targetUser = this.currentAuditFilters.user.toLowerCase();
+      temp = temp.filter(item => 
+        (item.performed_by || '').trim().toLowerCase() === targetUser
       );
     }
 
@@ -1421,17 +1507,29 @@ class InventoryManager {
     // }) : 'N/A';
     
     // Format action type with badge
-    const actionType = item.action_type || 'N/A';
-    const actionBadge = `<span class="status-badge status-${this.getActionTypeClass(actionType)}">${actionType}</span>`;
+    const labels = this.getAuditFieldLabels(item.action_type);
+    let before, after, changed;
+
+    if (item.action_type === 'make_available' || item.action_type === 'make_unavailable') {
+        before = item.availability_before ? 'Available' : 'Unavailable';
+        after = item.availability_after ? 'Available' : 'Unavailable';
+        changed = '-';
+    } else {
+        before = this.formatAuditValue(item.quantity_before || item.purchase_price_before || item.unit_before || item.category_before || item.name_before || item.minimum_before || item.purchase_quantity_before || availability_before);
+        after = this.formatAuditValue(item.quantity_after || item.purchase_price_after || item.unit_after || item.category_after || item.name_after || item.minimum_after || item.purchase_quantity_after || availability_after);
+        changed = this.formatAuditValue(item.quantity_changed || item.purchase_price_changed || item.minimum_changed || item.purchase_quantity_changed );
+    }
+    
+    const actionBadge = `<span class="status-badge status-${this.getActionTypeClass(item.action_type || '')}">${this.formatActionTypeLabel(item.action_type) || '-'}</span>`;
     
     row.innerHTML = `
       <td>${rowNumber}</td>
-      <td>${item.ingredient_name || 'N/A'}</td>
+      <td>${item.ingredient_name || '-'}</td>
       <td>${actionBadge}</td>
-      <td>${(item.quantity_before != null ? item.quantity_before.toFixed(2) : 'N/A')}</td>
-      <td>${(item.quantity_after != null ? item.quantity_after.toFixed(2) : 'N/A')}</td>
-      <td>${(item.quantity_changed != null ? item.quantity_changed.toFixed(2) : 'N/A')}</td>
-      <td>${item.performed_by || 'N/A'}</td>
+      <td data-label="${labels[0]}">${before}</td>
+      <td data-label="${labels[1]}">${after}</td>
+      <td data-label="${labels[2]}">${changed || '-'}</td>
+      <td>${item.performed_by || '-'}</td>
       <td class="action-header">
         <button class="table-action-btn" onclick="inventoryManager.viewAuditHistory(${item.id})"><i class="fas fa-eye"></i></button>
       </td>
@@ -1451,7 +1549,9 @@ class InventoryManager {
       // new granular edits for audit history
       'edit_item_name': 'success',
       'edit_category': 'success',
-      'edit_unit': 'success'
+      'edit_unit': 'success',
+      'edit_purchase_price_total': 'success',
+      'edit_purchase_quantity': 'success',
     };
     return actionMap[actionType.toLowerCase()] || 'default';
   }
@@ -1565,10 +1665,18 @@ class InventoryManager {
     const dateFilter = document.getElementById('audit-date-filter');
     const userFilter = document.getElementById('audit-user-filter');
     
-    if (sortFilter) this.currentAuditFilters.sort = sortFilter.value;
-    if (actionFilter) this.currentAuditFilters.actionType = actionFilter.value;
-    if (dateFilter) this.currentAuditFilters.dateRange = dateFilter.value;
-    if (userFilter) this.currentAuditFilters.user = userFilter.value;
+    if (sortFilter) this.currentAuditFilters.sort = (sortFilter.value || '').trim();
+    const selectedAction = actionFilter ? actionFilter.value.trim() : '';
+    this.currentAuditFilters.actionType = selectedAction;
+    if (selectedAction) {
+      this.auditKnownActionTypes.add(selectedAction);
+    }
+    if (dateFilter) this.currentAuditFilters.dateRange = (dateFilter.value || '').trim();
+    const selectedUser = userFilter ? userFilter.value.trim() : '';
+    this.currentAuditFilters.user = selectedUser;
+    if (selectedUser) {
+      this.auditKnownUsers.add(selectedUser);
+    }
     
     this.applyAuditFiltersAndSearch(true);
     this.toggleFilterAuditHistory();
@@ -1595,6 +1703,60 @@ class InventoryManager {
     
     this.applyAuditFiltersAndSearch(true);
     this.toggleFilterAuditHistory();
+  }
+
+  getAuditFieldLabels(actionType) {
+    const map = this.getAuditActionLabelMap();
+    return map[actionType] || ['Before', 'After', 'Change'];
+  }
+
+  getAuditActionLabelMap() {
+    return {
+      consume: ['Quantity Before', 'Quantity After', 'Quantity Changes'],
+      rollback: ['Quantity Before', 'Quantity After', 'Quantity Changes'],
+      restock: ['Quantity Before', 'Quantity After', 'Quantity Changes'],
+      edit_stock: ['Quantity Before', 'Quantity After', 'Quantity Changes'],
+      edit_minimum: ['Minimum Before', 'Minimum After', 'Minimum Changes'],
+      edit_item_name: ['Name Before', 'Name After', 'Name Changes'],
+      edit_category: ['Category Before', 'Category After', 'Category Changes'],
+      edit_unit: ['Unit Before', 'Unit After', 'Unit Changes'],
+      edit_purchase_price_total: ['Price Before', 'Price After', 'Price Changes'],
+      edit_purchase_quantity: ['Quantity Before', 'Quantity After', 'Quantity Changes'],
+      make_available: ['Availability Before', 'Availability After', 'Availability Change'],
+      make_unavailable: ['Availability Before', 'Availability After', 'Availability Change']
+    };
+  }
+
+  getKnownActionTypes() {
+    // return Object.keys(this.getAuditActionLabelMap());
+
+    const combined = new Set([
+      ...Object.keys(this.getAuditActionLabelMap()),
+      ...this.auditKnownActionTypes
+    ]);
+
+    this.auditHistory
+      .map(item => (typeof item.action_type === 'string' ? item.action_type.trim() : ''))
+      .filter(Boolean)
+      .forEach(type => combined.add(type));
+
+    return Array.from(combined);
+  }
+
+  formatAuditValue(value) {
+    if (value === null || value === undefined || value === '') return '-';
+    if (typeof value === 'number' && Number.isFinite(value)) return value.toFixed(2);
+    if (!Number.isNaN(Number(value)) && value !== true && value !== false) {
+      const num = Number(value);
+      if (Number.isFinite(num)) return num.toFixed(2);
+    }
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    return value;
+  }
+
+  setElementText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
   }
 
   viewAuditHistory(id) {
@@ -1645,15 +1807,32 @@ class InventoryManager {
     //   hour12: false
     // }) : 'N/A';
 
-    document.getElementById('view-audit-ingredient-name').textContent = item.ingredient_name || 'N/A';
-    document.getElementById('view-audit-action-type').textContent = item.action_type || 'N/A';
-    document.getElementById('view-audit-quantity-before').textContent = (item.quantity_before != null ? item.quantity_before.toFixed(2) : 'N/A');
-    document.getElementById('view-audit-quantity-after').textContent = (item.quantity_after != null ? item.quantity_after.toFixed(2) : 'N/A');
-    document.getElementById('view-audit-quantity-changed').textContent = (item.quantity_changed != null ? item.quantity_changed.toFixed(2) : 'N/A');
-    document.getElementById('view-audit-performed-by').textContent = item.performed_by || 'N/A';
-    document.getElementById('view-audit-notes').textContent = item.notes || 'N/A';
-    document.getElementById('view-audit-created-at').textContent = date || 'N/A';
-    document.getElementById('view-audit-order-id').textContent = item.order_id || 'N/A';
+    const labels = this.getAuditFieldLabels(item.action_type);
+    this.setElementText('view-audit-before-label', `${labels[0]}:`);
+    this.setElementText('view-audit-after-label', `${labels[1]}:`);
+    this.setElementText('view-audit-change-label', `${labels[2]}:`);
+
+    let before, after, changed;
+
+    if (item.action_type === 'make_available' || item.action_type === 'make_unavailable') {
+        before = item.quantity_before ? 'Available' : 'Unavailable';
+        after = item.quantity_after ? 'Available' : 'Unavailable';
+        changed = '-';
+    } else {
+        before = this.formatAuditValue(item.quantity_before || item.purchase_price_before || item.unit_before || item.category_before || item.name_before || item.minimum_before || item.purchase_quantity_before);
+        after = this.formatAuditValue(item.quantity_after || item.purchase_price_after || item.unit_after || item.category_after || item.name_after || item.minimum_after || item.purchase_quantity_after);
+        changed = this.formatAuditValue(item.quantity_changed || item.purchase_price_changed || item.unit_changed || item.category_changed || item.name_changed || item.minimum_changed || item.purchase_quantity_changed);
+    }
+
+    this.setElementText('view-audit-ingredient-name', item.ingredient_name || '-');
+    this.setElementText('view-audit-action-type', this.formatActionTypeLabel(item.action_type) || '-');
+    this.setElementText('view-audit-quantity-before', before);
+    this.setElementText('view-audit-quantity-after', after);
+    this.setElementText('view-audit-quantity-changed', changed);
+    this.setElementText('view-audit-performed-by', item.performed_by || '-');
+    this.setElementText('view-audit-notes', item.notes || '-');
+    this.setElementText('view-audit-created-at', date || '-');
+    this.setElementText('view-audit-order-id', item.order_id || '-');
 
     this.showModal('view-audit-modal');
   }
@@ -1705,7 +1884,7 @@ class InventoryManager {
     logs.forEach(log => {
       const row = document.createElement('tr');
       row.innerHTML = `
-        <td>${log.order_id || 'N/A'}</td>
+        <td>${log.order_id || '-'}</td>
         <td>${this.formatMenuPayload(log.per_menu_payload)}</td>
         <td>${log.consumed ? 'Yes' : 'No'}</td>
         <td>${log.rolled_back ? 'Yes' : 'No'}</td>
@@ -1753,63 +1932,63 @@ class InventoryManager {
     });
   }
 
-  openStockHistoryModal() {
-    this.showModal('stock-history-modal');
-    this.loadStockHistory();
-  }
+  // openStockHistoryModal() {
+  //   this.showModal('stock-history-modal');
+  //   this.loadStockHistory();
+  // }
 
-  async loadStockHistory(ingredientId = null) {
-    try {
-      const actionFilter = document.getElementById('history-action-filter');
-      const params = new URLSearchParams();
-      if (actionFilter && actionFilter.value) params.append('action_type', actionFilter.value);
-      params.append('limit', '100');
-      const url = ingredientId ? `/inventory/stock/history/${ingredientId}` : `/inventory/stock/history?${params.toString()}`;
-      const resp = await fetch(url);
-      const json = await resp.json();
-      const rows = ingredientId ? (json?.data?.history || []) : (json?.data?.history || json?.history || []);
-      this.renderStockHistory(rows);
-    } catch (e) {
-      console.error('Failed to load stock history:', e);
-      showErrorModal('Failed to load stock history');
-    }
-  }
+  // async loadStockHistory(ingredientId = null) {
+  //   try {
+  //     const actionFilter = document.getElementById('history-action-filter');
+  //     const params = new URLSearchParams();
+  //     if (actionFilter && actionFilter.value) params.append('action_type', actionFilter.value);
+  //     params.append('limit', '100');
+  //     const url = ingredientId ? `/inventory/stock/history/${ingredientId}` : `/inventory/stock/history?${params.toString()}`;
+  //     const resp = await fetch(url);
+  //     const json = await resp.json();
+  //     const rows = ingredientId ? (json?.data?.history || []) : (json?.data?.history || json?.history || []);
+  //     this.renderStockHistory(rows);
+  //   } catch (e) {
+  //     console.error('Failed to load stock history:', e);
+  //     showErrorModal('Failed to load stock history');
+  //   }
+  // }
 
-  renderStockHistory(histories) {
-    const tbody = document.getElementById('stock-history-tbody');
-    if (!tbody) return;
-    tbody.innerHTML = '';
+  // renderStockHistory(histories) {
+  //   const tbody = document.getElementById('stock-history-tbody');
+  //   if (!tbody) return;
+  //   tbody.innerHTML = '';
 
-    if (!histories || histories.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:1rem;">No history found</td></tr>`;
-      return;
-    }
+  //   if (!histories || histories.length === 0) {
+  //     tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:1rem;">No history found</td></tr>`;
+  //     return;
+  //   }
 
-    histories.forEach(h => {
-      const before = (h.quantity_before ?? h.stock_before ?? 0).toLocaleString();
-      const after = (h.quantity_after ?? h.stock_after ?? 0).toLocaleString();
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td data-label="Date">${h.created_at || '-'}</td>
-        <td data-label="Ingredient">${h.ingredient_name || '-'}</td>
-        <td data-label="Action"><span class="status-badge status-deliver">${h.action_type}</span></td>
-        <td data-label="Before → After" style="text-align:center;">${before} → ${after}</td>
-        <td data-label="By">${h.performed_by || '-'}</td>
-        <td data-label="Notes">${h.notes || '-'}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-  }
+  //   histories.forEach(h => {
+  //     const before = (h.quantity_before ?? h.stock_before ?? 0).toLocaleString();
+  //     const after = (h.quantity_after ?? h.stock_after ?? 0).toLocaleString();
+  //     const tr = document.createElement('tr');
+  //     tr.innerHTML = `
+  //       <td data-label="Date">${h.created_at || '-'}</td>
+  //       <td data-label="Ingredient">${h.ingredient_name || '-'}</td>
+  //       <td data-label="Action"><span class="status-badge status-deliver">${h.action_type}</span></td>
+  //       <td data-label="Before → After" style="text-align:center;">${before} → ${after}</td>
+  //       <td data-label="By">${h.performed_by || '-'}</td>
+  //       <td data-label="Notes">${h.notes || '-'}</td>
+  //     `;
+  //     tbody.appendChild(tr);
+  //   });
+  // }
 
-  filterStockHistory(term) {
-    const tbody = document.getElementById('stock-history-tbody');
-    if (!tbody) return;
-    const q = (term || '').toLowerCase();
-    Array.from(tbody.rows).forEach(row => {
-      const match = Array.from(row.cells).some(td => td.textContent.toLowerCase().includes(q));
-      row.style.display = match ? '' : 'none';
-    });
-  }
+  // filterStockHistory(term) {
+  //   const tbody = document.getElementById('stock-history-tbody');
+  //   if (!tbody) return;
+  //   const q = (term || '').toLowerCase();
+  //   Array.from(tbody.rows).forEach(row => {
+  //     const match = Array.from(row.cells).some(td => td.textContent.toLowerCase().includes(q));
+  //     row.style.display = match ? '' : 'none';
+  //   });
+  // }
 }
 
 window.closeViewItemModal = function() {
