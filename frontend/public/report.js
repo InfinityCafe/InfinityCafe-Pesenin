@@ -2367,31 +2367,37 @@ function showItemIngredientDetails(orderId, itemId, menuName, flavorName, qty) {
             const rows = list.map((m, idx) => {
                 const ingName = m?.ingredient_name || m?.name || m?.ingredient_id || '-';
                 const unit = m?.unit || '-';
-                // Compute Qty Terpakai, Stok Sebelum, Stok Sesudah
+                
+                // Use data directly from backend without calculation
+                // Priority: required_quantity from backend API
                 let qtyUsed = 0;
                 let stockBefore = '-';
                 let stockAfter = '-';
+                
                 if (usedSource === 'backend:item') {
-                    const c = Number(m.consumed_quantity);
-                    const rq = Number(m.required_quantity);
-                    const qq = Number(m.quantity);
-                    if (Number.isFinite(c) && c > 0) {
-                        qtyUsed = c;
-                    } else if (Number.isFinite(rq) && rq > 0 && q > 0) {
-                        qtyUsed = rq * q;
-                    } else if (Number.isFinite(qq) && qq > 0) {
-                        qtyUsed = q > 0 ? (qq * q) : qq;
-                    } else {
-                        qtyUsed = 0;
+                    // Use required_quantity directly from backend (same as ingredient analysis daily)
+                    qtyUsed = Number(m.required_quantity || m.consumed_quantity || m.quantity || 0);
+                    
+                    // Use stock data from backend
+                    if (m.stock_before_consumption !== null && m.stock_before_consumption !== undefined) {
+                        stockBefore = Number(m.stock_before_consumption).toLocaleString('id-ID');
+                    } else if (m.stock_before !== null && m.stock_before !== undefined) {
+                        stockBefore = Number(m.stock_before).toLocaleString('id-ID');
                     }
-                    if (m.stock_before !== null && m.stock_before !== undefined) stockBefore = Number(m.stock_before).toLocaleString('id-ID');
-                    if (m.stock_after !== null && m.stock_after !== undefined) stockAfter = Number(m.stock_after).toLocaleString('id-ID');
+                    
+                    if (m.stock_after_consumption !== null && m.stock_after_consumption !== undefined) {
+                        stockAfter = Number(m.stock_after_consumption).toLocaleString('id-ID');
+                    } else if (m.stock_after !== null && m.stock_after !== undefined) {
+                        stockAfter = Number(m.stock_after).toLocaleString('id-ID');
+                    }
                 } else {
+                    // Fallback for non-backend source
                     const perServing = Number(m?.quantity_per_serving || m?.qty_per_serving || m?.quantity || 0) || 0;
                     qtyUsed = perServing * q;
                     stockBefore = '-';
                     stockAfter = '-';
                 }
+                
                 return `
                     <tr style="border-bottom: 1px solid #E5E7EB; transition: background-color 0.2s ease;" 
                         onmouseover="this.style.backgroundColor='#F9FAFB'" 
