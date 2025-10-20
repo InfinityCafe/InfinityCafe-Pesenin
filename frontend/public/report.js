@@ -2092,11 +2092,12 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
         document.getElementById('detail-order-date').textContent = dateStr;
         document.getElementById('detail-order-status').textContent = `${menuData.total_orders} pesanan`;
         
-        // Update table header for per-item breakdown (5 columns - removed Total Konsumsi)
+        // Update table header for per-item breakdown (6 columns - with QTY Terpakai)
         if (headRow) {
             headRow.innerHTML = `
                 <th>No</th>
                 <th>Nama Bahan</th>
+                <th>QTY Terpakai</th>
                 <th>Unit</th>
                 <th>Stok Sebelum</th>
                 <th>Stok Akhir</th>`;
@@ -2106,7 +2107,7 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
         const orderIds = menuData.order_ids || [];
         
         if (orderIds.length === 0) {
-            body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada data order untuk menu ini</td></tr>';
+            body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada data order untuk menu ini</td></tr>';
             if (panel) panel.classList.remove('hidden');
             setTimeout(() => {
                 panel.scrollIntoView({behavior: 'smooth', block: 'start'});
@@ -2115,7 +2116,7 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
         }
         
         // Show loading state
-        body.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 1.5rem;"><i class="fas fa-spinner fa-spin"></i> Memuat detail per item...</td></tr>';
+        body.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 1.5rem;"><i class="fas fa-spinner fa-spin"></i> Memuat detail per item...</td></tr>';
         if (panel) panel.classList.remove('hidden');
         
         // Convert dateStr to ISO format for API call
@@ -2171,7 +2172,7 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
                         perItemRows.push(`
                             <tr style="border-bottom: 1px solid #F3F4F6;">
                                 <td style="padding: 0.75rem 1rem; text-align: center;">${rowNum}</td>
-                                <td colspan="4" style="padding: 0.75rem 1rem; text-align: center; color: #6B7280; font-style: italic;">
+                                <td colspan="5" style="padding: 0.75rem 1rem; text-align: center; color: #6B7280; font-style: italic;">
                                     Tidak ada detail ingredient untuk item ini
                                 </td>
                             </tr>
@@ -2206,7 +2207,12 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
                         const stockAfterDisplay = (stockAfter !== null && stockAfter !== undefined) 
                             ? Number(stockAfter).toLocaleString('id-ID') : '-';
                         
-                        // Group ingredients with visual grouping - 5 columns (removed Total Konsumsi)
+                        // Format QTY Terpakai
+                        const qtyUsedDisplay = qtyUsed > 0 
+                            ? qtyUsed.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) 
+                            : '-';
+                        
+                        // Group ingredients with visual grouping - 6 columns (with QTY Terpakai)
                         const isFirstIngredient = ingIdx === 0;
                         const rowStyle = isFirstIngredient ? 'border-top: 2px solid #E5E7EB;' : '';
                         
@@ -2216,6 +2222,7 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
                                 onmouseout="this.style.backgroundColor='transparent'">
                                 <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280;">${rowNum}</td>
                                 <td style="padding: 0.75rem 1rem; font-weight: 500; color: #1F2937;">${ingName}</td>
+                                <td style="padding: 0.75rem 1rem; text-align: center; color: #059669; font-weight: 600;">${qtyUsedDisplay}</td>
                                 <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280;">${unit}</td>
                                 <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280;">${stockBeforeDisplay}</td>
                                 <td style="padding: 0.75rem 1rem; text-align: center;">
@@ -2228,7 +2235,7 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
             });
             
             if (perItemRows.length === 0) {
-                body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada detail ingredient per item untuk menu ini</td></tr>';
+                body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada detail ingredient per item untuk menu ini</td></tr>';
             } else {
                 // Calculate summary statistics
                 let totalIngredients = 0;
@@ -2285,7 +2292,7 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
                 // Add summary row at top
                 const summaryRow = `
                     <tr style="background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%); border-bottom: 2px solid #E5E7EB; font-weight: 600;">
-                        <td colspan="5" style="padding: 1rem; text-align: center;">
+                        <td colspan="6" style="padding: 1rem; text-align: center;">
                             <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
                                 <div>
                                     <span style="color: #6B7280; font-size: 0.9rem;">Total Items:</span>
@@ -2294,6 +2301,10 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
                                 <div>
                                     <span style="color: #6B7280; font-size: 0.9rem;">Jenis Bahan:</span>
                                     <span style="color: #1F2937; font-size: 1.1rem; margin-left: 0.5rem;">${totalIngredients}</span>
+                                </div>
+                                <div>
+                                    <span style="color: #6B7280; font-size: 0.9rem;">Total QTY Terpakai:</span>
+                                    <span style="color: #DC2626; font-size: 1.1rem; margin-left: 0.5rem; font-weight: 700;">${totalQtyUsed.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
                             </div>
                         </td>
@@ -2309,7 +2320,7 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
             }, 150);
         }).catch(e => {
             console.error('Failed to fetch per-item details:', e);
-            body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #ef4444; padding: 1.5rem;">Gagal memuat detail per item</td></tr>';
+            body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 1.5rem;">Gagal memuat detail per item</td></tr>';
         });
         
     } catch (e) {
@@ -2431,13 +2442,15 @@ function showItemIngredientDetails(orderId, itemId, menuName, flavorName, qty) {
                     stockAfter = '-';
                 }
                 return `
-                    <tr style="border-bottom: 1px solid #F3F4F6;">
-                        <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280; font-weight: 500;">${idx + 1}</td>
-                        <td style="padding: 0.75rem 1rem; font-weight: 600; color: #1F2937;">${ingName}</td>
-                        <td style="padding: 0.75rem 1rem; text-align: center; color: #059669; font-weight: 600;">${qtyUsed.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                        <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280;">${unit}</td>
-                        <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280; font-weight: 500;">${stockBefore}</td>
-                        <td style="padding: 0.75rem 1rem; text-align: center; font-weight: 700; color: #DC2626;">${stockAfter}</td>
+                    <tr style="border-bottom: 1px solid #E5E7EB; transition: background-color 0.2s ease;" 
+                        onmouseover="this.style.backgroundColor='#F9FAFB'" 
+                        onmouseout="this.style.backgroundColor='transparent'">
+                        <td style="padding: 1rem 1rem; text-align: center; color: #6B7280; font-weight: 500;">${idx + 1}</td>
+                        <td style="padding: 1rem 1rem; font-weight: 600; color: #1F2937;">${ingName}</td>
+                        <td style="padding: 1rem 1rem; text-align: center; color: #059669; font-weight: 600;">${qtyUsed.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td style="padding: 1rem 1rem; text-align: center; color: #6B7280;">${unit}</td>
+                        <td style="padding: 1rem 1rem; text-align: center; color: #6B7280; font-weight: 500;">${stockBefore}</td>
+                        <td style="padding: 1rem 1rem; text-align: center; font-weight: 700; color: #DC2626;">${stockAfter}</td>
                     </tr>`;
             }).join('');
             content = `
@@ -2453,7 +2466,7 @@ function showItemIngredientDetails(orderId, itemId, menuName, flavorName, qty) {
                         </div>
                     </div>
                     <div style="overflow-x: auto;">
-                        <table style="width: 100%; border-collapse: collapse; border-spacing: 0;">
+                        <table style="width: 100%; border-collapse: separate; border-spacing: 0 0.5rem;">
                             <thead>
                                 <tr style="background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%); color: white;">
                                     <th style="text-align: center; padding: 0.875rem 1rem; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; border-top-left-radius: 8px;">No</th>
