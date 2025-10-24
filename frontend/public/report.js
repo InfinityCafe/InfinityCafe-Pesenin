@@ -1690,14 +1690,6 @@ function hideIngredientDetailsPanel() {
                                 <div style="font-size: 0.9rem; color: #6B7280;">Total Pesanan</div>
                             </div>
                             <div style="text-align: center;">
-                                <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">${totalUniqueMenusAllDays.size}</div>
-                                <div style="font-size: 0.9rem; color: #6B7280;">Menu Unik</div>
-                            </div>
-                            <div style="text-align: center;">
-                                <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${totalIngredientsAllDays.size}</div>
-                                <div style="font-size: 0.9rem; color: #6B7280;">Jenis Bahan</div>
-                            </div>
-                            <div style="text-align: center;">
                                 <div style="font-size: 1.5rem; font-weight: 700; color: #3B82F6;">${allDays.length}</div>
                                 <div style="font-size: 0.9rem; color: #6B7280;">Hari</div>
                             </div>
@@ -1821,8 +1813,6 @@ function hideIngredientDetailsPanel() {
                                 </div>
                                 <div style="display: flex; gap: 1.5rem; font-size: 0.85rem; color: #4B5563;">
                                     <span><strong>${totalOrders}</strong> Pesanan</span>
-                                    <span><strong>${uniqueMenus}</strong> Menu</span>
-                                    <span><strong>${dayIngredients.size}</strong> Bahan</span>
                                 </div>
                             </div>
                         </td>
@@ -2007,18 +1997,6 @@ function hideIngredientDetailsPanel() {
                              <div style="font-size: 1.5rem; font-weight: 700; color: #059669;">${dailyData.total_orders || 0}</div>
                              <div style="font-size: 0.9rem; color: #6B7280;">Total Pesanan</div>
                          </div>
-                         <div style="text-align: center;">
-                             <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">${totalUniqueMenus}</div>
-                             <div style="font-size: 0.9rem; color: #6B7280;">Menu Unik</div>
-                         </div>
-                         <div style="text-align: center;">
-                             <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${summary.total_ingredients_types || 0}</div>
-                             <div style="font-size: 0.9rem; color: #6B7280;">Jenis Bahan</div>
-                         </div>
-                         <div style="text-align: center;">
-                             <div style="font-size: 1.5rem; font-weight: 700; color: #DC2626;">${(summary.total_quantity_consumed || 0).toLocaleString('id-ID')}</div>
-                             <div style="font-size: 0.9rem; color: #6B7280;">Total Konsumsi</div>
-                         </div>
                      </div>
                      <div style="margin-top: 1rem;">
                          <button class="btn-primary" onclick="showDailyIngredientAccumulation('${dateParam}', '${dailyData.date_formatted || dateStr}')" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 0.6rem 1.5rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 500; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)';">
@@ -2092,11 +2070,12 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
         document.getElementById('detail-order-date').textContent = dateStr;
         document.getElementById('detail-order-status').textContent = `${menuData.total_orders} pesanan`;
         
-        // Update table header for per-item breakdown (5 columns - removed Total Konsumsi)
+        // Update table header for per-item breakdown (6 columns - with QTY Terpakai)
         if (headRow) {
             headRow.innerHTML = `
                 <th>No</th>
                 <th>Nama Bahan</th>
+                <th>QTY Terpakai</th>
                 <th>Unit</th>
                 <th>Stok Sebelum</th>
                 <th>Stok Akhir</th>`;
@@ -2106,7 +2085,7 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
         const orderIds = menuData.order_ids || [];
         
         if (orderIds.length === 0) {
-            body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada data order untuk menu ini</td></tr>';
+            body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada data order untuk menu ini</td></tr>';
             if (panel) panel.classList.remove('hidden');
             setTimeout(() => {
                 panel.scrollIntoView({behavior: 'smooth', block: 'start'});
@@ -2115,155 +2094,208 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
         }
         
         // Show loading state
-        body.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 1.5rem;"><i class="fas fa-spinner fa-spin"></i> Memuat detail per item...</td></tr>';
+        body.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 1.5rem;"><i class="fas fa-spinner fa-spin"></i> Memuat detail per item...</td></tr>';
         if (panel) panel.classList.remove('hidden');
         
-        // Fetch per-item details for each order
-        const fetchPromises = orderIds.map(orderId => 
-            fetch(`/order/${encodeURIComponent(orderId)}/ingredients`, { cache: 'no-store' })
-                .then(res => res.ok ? res.json() : null)
-                .catch(() => null)
-        );
+        // Convert dateStr to ISO format for API call
+        let dateParam = dateStr;
+        if (dateStr && /^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+            const [dd, mm, yyyy] = dateStr.split('/');
+            dateParam = `${yyyy}-${mm}-${dd}`;
+        }
         
-        Promise.all(fetchPromises).then(results => {
+        // Fetch once without order_id filter - backend will return all orders for the date
+        // Then we filter on frontend for the specific orders we need
+        fetch(`/inventory/consumption/daily?date=${encodeURIComponent(dateParam)}`, { cache: 'no-store' })
+            .then(res => res.ok ? res.json() : null)
+            .then(json => {
             const perItemRows = [];
             let rowNum = 0;
             
-            results.forEach((json, idx) => {
-                if (!json) return;
+            // Debug: Log the full response structure
+            console.log('[DEBUG] Full response from /inventory/consumption/daily:', json);
+            
+            if (!json) {
+                body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 1.5rem;">Gagal memuat data</td></tr>';
+                return;
+            }
+            
+            // Handle response from /inventory/consumption/daily endpoint
+            const dailyConsumption = json?.data?.daily_consumption || [];
+            const dailyData = dailyConsumption[0]; // Get first (and should be only) day data
+            
+            console.log('[DEBUG] Daily data:', dailyData);
+            
+            if (!dailyData) {
+                body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada data untuk tanggal ini</td></tr>';
+                return;
+            }
+            
+            const allOrders = dailyData.orders || [];
+            
+            console.log('[DEBUG] All orders:', allOrders);
+            console.log('[DEBUG] Filter by order IDs:', orderIds);
+            
+            // Filter only the orders that are in our orderIds list
+            const relevantOrders = allOrders.filter(o => 
+                orderIds.includes(String(o.order_id))
+            );
+            
+            console.log('[DEBUG] Relevant orders after filter:', relevantOrders);
+            
+            // Accumulate ingredients from all relevant orders
+            const ingredientAccumulation = {};
+            let totalQuantityOrdered = 0;
+            
+            // Process each relevant order and accumulate ingredients
+            relevantOrders.forEach((orderData) => {
+                const orderId = orderData.order_id;
                 
-                const orderId = orderIds[idx];
-                const menuBreakdown = json?.data?.menu_breakdown || json?.menu_breakdown || [];
+                console.log('[DEBUG] Processing order:', orderId, orderData);
+                
+                const menuBreakdown = orderData.menu_breakdown || [];
+                
+                console.log('[DEBUG] Menu breakdown for', orderId, ':', menuBreakdown);
                 
                 // Filter items that match the current menu name
                 menuBreakdown.forEach((item, itemIndex) => {
                     const itemMenuName = (item.menu_name || item.name || '').trim();
+                    
+                    console.log('[DEBUG] Processing item:', item);
+                    
                     // Match menu name (case-insensitive, ignore extra spaces)
                     if (itemMenuName.toLowerCase().replace(/\s+/g, ' ') !== menuName.toLowerCase().replace(/\s+/g, ' ')) {
                         return; // Skip items that don't match this menu
                     }
                     
                     const itemQty = Number(item.quantity || item.qty || 1);
+                    totalQuantityOrdered += itemQty;
+                    
                     const ingredients = item.ingredients || [];
                     
-                    if (ingredients.length === 0) {
-                        // Show row even if no ingredients (for visibility)
-                        rowNum++;
-                        perItemRows.push(`
-                            <tr style="border-bottom: 1px solid #F3F4F6;">
-                                <td style="padding: 0.75rem 1rem; text-align: center;">${rowNum}</td>
-                                <td colspan="4" style="padding: 0.75rem 1rem; text-align: center; color: #6B7280; font-style: italic;">
-                                    Tidak ada detail ingredient untuk item ini
-                                </td>
-                            </tr>
-                        `);
-                        return;
-                    }
+                    console.log('[DEBUG] Matched item for menu', menuName, ':', item);
+                    console.log('[DEBUG] Ingredients array:', ingredients);
                     
-                    // Render each ingredient for this item
-                    ingredients.forEach((ing, ingIdx) => {
-                        rowNum++;
+                    // Accumulate each ingredient
+                    ingredients.forEach((ing) => {
+                        const ingId = ing.ingredient_id || ing.id;
                         const ingName = ing.ingredient_name || ing.name || '-';
                         const unit = ing.unit || ing.unit_name || '-';
                         
-                        // Calculate qty used
-                        const c = Number(ing.consumed_quantity);
-                        const rq = Number(ing.required_quantity);
-                        const qq = Number(ing.quantity);
-                        let qtyUsed = 0;
+                        // Use required_quantity directly from backend
+                        const qtyUsed = Number(
+                            ing.required_quantity ||
+                            ing.consumed_quantity || 
+                            ing.quantity_consumed || 
+                            ing.total_consumed ||
+                            ing.quantity ||
+                            ing.qty ||
+                            0
+                        );
                         
-                        if (Number.isFinite(c) && c > 0) {
-                            qtyUsed = c;
-                        } else if (Number.isFinite(rq) && rq > 0 && itemQty > 0) {
-                            qtyUsed = rq * itemQty;
-                        } else if (Number.isFinite(qq) && qq > 0) {
-                            qtyUsed = itemQty > 0 ? (qq * itemQty) : qq;
+                        // Extract stock values
+                        const stockBefore = ing.stock_before_consumption ?? ing.stock_before ?? null;
+                        const stockAfter = ing.stock_after_consumption ?? ing.stock_after ?? null;
+                        
+                        // Create unique key for each ingredient
+                        const key = `${ingId}-${ingName}`;
+                        
+                        if (!ingredientAccumulation[key]) {
+                            // First occurrence: initialize with this order's data
+                            ingredientAccumulation[key] = {
+                                ingredient_id: ingId,
+                                ingredient_name: ingName,
+                                unit: unit,
+                                total_quantity: 0,
+                                // Stock before from FIRST order (will be updated to highest)
+                                stock_before: stockBefore,
+                                // Stock after will be updated to LAST order (lowest)
+                                stock_after: stockAfter
+                            };
                         }
                         
-                        const stockBefore = (ing.stock_before_consumption ?? ing.stock_before ?? null);
-                        const stockAfter = (ing.stock_after_consumption ?? ing.stock_after ?? null);
-                        const stockBeforeDisplay = (stockBefore !== null && stockBefore !== undefined) 
-                            ? Number(stockBefore).toLocaleString('id-ID') : '-';
-                        const stockAfterDisplay = (stockAfter !== null && stockAfter !== undefined) 
-                            ? Number(stockAfter).toLocaleString('id-ID') : '-';
+                        // Accumulate quantity
+                        ingredientAccumulation[key].total_quantity += qtyUsed;
                         
-                        // Group ingredients with visual grouping - 5 columns (removed Total Konsumsi)
-                        const isFirstIngredient = ingIdx === 0;
-                        const rowStyle = isFirstIngredient ? 'border-top: 2px solid #E5E7EB;' : '';
+                        // Update stock_before to the HIGHEST value (earliest order, before any consumption)
+                        if (stockBefore !== null && stockBefore !== undefined) {
+                            if (ingredientAccumulation[key].stock_before === null) {
+                                ingredientAccumulation[key].stock_before = stockBefore;
+                            } else {
+                                ingredientAccumulation[key].stock_before = Math.max(
+                                    ingredientAccumulation[key].stock_before, 
+                                    stockBefore
+                                );
+                            }
+                        }
                         
-                        perItemRows.push(`
-                            <tr style="border-bottom: 1px solid #F3F4F6; ${rowStyle} transition: background-color 0.2s ease;" 
-                                onmouseover="this.style.backgroundColor='#F9FAFB'" 
-                                onmouseout="this.style.backgroundColor='transparent'">
-                                <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280;">${rowNum}</td>
-                                <td style="padding: 0.75rem 1rem; font-weight: 500; color: #1F2937;">${ingName}</td>
-                                <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280;">${unit}</td>
-                                <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280;">${stockBeforeDisplay}</td>
-                                <td style="padding: 0.75rem 1rem; text-align: center;">
-                                    <span style="font-weight: 600; color: #DC2626;">${stockAfterDisplay}</span>
-                                </td>
-                            </tr>
-                        `);
+                        // Update stock_after to the LOWEST value (latest order, after all consumption)
+                        if (stockAfter !== null && stockAfter !== undefined) {
+                            if (ingredientAccumulation[key].stock_after === null) {
+                                ingredientAccumulation[key].stock_after = stockAfter;
+                            } else {
+                                ingredientAccumulation[key].stock_after = Math.min(
+                                    ingredientAccumulation[key].stock_after, 
+                                    stockAfter
+                                );
+                            }
+                        }
+                        
+                        console.log('[DEBUG] Ingredient accumulation for', ingName, ':', {
+                            key: key,
+                            qtyUsed: qtyUsed,
+                            stockBefore: stockBefore,
+                            stockAfter: stockAfter,
+                            accumulated: ingredientAccumulation[key]
+                        });
                     });
                 });
             });
             
-            if (perItemRows.length === 0) {
-                body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada detail ingredient per item untuk menu ini</td></tr>';
+            console.log('[DEBUG] Ingredient accumulation:', ingredientAccumulation);
+            console.log('[DEBUG] Total quantity ordered:', totalQuantityOrdered);
+            
+            // Convert accumulation to array and render
+            const accumulatedIngredients = Object.values(ingredientAccumulation);
+            
+            if (accumulatedIngredients.length === 0) {
+                body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6B7280; padding: 1.5rem;">Tidak ada detail ingredient per item untuk menu ini</td></tr>';
             } else {
-                // Calculate summary statistics
-                let totalIngredients = 0;
-                let totalQtyUsed = 0;
-                const ingredientSet = new Set();
-                
-                results.forEach((json) => {
-                    if (!json) return;
-                    const menuBreakdown = json?.data?.menu_breakdown || json?.menu_breakdown || [];
+                // Render accumulated ingredients
+                accumulatedIngredients.forEach((ing, idx) => {
+                    const qtyUsedDisplay = ing.total_quantity > 0
+                        ? ing.total_quantity.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) 
+                        : '-';
                     
-                    menuBreakdown.forEach((item) => {
-                        const itemMenuName = (item.menu_name || item.name || '').trim();
-                        if (itemMenuName.toLowerCase().replace(/\s+/g, ' ') !== menuName.toLowerCase().replace(/\s+/g, ' ')) {
-                            return;
-                        }
-                        
-                        const itemQty = Number(item.quantity || item.qty || 1);
-                        const ingredients = item.ingredients || [];
-                        
-                        ingredients.forEach((ing) => {
-                            ingredientSet.add(ing.ingredient_name || ing.name);
-                            
-                            const c = Number(ing.consumed_quantity);
-                            const rq = Number(ing.required_quantity);
-                            const qq = Number(ing.quantity);
-                            let qtyUsed = 0;
-                            
-                            if (Number.isFinite(c) && c > 0) {
-                                qtyUsed = c;
-                            } else if (Number.isFinite(rq) && rq > 0 && itemQty > 0) {
-                                qtyUsed = rq * itemQty;
-                            } else if (Number.isFinite(qq) && qq > 0) {
-                                qtyUsed = itemQty > 0 ? (qq * itemQty) : qq;
-                            }
-                            
-                            totalQtyUsed += qtyUsed;
-                        });
-                    });
+                    const stockBeforeDisplay = (ing.stock_before !== null && ing.stock_before !== undefined) 
+                        ? Number(ing.stock_before).toLocaleString('id-ID') : '-';
+                    const stockAfterDisplay = (ing.stock_after !== null && ing.stock_after !== undefined) 
+                        ? Number(ing.stock_after).toLocaleString('id-ID') : '-';
+                    
+                    perItemRows.push(`
+                        <tr style="border-bottom: 1px solid #F3F4F6; transition: background-color 0.2s ease;" 
+                            onmouseover="this.style.backgroundColor='#F9FAFB'" 
+                            onmouseout="this.style.backgroundColor='transparent'">
+                            <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280;">${idx + 1}</td>
+                            <td style="padding: 0.75rem 1rem; font-weight: 500; color: #1F2937;">${ing.ingredient_name}</td>
+                            <td style="padding: 0.75rem 1rem; text-align: center; color: #059669; font-weight: 600;">${qtyUsedDisplay}</td>
+                            <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280;">${ing.unit}</td>
+                            <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280;">${stockBeforeDisplay}</td>
+                            <td style="padding: 0.75rem 1rem; text-align: center;">
+                                <span style="font-weight: 600; color: #DC2626;">${stockAfterDisplay}</span>
+                            </td>
+                        </tr>
+                    `);
                 });
-                
-                totalIngredients = ingredientSet.size;
-                
-                // Add summary row at top
+            
+                // Add summary row at top (use accumulated totalQuantityOrdered)
                 const summaryRow = `
                     <tr style="background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%); border-bottom: 2px solid #E5E7EB; font-weight: 600;">
-                        <td colspan="5" style="padding: 1rem; text-align: center;">
+                        <td colspan="6" style="padding: 1rem; text-align: center;">
                             <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
                                 <div>
                                     <span style="color: #6B7280; font-size: 0.9rem;">Total Items:</span>
-                                    <span style="color: #059669; font-size: 1.1rem; margin-left: 0.5rem; font-weight: 700;">${menuData.total_orders || 0}</span>
-                                </div>
-                                <div>
-                                    <span style="color: #6B7280; font-size: 0.9rem;">Jenis Bahan:</span>
-                                    <span style="color: #1F2937; font-size: 1.1rem; margin-left: 0.5rem;">${totalIngredients}</span>
+                                    <span style="color: #059669; font-size: 1.1rem; margin-left: 0.5rem; font-weight: 700;">${totalQuantityOrdered || 0}</span>
                                 </div>
                             </div>
                         </td>
@@ -2279,7 +2311,7 @@ function showMenuIngredientDetails(menuName, dateStr, menuData) {
             }, 150);
         }).catch(e => {
             console.error('Failed to fetch per-item details:', e);
-            body.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #ef4444; padding: 1.5rem;">Gagal memuat detail per item</td></tr>';
+            body.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 1.5rem;">Gagal memuat detail per item</td></tr>';
         });
         
     } catch (e) {
@@ -2375,39 +2407,47 @@ function showItemIngredientDetails(orderId, itemId, menuName, flavorName, qty) {
             const rows = list.map((m, idx) => {
                 const ingName = m?.ingredient_name || m?.name || m?.ingredient_id || '-';
                 const unit = m?.unit || '-';
-                // Compute Qty Terpakai, Stok Sebelum, Stok Sesudah
+                
+                // Use data directly from backend without calculation
+                // Priority: required_quantity from backend API
                 let qtyUsed = 0;
                 let stockBefore = '-';
                 let stockAfter = '-';
+                
                 if (usedSource === 'backend:item') {
-                    const c = Number(m.consumed_quantity);
-                    const rq = Number(m.required_quantity);
-                    const qq = Number(m.quantity);
-                    if (Number.isFinite(c) && c > 0) {
-                        qtyUsed = c;
-                    } else if (Number.isFinite(rq) && rq > 0 && q > 0) {
-                        qtyUsed = rq * q;
-                    } else if (Number.isFinite(qq) && qq > 0) {
-                        qtyUsed = q > 0 ? (qq * q) : qq;
-                    } else {
-                        qtyUsed = 0;
+                    // Use required_quantity directly from backend (same as ingredient analysis daily)
+                    qtyUsed = Number(m.required_quantity || m.consumed_quantity || m.quantity || 0);
+                    
+                    // Use stock data from backend
+                    if (m.stock_before_consumption !== null && m.stock_before_consumption !== undefined) {
+                        stockBefore = Number(m.stock_before_consumption).toLocaleString('id-ID');
+                    } else if (m.stock_before !== null && m.stock_before !== undefined) {
+                        stockBefore = Number(m.stock_before).toLocaleString('id-ID');
                     }
-                    if (m.stock_before !== null && m.stock_before !== undefined) stockBefore = Number(m.stock_before).toLocaleString('id-ID');
-                    if (m.stock_after !== null && m.stock_after !== undefined) stockAfter = Number(m.stock_after).toLocaleString('id-ID');
+                    
+                    if (m.stock_after_consumption !== null && m.stock_after_consumption !== undefined) {
+                        stockAfter = Number(m.stock_after_consumption).toLocaleString('id-ID');
+                    } else if (m.stock_after !== null && m.stock_after !== undefined) {
+                        stockAfter = Number(m.stock_after).toLocaleString('id-ID');
+                    }
                 } else {
+                    // Fallback for non-backend source
                     const perServing = Number(m?.quantity_per_serving || m?.qty_per_serving || m?.quantity || 0) || 0;
                     qtyUsed = perServing * q;
                     stockBefore = '-';
                     stockAfter = '-';
                 }
+                
                 return `
-                    <tr style="border-bottom: 1px solid #F3F4F6;">
-                        <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280; font-weight: 500;">${idx + 1}</td>
-                        <td style="padding: 0.75rem 1rem; font-weight: 600; color: #1F2937;">${ingName}</td>
-                        <td style="padding: 0.75rem 1rem; text-align: center; color: #059669; font-weight: 600;">${qtyUsed.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                        <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280;">${unit}</td>
-                        <td style="padding: 0.75rem 1rem; text-align: center; color: #6B7280; font-weight: 500;">${stockBefore}</td>
-                        <td style="padding: 0.75rem 1rem; text-align: center; font-weight: 700; color: #DC2626;">${stockAfter}</td>
+                    <tr style="border-bottom: 1px solid #E5E7EB; transition: background-color 0.2s ease;" 
+                        onmouseover="this.style.backgroundColor='#F9FAFB'" 
+                        onmouseout="this.style.backgroundColor='transparent'">
+                        <td style="padding: 1rem 1rem; text-align: center; color: #6B7280; font-weight: 500;">${idx + 1}</td>
+                        <td style="padding: 1rem 1rem; font-weight: 600; color: #1F2937;">${ingName}</td>
+                        <td style="padding: 1rem 1rem; text-align: center; color: #059669; font-weight: 600;">${qtyUsed.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td style="padding: 1rem 1rem; text-align: center; color: #6B7280;">${unit}</td>
+                        <td style="padding: 1rem 1rem; text-align: center; color: #6B7280; font-weight: 500;">${stockBefore}</td>
+                        <td style="padding: 1rem 1rem; text-align: center; font-weight: 700; color: #DC2626;">${stockAfter}</td>
                     </tr>`;
             }).join('');
             content = `
@@ -2423,7 +2463,7 @@ function showItemIngredientDetails(orderId, itemId, menuName, flavorName, qty) {
                         </div>
                     </div>
                     <div style="overflow-x: auto;">
-                        <table style="width: 100%; border-collapse: collapse; border-spacing: 0;">
+                        <table style="width: 100%; border-collapse: separate; border-spacing: 0 0.5rem;">
                             <thead>
                                 <tr style="background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%); color: white;">
                                     <th style="text-align: center; padding: 0.875rem 1rem; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; border-top-left-radius: 8px;">No</th>
@@ -2626,10 +2666,6 @@ async function showDailyIngredientAccumulation(dateParam, dateFormatted) {
                             <span style="color: #6B7280; font-size: 0.9rem;">Total Jenis Bahan:</span>
                             <span style="color: #1F2937; font-size: 1.1rem; margin-left: 0.5rem;">${sortedIngredients.length}</span>
                         </div>
-                        <div>
-                            <span style="color: #6B7280; font-size: 0.9rem;">Total Konsumsi:</span>
-                            <span style="color: #DC2626; font-size: 1.1rem; margin-left: 0.5rem; font-weight: 700;">${totalConsumption.toFixed(2)}</span>
-                        </div>
                     </div>
                 </td>
             </tr>
@@ -2769,10 +2805,6 @@ async function showDailyIngredientAccumulationRange(startDate, endDate) {
                         <div>
                             <span style="color: #6B7280; font-size: 0.9rem;">Total Jenis Bahan:</span>
                             <span style="color: #1F2937; font-size: 1.1rem; margin-left: 0.5rem;">${sortedIngredients.length}</span>
-                        </div>
-                        <div>
-                            <span style="color: #6B7280; font-size: 0.9rem;">Total Konsumsi:</span>
-                            <span style="color: #DC2626; font-size: 1.1rem; margin-left: 0.5rem; font-weight: 700;">${totalConsumption.toFixed(2)}</span>
                         </div>
                         <div>
                             <span style="color: #6B7280; font-size: 0.9rem;">Rentang:</span>
@@ -2992,6 +3024,28 @@ async function exportIngredientExcel() {
         }
     }
 
+    // Sort detailRows by date (earliest first)
+    detailRows.sort((a, b) => {
+        // Convert DD/MM/YYYY to YYYY-MM-DD for proper comparison
+        const parseDate = (dateStr) => {
+            if (!dateStr || dateStr === '-') return '0000-00-00';
+            const parts = dateStr.split('/');
+            if (parts.length === 3) {
+                // DD/MM/YYYY -> YYYY-MM-DD
+                return `${parts[2]}-${parts[1]}-${parts[0]}`;
+            }
+            return dateStr;
+        };
+        
+        const dateA = parseDate(a.date);
+        const dateB = parseDate(b.date);
+        
+        // Sort by date, then by order_id, then by menu
+        if (dateA !== dateB) return dateA.localeCompare(dateB);
+        if (a.order_id !== b.order_id) return String(a.order_id || '').localeCompare(String(b.order_id || ''));
+        return String(a.menu || '').localeCompare(String(b.menu || ''));
+    });
+
     // 4) Aggregate cumulative totals per ingredient
     const totalsMap = {};
     for (const r of detailRows) {
@@ -3002,33 +3056,184 @@ async function exportIngredientExcel() {
     }
     const cumulativeRows = Object.values(totalsMap).sort((a,b)=> String(a.ingredient).localeCompare(String(b.ingredient)));
 
-    // 5) Build Excel workbook (two sheets)
+    // 5) Build Excel workbook with modern styling
     const wb = XLSX.utils.book_new();
-    const headersDetail = ['No','Tanggal','Order ID','Menu','Bahan','Qty','Unit'];
-    const detailAoA = [headersDetail, ...detailRows.map((r,i)=>[
-        i+1, r.date, r.order_id || '-', r.menu || '-', r.ingredient || '-', Number(r.qty||0), r.unit || ''
+    
+    // Helper function to apply modern styling
+    const applyModernStyle = (ws, headerRow, dataStartRow, dataEndRow, colCount) => {
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        
+        // Style header row - Modern gradient blue
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+            const address = XLSX.utils.encode_col(C) + headerRow;
+            if (!ws[address]) continue;
+            ws[address].s = {
+                fill: { fgColor: { rgb: "2563EB" } }, // Blue-600
+                font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11, name: "Segoe UI" },
+                alignment: { horizontal: "center", vertical: "center", wrapText: true },
+                border: {
+                    top: { style: "thin", color: { rgb: "1E40AF" } },
+                    bottom: { style: "thin", color: { rgb: "1E40AF" } },
+                    left: { style: "thin", color: { rgb: "1E40AF" } },
+                    right: { style: "thin", color: { rgb: "1E40AF" } }
+                }
+            };
+        }
+        
+        // Style data rows - Alternating colors for better readability
+        for (let R = dataStartRow; R <= dataEndRow; ++R) {
+            const isEven = (R - dataStartRow) % 2 === 0;
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const address = XLSX.utils.encode_col(C) + R;
+                if (!ws[address]) continue;
+                
+                // Check if it's a number column (Qty)
+                const isNumberCol = (C === 5 && colCount === 7) || (C === 2 && colCount === 4); // Qty columns
+                
+                ws[address].s = {
+                    fill: { fgColor: { rgb: isEven ? "F8FAFC" : "FFFFFF" } }, // Slate-50 / White
+                    font: { sz: 10, name: "Segoe UI", color: { rgb: "1E293B" } },
+                    alignment: { 
+                        horizontal: isNumberCol ? "right" : (C === 0 ? "center" : "left"), 
+                        vertical: "center" 
+                    },
+                    border: {
+                        top: { style: "thin", color: { rgb: "E2E8F0" } },
+                        bottom: { style: "thin", color: { rgb: "E2E8F0" } },
+                        left: { style: "thin", color: { rgb: "E2E8F0" } },
+                        right: { style: "thin", color: { rgb: "E2E8F0" } }
+                    },
+                    numFmt: isNumberCol ? "#,##0.00" : undefined
+                };
+            }
+        }
+        
+        // Set row height for header
+        if (!ws['!rows']) ws['!rows'] = [];
+        ws['!rows'][headerRow - 1] = { hpt: 25 };
+    };
+    
+    // Sheet 1: Per Hari - Item (Detail)
+    const headersDetail = ['No', 'Tanggal', 'Order ID', 'Menu', 'Bahan', 'Qty', 'Unit'];
+    const detailAoA = [headersDetail, ...detailRows.map((r, i) => [
+        i + 1, 
+        r.date, 
+        r.order_id || '-', 
+        r.menu || '-', 
+        r.ingredient || '-', 
+        Number(r.qty || 0), 
+        r.unit || ''
     ])];
     const wsDetail = XLSX.utils.aoa_to_sheet(detailAoA);
-    wsDetail['!cols'] = [ {wch:6},{wch:12},{wch:16},{wch:28},{wch:28},{wch:12},{wch:10} ];
+    wsDetail['!cols'] = [
+        { wch: 6 },   // No
+        { wch: 14 },  // Tanggal
+        { wch: 18 },  // Order ID
+        { wch: 30 },  // Menu
+        { wch: 30 },  // Bahan
+        { wch: 14 },  // Qty
+        { wch: 12 }   // Unit
+    ];
+    applyModernStyle(wsDetail, 1, 2, detailRows.length + 1, 7);
     XLSX.utils.book_append_sheet(wb, wsDetail, viewMode === 'logs' ? 'Per Order - Item' : 'Per Hari - Item');
 
-    const headersCum = ['No','Bahan','Total Qty','Unit'];
-    const cumAoA = [headersCum, ...cumulativeRows.map((r,i)=>[ i+1, r.ingredient || '-', Number(r.total_qty||0), r.unit || '' ])];
+    // Sheet 2: Akumulasi per Bahan
+    const headersCum = ['No', 'Bahan', 'Total Qty', 'Unit'];
+    const cumAoA = [headersCum, ...cumulativeRows.map((r, i) => [
+        i + 1, 
+        r.ingredient || '-', 
+        Number(r.total_qty || 0), 
+        r.unit || ''
+    ])];
     const wsCum = XLSX.utils.aoa_to_sheet(cumAoA);
-    wsCum['!cols'] = [ {wch:6},{wch:36},{wch:18},{wch:10} ];
+    wsCum['!cols'] = [
+        { wch: 6 },   // No
+        { wch: 38 },  // Bahan
+        { wch: 16 },  // Total Qty
+        { wch: 12 }   // Unit
+    ];
+    applyModernStyle(wsCum, 1, 2, cumulativeRows.length + 1, 4);
     XLSX.utils.book_append_sheet(wb, wsCum, 'Akumulasi per Bahan');
 
+    // Sheet 3: Ringkasan (Summary with premium look)
     const summaryData = [
-        ['Ringkasan Analisis Bahan'],
-        ['Periode', `${start || '-'} s/d ${end || '-'}`],
-        ['Jumlah Baris (Detail)', detailRows.length],
-        ['Jumlah Bahan Unik', cumulativeRows.length],
-        ['Dibuat', new Date().toLocaleString('id-ID')]
+        ['ANALISIS KONSUMSI BAHAN'],
+        [],
+        ['Informasi Periode'],
+        ['Tanggal Mulai', start || '-'],
+        ['Tanggal Akhir', end || '-'],
+        [],
+        ['Statistik Data'],
+        ['Total Baris Detail', detailRows.length],
+        ['Total Jenis Bahan', cumulativeRows.length],
+        ['Total Order', new Set(detailRows.map(r => r.order_id)).size],
+        [],
+        ['Informasi Export'],
+        ['Tanggal Export', new Date().toLocaleDateString('id-ID')],
+        ['Waktu Export', new Date().toLocaleTimeString('id-ID')],
+        ['Dibuat Oleh', 'Infinity Cafe - Report System']
     ];
     const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+    wsSummary['!cols'] = [{ wch: 22 }, { wch: 35 }];
+    
+    // Custom styling for summary sheet
+    const summaryRange = XLSX.utils.decode_range(wsSummary['!ref']);
+    
+    // Title row (A1)
+    if (wsSummary['A1']) {
+        wsSummary['A1'].s = {
+            fill: { fgColor: { rgb: "1E40AF" } }, // Blue-800
+            font: { bold: true, sz: 16, color: { rgb: "FFFFFF" }, name: "Segoe UI" },
+            alignment: { horizontal: "center", vertical: "center" }
+        };
+        wsSummary['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+    }
+    
+    // Section headers (rows 3, 7, 12)
+    [2, 6, 11].forEach(rowIdx => {
+        const cell = wsSummary[XLSX.utils.encode_cell({ r: rowIdx, c: 0 })];
+        if (cell) {
+            cell.s = {
+                fill: { fgColor: { rgb: "3B82F6" } }, // Blue-500
+                font: { bold: true, sz: 11, color: { rgb: "FFFFFF" }, name: "Segoe UI" },
+                alignment: { horizontal: "left", vertical: "center" }
+            };
+        }
+    });
+    
+    // Data rows styling
+    for (let R = 0; R <= summaryRange.e.r; ++R) {
+        if ([2, 6, 11].includes(R)) continue; // Skip section headers
+        for (let C = 0; C <= 1; ++C) {
+            const address = XLSX.utils.encode_cell({ r: R, c: C });
+            if (!wsSummary[address]) continue;
+            
+            const isLabel = C === 0 && R > 0 && ![1, 5, 10].includes(R);
+            const isValue = C === 1 && R > 0;
+            
+            if (isLabel) {
+                wsSummary[address].s = {
+                    font: { bold: true, sz: 10, color: { rgb: "475569" }, name: "Segoe UI" },
+                    alignment: { horizontal: "left", vertical: "center" },
+                    fill: { fgColor: { rgb: "F1F5F9" } }
+                };
+            } else if (isValue) {
+                wsSummary[address].s = {
+                    font: { sz: 10, color: { rgb: "1E293B" }, name: "Segoe UI" },
+                    alignment: { horizontal: "left", vertical: "center" }
+                };
+            }
+        }
+    }
+    
+    // Set row heights for summary
+    wsSummary['!rows'] = [];
+    wsSummary['!rows'][0] = { hpt: 30 }; // Title row
+    [2, 6, 11].forEach(idx => { wsSummary['!rows'][idx] = { hpt: 22 }; }); // Section headers
+    
     XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan');
 
-    const fileName = `ingredient_analysis_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const fileName = `InfinityCafe_Ingredient_Analysis_${new Date().toISOString().split('T')[0]}.xlsx`;
     XLSX.writeFile(wb, fileName);
 }
  
